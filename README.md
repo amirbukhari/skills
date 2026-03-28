@@ -1,4 +1,4 @@
-# Rentsync AI Agent Ecosystem
+# [MOCK] Rentsync AI Agent Ecosystem
 
 > [!WARNING]
 > This is a **MOCK REPOSITORY** designed for testing and demonstrating the `rentsync-ai-skills-browser` UI. The contents within (agents, skills, mcp, hooks) are simulated configurations used to ensure the frontend renders agent-ecosystem files correctly.
