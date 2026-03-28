@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "gitlab-mr-agent": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+      "env": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "${GITLAB_TOKEN}",
+        "GITLAB_API_URL": "https://gitlab.com/api/v4"
+      }
+    },
+    "rentsync-mock-jira": {
+      "summary": "Local mock Jira server used for autonomous task data and testing.",
+      "command": "node",
+      "args": ["/home/amir/Documents/Rentsync/gitlab-mr-agent/mock-server.js"],
+      "env": {
+        "TICKET_LIBRARY": "/home/amir/Documents/Rentsync/gitlab-mr-agent/mock-jira-tickets.json"
+      }
+    }
+  }
+}

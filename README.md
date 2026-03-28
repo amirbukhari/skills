@@ -1,1 +1,15 @@
-# skills
+# Rentsync AI Agent Ecosystem
+
+This repository acts as the central intelligence hub for our customized and curated AI environment, leveraging standard integration patterns from the open-source agent ecosystem.
+
+## Directory Structure
+
+To ensure consistency with standard `.github` agent configurations (such as those used by the `skills.sh` CLI), this repository is organized logically into primary capability folders:
+
+*   **`/skills/`**: Curated procedural knowledge and coding guidelines for agents. Currently containing Vercel React Best Practices, Anthropic Frontend Design, and elite UI/UX rules.
+*   **`/agents/`**: Core agent instructions, system prompts, and personas spanning multiple workflows.
+*   **`/mcp/`**: Model Context Protocol configurations, defining how our local AI agents interface with internal Rentsync services and data sources.
+*   **`/hooks/`**: Automated scripts and hooks that execute before or after specific agent actions.
+
+## Integration
+Our internal AI agents automatically load these configuration directories during initialization. Engineers can explore and securely browse these standards via the internal `rentsync-ai-skills-browser` application.

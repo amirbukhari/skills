@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "hooks": [
+    {
+      "name": "prevent-destructive-shell-commands",
+      "event": "PreToolUse",
+      "matches": {
+        "tool": "run_command",
+        "inputPattern": "(rm\\s+-rf\\s+/)|(mkfs)|(dd\\s+if=)"
+      },
+      "action": "block",
+      "message": "Security hook blocked a potentially destructive shell command."
+    },
+    {
+      "name": "audit-gitlab-mr-comments",
+      "event": "PostToolUse",
+      "matches": {
+        "tool": "mcp__gitlab-mr-agent__*"
+      },
+      "action": "log",
+      "destination": "/home/amir/Documents/Rentsync/gitlab-mr-agent/logs/mcp_audit.log"
+    }
+  ]
+}
