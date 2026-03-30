@@ -13,6 +13,8 @@ To ensure consistency with standard `.github` agent configurations (such as thos
 *   **`/agents/`**: Core agent instructions, system prompts, and personas spanning multiple workflows.
 *   **`/mcp/`**: Model Context Protocol configurations, defining how our local AI agents interface with internal Rentsync services and data sources.
 *   **`/hooks/`**: Automated scripts and hooks that execute before or after specific agent actions.
-| [Researcher](agents/Researcher.agent.md) | Research context and return findings to parent agent. | Deep context gathering |
+
+| [Researcher](agents/rentsync-agent-builder.agent.md) | Research context and return findings to parent agent. | Deep context gathering |
+
 ## Integration
 Our internal AI agents automatically load these configuration directories during initialization. Engineers can explore and securely browse these standards via the internal `rentsync-ai-skills-browser` application.
