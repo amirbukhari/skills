@@ -49,11 +49,41 @@ bit-for-bit across a dense sweep — while being written from the spec, not copi
 from the source. That is the actual proof that a precise spec regenerates
 correct, behaviourally-identical billing code.
 
+## Phase 2 — the automated CLI generation (blind, fixtures withheld)
+
+`generated/invoice-split.ts` is now produced by the **automated LLM path**, not
+hand-authored. `tools/sdd-generate.js` assembles a prompt from the spec —
+standards + contract + constants + module `spec.md`, **with the fixtures
+withheld** — pipes it to the `claude` CLI, and accepts the result **iff every
+fixture passes** (validity is behavioural, not byte-identity). Reproduce from
+`skills/scrutinize-spec/`:
+
+```
+node tools/sdd-generate.js examples/hydra-invoice-split --module invoice-split --model claude-sonnet-4-5
+node examples/hydra-invoice-split/tools/verify.js
+node examples/hydra-invoice-split/tools/behavioral-diff.js
+node tools/sdd-check.js examples/hydra-invoice-split
+```
+
+| Check | Result |
+|---|---|
+| Generation | claude CLI, fixtures withheld, **passed on attempt 1** |
+| Code identity | **64 lines different** from the Phase 1 hand-generation — so fixtures-pass validity (not byte-hash) is doing the real work |
+| Fixtures | **18/18 pass** |
+| Behavioral diff vs verbatim Hydra reference | **242,912 comparisons, ZERO divergences** |
+| Drift (`sdd-check`) | in sync (STALE on spec edit, INVALID on broken artifact, ORPHAN on stray file) |
+
+The generator saw the spec but **not** the fixtures or the reference, and still
+reproduced the real Hydra billing math bit-for-bit across the sweep. That is the
+blind test Phase 1 deferred.
+
+The gate runs the same way: `node tools/sdd-build.js examples/hydra-invoice-split
+--min-score 95` **refuses** (the spec scores 89.4), and at `--min-score 85` it
+clears and generates — the scrutinize score is a live precondition, not a
+decoration.
+
 ## Honest limits of this proof
 
-- **Not a blind LLM run.** For Phase 1 the generator is Claude with knowledge of
-  the target, generating from the spec. The blind test — an automated LLM call
-  generating from the spec without seeing the reference — is Phase 2.
 - **Property fixtures matter.** The real Hydra tests are property-based
   (sum-preservation, length, bounds, cents-validity), so `verify.js` here supports
   `properties`, not just exact `expect`. Writing the spec surfaced that the

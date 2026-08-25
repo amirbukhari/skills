@@ -7,7 +7,7 @@
       "module": "invoice-split",
       "path": "generated/invoice-split.ts",
       "lang": "ts",
-      "generatorId": "stub:invoice-split.golden.ts",
+      "generatorId": "claude-cli:claude-sonnet-4-5",
       "attempts": 1,
       "verified": true,
       "specInputs": {

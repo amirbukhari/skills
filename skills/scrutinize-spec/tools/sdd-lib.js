@@ -105,11 +105,16 @@ function assembleGeneratorPrompt(exampleDir, moduleName, targetLang) {
   return parts.join("\n");
 }
 
-/** Strip a leading ```lang fence and trailing ``` if the model added them. */
+/**
+ * Return just the code from a model reply. If the reply contains one or more
+ * ```fenced``` blocks (even amid prose), concatenate their bodies; otherwise
+ * return the trimmed text. This tolerates a CLI that adds a sentence of preamble
+ * around the code despite instructions not to.
+ */
 function stripCodeFences(text) {
-  let t = text.trim();
-  const fence = t.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)\n```$/);
-  if (fence) return fence[1].trim() + "\n";
+  const t = text.trim();
+  const blocks = [...t.matchAll(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g)].map((m) => m[1].replace(/\n+$/, ""));
+  if (blocks.length) return blocks.join("\n\n").trim() + "\n";
   return t.endsWith("\n") ? t : t + "\n";
 }
 
