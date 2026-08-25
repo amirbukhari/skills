@@ -48,7 +48,7 @@ For each load-bearing term, ask: could two competent engineers, working independ
 | 21-50 | Terms are defined in prose that sounds precise and isn't. "A pure function is one with no side effects" belongs here — it does not say whether `Date.now()`, an unresolved callee, or a logger call counts. |
 | 0-20 | Load-bearing terms are used without definition at all. |
 
-List every term failing this bar in `undefinedLoadBearingTerms`. **Any entry in that array caps the final score at 84**, on the same principle as missing acceptance criteria: one undefined term used in five requirements is five guesses, not a wording nitpick.
+List every term failing this bar in `undefinedLoadBearingTerms`. **Any entry in that array caps the final score at 84** — and the same 84 cap fires whenever `dimensionScores.definitionExecutability < 60`, even if you did not enumerate a specific term, since a sub-60 score already means at least one load-bearing term is non-executable. Both triggers are on the same principle as missing acceptance criteria: one undefined term used in five requirements is five guesses, not a wording nitpick.
 
 ## Dimension 13 — `constantsEnumerated`
 
