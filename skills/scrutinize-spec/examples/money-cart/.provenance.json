@@ -1,0 +1,27 @@
+{
+  "generatedRoot": "generated",
+  "artifacts": [
+    {
+      "path": "generated/cart.js",
+      "module": "cart",
+      "outputHash": "234c0aa918fe23d0e6661657b9f722355fbaaa9318001aef6c4d57382758aba1",
+      "specInputs": {
+        "spec/contracts/money.contract.md": "ca443cb863dfe799a55ebd5128f811743270d3dd2940f4e5bd22621b18d86a92",
+        "spec/modules/cart/constants.md": "df74ed8c1d5d8c97acaee4e2bffaf34e044713b5feadabaa4e09d49075f3b5ce",
+        "spec/modules/cart/spec.md": "00d3df324bc89c8fb9841decbf14c498b5fec84f1f6f5ecf6479098eaa684804",
+        "spec/standards/conventions.md": "eccfd7f2b398530538cfd2933d4788714db059083d27325bcef0e9e0348e221b"
+      }
+    },
+    {
+      "path": "generated/money.js",
+      "module": "money",
+      "outputHash": "d3ba8b2aac9487215ff86cd127cea846fc6e70879b4a15b2941f4aa5cdf2f35e",
+      "specInputs": {
+        "spec/contracts/money.contract.md": "ca443cb863dfe799a55ebd5128f811743270d3dd2940f4e5bd22621b18d86a92",
+        "spec/modules/money/constants.md": "616b57c157b9c7ec2fff3f33696268ab00c6daf9874c00bc52eafab3148cb315",
+        "spec/modules/money/spec.md": "e874b1b1182ca237bb321a46292b3eeca25a02418ed539a990faabb2743880ab",
+        "spec/standards/conventions.md": "eccfd7f2b398530538cfd2933d4788714db059083d27325bcef0e9e0348e221b"
+      }
+    }
+  ]
+}

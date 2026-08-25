@@ -18,6 +18,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const lib = require("./lib.js");
 
 const EXAMPLE_ROOT = path.resolve(__dirname, "..");
 const SPEC_DIR = path.join(EXAMPLE_ROOT, "spec");
@@ -191,8 +192,86 @@ function generateModule(name) {
   return parts.join("\n\n") + "\n";
 }
 
+/**
+ * Drift check (--check): compare the committed build against the manifest.
+ * Detects the three failures that make "spec = source" unsafe:
+ *   - STALE:    a spec input changed but the code was not regenerated
+ *   - DIVERGED: a generated artifact was hand-edited away from generator output
+ *   - ORPHAN:   a file under generated/ that no manifest artifact claims
+ *   - UNBUILT:  a module in spec/ with no artifact (never generated)
+ *   - MISSING:  a manifest artifact whose file is gone
+ * Exit 0 = clean; exit 1 = drift, each finding named.
+ */
+function checkDrift() {
+  const manifest = lib.readManifest();
+  if (!manifest) {
+    console.error("check: no .provenance.json — run `node tools/generate.js` first");
+    process.exit(1);
+  }
+  const findings = [];
+  const claimed = new Set();
+
+  for (const art of manifest.artifacts) {
+    claimed.add(art.path);
+    const abs = path.join(EXAMPLE_ROOT, art.path);
+
+    if (!fs.existsSync(abs)) {
+      findings.push(`MISSING   ${art.path} — artifact in manifest but file is gone`);
+      continue;
+    }
+    if (lib.hashFile(abs) !== art.outputHash) {
+      findings.push(
+        `DIVERGED  ${art.path} — artifact was hand-edited away from generator output (regenerate to restore)`
+      );
+    }
+    const current = lib.specInputsFor(art.module);
+    const prev = art.specInputs || {};
+    const changed = [];
+    for (const p of Object.keys({ ...current, ...prev })) {
+      if (current[p] !== prev[p]) changed.push(p);
+    }
+    if (changed.length > 0) {
+      findings.push(
+        `STALE     ${art.path} — spec input(s) changed since build, not regenerated: ${changed.join(", ")}`
+      );
+    }
+  }
+
+  // UNBUILT: a spec module with no manifest artifact.
+  const builtModules = new Set(manifest.artifacts.map((a) => a.module));
+  for (const name of lib.listModules()) {
+    if (!builtModules.has(name)) {
+      findings.push(`UNBUILT   spec/modules/${name} — module has no generated artifact`);
+    }
+  }
+
+  // ORPHAN: any file under generated/ not claimed by the manifest.
+  if (fs.existsSync(lib.DEFAULT_GEN_DIR)) {
+    for (const f of fs.readdirSync(lib.DEFAULT_GEN_DIR).sort()) {
+      const relPath = lib.rel(path.join(lib.DEFAULT_GEN_DIR, f));
+      if (!claimed.has(relPath)) {
+        findings.push(
+          `ORPHAN    ${relPath} — under generated/ but claimed by no module (regeneration would drop or diverge it)`
+        );
+      }
+    }
+  }
+
+  if (findings.length === 0) {
+    console.log("check: CLEAN — every artifact matches the manifest; no stale, diverged, orphan, or unbuilt paths");
+    process.exit(0);
+  }
+  console.error(`check: DRIFT DETECTED — ${findings.length} finding(s):`);
+  for (const f of findings) console.error("  " + f);
+  process.exit(1);
+}
+
 function main() {
-  const outArg = process.argv[2];
+  const args = process.argv.slice(2);
+  if (args.includes("--check")) return checkDrift();
+
+  const outArg = args.find((a) => !a.startsWith("--"));
+  const isDefault = !outArg;
   const outDir = outArg
     ? path.resolve(process.cwd(), outArg)
     : path.join(EXAMPLE_ROOT, "generated");
@@ -203,15 +282,23 @@ function main() {
     .sort();
 
   fs.mkdirSync(outDir, { recursive: true });
-  const written = [];
+  const artifacts = [];
   for (const name of moduleNames) {
     const code = generateModule(name);
     const outPath = path.join(outDir, `${name}.js`);
     fs.writeFileSync(outPath, code);
-    written.push(path.relative(process.cwd(), outPath));
+    artifacts.push({ module: name, absPath: outPath });
   }
-  console.log(`generate: wrote ${written.length} module(s) to ${path.relative(process.cwd(), outDir) || "."}/`);
-  for (const w of written) console.log(`  ${w}`);
+  console.log(
+    `generate: wrote ${artifacts.length} module(s) to ${path.relative(process.cwd(), outDir) || "."}/`
+  );
+  for (const a of artifacts) console.log(`  ${path.relative(process.cwd(), a.absPath)}`);
+
+  // Record provenance only for the canonical build, not for temp/determinism runs.
+  if (isDefault) {
+    lib.writeManifest(lib.buildManifest(artifacts));
+    console.log(`generate: wrote provenance manifest ${path.relative(process.cwd(), lib.MANIFEST_PATH)}`);
+  }
 }
 
 main();

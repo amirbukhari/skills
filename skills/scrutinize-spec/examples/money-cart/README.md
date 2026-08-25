@@ -44,8 +44,33 @@ node ../../scripts/score-folder.js .analysis/folder.json
 # -> finalScore 87.9, cappedBy ["weakest_module:cart"], contractCycles []
 ```
 
-No structural gate binds — no orphan code (`generated/` is empty until Stage 2),
-no contract cycle (`cart → money` is acyclic, computed in code), and fixtures are
-committed as executable input/expected-output pairs. The only cap is the numeric
-weakest-module one. Raising the last few points is Stage 5 polish; Stages 2–4
-first make the folder actually *build*.
+No structural gate binds — no orphan code, no contract cycle (`cart → money` is
+acyclic, computed in code), and fixtures are committed as executable
+input/expected-output pairs. The only cap is the numeric weakest-module one.
+Raising the last few points is Stage 5 polish.
+
+## Build & drift (Stages 2–3)
+
+```
+node tools/generate.js          # spec/ -> generated/  (+ writes .provenance.json)
+node tools/verify.js            # done-check: run every fixture; build valid IFF all pass
+node tools/generate.js --check  # drift check against the provenance manifest
+```
+
+`generate.js` is a pure function of `spec/`: the same spec produces byte-identical
+`generated/` every run (proven by hashing two independent runs). `.provenance.json`
+records, per artifact, the hash of its output and of every spec input that governs
+it (its `spec.md` + `constants.md`, and all `standards/`/`contracts/` files).
+
+`--check` catches the three ways `spec = source` breaks:
+
+| Finding | Means |
+|---|---|
+| `STALE` | a spec input changed but the code wasn't regenerated |
+| `DIVERGED` | a `generated/` file was hand-edited away from generator output |
+| `ORPHAN` | a file under `generated/` that no module claims (mirrors folder-mode's `orphan_code_detected` gate, at build time) |
+| `UNBUILT` | a module in `spec/` with no generated artifact |
+| `MISSING` | a manifest artifact whose file is gone |
+
+Stage 4 wires the scrutinize gate ahead of generation (`tools/build.js`), so code
+is never produced from a spec that hasn't cleared the bar.
