@@ -66,6 +66,11 @@ node scripts/score.js /tmp/spec-analysis.json
 node scripts/score-folder.js /tmp/spec-folder-analysis.json
 ```
 
+## Spec-driven-dev mode (experimental)
+
+Folder mode asks whether a spec folder *could* rebuild the system. Spec-driven-dev mode acts on a yes: the scrutinized `spec/` tree is the real source, generated code is a compiled build artifact, and the scrutinize gate is the **precondition for generation** — you cannot compile a spec that hasn't earned it. See the "Spec-driven-dev mode" section of `SKILL.md`, the staged design in `ROADMAP.md`, and the complete runnable example below.
+
 ## Examples
 
-`examples/` at the repository root holds output from a real run: a set of raw working-session notes refined into a full PRD (17.3% → 92.4% under the 11-dimension rubric, 75.3% under the current 13-dimension one), plus the standards document extracted from it.
+- **`examples/money-cart/`** — a full spec-driven-dev slice: a `money`+`cart` spec folder with a deterministic generator, a fixture verifier, drift detection, and a gated build (`scrutinize → gate → generate → verify`). Its `README.md` walks the whole loop. This is the worked reference for the vision above.
+- `examples/` at the repository root holds output from a real scrutiny run: raw working-session notes refined into a full PRD, plus the standards document extracted from it.

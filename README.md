@@ -1,31 +1,53 @@
-# [MOCK] Rentsync AI Agent Ecosystem
+# Claude Code skills & agent configuration
 
-> [!WARNING]
-> This is a **MOCK REPOSITORY** designed for testing and demonstrating the `rentsync-ai-skills-browser` UI. The contents within (agents, skills, mcp, hooks) are simulated configurations used to ensure the frontend renders agent-ecosystem files correctly.
-
-This repository acts as the central intelligence hub for our customized and curated AI environment, leveraging standard integration patterns from the open-source agent ecosystem.
-
-## Directory Structure
-
-To ensure consistency with standard `.github` agent configurations (such as those used by the `skills.sh` CLI), this repository is organized logically into primary capability folders:
-
-*   **`/skills/`**: Curated procedural knowledge and coding guidelines for agents. Currently containing Vercel React Best Practices, Anthropic Frontend Design, and elite UI/UX rules.
-*   **`/examples/`**: Real output produced by the skills in this repository, kept as reference material.
-*   **`/agents/`**: Core agent instructions, system prompts, and personas spanning multiple workflows.
-*   **`/mcp/`**: Model Context Protocol configurations, defining how our local AI agents interface with internal Rentsync services and data sources.
-*   **`/hooks/`**: Automated scripts and hooks that execute before or after specific agent actions.
-
-| [Researcher](agents/rentsync-agent-builder.agent.md) | Research context and return findings to parent agent. | Deep context gathering |
-
-## Integration
-Our internal AI agents automatically load these configuration directories during initialization. Engineers can explore and securely browse these standards via the internal `rentsync-ai-skills-browser` application.
+A personal collection of [Claude Code](https://claude.com/claude-code) skills and
+supporting agent/MCP/hook configuration. The skills are self-contained procedural
+knowledge Claude Code loads on demand; the flagship is **`scrutinize-spec`**,
+which has grown from a spec scorer into an experimental **spec-driven-development
+harness** (spec folder as source, generated code as build output).
 
 ## Skills
 
 | Skill | Purpose |
 | --- | --- |
-| [scrutinize-spec](skills/scrutinize-spec/) | Scores a spec — one document or a whole spec folder acting as source of truth — against a deterministic gate, and loops until it is ready to hand to an AI coding agent. Formerly the standalone `PRDScrutinizer` plugin (v2.0.0); consolidated here. |
+| [scrutinize-spec](skills/scrutinize-spec/) | Scores a spec — one document or a whole spec folder acting as source of truth — against a deterministic gate, and loops until it is ready to hand to an AI coding agent. Now also hosts an experimental **spec-driven-dev mode**: the scrutinize gate as the precondition for regenerating code from the spec. Formerly the standalone `PRDScrutinizer` plugin. |
 | [mcp-builder](skills/mcp-builder/) | Building MCP servers, with evaluation tooling. |
 | [subagent-driven-development](skills/subagent-driven-development/) | Splitting implementation across specialised subagents. |
 | [systematic-debugging](skills/systematic-debugging/) | Root-cause tracing and defence-in-depth debugging practice. |
 | [verification-before-completion](skills/verification-before-completion/) | Requires evidence before any claim that work is complete. |
+
+## Spotlight: `scrutinize-spec` → spec-driven development
+
+`scrutinize-spec` scores a spec deterministically (Node scripts compute the gated
+confidence, never the model) in two modes:
+
+- **Document mode** — one PRD/spec across 13 weighted dimensions. *Could someone build this without asking questions?*
+- **Folder mode** — a spec tree as source of truth across 8 folder dimensions. *If the code were deleted and rebuilt from this folder, would the system come back?*
+
+**Spec-driven-dev mode** acts on a passing folder: the `spec/` tree is the real
+source, generated code is a compiled build artifact, and the scrutinize gate is
+the precondition for generation — *you cannot compile a spec that hasn't earned
+it.* A complete runnable example lives in
+[`skills/scrutinize-spec/examples/money-cart/`](skills/scrutinize-spec/examples/money-cart/):
+a deterministic generator, a fixture verifier, drift detection, and a gated build
+(`scrutinize → gate → generate → verify`). The staged design is in
+[`skills/scrutinize-spec/ROADMAP.md`](skills/scrutinize-spec/ROADMAP.md).
+
+## Repository layout
+
+- **`skills/`** — the skills above; each is a folder with a `SKILL.md` plus any references and scripts.
+- **`examples/`** — reference output produced by the skills (e.g. a refined PRD and an extracted standards document).
+- **`.github/agents/`** — agent definitions (system prompts / personas) used with Claude Code.
+- **`mcp/`** — Model Context Protocol server configuration (`servers.json`).
+- **`hooks/`** — hook configuration (`security.json`).
+
+## Using a skill
+
+Copy a skill folder into your Claude Code skills directory, e.g.:
+
+```
+cp -r skills/scrutinize-spec ~/.claude/skills/scrutinize-spec
+```
+
+Then invoke it by name (`/scrutinize-spec ...`) or just describe the task; Claude
+Code loads the matching `SKILL.md` when it is relevant.

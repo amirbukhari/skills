@@ -154,3 +154,26 @@ Keep looping through Step 1 → Step 2 → Step 3 until either:
 Step 0.5 (research) runs once per PRD, not on every loop iteration — don't re-invoke `deep-research` on every re-analyze pass.
 
 Don't declare victory based on a raw weighted average alone — always defer to `finalScore` and `cappedBy` from the script. If the user seems to be circling without progress (e.g. the same gap keeps failing to resolve), say so directly rather than continuing to loop silently.
+
+## Spec-driven-dev mode (experimental)
+
+Folder mode asks "if the code were deleted and rebuilt from this folder, would the system come back?" **Spec-driven-dev mode acts on a yes.** It treats the scrutinized `spec/` tree as the real source and generated code as a compiled build artifact: you author and scrutinize the spec, and code is *regenerated* from it — editing the spec is what changes the code, and hand-editing the code is caught as drift.
+
+This is scored by the same folder-mode gate; what's new is the build loop wrapped around it:
+
+```
+spec/  ──scrutinize (folder gate)──▶  generate  ──▶  generated/  ──verify (fixtures)──▶  pass/fail
+  ▲                                                        │
+  └──────────────────  edit spec, rebuild  ◀───────────────┘
+spec = source            code = build output
+```
+
+- **The gate is the precondition for generation.** Code is never produced from a spec that hasn't cleared the bar. A build refuses on any hard structural gate (missing fixtures, contract cycle, orphan code) regardless of score, and on a folder `finalScore` below the configured bar.
+- **Fixtures are the acceptance oracle.** Because a generator (deterministic template codegen *or* an LLM) need not emit byte-identical code, a regeneration is valid **iff every committed fixture passes**. This is why folder mode weights `fixtureExecutability` highest.
+- **Provenance + drift detection** guard the source-of-truth claim: a manifest ties each generated file to the exact spec inputs that produced it, so a stale build (spec edited, not regenerated), a diverged artifact (code hand-edited), or an orphan (code no module claims) are all detectable in plain code.
+
+### The worked example
+
+A complete, runnable slice lives in **`examples/money-cart/`** — a `money`+`cart` spec folder with a **deterministic** generator (`tools/generate.js`), a fixture verifier (`tools/verify.js`), drift detection (`generate.js --check`), and the gated pipeline (`tools/build.js`: scrutinize → gate → generate → verify). Its `README.md` walks the whole loop; **`ROADMAP.md`** in this skill's root records the staged design and the determinism reasoning.
+
+Note the generator there is **domain-specific by design** — it renders a small, closed value grammar (`standards/conventions.md`, C4/C5) and is not a general-purpose spec compiler shipped by this skill. When applying spec-driven-dev to a new domain, the transferable parts are the **pattern** (spec folder as source, fixtures as oracle) and the **gate** (`scripts/score-folder.js` as the precondition); the generator is authored per project. An LLM generation path is compatible with the same fixture gate and is future work.
