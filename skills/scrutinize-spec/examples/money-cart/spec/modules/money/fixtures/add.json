@@ -1,0 +1,5 @@
+[
+  { "name": "add positives", "call": { "fn": "add", "args": [100, 50] }, "expect": 150 },
+  { "name": "add zero", "call": { "fn": "add", "args": [0, 0] }, "expect": 0 },
+  { "name": "add negative", "call": { "fn": "add", "args": [-100, 250] }, "expect": 150 }
+]

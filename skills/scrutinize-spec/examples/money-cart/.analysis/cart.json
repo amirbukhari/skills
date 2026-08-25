@@ -1,0 +1,25 @@
+{
+  "dimensionScores": {
+    "scopeGoalClarity": 90,
+    "functionalCompleteness": 90,
+    "dataModelDefinition": 88,
+    "edgeCaseErrorHandling": 84,
+    "nonFunctionalRequirements": 82,
+    "acceptanceCriteria": 90,
+    "outOfScope": 85,
+    "technicalConstraints": 84,
+    "ambiguousLanguage": 88,
+    "assumptionsSection": 82,
+    "consistency": 92,
+    "definitionExecutability": 90,
+    "constantsEnumerated": 90
+  },
+  "flags": { "hasContradictions": false, "dataModelRequiredButMissing": false, "acceptanceCriteriaMissing": false },
+  "ambiguousPhraseCount": 1,
+  "unconfirmedAssumptionCount": 0,
+  "unpopulatedConstantCount": 0,
+  "duplicatedDefinitionCount": 0,
+  "undefinedLoadBearingTerms": [],
+  "inherits": [ { "document": "spec/standards/conventions.md", "dimensionsSatisfied": ["definitionExecutability"] } ],
+  "summary": "cart: 3 functions; subtotal via sum_line_items intrinsic, tax/total reach money only through its contract (dependsOn money). Line-item shape defined; every function has an executable fixture."
+}

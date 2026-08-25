@@ -1,0 +1,5 @@
+[
+  { "name": "mul price by qty", "call": { "fn": "mul", "args": [199, 3] }, "expect": 597 },
+  { "name": "mul by zero qty", "call": { "fn": "mul", "args": [250, 0] }, "expect": 0 },
+  { "name": "mul zero price", "call": { "fn": "mul", "args": [0, 5] }, "expect": 0 }
+]

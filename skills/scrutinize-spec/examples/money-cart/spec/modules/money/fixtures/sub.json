@@ -1,0 +1,4 @@
+[
+  { "name": "sub positives", "call": { "fn": "sub", "args": [200, 50] }, "expect": 150 },
+  { "name": "sub to negative", "call": { "fn": "sub", "args": [50, 200] }, "expect": -150 }
+]

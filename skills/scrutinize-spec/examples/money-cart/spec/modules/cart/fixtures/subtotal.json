@@ -1,0 +1,13 @@
+[
+  {
+    "name": "two line items",
+    "call": { "fn": "subtotal", "args": [[{ "unitPrice": 199, "quantity": 3 }, { "unitPrice": 250, "quantity": 2 }]] },
+    "expect": 1097
+  },
+  { "name": "empty cart", "call": { "fn": "subtotal", "args": [[]] }, "expect": 0 },
+  {
+    "name": "single item",
+    "call": { "fn": "subtotal", "args": [[{ "unitPrice": 100, "quantity": 1 }]] },
+    "expect": 100
+  }
+]

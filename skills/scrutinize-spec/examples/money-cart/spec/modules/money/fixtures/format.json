@@ -1,0 +1,7 @@
+[
+  { "name": "large amount", "call": { "fn": "format", "args": [123456] }, "expect": "$1234.56" },
+  { "name": "sub-dollar pads", "call": { "fn": "format", "args": [5] }, "expect": "$0.05" },
+  { "name": "whole dollar", "call": { "fn": "format", "args": [100] }, "expect": "$1.00" },
+  { "name": "zero", "call": { "fn": "format", "args": [0] }, "expect": "$0.00" },
+  { "name": "negative", "call": { "fn": "format", "args": [-99] }, "expect": "-$0.99" }
+]

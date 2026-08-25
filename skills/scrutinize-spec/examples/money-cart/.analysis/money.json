@@ -1,0 +1,25 @@
+{
+  "dimensionScores": {
+    "scopeGoalClarity": 90,
+    "functionalCompleteness": 92,
+    "dataModelDefinition": 90,
+    "edgeCaseErrorHandling": 85,
+    "nonFunctionalRequirements": 82,
+    "acceptanceCriteria": 92,
+    "outOfScope": 85,
+    "technicalConstraints": 85,
+    "ambiguousLanguage": 88,
+    "assumptionsSection": 82,
+    "consistency": 92,
+    "definitionExecutability": 90,
+    "constantsEnumerated": 92
+  },
+  "flags": { "hasContradictions": false, "dataModelRequiredButMissing": false, "acceptanceCriteriaMissing": false },
+  "ambiguousPhraseCount": 1,
+  "unconfirmedAssumptionCount": 0,
+  "unpopulatedConstantCount": 0,
+  "duplicatedDefinitionCount": 0,
+  "undefinedLoadBearingTerms": [],
+  "inherits": [ { "document": "spec/standards/conventions.md", "dimensionsSatisfied": ["definitionExecutability"] } ],
+  "summary": "money: 5 pure functions fully specified by codegen block + contract, every function covered by an executable fixture; definitions (grammar/intrinsics) inherited from standards."
+}

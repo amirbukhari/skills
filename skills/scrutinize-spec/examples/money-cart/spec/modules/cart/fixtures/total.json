@@ -1,0 +1,4 @@
+[
+  { "name": "subtotal plus tax", "call": { "fn": "total", "args": [1097, 96] }, "expect": 1193 },
+  { "name": "exact hundred", "call": { "fn": "total", "args": [1000, 100] }, "expect": 1100 }
+]

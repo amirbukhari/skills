@@ -1,0 +1,6 @@
+[
+  { "name": "8.75% on 1097 rounds to 96", "call": { "fn": "tax", "args": [1097, 875] }, "expect": 96 },
+  { "name": "10% on 1000 is exact", "call": { "fn": "tax", "args": [1000, 1000] }, "expect": 100 },
+  { "name": "8.75% on 1250 (109.375) rounds to 109", "call": { "fn": "tax", "args": [1250, 875] }, "expect": 109 },
+  { "name": "2.5% on 200 is exact", "call": { "fn": "tax", "args": [200, 250] }, "expect": 5 }
+]

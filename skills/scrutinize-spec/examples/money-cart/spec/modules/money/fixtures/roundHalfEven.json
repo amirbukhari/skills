@@ -1,0 +1,8 @@
+[
+  { "name": "tie down to even", "call": { "fn": "roundHalfEven", "args": [2.5] }, "expect": 2 },
+  { "name": "tie up to even", "call": { "fn": "roundHalfEven", "args": [3.5] }, "expect": 4 },
+  { "name": "below half", "call": { "fn": "roundHalfEven", "args": [2.4] }, "expect": 2 },
+  { "name": "above half", "call": { "fn": "roundHalfEven", "args": [2.6] }, "expect": 3 },
+  { "name": "negative tie to even", "call": { "fn": "roundHalfEven", "args": [-2.5] }, "expect": -2 },
+  { "name": "already integer", "call": { "fn": "roundHalfEven", "args": [5] }, "expect": 5 }
+]

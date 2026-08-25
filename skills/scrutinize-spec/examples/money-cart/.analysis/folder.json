@@ -1,0 +1,25 @@
+{
+  "folderDimensionScores": {
+    "partitionIntegrity": 92,
+    "contractCompleteness": 88,
+    "fixtureExecutability": 88,
+    "unspecifiedDeclared": 90,
+    "regenerationContract": 85,
+    "statefulArtifactHandling": 88,
+    "provenanceCoverage": 88,
+    "crossModuleConsistency": 92
+  },
+  "modules": [
+    { "name": "money", "finalScore": 88.9, "dependsOn": [], "analysisPath": ".analysis/money.json" },
+    { "name": "cart", "finalScore": 87.9, "dependsOn": ["money"], "analysisPath": ".analysis/cart.json" }
+  ],
+  "flags": {
+    "orphanCodeDetected": false,
+    "fixturesNotExecutable": false,
+    "unspecifiedNotDeclared": false,
+    "regenerationContractMissing": false,
+    "statefulArtifactsUnhandled": false
+  },
+  "orphanPaths": [],
+  "summary": "money-cart spec folder, Stage 1: canonical roles all present; cart depends acyclically on money; fixtures committed as executable input/expected pairs (runner arrives Stage 2). No orphan, cycle, or fixture gate; only the numeric weakest-module cap (cart 87.9) applies."
+}
