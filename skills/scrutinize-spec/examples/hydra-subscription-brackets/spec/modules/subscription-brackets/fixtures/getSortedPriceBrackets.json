@@ -1,0 +1,150 @@
+[
+  {
+    "name": "empty overrides -> sorted base",
+    "call": {
+      "fn": "getSortedPriceBracketsForSubscription",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": [
+              {
+                "id": 1,
+                "maxValue": "10",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 2,
+                "maxValue": "5",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              }
+            ]
+          },
+          "variableBasePriceOverrides": []
+        }
+      ]
+    },
+    "expect": [
+      {
+        "id": 2,
+        "maxValue": "5",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 1,
+        "maxValue": "10",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      }
+    ]
+  },
+  {
+    "name": "non-empty overrides win -> sorted overrides",
+    "call": {
+      "fn": "getSortedPriceBracketsForSubscription",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": [
+              {
+                "id": 1,
+                "maxValue": "10",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 2,
+                "maxValue": "5",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              }
+            ]
+          },
+          "variableBasePriceOverrides": [
+            {
+              "id": 3,
+              "maxValue": "20",
+              "basePrice": "1.00",
+              "costPerUnit": "0.10"
+            },
+            {
+              "id": 4,
+              "maxValue": "1",
+              "basePrice": "1.00",
+              "costPerUnit": "0.10"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": [
+      {
+        "id": 4,
+        "maxValue": "1",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 3,
+        "maxValue": "20",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      }
+    ]
+  },
+  {
+    "name": "null maxValue sorts to end",
+    "call": {
+      "fn": "getSortedPriceBracketsForSubscription",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": [
+              {
+                "id": 1,
+                "maxValue": "10",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 2,
+                "maxValue": null,
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 3,
+                "maxValue": "5",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              }
+            ]
+          },
+          "variableBasePriceOverrides": []
+        }
+      ]
+    },
+    "expect": [
+      {
+        "id": 3,
+        "maxValue": "5",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 1,
+        "maxValue": "10",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 2,
+        "maxValue": null,
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      }
+    ]
+  }
+]

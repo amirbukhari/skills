@@ -1,0 +1,71 @@
+[
+  {
+    "name": "non-empty valid -> sorted",
+    "call": {
+      "fn": "getSortedVariablePriceOverrideBrackets",
+      "args": [
+        {
+          "variableBasePriceOverrides": [
+            {
+              "id": 1,
+              "maxValue": "10",
+              "basePrice": "1.00",
+              "costPerUnit": "0.10"
+            },
+            {
+              "id": 2,
+              "maxValue": "5",
+              "basePrice": "1.00",
+              "costPerUnit": "0.10"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": [
+      {
+        "id": 2,
+        "maxValue": "5",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 1,
+        "maxValue": "10",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      }
+    ]
+  },
+  {
+    "name": "empty -> []",
+    "call": {
+      "fn": "getSortedVariablePriceOverrideBrackets",
+      "args": [
+        {
+          "variableBasePriceOverrides": []
+        }
+      ]
+    },
+    "expect": []
+  },
+  {
+    "name": "non-empty invalid -> assert throws",
+    "call": {
+      "fn": "getSortedVariablePriceOverrideBrackets",
+      "args": [
+        {
+          "variableBasePriceOverrides": [
+            {
+              "id": 9,
+              "maxValue": null,
+              "basePrice": "1.00",
+              "costPerUnit": 3
+            }
+          ]
+        }
+      ]
+    },
+    "throws": "Invalid IVariableBasePrice array. Expected an array containing only valid IVariableBasePrice objects."
+  }
+]

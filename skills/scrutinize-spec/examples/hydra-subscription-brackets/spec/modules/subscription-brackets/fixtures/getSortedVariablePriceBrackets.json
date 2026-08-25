@@ -1,0 +1,83 @@
+[
+  {
+    "name": "valid base -> sorted",
+    "call": {
+      "fn": "getSortedVariablePriceBrackets",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": [
+              {
+                "id": 1,
+                "maxValue": "10",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 2,
+                "maxValue": "5",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": [
+      {
+        "id": 2,
+        "maxValue": "5",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      },
+      {
+        "id": 1,
+        "maxValue": "10",
+        "basePrice": "1.00",
+        "costPerUnit": "0.10"
+      }
+    ]
+  },
+  {
+    "name": "empty base -> []",
+    "call": {
+      "fn": "getSortedVariablePriceBrackets",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": []
+          }
+        }
+      ]
+    },
+    "expect": []
+  },
+  {
+    "name": "invalid element -> assert throws",
+    "call": {
+      "fn": "getSortedVariablePriceBrackets",
+      "args": [
+        {
+          "baseSubscription": {
+            "variableBasePrices": [
+              {
+                "id": 1,
+                "maxValue": "10",
+                "basePrice": "1.00",
+                "costPerUnit": "0.10"
+              },
+              {
+                "id": 9,
+                "maxValue": "5",
+                "basePrice": 5,
+                "costPerUnit": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "throws": "Invalid IVariableBasePrice array. Expected an array containing only valid IVariableBasePrice objects."
+  }
+]

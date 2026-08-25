@@ -1,0 +1,191 @@
+[
+  {
+    "name": "equal-valid -> -1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": -1
+  },
+  {
+    "name": "a<b -> -1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "5",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": -1
+  },
+  {
+    "name": "a>b -> 1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "20",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": 1
+  },
+  {
+    "name": "a null (NaN) -> 1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": null,
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": 1
+  },
+  {
+    "name": "b null (NaN) -> -1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "10",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": null,
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": -1
+  },
+  {
+    "name": "both null (A checked first) -> 1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": null,
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": null,
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": 1
+  },
+  {
+    "name": "a non-numeric (NaN) -> 1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "abc",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "5",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": 1
+  },
+  {
+    "name": "decimals a<b -> -1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "12.5",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "12.6",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": -1
+  },
+  {
+    "name": "leading-numeric coercion -> -1",
+    "call": {
+      "fn": "variablePriceSortComparer",
+      "args": [
+        {
+          "id": 1,
+          "maxValue": "12.5abc",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        },
+        {
+          "id": 2,
+          "maxValue": "12.6",
+          "basePrice": "1.00",
+          "costPerUnit": "0.10"
+        }
+      ]
+    },
+    "expect": -1
+  }
+]
