@@ -72,5 +72,22 @@ it (its `spec.md` + `constants.md`, and all `standards/`/`contracts/` files).
 | `UNBUILT` | a module in `spec/` with no generated artifact |
 | `MISSING` | a manifest artifact whose file is gone |
 
-Stage 4 wires the scrutinize gate ahead of generation (`tools/build.js`), so code
-is never produced from a spec that hasn't cleared the bar.
+## Gated build (Stage 4)
+
+```
+node tools/build.js                 # scrutinize -> gate -> generate -> verify (bar = 95)
+node tools/build.js --min-score 85  # same, with an explicit lower bar
+```
+
+`build.js` refuses to run the generator unless the spec clears two gates:
+
+- **Structural** (deterministic, from `spec/`): every codegen block parses, every
+  module has ≥1 executable fixture, and the `dependsOn` graph is acyclic. No score
+  buys past these — deleting a module's fixtures blocks the build at any `--min-score`.
+- **Scrutiny** (the real `scripts/score.js` + `score-folder.js` on `.analysis/`):
+  refuses on any hard folder gate, or when the folder `finalScore` is below the bar.
+
+On refusal the generator never runs, so `generated/` is left untouched. This is
+the core inversion: **you cannot compile a spec that hasn't earned it.** At the
+production bar of 95 this example is honestly refused (it scores 87.9); it builds
+end-to-end at `--min-score 85`.
