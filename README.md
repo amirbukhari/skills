@@ -10,6 +10,7 @@ This repository acts as the central intelligence hub for our customized and cura
 To ensure consistency with standard `.github` agent configurations (such as those used by the `skills.sh` CLI), this repository is organized logically into primary capability folders:
 
 *   **`/skills/`**: Curated procedural knowledge and coding guidelines for agents. Currently containing Vercel React Best Practices, Anthropic Frontend Design, and elite UI/UX rules.
+*   **`/examples/`**: Real output produced by the skills in this repository, kept as reference material.
 *   **`/agents/`**: Core agent instructions, system prompts, and personas spanning multiple workflows.
 *   **`/mcp/`**: Model Context Protocol configurations, defining how our local AI agents interface with internal Rentsync services and data sources.
 *   **`/hooks/`**: Automated scripts and hooks that execute before or after specific agent actions.
@@ -18,3 +19,13 @@ To ensure consistency with standard `.github` agent configurations (such as thos
 
 ## Integration
 Our internal AI agents automatically load these configuration directories during initialization. Engineers can explore and securely browse these standards via the internal `rentsync-ai-skills-browser` application.
+
+## Skills
+
+| Skill | Purpose |
+| --- | --- |
+| [scrutinize-spec](skills/scrutinize-spec/) | Scores a spec — one document or a whole spec folder acting as source of truth — against a deterministic gate, and loops until it is ready to hand to an AI coding agent. Formerly the standalone `PRDScrutinizer` plugin (v2.0.0); consolidated here. |
+| [mcp-builder](skills/mcp-builder/) | Building MCP servers, with evaluation tooling. |
+| [subagent-driven-development](skills/subagent-driven-development/) | Splitting implementation across specialised subagents. |
+| [systematic-debugging](skills/systematic-debugging/) | Root-cause tracing and defence-in-depth debugging practice. |
+| [verification-before-completion](skills/verification-before-completion/) | Requires evidence before any claim that work is complete. |
