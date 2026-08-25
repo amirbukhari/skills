@@ -1,0 +1,10 @@
+[
+  { "name": "exact even split (100/4)", "call": { "fn": "evenlySplitWithCorrection", "args": [100, 4] }, "expect": [25, 25, 25, 25], "properties": [{ "sumEquals": 100 }, { "length": 4 }] },
+  { "name": "uneven 100/3, one penny to the tail", "call": { "fn": "evenlySplitWithCorrection", "args": [100, 3] }, "expect": [33.33, 33.33, 33.34], "properties": [{ "length": 3 }, { "sumEquals": 100 }, { "allBetween": [33.33, 33.34] }, { "roundsToCents": true }] },
+  { "name": "tiny amount 0.03/2 (over-rounds then corrects down)", "call": { "fn": "evenlySplitWithCorrection", "args": [0.03, 2] }, "expect": [0.02, 0.01], "properties": [{ "length": 2 }, { "sumEquals": 0.03 }] },
+  { "name": "single item", "call": { "fn": "evenlySplitWithCorrection", "args": [100, 1] }, "expect": [100] },
+  { "name": "zero total", "call": { "fn": "evenlySplitWithCorrection", "args": [0, 3] }, "expect": [0, 0, 0] },
+  { "name": "99.99/7 spreads three pennies to the tail", "call": { "fn": "evenlySplitWithCorrection", "args": [99.99, 7] }, "expect": [14.28, 14.28, 14.28, 14.28, 14.29, 14.29, 14.29], "properties": [{ "length": 7 }, { "sumCloseTo": [99.99, 2] }, { "roundsToCents": true }] },
+  { "name": "large split 100/13", "call": { "fn": "evenlySplitWithCorrection", "args": [100, 13] }, "expect": [7.69, 7.69, 7.69, 7.69, 7.69, 7.69, 7.69, 7.69, 7.69, 7.69, 7.7, 7.7, 7.7], "properties": [{ "length": 13 }, { "sumEquals": 100 }] },
+  { "name": "10/3 each value cents-valid", "call": { "fn": "evenlySplitWithCorrection", "args": [10, 3] }, "expect": [3.33, 3.33, 3.34], "properties": [{ "roundsToCents": true }, { "sumEquals": 10 }] }
+]

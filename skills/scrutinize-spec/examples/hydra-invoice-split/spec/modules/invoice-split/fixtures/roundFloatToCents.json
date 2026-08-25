@@ -1,0 +1,12 @@
+[
+  { "name": "half-cent rounds up via epsilon (1.005 -> 1.01)", "call": { "fn": "roundFloatToCents", "args": [1.005] }, "expect": 1.01 },
+  { "name": "classic float case 2.675 -> 2.68", "call": { "fn": "roundFloatToCents", "args": [2.675] }, "expect": 2.68 },
+  { "name": "0.015 -> 0.02", "call": { "fn": "roundFloatToCents", "args": [0.015] }, "expect": 0.02 },
+  { "name": "below half rounds down (1.004 -> 1.00)", "call": { "fn": "roundFloatToCents", "args": [1.004] }, "expect": 1 },
+  { "name": "negative keeps sign (-0.01)", "call": { "fn": "roundFloatToCents", "args": [-0.01] }, "expect": -0.01 },
+  { "name": "negative classic (-2.675 -> -2.68)", "call": { "fn": "roundFloatToCents", "args": [-2.675] }, "expect": -2.68 },
+  { "name": "repeating decimal nearest (33.333... -> 33.33)", "call": { "fn": "roundFloatToCents", "args": [33.33333333] }, "expect": 33.33 },
+  { "name": "algorithm 'up' ceils (1.001 -> 1.01)", "call": { "fn": "roundFloatToCents", "args": [1.001, "up"] }, "expect": 1.01 },
+  { "name": "algorithm 'down' floors (1.009 -> 1.00)", "call": { "fn": "roundFloatToCents", "args": [1.009, "down"] }, "expect": 1 },
+  { "name": "already cents stays and is cents-valid", "call": { "fn": "roundFloatToCents", "args": [25] }, "expect": 25, "properties": [{ "roundsToCents": true }] }
+]
