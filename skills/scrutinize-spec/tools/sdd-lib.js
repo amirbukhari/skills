@@ -166,6 +166,30 @@ function writeProvenance(exampleDir, manifest) {
   fs.writeFileSync(provenancePath(exampleDir), JSON.stringify(manifest, null, 2) + "\n");
 }
 
+/* ---- intent -> spec stage (upstream of code generation) ------------------ */
+
+/** The plain-English INTENT source for a module (the sole review surface). */
+function intentPath(exampleDir, moduleName) {
+  return path.join(exampleDir, "spec", "modules", moduleName, "intent.md");
+}
+
+/**
+ * Provenance for the intent->spec compile, kept SEPARATE from the spec->code
+ * manifest so the two stages never clobber each other. Stamps the intent hash
+ * against the spec/constants/fixtures it derived, so a later drift-check can
+ * flag those artifacts stale-vs-intent.
+ */
+function intentProvenancePath(exampleDir) {
+  return path.join(exampleDir, ".sdd-intent-provenance.json");
+}
+function readIntentProvenance(exampleDir) {
+  const p = intentProvenancePath(exampleDir);
+  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null;
+}
+function writeIntentProvenance(exampleDir, manifest) {
+  fs.writeFileSync(intentProvenancePath(exampleDir), JSON.stringify(manifest, null, 2) + "\n");
+}
+
 module.exports = {
   SKILL_ROOT,
   DEFAULT_MODEL,
@@ -185,4 +209,8 @@ module.exports = {
   provenancePath,
   readProvenance,
   writeProvenance,
+  intentPath,
+  intentProvenancePath,
+  readIntentProvenance,
+  writeIntentProvenance,
 };

@@ -1,0 +1,33 @@
+{
+  "schema": "sdd-intent-provenance/1",
+  "stage": "intent->spec",
+  "generatedAt": null,
+  "artifacts": [
+    {
+      "module": "invoice-split",
+      "intent": {
+        "path": "spec/modules/invoice-split/intent.md",
+        "hash": "bfc656d14e169bf3925a83b99b1768d3079ece8709ac17145a83e1f0e2cb4e25"
+      },
+      "derived": {
+        "spec": {
+          "path": "spec/modules/invoice-split/spec.md",
+          "hash": "940abe706765510e2c1e22c8e8b96656e561053c1018b9ac1f1f828e91b5d496"
+        },
+        "constants": {
+          "path": "spec/modules/invoice-split/constants.md",
+          "hash": "ecc692e696a95553ed51f380ada2d632e64593a56758abd416c5589b081b07df"
+        },
+        "fixtures": {
+          "files": [
+            "spec/modules/invoice-split/fixtures/evenlySplitWithCorrection.json",
+            "spec/modules/invoice-split/fixtures/roundFloatToCents.json"
+          ],
+          "hash": "962777641930185b2e0eec5ac057a7e94b081cd515a7a9f273351496c582c400"
+        }
+      },
+      "exampleCount": 18,
+      "fixtureCount": 18
+    }
+  ]
+}
