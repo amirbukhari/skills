@@ -1,0 +1,34 @@
+{
+  "dimensionScores": {
+    "scopeGoalClarity": 90,
+    "functionalCompleteness": 92,
+    "dataModelDefinition": 90,
+    "edgeCaseErrorHandling": 90,
+    "nonFunctionalRequirements": 84,
+    "acceptanceCriteria": 92,
+    "outOfScope": 88,
+    "technicalConstraints": 90,
+    "ambiguousLanguage": 88,
+    "assumptionsSection": 90,
+    "consistency": 92,
+    "definitionExecutability": 92,
+    "constantsEnumerated": 92
+  },
+  "flags": {
+    "hasContradictions": false,
+    "dataModelRequiredButMissing": false,
+    "acceptanceCriteriaMissing": false
+  },
+  "ambiguousPhraseCount": 1,
+  "unconfirmedAssumptionCount": 0,
+  "unpopulatedConstantCount": 0,
+  "duplicatedDefinitionCount": 0,
+  "undefinedLoadBearingTerms": [],
+  "inherits": [
+    {
+      "document": "spec/standards/conventions.md",
+      "dimensionsSatisfied": ["definitionExecutability"]
+    }
+  ],
+  "summary": "tax-apportion: decimal-dependent slice fully specified (S1 active-rate selection with DESC tie-break, S2 exact-decimal millionths parsing with ValidationError, S3 half-up integer apportionment, S4 exact-string taxRate return + decimal fidelity, S5 read-only access, S6 integer purity); entity + exact math given; scale/offset/regex/message/ordering enumerated; explicit Postgres-requirement rationale, assumptions, and pure+DB acceptance."
+}
