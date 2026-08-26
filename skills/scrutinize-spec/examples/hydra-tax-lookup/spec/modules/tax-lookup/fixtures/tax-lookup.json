@@ -1,0 +1,239 @@
+[
+  {
+    "name": "basic: in-window base + expired + other-province + override",
+    "seed": {
+      "base": [
+        {
+          "provinceId": 1,
+          "taxName": "ON-current",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        },
+        {
+          "provinceId": 1,
+          "taxName": "ON-expired",
+          "hydraState": "active",
+          "effectiveFrom": "2020-01-01",
+          "effectiveUntil": "2020-12-31"
+        },
+        {
+          "provinceId": 2,
+          "taxName": "QC-other",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        }
+      ],
+      "overrides": [
+        {
+          "provinceId": 1,
+          "taxName": "ON-override",
+          "hydraState": "active",
+          "effectiveFrom": "2024-06-01",
+          "effectiveUntil": null
+        }
+      ]
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 1
+    },
+    "expect": [
+      {
+        "provinceId": 1,
+        "taxName": "ON-current",
+        "hydraState": "active",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": null
+      },
+      {
+        "provinceId": 1,
+        "taxName": "ON-override",
+        "hydraState": "active",
+        "effectiveFrom": "2024-06-01",
+        "effectiveUntil": null
+      }
+    ]
+  },
+  {
+    "name": "no province match -> []",
+    "seed": {
+      "base": [
+        {
+          "provinceId": 1,
+          "taxName": "ON",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        }
+      ],
+      "overrides": []
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 99
+    },
+    "expect": []
+  },
+  {
+    "name": "deleted row still returned (S4)",
+    "seed": {
+      "base": [
+        {
+          "provinceId": 1,
+          "taxName": "ON-active",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        },
+        {
+          "provinceId": 1,
+          "taxName": "ON-deleted",
+          "hydraState": "deleted",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        }
+      ],
+      "overrides": []
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 1
+    },
+    "expect": [
+      {
+        "provinceId": 1,
+        "taxName": "ON-active",
+        "hydraState": "active",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": null
+      },
+      {
+        "provinceId": 1,
+        "taxName": "ON-deleted",
+        "hydraState": "deleted",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": null
+      }
+    ]
+  },
+  {
+    "name": "boundary inclusivity: effectiveFrom == date and effectiveUntil == date both included",
+    "seed": {
+      "base": [
+        {
+          "provinceId": 1,
+          "taxName": "starts-today",
+          "hydraState": "active",
+          "effectiveFrom": "2024-07-01",
+          "effectiveUntil": null
+        },
+        {
+          "provinceId": 1,
+          "taxName": "ends-today",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": "2024-07-01"
+        },
+        {
+          "provinceId": 1,
+          "taxName": "ended-yesterday",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": "2024-06-30"
+        },
+        {
+          "provinceId": 1,
+          "taxName": "starts-tomorrow",
+          "hydraState": "active",
+          "effectiveFrom": "2024-07-02",
+          "effectiveUntil": null
+        }
+      ],
+      "overrides": []
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 1
+    },
+    "expect": [
+      {
+        "provinceId": 1,
+        "taxName": "starts-today",
+        "hydraState": "active",
+        "effectiveFrom": "2024-07-01",
+        "effectiveUntil": null
+      },
+      {
+        "provinceId": 1,
+        "taxName": "ends-today",
+        "hydraState": "active",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": "2024-07-01"
+      }
+    ]
+  },
+  {
+    "name": "override-only match; union order base-then-override with both",
+    "seed": {
+      "base": [
+        {
+          "provinceId": 1,
+          "taxName": "base-in",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        }
+      ],
+      "overrides": [
+        {
+          "provinceId": 1,
+          "taxName": "ovr-in",
+          "hydraState": "active",
+          "effectiveFrom": "2024-01-01",
+          "effectiveUntil": null
+        },
+        {
+          "provinceId": 1,
+          "taxName": "ovr-out",
+          "hydraState": "active",
+          "effectiveFrom": "2030-01-01",
+          "effectiveUntil": null
+        }
+      ]
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 1
+    },
+    "expect": [
+      {
+        "provinceId": 1,
+        "taxName": "base-in",
+        "hydraState": "active",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": null
+      },
+      {
+        "provinceId": 1,
+        "taxName": "ovr-in",
+        "hydraState": "active",
+        "effectiveFrom": "2024-01-01",
+        "effectiveUntil": null
+      }
+    ]
+  },
+  {
+    "name": "empty DB -> []",
+    "seed": {
+      "base": [],
+      "overrides": []
+    },
+    "call": {
+      "date": "2024-07-01",
+      "provinceId": 1
+    },
+    "expect": []
+  }
+]

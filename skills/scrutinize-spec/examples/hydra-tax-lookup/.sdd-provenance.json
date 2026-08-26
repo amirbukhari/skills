@@ -1,0 +1,22 @@
+{
+  "schema": "sdd-provenance/1",
+  "validity": "fixtures-pass",
+  "generatedAt": null,
+  "artifacts": [
+    {
+      "module": "tax-lookup",
+      "path": "generated/tax-lookup.ts",
+      "lang": "ts",
+      "generatorId": "claude-cli:claude-sonnet-4-5",
+      "attempts": 1,
+      "verified": true,
+      "specInputs": {
+        "spec/contracts/tax-lookup.contract.md": "f260a4099b1dd3751f938e016952965ea606253e26ca569cb186706809a3bb62",
+        "spec/modules/tax-lookup/constants.md": "587e0011a57c21a330f71a982f879050a47a1a310a3c147962851e384ffeb656",
+        "spec/modules/tax-lookup/spec.md": "07ea644a8dacd7045c24e3fa043aee19ec46d8403668fee8056c908a938e5fe0",
+        "spec/standards/conventions.md": "56f6789076f5706923688c4f488d8013029b28b5880fb4c5f8c118e7dc578388"
+      },
+      "fixturesHash": "1d27060db0c11ee618764217999f8f611f7954889872285cd4bec54aead6b175"
+    }
+  ]
+}
