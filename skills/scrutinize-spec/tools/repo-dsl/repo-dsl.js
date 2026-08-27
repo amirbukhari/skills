@@ -24,6 +24,10 @@
  *   repo-dsl explain <calc>             Emit the GENERATOR TREE a composition invokes
  *                                       (composites + leaf ids + typed signatures,
  *                                       nesting order) as machine JSON for the panel.
+ *   repo-dsl refine-language <dir>      LLM "librarian" pass: propose readable names
+ *                        [--apply]      for mined g_<len>_<hash> composites, gated on
+ *                        [--only naming] byte-identity + coverage invariance. Dry-run
+ *                                       writes a proposal report; --apply promotes v2.
  *   repo-dsl report                     Reprint the last mine rollup.
  *
  * Robust by design: a file that doesn't fully reduce lowers its coverage and adds
@@ -157,6 +161,19 @@ function cmdExplain(args) {
   process.stdout.write(JSON.stringify(explainTree(tree), null, 2) + "\n");
 }
 
+function cmdRefineLanguage(args) {
+  const { refineLanguage } = require("./refine-language");
+  const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
+  const out = refineLanguage(dir, {
+    apply: args.includes("--apply"),
+    only: flag(args, "--only", "naming"),
+    stub: flag(args, "--stub", null),
+    model: flag(args, "--model", null),
+  });
+  console.log(JSON.stringify(out, null, 2));
+  process.exit(out.gate.passed ? 0 : 1);
+}
+
 function cmdExpand(args) {
   const file = args[0];
   if (!file) { console.error("usage: repo-dsl expand <file.calc|composition.json>"); process.exit(1); }
@@ -183,9 +200,10 @@ function main() {
     case "verify-expand": return cmdVerifyExpand(args);
     case "expand": return cmdExpand(args);
     case "explain": return cmdExplain(args);
+    case "refine-language": return cmdRefineLanguage(args);
     case "report": return cmdReport();
     default:
-      console.error("usage: repo-dsl <mine|gate|verify|verify-expand|expand|explain|report> [args]  (see README)");
+      console.error("usage: repo-dsl <mine|gate|verify|verify-expand|expand|explain|refine-language|report> [args]  (see README)");
       process.exit(1);
   }
 }

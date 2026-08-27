@@ -164,7 +164,12 @@ function mine(dir, opts = {}) {
     composites: composites.sort((a, b) => b.freq - a.freq),
   };
 
-  return { minCount, library, rollup, fileReports, residueSamples, residueLegend: RES };
+  // Internals (additive) for downstream passes — e.g. refine-language needs the
+  // shape sequence + real call-sites behind each mined composite. Existing callers
+  // (repo-dsl mine/gate) ignore the extra fields.
+  const internals = { model, canonical, perFile: perFile.map((pf) => ({ rel: pf.rel, tokens: pf.tokens })) };
+
+  return { minCount, library, rollup, fileReports, residueSamples, residueLegend: RES, internals };
 }
 
 module.exports = { mine, walkDir };

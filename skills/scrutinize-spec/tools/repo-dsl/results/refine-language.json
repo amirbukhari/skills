@@ -1,0 +1,251 @@
+{
+  "schema": "sdd-repo-dsl/refine-language/1",
+  "step": "naming",
+  "version": "v2",
+  "apply": true,
+  "byteIdentical": true,
+  "byteIdentity": "39/39",
+  "coverageBefore": 30.5,
+  "coverageAfter": 30.5,
+  "gate": {
+    "passed": true,
+    "reason": "relabel inert: byte-identity + coverage invariant",
+    "structuralInert": true,
+    "coverageHeld": true
+  },
+  "accepted": 33,
+  "proposed": 33,
+  "proposals": [
+    {
+      "oldId": "g_2_a7841e",
+      "newName": "importBillingTypes",
+      "rationale": "imports types/enums from helpers and shared billing modules",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_733482",
+      "newName": "importSingleType",
+      "rationale": "single type or utility import pattern",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_b8a854",
+      "newName": "returnFunctionResult",
+      "rationale": "returns computed result and closes function body",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_2fcffa",
+      "newName": "returnValue",
+      "rationale": "returns identifier value",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_a14c90",
+      "newName": "importTypePair",
+      "rationale": "imports two related types (usage/cost interfaces, date helpers)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_4_4040da",
+      "newName": "importSequence",
+      "rationale": "four consecutive type imports",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_330f80",
+      "newName": "monthRangeBoundaries",
+      "rationale": "calculates month start/end date pair",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_97083d",
+      "newName": "throwValidationError",
+      "rationale": "throws error for missing/invalid parameters",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_e11e9e",
+      "newName": "returnNumericConstant",
+      "rationale": "returns literal number (often default quantity)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_da3e59",
+      "newName": "importMixedPair",
+      "rationale": "imports pair followed by single type",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_3_7c0169",
+      "newName": "importTripleDeclaration",
+      "rationale": "three related imports (utilities, enums, interfaces)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_746b8d",
+      "newName": "callbackReturn",
+      "rationale": "returns result inside reduce/map callback",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_b0e4f9",
+      "newName": "importExtendedGroup",
+      "rationale": "imports three items then single type",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_76493f",
+      "newName": "returnNegativeValue",
+      "rationale": "returns negative number (credit/offset)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_1bd82a",
+      "newName": "throwTemplatedError",
+      "rationale": "throws error with interpolated context (subscription ID)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_8fe301",
+      "newName": "closeCallbackAndReturn",
+      "rationale": "closes callback block and returns value",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_5_0abde0",
+      "newName": "importLargeBlock",
+      "rationale": "five consecutive type imports",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_617feb",
+      "newName": "conditionalReturn",
+      "rationale": "return after conditional block",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_794b1b",
+      "newName": "returnBinaryCall",
+      "rationale": "returns function call with two arguments",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_baad23",
+      "newName": "importGroupedDeclarations",
+      "rationale": "imports three items plus single type",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_d4d53b",
+      "newName": "returnEmptyArray",
+      "rationale": "returns empty array (no usage/results found)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_549a7b",
+      "newName": "returnFalsePredicate",
+      "rationale": "returns false from validation check",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_9bcd5f",
+      "newName": "declareArrayAndTransform",
+      "rationale": "declares typed array then maps/transforms it",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_aed5ec",
+      "newName": "closeFunctionExport",
+      "rationale": "ends function and exports next declaration",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_da6472",
+      "newName": "exportWithArrayInit",
+      "rationale": "exports function that initializes array",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_3_acb7cc",
+      "newName": "importMixedTrio",
+      "rationale": "imports billing constant, utilities pair, and usage type",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_3_40d445",
+      "newName": "guardedFunctionReturn",
+      "rationale": "returns value after conditional checks",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_3_81a757",
+      "newName": "importComplexGroup",
+      "rationale": "imports date helpers, usage types, and time functions",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_74a4f7",
+      "newName": "pairedAssignments",
+      "rationale": "two consecutive variable assignments (date/period calculations)",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_a8cc2f",
+      "newName": "sequentialFunctionCalls",
+      "rationale": "sequential const assignments from function calls",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_8479ad",
+      "newName": "earlyEmptyReturn",
+      "rationale": "returns empty array on guard condition",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_2_8400d7",
+      "newName": "declareAsyncFunction",
+      "rationale": "declares async function constant",
+      "accepted": true,
+      "reason": "ok"
+    },
+    {
+      "oldId": "g_3_f063c2",
+      "newName": "requireParameters",
+      "rationale": "validates required parameters exist, throws if missing",
+      "accepted": true,
+      "reason": "ok"
+    }
+  ]
+}
