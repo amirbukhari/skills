@@ -152,6 +152,58 @@ ISubscriptionCost / billingType ACTIVE_FEATURE via getVolumeCostingItems`, it
 passed the grammar guard, and `verify-expand` confirmed its expansion is
 byte-identical to the generated file (`cov=100% byteIdentical=true`).
 
+### The librarian pass — `refine-language` (LLM improves the *names*, gated)
+
+The engine names mined composites mechanically (`g_<len>_<hash>`) — honest but
+unreadable. `refine-language` is an **LLM "librarian"** that proposes intention-
+revealing names (`importBillingTypes`, `monthRangeBoundaries`, `throwValidationError`)
+by reading what each composite expands to (its shape sequence + real call-sites).
+It is **proposal-only and verification-gated**, and the model touches **only
+names/metadata, never the expansion logic**.
+
+```
+node repo-dsl.js refine-language <dir> [--apply] [--only naming] [--stub <file>] [--model <id>]
+```
+
+**HARD GATE** (what keeps the LLM out of the code path). A rename is a *pure
+relabel*, so byte-identity and coverage **must** be invariant under it — and the
+gate re-runs the deterministic checks to prove it, per batch:
+
+- corpus **byte-identity** stays `39/39`, **and**
+- corpus **coverage does not drop** (`coverageAfter >= coverageBefore`), **and**
+- the refined library differs from the prior one in **names + version only**
+  (structural inertness, asserted by diffing the name-stripped skeletons).
+
+A proposal is rejected before it can apply unless it is a **unique, valid
+lowerCamelCase identifier** that collides with no existing generator name. If the
+gate ever failed under a rename, that is a **bug to surface, not a proposal to
+accept** — the whole batch reverts and nothing is promoted.
+
+**Versioning.** The refined library is written as a **new version**
+(`catalog/mined-library.v2.json`, `version: "v2"`, with each renamed composite
+keeping its `minedName` + `namedBy`); the prior `mined-library.json` is left
+untouched, so a bad refinement reverts by ignoring v2. Without `--apply` it is a
+dry run (writes `results/refine-language.json` only); `--apply` promotes v2.
+Machine JSON:
+
+```json
+{ "schema": "sdd-repo-dsl/refine-language/1", "step": "naming", "version": "v2", "apply": true,
+  "byteIdentical": true, "byteIdentity": "39/39", "coverageBefore": 30.5, "coverageAfter": 30.5,
+  "gate": { "passed": true, "reason": "relabel inert: byte-identity + coverage invariant",
+            "structuralInert": true, "coverageHeld": true },
+  "accepted": 33, "proposed": 33,
+  "proposals": [ { "oldId": "g_2_a7841e", "newName": "importBillingTypes",
+                   "rationale": "…", "accepted": true, "reason": "ok" } ] }
+```
+
+Steps live behind the `--only <step>` hook and share this gate, so a later pass
+can add **merge / split / propose-new-composite** behind the same wall; only
+`naming` is implemented now. Proven on the calculators corpus: the live `claude`
+CLI named all **33** mined composites, **all accepted**, gate held
+(`byteIdentical: true 39/39`, coverage `30.5 → 30.5`). Sample renames:
+`g_2_a7841e → importBillingTypes`, `g_2_b8a854 → returnFunctionResult`,
+`g_2_330f80 → monthRangeBoundaries`, `g_2_97083d → throwValidationError`.
+
 ### Full-corpus result (39 files, `--min 2`)
 
 - **Corpus coverage: 30.5%** of source chars reproduced by pure composition.
