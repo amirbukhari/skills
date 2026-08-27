@@ -61,6 +61,48 @@ two-tier **honestly** — it is a one-line delegating arrow with no interior to 
   approach (parameterised query fragments). This is the concept's predicted failure
   mode, made concrete.
 
+## The DSL surface layer (readable concrete syntax)
+
+The JSON composition tree stays the internal IR; `dsl.js` adds a readable,
+declarative surface that the LLM emits and a human reviews. The grammar is
+**auto-derived from the generator signatures** (`deriveGrammar()` reads
+`COMPOSITES` in `generators.js`) — not hand-authored: each composite's readable
+name becomes a production, and each typed param becomes a named field whose
+value syntax is fixed by its kind (`identifier`/`typeName`/`enumChoice` →
+bareword, `moduleSpecifier` → quoted string, `identifierList` → `[a, b]`).
+**Opaque leaf ids never appear in the surface** — leaves stay internal.
+
+`activeFeatureCostCalculator` in the surface (`surface/activeFeatureCostCalculator.calc`):
+
+```
+makeVolumeCostingCalculatorFn {
+  exportName = activeFeatureCostCalculator
+  billingTypeConst = BILLING_TYPE_ACTIVE_FEATURE
+  elemType = ISubscriptionUsage
+  costType = ISubscriptionCost
+  sharedFn = getVolumeCostingItems
+  importElemFrom = '@src/rentsync-api/ISubscriptionUsage'
+  importCostFrom = '@src/rentsync-api/ISubscriptionCost'
+  importBillingFrom = '@llws/hydra-shared'
+  importSharedFrom = './shared'
+}
+```
+
+`dsl.js` provides a **parser** (`parseText`, DSL → tree) and a **printer**
+(`printTree`, tree → DSL). `verify-dsl.js` proves they round-trip losslessly on
+all three calculators: `tree → DSL → tree` is identity (canonical, key-order
+insensitive), and `DSL → tree → expand` is byte-identical to `tree → expand`
+(so the committed `.calc` and the JSON IR are two views of the same code). The
+surface also inherits the typed guarantee — an opaque leaf id, an unknown field,
+an unquoted module specifier, or a prose value are all **rejected at parse**.
+
+```
+node dsl.js --grammar                    # the auto-derived grammar
+node dsl.js --print compositions/activeFeatureCostCalculator.json   # IR -> DSL
+node dsl.js --parse surface/activeFeatureCostCalculator.calc        # DSL -> IR
+node verify-dsl.js                        # lossless round-trip proof
+```
+
 ## Reproduce
 
 ```
