@@ -7,6 +7,66 @@ real native code. The LLM's whole output surface is a tree of **readable**
 generator names with **small, typed params**; there is no free-text / raw-code
 hole anywhere in the expansion.
 
+There are **two layers** here. The **production engine** (`engine/` + the
+`repo-dsl` CLI) mines an entire directory automatically with an LZW core and
+reports honest coverage; the **curated layer** (`generators.js`, `dsl.js`,
+`compositions/`, `surface/`) is the hand-verified, byte-exact vocabulary that the
+DSL surface is authored in. Start with the engine.
+
+## Production engine: fan-out → LZW → generators → DSL → expand → verify
+
+A single CLI (`repo-dsl.js`) runs the pipeline over a whole calculators directory.
+The stages are named in the code:
+
+| Stage | Module | What it does |
+|---|---|---|
+| **1. Fan-out** | `engine/fanout.js` | Linearize each file's TypeScript AST into a canonical pre-order **token stream**. The AST *cuts* the stream (a statement owning a block — function/arrow bodies, if/else, loops, callbacks — splits into a `… {` head, its inner statements, and a `} …` tail), and the lexical scanner *normalizes* each token's slice into a whitespace-insensitive **shape** (structural token-kinds with identifiers/numbers/strings replaced by typed slots `ID`/`NUM`/`STR`), the ordered **slot bindings**, and a **template** that refills to the exact original bytes. Token spans + gaps tile the file exactly (lossless). |
+| **2. LZW mining** | `engine/lzw.js` | An LZW-style dictionary builder over the shape streams of **every** file. The incrementally grown dictionary **is** the pattern set: the alphabet is the distinct shapes; encoding grows multi-symbol entries, each referencing an earlier entry + one symbol, giving the natural **small ⊂ mid ⊂ large** hierarchy; frequencies are kept. `segment()` re-encodes greedily against the final dictionary to attribute tokens to the largest pattern that covers them. |
+| **3. Generators** | `engine/pipeline.js` | Promote every dictionary entry above the frequency threshold into a **generator**. Length-1 entries → **opaque-id leaves** (`p_xxxxxxxx`) with typed params; length-≥2 entries → **readable composites** that reference smaller entries (**composites of composites**, all the way down to leaves). No generator emits raw code. Anything irreducible (a `NoSubstitutionTemplateLiteral` carrying SQL for a TypeORM `andWhere`, prose, etc.) surfaces as an **unmined residue**, flagged not papered over. |
+| **4. DSL surface** | `dsl.js` | The readable concrete syntax over the composition tree (see below), auto-derived from generator signatures, with mined import resolution. |
+| **5. Expand** | `expander.js` | Walk a composition/DSL tree → validate typed params → emit native code. |
+| **6. Verify + gate** | `repo-dsl.js` | Per-file + corpus **coverage** (chars reproduced by pure composition), **residue** classes, byte-identity **plumbing** check, and a machine-readable **coverage gate** for wiring into the SDD flow. |
+
+### Coverage — the honest metric
+
+A token counts as **reproduced** iff its shape **recurs** (mined ≥ `minCount`),
+**all** its slots are **typed** (small ident / type / number / short string —
+never prose or embedded SQL), *and* the shape's canonical (plurality) template
+refills to that token's **exact** source bytes. Everything else is **residue**,
+classified so nothing hides:
+
+- **A — non-recurring shape**: genuinely unique/bespoke logic (the bulk, across 39 diverse calculators).
+- **B — free-text slot**: a long/multiline string slot, e.g. TypeORM `andWhere(\`…SQL…\`)` — the irreducible free text the concept predicts.
+- **C — comment/trivia**: comments between tokens (not AST nodes).
+- **D — formatting variance**: a recurring, typed shape whose *this* occurrence is spaced differently from the plurality template.
+
+Coverage is `reproducedChars / totalChars` — **no rounding up**. A file that
+doesn't reduce lowers its own number and grows a residue class; it never crashes
+the run.
+
+### CLI
+
+```
+node repo-dsl.js mine   [<dir>] [--min N]           # fan-out+LZW+promote; writes catalog/mined-library.json + results/corpus-coverage.json
+node repo-dsl.js gate   [<dir>] --min P [--min-file Q]  # pass/fail on corpus (and worst-file) coverage; results/gate.json; exit 1 on fail
+node repo-dsl.js verify [<dir>]                     # byte-identity plumbing: every file reconstructs exactly from its tokens
+node repo-dsl.js expand <file.calc|composition.json>  # curated surface -> native code
+node repo-dsl.js report                             # reprint the last rollup
+```
+
+`<dir>` defaults to the Hydra calculators corpus (read-only). The `gate` command
+is the SDD hook — same spirit as the scrutinize gate: it emits machine-readable
+JSON (`{pass, corpusCoveragePct, worstFile, generators, thresholds}`) and a
+non-zero exit on failure.
+
+### Full-corpus result (39 files, `--min 2`)
+
+- **Corpus coverage: 30.5%** of source chars reproduced by pure composition.
+- **Generators: 173 leaves + 33 composites**, of which **6 are composite-of-composite** (max hierarchy depth **4**); alphabet 667 shapes, 1852 dictionary entries.
+- **Residue chars**: A (non-recurring) 90 493 · B (free-text/SQL) 5 503 · C (comment/trivia) 26 931 · D (formatting) 2 555.
+- **Byte-identity plumbing: 39/39** files reconstruct exactly from their token stream.
+- Small delegating calculators reduce to **~99%**; bespoke-logic and pure-interface files (e.g. `tieredUnitCountUsageCalculator/types.ts`) are honestly low — most residue is **class A**, i.e. genuinely unique logic, exactly what a real corpus of distinct calculators should show. The engine finds the shared *boilerplate spine* (imports, filter→delegate, function scaffolding, return) and is honest about the rest.
+
 ## The four pieces
 
 | File | Role |
