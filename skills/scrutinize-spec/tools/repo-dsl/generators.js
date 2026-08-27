@@ -132,6 +132,17 @@ const COMPOSITES = {
       importElemFrom: "moduleSpecifier", importCostFrom: "moduleSpecifier",
       importBillingFrom: "moduleSpecifier", importSharedFrom: "moduleSpecifier",
     },
+    // Surface-layer metadata: these params are DERIVED — each is the module
+    // specifier for the symbol named by its source param, resolvable from the
+    // mined import map (catalog/import-resolution.json). The DSL surface drops
+    // them (and re-derives on parse) whenever the stored value equals the mined
+    // canonical; otherwise it keeps the import visible rather than guessing.
+    derived: {
+      importBillingFrom: "billingTypeConst",
+      importElemFrom: "elemType",
+      importCostFrom: "costType",
+      importSharedFrom: "sharedFn",
+    },
     build: (p) => [
       { leaf: "p_2c6b9735", params: { name: p.billingTypeConst, from: p.importBillingFrom } },
       { leaf: "p_2c6b9735", params: { name: p.elemType, from: p.importElemFrom } },
@@ -184,6 +195,12 @@ const COMPOSITES = {
       elemType: "typeName", costType: "typeName",
       importBillingFrom: "moduleSpecifier", importCostFrom: "moduleSpecifier",
       importElemFrom: "moduleSpecifier", importSharedFrom: "moduleSpecifier",
+    },
+    derived: {
+      importBillingFrom: "billingTypeConst",
+      importCostFrom: "costType",
+      importElemFrom: "elemType",
+      importSharedFrom: "delegateFn",
     },
     build: (p) => [
       { leaf: "p_2c6b9735", params: { name: p.billingTypeConst, from: p.importBillingFrom } },

@@ -1,11 +1,3 @@
-makeVolumeCostingCalculatorFn {
-  exportName = activeFeatureCostCalculator
-  billingTypeConst = BILLING_TYPE_ACTIVE_FEATURE
-  elemType = ISubscriptionUsage
-  costType = ISubscriptionCost
-  sharedFn = getVolumeCostingItems
-  importElemFrom = '@src/rentsync-api/ISubscriptionUsage'
-  importCostFrom = '@src/rentsync-api/ISubscriptionCost'
-  importBillingFrom = '@llws/hydra-shared'
-  importSharedFrom = './shared'
-}
+volumeCosting activeFeatureCostCalculator
+  ISubscriptionUsage -> ISubscriptionCost
+  billingType ACTIVE_FEATURE via getVolumeCostingItems

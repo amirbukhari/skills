@@ -1,11 +1,3 @@
-makeDelegatingCostCalculatorFn {
-  exportName = liftBuildingCostCalculator
-  billingTypeConst = BILLING_TYPE_LIFT_BUILDING
-  delegateFn = buildingBillingTypeCostCalculator
-  elemType = ISubscriptionUsage
-  costType = ISubscriptionCost
-  importBillingFrom = '@llws/hydra-shared'
-  importCostFrom = '@src/rentsync-api/ISubscriptionCost'
-  importElemFrom = '@src/rentsync-api/ISubscriptionUsage'
-  importSharedFrom = '../shared'
-}
+delegatingCost liftBuildingCostCalculator
+  ISubscriptionUsage -> ISubscriptionCost
+  billingType LIFT_BUILDING via buildingBillingTypeCostCalculator

@@ -45,10 +45,10 @@ function main() {
     const calcPath = path.join(__dirname, c.calc);
     const tree = JSON.parse(fs.readFileSync(irPath, "utf8"));
 
-    // 1. IR -> DSL -> IR identity
+    // 1. IR -> DSL -> IR identity  (+ DSL -> IR -> DSL string identity)
     const dsl = printTree(tree);
     const back = parseText(dsl);
-    const irRoundTrips = deepEq(back, tree);
+    const irRoundTrips = deepEq(back, tree) && printTree(back) === dsl;
 
     // 2. code identity (tree vs parsed-from-printed-DSL)
     const codeFromTree = expand(tree);

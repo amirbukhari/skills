@@ -1,11 +1,3 @@
-makeVolumeCostingCalculatorFn {
-  exportName = propertyVolumeV2CostCalculator
-  billingTypeConst = BILLING_TYPE_PROPERTY_VOLUME_V2
-  elemType = ISubscriptionUsage
-  costType = ISubscriptionCost
-  sharedFn = getVolumeCostingItems
-  importElemFrom = '../../../ISubscriptionUsage'
-  importCostFrom = '../../../ISubscriptionCost'
-  importBillingFrom = '@llws/hydra-shared'
-  importSharedFrom = './shared'
-}
+volumeCosting propertyVolumeV2CostCalculator
+  ISubscriptionUsage from '../../../ISubscriptionUsage' -> ISubscriptionCost from '../../../ISubscriptionCost'
+  billingType PROPERTY_VOLUME_V2 via getVolumeCostingItems

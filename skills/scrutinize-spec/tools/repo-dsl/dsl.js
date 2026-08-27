@@ -4,22 +4,38 @@
  * dsl — the readable SURFACE layer over the composition-tree IR.
  *
  * The JSON composition tree stays the internal IR; this adds a concrete,
- * declarative syntax the LLM emits and a human reviews. The grammar is NOT
- * hand-authored — it is DERIVED from the generator signatures in generators.js:
- * every composite already has a readable name + a typed param signature, and the
- * surface forms are generated from those. Opaque leaf ids never appear in the
- * surface (leaves stay internal); the surface is the readable-name layer.
+ * declarative syntax that reads like a language (positional, a few keyword
+ * markers) rather than a property bag. The grammar is NOT hand-authored — it is
+ * DERIVED from the generator signatures in generators.js. Opaque leaf ids never
+ * appear (leaves stay internal); the surface is the readable-name layer.
  *
- * Value rendering is driven by each param's declared KIND:
- *   identifier / typeName / enumChoice -> bareword
- *   moduleSpecifier                    -> the quoted string, verbatim
- *   identifierList                     -> [a, b, c]
+ * Two deterministic surface transforms, both signature-driven:
  *
- * Guarantees (see verify-dsl.js): print(tree) -> parse -> deep-equals tree, and
- * parse(dsl) -> expand produces the same native code as the tree.
+ *   (1) IMPORT DROPPING. Params flagged `derived` in a composite are module
+ *       specifiers for a symbol named by another param. They are resolved from
+ *       the mined import map (catalog/import-resolution.json) and DROPPED from
+ *       the surface — but only when the stored value equals the mined canonical,
+ *       so expansion is always byte-exact. When the stored specifier differs
+ *       from canonical (a genuinely ambiguous symbol), the import is KEPT inline
+ *       (`Type from '<module>'`) rather than guessed.
+ *
+ *   (2) POSITIONAL RENDERING. A composite renders as:
+ *           <keyword> <exportName>
+ *             <TypeA> -> <TypeB>
+ *             billingType <CONST-suffix> via <fn>
+ *       keyword   = composite name minus `make`/`CalculatorFn`, lower-initial.
+ *       ` -> `    = join of the typeName params (in signature order).
+ *       `billingType <x>` = an identifier param whose name ends `Const`; the
+ *                    marker is the name minus `Const`, and the SCREAMING_SNAKE
+ *                    of that marker is the constant's dropped prefix.
+ *       `via <fn>`= an identifier param whose name ends `Fn` (the delegate).
+ *
+ * Guarantees (see verify-dsl.js): print(tree)->parse deep-equals tree,
+ * parse->print is string-identity, and parse(dsl)->expand is byte-identical to
+ * the tree's expansion. Prose / unknown markers / opaque ids are rejected.
  *
  * Usage:
- *   node dsl.js --grammar               # print the auto-derived grammar
+ *   node dsl.js --grammar               # the auto-derived positional grammar
  *   node dsl.js --print <tree.json>     # IR -> DSL text
  *   node dsl.js --parse <file.calc>     # DSL text -> IR (prints JSON)
  */
@@ -28,109 +44,216 @@ const fs = require("fs");
 const path = require("path");
 const { COMPOSITES } = require("./generators");
 
-/** Derive the surface grammar from the composite signatures (not hand-written). */
-function deriveGrammar() {
-  const composites = Object.entries(COMPOSITES)
-    .filter(([, c]) => !c.structural) // structural containers aren't a surface form
-    .map(([name, c]) => ({
-      name,
-      patternId: c.patternId || null,
-      tier: c.tier || "large",
-      label: c.label || "",
-      fields: Object.entries(c.params || {}).map(([field, kind]) => ({ field, kind })),
-    }));
-  return { composites };
+/* ------------------------- mined import resolution ------------------------ */
+
+let _resolution = null;
+function resolution() {
+  if (_resolution) return _resolution;
+  const p = path.join(__dirname, "catalog", "import-resolution.json");
+  _resolution = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")).symbols : {};
+  return _resolution;
+}
+function canonicalModule(symbol) {
+  const e = resolution()[symbol];
+  return e && e.canonical ? e.canonical : null;
 }
 
-function grammarFor(name) {
-  const g = deriveGrammar().composites.find((c) => c.name === name);
-  if (!g) throw new Error(`no surface form for "${name}" (not a non-structural composite)`);
+/* ----------------------- signature-derived classifier --------------------- */
+
+const screaming = (s) => s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
+
+function keywordFor(compositeName) {
+  let k = compositeName.replace(/^make/, "").replace(/CalculatorFn$/, "");
+  return k.charAt(0).toLowerCase() + k.slice(1);
+}
+
+/** Classify a composite's params into surface roles, purely from the signature. */
+function classify(compositeName) {
+  const c = COMPOSITES[compositeName];
+  if (!c) throw new Error(`unknown composite "${compositeName}"`);
+  const derived = c.derived || {};
+  const sourceToImport = {}; // symbol-param -> its derived module-specifier param
+  for (const [imp, src] of Object.entries(derived)) sourceToImport[src] = imp;
+
+  const roles = []; // in signature order, only the surface (non-derived) params
+  for (const [name, kind] of Object.entries(c.params || {})) {
+    if (name in derived) continue; // module specifiers are derived, never shown as fields
+    let role;
+    if (name === "exportName") role = { kind: "subject", name };
+    else if (kind === "typeName") role = { kind: "type", name };
+    else if (/Fn$/.test(name)) role = { kind: "via", name, marker: "via" };
+    else if (/Const$/.test(name)) {
+      const marker = name.replace(/Const$/, "");
+      role = { kind: "const", name, marker, prefix: screaming(marker) + "_" };
+    } else role = { kind: "field", name, marker: name };
+    role.importParam = sourceToImport[name] || null; // the module spec to fold in
+    roles.push(role);
+  }
+  return { name: compositeName, keyword: keywordFor(compositeName), roles, derived };
+}
+
+function grammar() {
+  return Object.entries(COMPOSITES)
+    .filter(([, c]) => !c.structural && !c.tier) // top-level surface forms only (mids are internal)
+    .map(([name]) => classify(name));
+}
+function grammarByKeyword(kw) {
+  const g = grammar().find((c) => c.keyword === kw);
+  if (!g) throw new Error(`no surface form for keyword "${kw}"`);
   return g;
 }
 
-/* ------------------------------- render ----------------------------------- */
+/* --------------------------------- render --------------------------------- */
 
-function renderValue(kind, val) {
-  switch (kind) {
-    case "moduleSpecifier": return String(val); // already quoted in the IR
-    case "identifierList": return `[${val.join(", ")}]`;
-    case "identifier":
-    case "typeName":
-    case "enumChoice": return String(val);
-    default: throw new Error(`cannot render param kind "${kind}"`);
-  }
+/** For a surface role, does its derived import fold away (stored === canonical)? */
+function importAnnotation(role, params) {
+  if (!role.importParam) return null;
+  const stored = params[role.importParam];
+  const canon = canonicalModule(params[role.name]);
+  return canon !== null && canon === stored ? null : ` from ${stored}`; // null => dropped
 }
 
-/** IR composition tree -> DSL text. */
 function printTree(tree) {
   if (!tree || !tree.composite) throw new Error("printTree expects a { composite, params } node");
-  const g = grammarFor(tree.composite);
-  const params = tree.params || {};
-  const lines = [`${tree.composite} {`];
-  for (const { field, kind } of g.fields) {
-    if (!(field in params)) throw new Error(`tree missing param "${field}" for ${tree.composite}`);
-    lines.push(`  ${field} = ${renderValue(kind, params[field])}`);
+  const g = classify(tree.composite);
+  const p = tree.params || {};
+  const subject = g.roles.find((r) => r.kind === "subject");
+  if (!subject) throw new Error(`${tree.composite}: no exportName param to head the surface form`);
+
+  const header = `${g.keyword} ${p[subject.name]}`;
+  const lines = [header];
+
+  const typeParts = g.roles.filter((r) => r.kind === "type").map((r) => {
+    const ann = importAnnotation(r, p);
+    return `${p[r.name]}${ann || ""}`;
+  });
+  if (typeParts.length) lines.push("  " + typeParts.join(" -> "));
+
+  const marked = [];
+  for (const r of g.roles) {
+    if (r.kind === "const") {
+      const v = p[r.name];
+      if (!v.startsWith(r.prefix)) throw new Error(`${r.name} "${v}" lacks expected prefix ${r.prefix}`);
+      marked.push(`${r.marker} ${v.slice(r.prefix.length)}${importAnnotation(r, p) || ""}`);
+    } else if (r.kind === "via" || r.kind === "field") {
+      marked.push(`${r.marker} ${p[r.name]}${importAnnotation(r, p) || ""}`);
+    }
   }
-  lines.push("}");
+  if (marked.length) lines.push("  " + marked.join(" "));
+
   return lines.join("\n") + "\n";
 }
 
-/* -------------------------------- parse ----------------------------------- */
+/* --------------------------------- parse ---------------------------------- */
 
-function parseValue(kind, raw, field) {
-  const s = raw.trim();
-  const fail = (m) => { throw new Error(`param "${field}" ${m} (got ${JSON.stringify(s)})`); };
-  switch (kind) {
-    case "moduleSpecifier":
-      if (!/^(['"]).*\1$/.test(s)) fail("must be a quoted module specifier");
-      return s; // keep quotes verbatim
-    case "identifierList": {
-      const m = /^\[(.*)\]$/.exec(s);
-      if (!m) fail("must be a [ ... ] list");
-      return m[1].split(",").map((x) => x.trim()).filter((x) => x.length);
-    }
-    case "identifier":
-    case "typeName":
-    case "enumChoice":
-      if (!/^[A-Za-z_$][\w$.]*$/.test(s)) fail("must be a bareword");
-      return s;
-    default:
-      fail(`has unknown kind "${kind}"`);
+const IDENT = /^[A-Za-z_$][\w$.]*$/;
+const MODSPEC = /^(['"]).*\1$/;
+
+/** Pull an optional `from '<module>'` off the front of a token list -> {module, rest}. */
+function takeFrom(tokens) {
+  if (tokens[0] === "from") {
+    const mod = tokens[1];
+    if (!mod || !MODSPEC.test(mod)) throw new Error(`'from' must be followed by a quoted module (got ${JSON.stringify(mod)})`);
+    return { module: mod, rest: tokens.slice(2) };
   }
+  return { module: null, rest: tokens };
 }
 
-/** DSL text -> IR composition tree. */
 function parseText(text) {
-  const m = /^\s*([A-Za-z_$][\w$]*)\s*\{([\s\S]*)\}\s*$/.exec(text.trim());
-  if (!m) throw new Error("expected: <CompositeName> { field = value ... }");
-  const name = m[1];
-  const g = grammarFor(name); // grammar-driven: validates the name is a real composite
-  const kindByField = Object.fromEntries(g.fields.map((f) => [f.field, f.kind]));
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+  if (!lines.length) throw new Error("empty DSL");
+
+  const head = lines[0].split(/\s+/);
+  if (head.length !== 2) throw new Error(`expected "<keyword> <exportName>", got ${JSON.stringify(lines[0])}`);
+  const [kw, subject] = head;
+  if (!IDENT.test(subject)) throw new Error(`exportName must be a bareword (got ${JSON.stringify(subject)})`);
+  const g = grammarByKeyword(kw);
+
   const params = {};
-  for (const rawLine of m[2].split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue; // allow comments/blank lines
-    const fm = /^([A-Za-z_$][\w$]*)\s*=\s*(.+?)\s*$/.exec(line);
-    if (!fm) throw new Error(`cannot parse field line: ${line}`);
-    const [, field, raw] = fm;
-    if (!(field in kindByField)) throw new Error(`unknown field "${field}" for ${name}`);
-    params[field] = parseValue(kindByField[field], raw, field);
+  const subjectRole = g.roles.find((r) => r.kind === "subject");
+  params[subjectRole.name] = subject;
+
+  const typeRoles = g.roles.filter((r) => r.kind === "type");
+  const constRoles = g.roles.filter((r) => r.kind === "const");
+  const otherMarked = g.roles.filter((r) => r.kind === "via" || r.kind === "field");
+  const markerToRole = {};
+  for (const r of [...constRoles, ...otherMarked]) markerToRole[r.marker] = r;
+
+  // Classify the remaining lines by their first token: a known marker => the
+  // marked line; otherwise the types line.
+  for (const line of lines.slice(1)) {
+    const first = line.split(/\s+/)[0];
+    if (first in markerToRole) parseMarkedLine(line, markerToRole, params);
+    else parseTypesLine(line, typeRoles, params);
   }
-  const missing = g.fields.map((f) => f.field).filter((f) => !(f in params));
-  if (missing.length) throw new Error(`${name}: missing fields ${missing.join(", ")}`);
-  return { composite: name, params };
+
+  // Fill every derived import: kept-inline ones were set above; the rest resolve
+  // from the mined canonical (byte-identical to what the printer dropped).
+  for (const [imp, src] of Object.entries(g.derived)) {
+    if (imp in params) continue;
+    const canon = canonicalModule(params[src]);
+    if (canon === null) throw new Error(`cannot resolve module for "${params[src]}" — it must be kept inline`);
+    params[imp] = canon;
+  }
+
+  // Completeness: every signature param present.
+  const missing = Object.keys(COMPOSITES[g.name].params).filter((k) => !(k in params));
+  if (missing.length) throw new Error(`${g.name}: missing ${missing.join(", ")}`);
+  return { composite: g.name, params };
+}
+
+function parseTypesLine(line, typeRoles, params) {
+  const parts = line.split("->").map((s) => s.trim());
+  if (parts.length !== typeRoles.length)
+    throw new Error(`expected ${typeRoles.length} type(s) on "${line}"`);
+  parts.forEach((part, i) => {
+    const toks = part.split(/\s+/);
+    const typeName = toks[0];
+    if (!IDENT.test(typeName)) throw new Error(`type must be a bareword (got ${JSON.stringify(typeName)})`);
+    const role = typeRoles[i];
+    params[role.name] = typeName;
+    const { module, rest } = takeFrom(toks.slice(1));
+    if (rest.length) throw new Error(`unexpected tokens after type: ${rest.join(" ")}`);
+    if (module) {
+      if (!role.importParam) throw new Error(`${role.name} has no import to override`);
+      params[role.importParam] = module;
+    }
+  });
+}
+
+function parseMarkedLine(line, markerToRole, params) {
+  let toks = line.split(/\s+/);
+  while (toks.length) {
+    const marker = toks.shift();
+    const role = markerToRole[marker];
+    if (!role) throw new Error(`unknown marker "${marker}"`);
+    const value = toks.shift();
+    if (value === undefined || !IDENT.test(value)) throw new Error(`marker "${marker}" needs a bareword value`);
+    if (role.kind === "const") params[role.name] = role.prefix + value;
+    else params[role.name] = value;
+    const { module, rest } = takeFrom(toks);
+    toks = rest;
+    if (module) {
+      if (!role.importParam) throw new Error(`${role.name} has no import to override`);
+      params[role.importParam] = module;
+    }
+  }
 }
 
 /* --------------------------- grammar pretty ------------------------------- */
 
 function renderGrammar() {
-  const g = deriveGrammar();
-  const out = ["# Auto-derived DSL grammar (from generator signatures)\n"];
-  for (const c of g.composites) {
-    out.push(`${c.name}  [${c.tier}${c.patternId ? " · mined " + c.patternId : ""}]  — ${c.label}`);
-    out.push(`  ${c.name} {`);
-    for (const f of c.fields) out.push(`    ${f.field} = <${f.kind}>`);
-    out.push(`  }\n`);
+  const out = ["# Auto-derived DSL grammar (positional; from generator signatures)\n"];
+  for (const c of grammar()) {
+    const dropped = Object.keys(c.derived);
+    out.push(`${c.name}  ->  keyword "${c.keyword}"`);
+    const subject = c.roles.find((r) => r.kind === "subject");
+    out.push(`  ${c.keyword} <${subject ? subject.name : "?"}>`);
+    const types = c.roles.filter((r) => r.kind === "type");
+    if (types.length) out.push(`    ${types.map((r) => `<${r.name}>`).join(" -> ")}`);
+    const marked = c.roles.filter((r) => r.kind === "const" || r.kind === "via" || r.kind === "field");
+    if (marked.length) out.push(`    ${marked.map((r) => `${r.marker} <${r.name}${r.prefix ? " minus " + r.prefix : ""}>`).join(" ")}`);
+    out.push(`  derived (dropped when resolvable): ${dropped.join(", ") || "none"}\n`);
   }
   return out.join("\n");
 }
@@ -145,4 +268,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { deriveGrammar, printTree, parseText };
+module.exports = { grammar, classify, printTree, parseText, canonicalModule };

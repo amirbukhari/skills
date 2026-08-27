@@ -63,44 +63,64 @@ two-tier **honestly** — it is a one-line delegating arrow with no interior to 
 
 ## The DSL surface layer (readable concrete syntax)
 
-The JSON composition tree stays the internal IR; `dsl.js` adds a readable,
-declarative surface that the LLM emits and a human reviews. The grammar is
-**auto-derived from the generator signatures** (`deriveGrammar()` reads
-`COMPOSITES` in `generators.js`) — not hand-authored: each composite's readable
-name becomes a production, and each typed param becomes a named field whose
-value syntax is fixed by its kind (`identifier`/`typeName`/`enumChoice` →
-bareword, `moduleSpecifier` → quoted string, `identifierList` → `[a, b]`).
-**Opaque leaf ids never appear in the surface** — leaves stay internal.
+The JSON composition tree stays the internal IR; `dsl.js` adds a **positional,
+declarative** surface that reads like a language, not a property bag. The grammar
+is **auto-derived from the generator signatures** (`classify()` reads `COMPOSITES`
+in `generators.js`) — not hand-authored. **Opaque leaf ids never appear** — leaves
+stay internal.
 
 `activeFeatureCostCalculator` in the surface (`surface/activeFeatureCostCalculator.calc`):
 
 ```
-makeVolumeCostingCalculatorFn {
-  exportName = activeFeatureCostCalculator
-  billingTypeConst = BILLING_TYPE_ACTIVE_FEATURE
-  elemType = ISubscriptionUsage
-  costType = ISubscriptionCost
-  sharedFn = getVolumeCostingItems
-  importElemFrom = '@src/rentsync-api/ISubscriptionUsage'
-  importCostFrom = '@src/rentsync-api/ISubscriptionCost'
-  importBillingFrom = '@llws/hydra-shared'
-  importSharedFrom = './shared'
-}
+volumeCosting activeFeatureCostCalculator
+  ISubscriptionUsage -> ISubscriptionCost
+  billingType ACTIVE_FEATURE via getVolumeCostingItems
+```
+
+Two signature-driven transforms produce that form:
+
+- **Positional rendering.** `keyword` = composite name minus `make`/`CalculatorFn`
+  (lower-initial); the `typeName` params join with ` -> `; an identifier param
+  whose name ends `Const` renders as `billingType <suffix>` (marker = name minus
+  `Const`; the SCREAMING_SNAKE of the marker, `BILLING_TYPE_`, is the dropped
+  const prefix); an identifier param whose name ends `Fn` renders as `via <fn>`.
+- **Import dropping.** Params flagged `derived` in a composite are module
+  specifiers for a symbol named by another param. `resolve-imports.js` mines a
+  `symbol -> canonical specifier` map from the real imports across the corpus
+  (`catalog/import-resolution.json`; canonical = the strictly-dominant specifier).
+  An import is **dropped** from the surface only when the stored value equals the
+  mined canonical (so expansion stays byte-exact) and **re-derived on parse**.
+  When a symbol is genuinely ambiguous (stored ≠ canonical) the import is **kept
+  inline** — `Type from '<module>'` — rather than guessed.
+
+That ambiguity is real in this corpus: `ISubscriptionUsage`/`ISubscriptionCost`
+are imported under **five** different relative/alias specifiers across the 39
+files. The alias `'@src/rentsync-api/…'` dominates, so `activeFeature` and
+`liftBuilding` (which use it) go fully import-free, but `propertyVolumeV2` uses
+the `'../../../…'` relative form and honestly keeps those two imports visible:
+
+```
+volumeCosting propertyVolumeV2CostCalculator
+  ISubscriptionUsage from '../../../ISubscriptionUsage' -> ISubscriptionCost from '../../../ISubscriptionCost'
+  billingType PROPERTY_VOLUME_V2 via getVolumeCostingItems
 ```
 
 `dsl.js` provides a **parser** (`parseText`, DSL → tree) and a **printer**
-(`printTree`, tree → DSL). `verify-dsl.js` proves they round-trip losslessly on
-all three calculators: `tree → DSL → tree` is identity (canonical, key-order
-insensitive), and `DSL → tree → expand` is byte-identical to `tree → expand`
-(so the committed `.calc` and the JSON IR are two views of the same code). The
-surface also inherits the typed guarantee — an opaque leaf id, an unknown field,
-an unquoted module specifier, or a prose value are all **rejected at parse**.
+(`printTree`, tree → DSL). `verify-dsl.js` proves lossless round-trip on all
+three calculators: `tree → DSL → tree` is identity (canonical), `DSL → tree → DSL`
+is string-identity, and `DSL → tree → expand` is byte-identical to `tree → expand`
+(so the committed `.calc` and the JSON IR are two views of the same code — still
+differing from the real file by only the known `// 15;`/`// 14;` trivia). The
+surface inherits the typed guarantee: an opaque leaf id, an unknown keyword or
+marker, an unquoted module specifier, a prose value, or an **unresolvable dropped
+import** are all **rejected at parse**.
 
 ```
-node dsl.js --grammar                    # the auto-derived grammar
+node resolve-imports.js                   # mine the symbol -> module map
+node dsl.js --grammar                     # the auto-derived positional grammar
 node dsl.js --print compositions/activeFeatureCostCalculator.json   # IR -> DSL
 node dsl.js --parse surface/activeFeatureCostCalculator.calc        # DSL -> IR
-node verify-dsl.js                        # lossless round-trip proof
+node verify-dsl.js                         # lossless round-trip proof
 ```
 
 ## Reproduce
