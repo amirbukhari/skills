@@ -1,0 +1,22 @@
+{
+  "schema": "sdd-code-provenance/1",
+  "stage": "spec->code(.calc)",
+  "generatedAt": null,
+  "artifacts": [
+    {
+      "module": "activeFeatureCostCalculator",
+      "spec": {
+        "path": "spec/modules/activeFeatureCostCalculator/spec.md",
+        "hash": "83cd703a913e0ea1cbcaa6f70601410f83e70c9f9cdd5ab493eab7978cb69f42"
+      },
+      "composition": {
+        "path": "spec/modules/activeFeatureCostCalculator/composition.calc",
+        "hash": "18cd2e8b5c185e78968714a1e6a968b320c07e64b5845bec2afb92965f51b83f"
+      },
+      "composite": "makeVolumeCostingCalculatorFn",
+      "paramCount": 9,
+      "emitterId": "stub:composition.calc",
+      "codeLines": 14
+    }
+  ]
+}

@@ -268,4 +268,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { grammar, classify, printTree, parseText, canonicalModule };
+module.exports = { grammar, classify, printTree, parseText, canonicalModule, renderGrammar };
