@@ -48,16 +48,109 @@ the run.
 
 ```
 node repo-dsl.js mine   [<dir>] [--min N]           # fan-out+LZW+promote; writes catalog/mined-library.json + results/corpus-coverage.json
-node repo-dsl.js gate   [<dir>] --min P [--min-file Q]  # pass/fail on corpus (and worst-file) coverage; results/gate.json; exit 1 on fail
+node repo-dsl.js gate   [<dir>] --min P [--min-file Q] [--no-mine]  # pass/fail on corpus coverage; results/gate.json; exit 1 on fail
 node repo-dsl.js verify [<dir>]                     # byte-identity plumbing: every file reconstructs exactly from its tokens
-node repo-dsl.js expand <file.calc|composition.json>  # curated surface -> native code
+node repo-dsl.js verify-expand <calc> [--against F] [--min P]  # PER-MODULE gate: expand one .calc, byte-diff vs its target
+node repo-dsl.js expand  <file.calc|composition.json>  # curated surface -> native code
+node repo-dsl.js explain <file.calc|composition.json>  # the GENERATOR TREE a composition invokes (machine JSON, for the panel)
 node repo-dsl.js report                             # reprint the last rollup
 ```
 
 `<dir>` defaults to the Hydra calculators corpus (read-only). The `gate` command
 is the SDD hook — same spirit as the scrutinize gate: it emits machine-readable
-JSON (`{pass, corpusCoveragePct, worstFile, generators, thresholds}`) and a
-non-zero exit on failure.
+JSON (`{pass, source, corpusCoveragePct, worstFile, generators, thresholds}`) and
+a non-zero exit on failure. `--no-mine` makes `gate` read the persisted
+`catalog/mined-library.json` + `results/corpus-coverage.json` from the last
+`mine` instead of re-mining the whole corpus each call (snappy on a large corpus;
+`"source": "persisted"` in the JSON records which path ran). Default behaviour
+(mine every call) is unchanged.
+
+### Per-module gate — `verify-expand`
+
+The corpus `verify`/`gate` look at the whole directory; `verify-expand` gives the
+panel a **true per-module verdict**. It expands one `.calc` and byte-diffs the
+result against the module's target — an explicit `--against <file>`, or by default
+the module's generated file (`generated/<module>.ts`, resolved from a
+`spec/modules/<m>/composition.calc` path). Machine JSON:
+
+```json
+{ "schema": "sdd-repo-dsl/verify-expand/1", "pass": true, "module": "activeFeatureCostCalculator",
+  "target": "…/generated/activeFeatureCostCalculator.ts", "byteIdentical": true, "coveragePct": 100,
+  "residueClasses": { "A": 0, "B": 0, "C": 0, "D": 0 }, "min": 100, "residue": [] }
+```
+
+`byteIdentical` (strict `===`) is reported **independently** of `pass`
+(`coveragePct >= --min`, default 100), so the panel can distinguish "exact" from
+"exact-modulo-trivia". Every unreproduced target line is classified with the same
+residue legend as the corpus engine (A non-recurring/bespoke · B free-text/SQL ·
+C comment/trivia · D formatting). Against the **real Hydra source**, `activeFeature`
+reports `byteIdentical:false, coveragePct:91.9, C:57` — the single trailing `// 15;`
+editorial comment, correctly classified **C** and nothing papered over; against its
+generated file it is `byteIdentical:true, 100%`.
+
+### Generator tree — `explain`
+
+`explain` emits, as stable machine JSON, the generator tree a composition
+**actually invokes** — the readable composites and the opaque leaf IDs beneath
+them, each with its typed param **signature** (declared kinds) and the concrete
+**args** bound at this call site, in nesting order (large → mid → leaf). This
+feeds the panel's "Generators" section, which shows only the generators a given
+composition uses (full library one click away). Structural `gap`/`indent` nodes
+are elided; indentation is transparent. Shape:
+
+```json
+{ "schema": "sdd-repo-dsl/explain/1", "module": "activeFeatureCostCalculator",
+  "composite": "makeVolumeCostingCalculatorFn",
+  "tree": {
+    "kind": "composite", "name": "makeVolumeCostingCalculatorFn", "tier": "composite", "label": "…",
+    "signature": { "exportName": "identifier", "elemType": "typeName", "…": "…" },
+    "args":      { "exportName": "activeFeatureCostCalculator", "elemType": "ISubscriptionUsage", "…": "…" },
+    "children": [
+      { "kind": "leaf", "id": "p_2c6b9735", "tier": "leaf", "label": "named-import (single specifier)",
+        "signature": { "name": "identifier", "from": "moduleSpecifier" },
+        "args": { "name": "BILLING_TYPE_ACTIVE_FEATURE", "from": "'@llws/hydra-shared'" } },
+      { "kind": "composite", "name": "volumeCostingBody", "tier": "mid", "children": [ … leaves … ] }
+    ]
+  },
+  "generators": { "composites": [ { "name", "tier", "label", "signature" } ],
+                  "leaves":     [ { "id",   "tier", "label", "signature" } ] },
+  "counts": { "composites": 2, "leaves": 8, "leafInstances": 11, "maxDepth": 2 } }
+```
+
+For `activeFeatureCostCalculator` this is the genuine three-tier tree: the large
+`makeVolumeCostingCalculatorFn` → the mid `volumeCostingBody` → the primitive
+leaves (`p_bcbbcc46` filter, `p_bad2f718` delegate, `p_e8dacf98` return), plus the
+import/const/struct leaves.
+
+### Closing the loop — `sdd-code-from-spec` (the composition emitter)
+
+`sdd-code-from-spec.js` is the CODE-stage sibling of `tools/sdd-spec-from-intent.js`
+(same CLI shape, verdict line, and exit codes), one stage downstream. It is the
+**"model emits DSL"** step that closes `intent → spec → .calc → expand`:
+
+```
+node sdd-code-from-spec.js <exampleDir> [--module m] [--stub <file>] [--model <id>] [--verify]
+```
+
+It reads `spec/modules/<m>/spec.md` plus the auto-derived DSL grammar + mined
+generator vocabulary, and has a generator emit `spec/modules/<m>/composition.calc`.
+Backends mirror `sdd-generate`: default shells out to the `claude` CLI (real
+emission); `--stub <file>` emits a file verbatim (zero-cost double). **Deterministic
+guard** (the trustworthy seam, exactly like the fixtures guard upstream): after
+emission the candidate is **parsed against the grammar and fully expanded** —
+rejecting an unknown composite, an unknown marker, prose, or any untyped param —
+**before anything is written**. On violation the module FAILs (non-zero exit) and
+no `.calc` is written; on success the **canonical `printTree` form** is written
+(lossless round-trip), so the committed artifact is deterministic even though a
+model chose its content. `--verify` additionally runs `verify-expand` and folds
+`pass`/coverage/`byteIdentical` into the verdict. Provenance (spec hash → `.calc`
+hash → composite) is stamped in `.sdd-code-provenance.json`.
+
+Proven end-to-end on `activeFeatureCostCalculator`: the live `claude` CLI emitted
+exactly `volumeCosting activeFeatureCostCalculator / ISubscriptionUsage ->
+ISubscriptionCost / billingType ACTIVE_FEATURE via getVolumeCostingItems`, it
+passed the grammar guard, and `verify-expand` confirmed its expansion is
+byte-identical to the generated file (`cov=100% byteIdentical=true`).
 
 ### Full-corpus result (39 files, `--min 2`)
 
