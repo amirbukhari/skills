@@ -1,0 +1,9 @@
+{
+  "name": "sdd-repo-dsl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SDD CODE stage: AST miner -> deterministic generator library (ID leaves + readable composites) -> composition-tree expander, over the Hydra billing calculators corpus.",
+  "devDependencies": {
+    "typescript": "5.4.5"
+  }
+}

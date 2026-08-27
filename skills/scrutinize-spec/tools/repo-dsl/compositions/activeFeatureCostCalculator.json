@@ -1,0 +1,14 @@
+{
+  "composite": "makeVolumeCostingCalculatorFn",
+  "params": {
+    "exportName": "activeFeatureCostCalculator",
+    "billingTypeConst": "BILLING_TYPE_ACTIVE_FEATURE",
+    "elemType": "ISubscriptionUsage",
+    "costType": "ISubscriptionCost",
+    "sharedFn": "getVolumeCostingItems",
+    "importBillingFrom": "'@llws/hydra-shared'",
+    "importElemFrom": "'@src/rentsync-api/ISubscriptionUsage'",
+    "importCostFrom": "'@src/rentsync-api/ISubscriptionCost'",
+    "importSharedFrom": "'./shared'"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "composite": "makeVolumeCostingCalculatorFn",
+  "params": {
+    "exportName": "propertyVolumeV2CostCalculator",
+    "billingTypeConst": "BILLING_TYPE_PROPERTY_VOLUME_V2",
+    "elemType": "ISubscriptionUsage",
+    "costType": "ISubscriptionCost",
+    "sharedFn": "getVolumeCostingItems",
+    "importBillingFrom": "'@llws/hydra-shared'",
+    "importElemFrom": "'../../../ISubscriptionUsage'",
+    "importCostFrom": "'../../../ISubscriptionCost'",
+    "importSharedFrom": "'./shared'"
+  }
+}
