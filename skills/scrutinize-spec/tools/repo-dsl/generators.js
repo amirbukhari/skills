@@ -140,25 +140,34 @@ const COMPOSITES = {
       { gap: 1 },
       { leaf: "p_57073579", params: { name: "billingTypeId", value: p.billingTypeConst } },
       { gap: 1 },
-      { composite: "wrapCalculatorFn", params: { name: p.exportName, elemType: p.elemType, costType: p.costType, sharedFn: p.sharedFn } },
+      // The function container (structural) wraps a MID composite — NOT a flat
+      // run of leaves. This is the small -> mid -> large hierarchy: the LARGE
+      // composite (p_c9fc5db5) is built out of the MID composite volumeCostingBody
+      // (p_16906662), which is built out of leaves.
+      { leaf: "struct_func_open", params: { name: p.exportName, paramName: "usages", paramType: p.elemType, returnType: p.costType } },
+      { indent: 1, children: [
+        { composite: "volumeCostingBody", params: { elemType: p.elemType, costType: p.costType, sharedFn: p.sharedFn } },
+      ] },
+      { leaf: "struct_func_close", params: {} },
     ],
   },
 
-  /** The function container: header + indented mined body leaves + close. */
-  wrapCalculatorFn: {
-    patternId: null, structural: true,
-    label: "export-function container with filter->delegate->return body",
-    params: { name: "identifier", elemType: "typeName", costType: "typeName", sharedFn: "identifier" },
+  /**
+   * volumeCostingBody — MID-tier composite (mined block p_16906662, recurs across
+   * the 2 volume calculators). Sits between the large calculator composite and the
+   * primitive leaves: it is built out of leaves and is itself a child of the large
+   * composite. This is the middle level that made the earlier library two-tier.
+   */
+  volumeCostingBody: {
+    patternId: "p_16906662", tier: "mid",
+    label: "volume-costing function body (filter -> shared helper -> return)",
+    params: { elemType: "typeName", costType: "typeName", sharedFn: "identifier" },
     build: (p) => [
-      { leaf: "struct_func_open", params: { name: p.name, paramName: "usages", paramType: p.elemType, returnType: p.costType } },
-      { indent: 1, children: [
-        { leaf: "trivia_note", params: { choice: "filteredForBillingType" } },
-        { leaf: "p_bcbbcc46", params: { resultVar: "subscriptions", elemType: p.elemType, sourceVar: "usages", paramName: "s", field: "billingTypeId", rhs: "billingTypeId" } },
-        { gap: 1 },
-        { leaf: "p_bad2f718", params: { resultVar: "result", elemType: p.costType, fn: p.sharedFn, args: ["subscriptions", "billingTypeId"] } },
-        { leaf: "p_e8dacf98", params: { name: "result" } },
-      ] },
-      { leaf: "struct_func_close", params: {} },
+      { leaf: "trivia_note", params: { choice: "filteredForBillingType" } },
+      { leaf: "p_bcbbcc46", params: { resultVar: "subscriptions", elemType: p.elemType, sourceVar: "usages", paramName: "s", field: "billingTypeId", rhs: "billingTypeId" } },
+      { gap: 1 },
+      { leaf: "p_bad2f718", params: { resultVar: "result", elemType: p.costType, fn: p.sharedFn, args: ["subscriptions", "billingTypeId"] } },
+      { leaf: "p_e8dacf98", params: { name: "result" } },
     ],
   },
 

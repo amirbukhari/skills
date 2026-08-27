@@ -71,7 +71,7 @@ function fakeParams(comp) {
 
 function main() {
   const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "catalog", "patterns.json"), "utf8"));
-  const mined = new Set([...catalog.smallPatterns, ...catalog.compositePatterns].map((p) => p.id));
+  const mined = new Set([...catalog.smallPatterns, ...(catalog.midPatterns || []), ...catalog.compositePatterns].map((p) => p.id));
 
   const results = [];
   const usedLeaves = new Set(), usedComposites = new Set();

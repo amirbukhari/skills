@@ -1,12 +1,19 @@
 {
-  "schema": "sdd-repo-dsl/patterns/1",
+  "schema": "sdd-repo-dsl/patterns/2",
   "corpus": "../../../../Rentsync/billing-system/src/rentsync-api/calculators",
   "minCount": 2,
   "fileCount": 39,
+  "tiers": [
+    "small",
+    "mid",
+    "composite"
+  ],
   "counts": {
     "smallRecurring": 266,
+    "midRecurring": 26,
     "compositeRecurring": 13,
-    "leafTypedClean": 264
+    "leafTypedClean": 264,
+    "midWithCompositeParent": 5
   },
   "smallPatterns": [
     {
@@ -8097,6 +8104,976 @@
       "skeleton": "ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(ID ID ID ID ID)))"
     }
   ],
+  "midPatterns": [
+    {
+      "id": "p_d6523119",
+      "granularity": "mid",
+      "count": 23,
+      "nodeCount": 10,
+      "fileCount": 16,
+      "files": [
+        "cost-calculators/activeBuildingCostCalculator.ts",
+        "cost-calculators/call-tracking/bundle/callRecordingBundleCostCalculator.ts",
+        "cost-calculators/call-tracking/bundle/callTrackingBundleCostCalculator.ts",
+        "cost-calculators/call-tracking/variable-rate/variableRateCostCalculator.ts",
+        "cost-calculators/costPerLeadCostCalculator.ts",
+        "cost-calculators/flatFeeCostCalculator.ts",
+        "cost-calculators/promotedListingsContractCostCalculator/index.ts",
+        "cost-calculators/propertyVolumeCostCalculator.ts",
+        "cost-calculators/tieredUnitCountCostCalculator.ts",
+        "cost-calculators/volumeV2Calculators/activeFeatureCostCalculator.ts",
+        "cost-calculators/volumeV2Calculators/propertyVolumeV2CostCalculator.ts",
+        "shared.ts",
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/daysPeriodMinimum.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/originalProrate.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "shb",
+        "shb",
+        "buildingId",
+        "buildingId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": [
+        "p_bf7c1398",
+        "p_c9fc5db5"
+      ]
+    },
+    {
+      "id": "p_f21507ab",
+      "granularity": "mid",
+      "count": 10,
+      "nodeCount": 14,
+      "fileCount": 9,
+      "files": [
+        "usage-calculators/call-tracking/bundle/bundleUsageCalculator.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts",
+        "usage-calculators/flatFeeUsageCalculator.ts",
+        "usage-calculators/housingTypeUsageCalculator.ts",
+        "usage-calculators/liftBuildingUsageCalculator.ts",
+        "usage-calculators/promotedListingsContractUsageCalculator/index.ts",
+        "usage-calculators/propertyVolumeUsageCalculator.ts",
+        "usage-calculators/volumeV2Calculators/shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "s",
+        "s",
+        "baseSubscription",
+        "service",
+        "billingTypeId",
+        "billingTypeId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(PropertyAccessExpression(PropertyAccessExpression(ID ID) ID) ID) EqualsEqualsEqualsToken ID))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610",
+        "p_f3b54d89"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_61a55438",
+      "granularity": "mid",
+      "count": 9,
+      "nodeCount": 11,
+      "fileCount": 5,
+      "files": [
+        "cost-calculators/call-tracking/bundle/callTrackingBundleCostCalculator.ts",
+        "shared.ts",
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/daysPeriodUpfront.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/index.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "Error",
+        "subscription",
+        "id"
+      ],
+      "skeleton": "Block(ThrowStatement(NewExpression(ID TemplateExpression(TemplateHead TemplateSpan(PropertyAccessExpression(ID ID) LastTemplateToken)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_b772ad24",
+      "granularity": "mid",
+      "count": 7,
+      "nodeCount": 12,
+      "fileCount": 4,
+      "files": [
+        "shared.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts",
+        "usage-calculators/promotedListingsContractUsageCalculator/index.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/index.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "bzc",
+        "bzc",
+        "cityId",
+        "building",
+        "cityId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken PropertyAccessExpression(ID ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_e9594f3a",
+      "granularity": "mid",
+      "count": 5,
+      "nodeCount": 13,
+      "fileCount": 4,
+      "files": [
+        "cost-calculators/activeBuildingCostCalculator.ts",
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/promotedListingsContractUsageCalculator/index.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/helpers.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "Error",
+        "usage",
+        "subscription",
+        "billingFrequencyId"
+      ],
+      "skeleton": "Block(ThrowStatement(NewExpression(ID TemplateExpression(TemplateHead TemplateSpan(PropertyAccessExpression(PropertyAccessExpression(ID ID) ID) LastTemplateToken)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_8dfdffb7",
+      "granularity": "mid",
+      "count": 4,
+      "nodeCount": 12,
+      "fileCount": 3,
+      "files": [
+        "cost-calculators/call-tracking/bundle/callTrackingBundleCostCalculator.ts",
+        "shared.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "a",
+        "b",
+        "a",
+        "b",
+        "amount"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) Parameter(ID) EqualsGreaterThanToken BinaryExpression(ID PlusToken PropertyAccessExpression(ID ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_86ec2cb5",
+      "granularity": "mid",
+      "count": 3,
+      "nodeCount": 11,
+      "fileCount": 2,
+      "files": [
+        "shared.ts",
+        "usage-calculators/housingTypeUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "buildingId",
+        "building",
+        "buildingId",
+        "billingTypeId",
+        "building",
+        "billingTypeId"
+      ],
+      "skeleton": "ObjectLiteralExpression(PropertyAssignment(ID PropertyAccessExpression(ID ID)) PropertyAssignment(ID PropertyAccessExpression(ID ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_e29947f0",
+      "granularity": "mid",
+      "count": 3,
+      "nodeCount": 14,
+      "fileCount": 3,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "subscription",
+        "Subscriptions",
+        "getUsageForSubscription",
+        "subscription",
+        "year",
+        "month",
+        "allActiveBuildingSubscriptions"
+      ],
+      "skeleton": "ArrowFunction(AsyncKeyword Parameter(ID TypeReference(ID)) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(ID ID ID ID ID)))",
+      "childSmallPatterns": [
+        "p_713b2bcf"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_01f54092",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 10,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "bid",
+        "otherSubscriptionBuildingIds",
+        "includes",
+        "bid"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken PrefixUnaryExpression(CallExpression(PropertyAccessExpression(ID ID) ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_986c344f"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_16906662",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 35,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/volumeV2Calculators/activeFeatureCostCalculator.ts",
+        "cost-calculators/volumeV2Calculators/propertyVolumeV2CostCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "subscriptions",
+        "ISubscriptionUsage",
+        "usages",
+        "filter",
+        "s",
+        "s",
+        "billingTypeId",
+        "billingTypeId",
+        "result",
+        "ISubscriptionCost",
+        "getVolumeCostingItems",
+        "subscriptions",
+        "billingTypeId",
+        "result"
+      ],
+      "skeleton": "Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID)))))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(ID ID ID)))) ReturnStatement(ID))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_8a27e25d",
+        "p_e8dacf98",
+        "p_d6523119",
+        "p_6f806504",
+        "p_bcbbcc46",
+        "p_bad2f718"
+      ],
+      "parentCompositePatterns": [
+        "p_c9fc5db5"
+      ]
+    },
+    {
+      "id": "p_19f26d27",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 11,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/propertyVolumeUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "cb",
+        "subscriptionBuildingIds",
+        "includes",
+        "cb",
+        "id"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken CallExpression(PropertyAccessExpression(ID ID) PropertyAccessExpression(ID ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_5a9c4334"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_1baf5830",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 16,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/daysPeriodUpfront.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/helpers.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "Error",
+        "building",
+        "id",
+        "period",
+        "id"
+      ],
+      "skeleton": "Block(ThrowStatement(NewExpression(ID TemplateExpression(TemplateHead TemplateSpan(PropertyAccessExpression(ID ID) TemplateMiddle) TemplateSpan(PropertyAccessExpression(ID ID) LastTemplateToken)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_351142de",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 25,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/tieredUnitCountCostCalculator.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/helpers.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "EBuildingBillingType",
+        "singleFamily",
+        "getSingleFamilyUsageItemCost",
+        "EBuildingBillingType",
+        "multiFamily",
+        "getMultiFamilyUsageItemCost",
+        "EBuildingBillingType",
+        "exempt",
+        "handleInvalidBuildingBillingTypeOnUsageItem",
+        "EBuildingBillingType",
+        "other",
+        "handleInvalidBuildingBillingTypeOnUsageItem"
+      ],
+      "skeleton": "ObjectLiteralExpression(PropertyAssignment(ComputedPropertyName(PropertyAccessExpression(ID ID)) ID) PropertyAssignment(ComputedPropertyName(PropertyAccessExpression(ID ID)) ID) PropertyAssignment(ComputedPropertyName(PropertyAccessExpression(ID ID)) ID) PropertyAssignment(ComputedPropertyName(PropertyAccessExpression(ID ID)) ID))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_3e05e579",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 27,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "s",
+        "s",
+        "id",
+        "subscription",
+        "id",
+        "s",
+        "baseSubscription",
+        "partnerId",
+        "subscription",
+        "baseSubscription",
+        "partnerId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken ParenthesizedExpression(BinaryExpression(BinaryExpression(PropertyAccessExpression(ID ID) ExclamationEqualsEqualsToken PropertyAccessExpression(ID ID)) AmpersandAmpersandToken BinaryExpression(PropertyAccessExpression(PropertyAccessExpression(ID ID) ID) EqualsEqualsEqualsToken PropertyAccessExpression(PropertyAccessExpression(ID ID) ID)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_4d9cf02c",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 30,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "buildingIds",
+        "currentSubscription",
+        "currentBuildingIds",
+        "currentSubscription",
+        "subscriptionsHasBuildings",
+        "map",
+        "shb",
+        "shb",
+        "buildingId",
+        "buildingIds",
+        "currentBuildingIds"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) Parameter(ID) EqualsGreaterThanToken Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(PropertyAccessExpression(PropertyAccessExpression(ID ID) ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken PropertyAccessExpression(ID ID)))))) ReturnStatement(ArrayLiteralExpression(SpreadElement(ID) SpreadElement(ID)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610",
+        "p_67ada909",
+        "p_bd7ca492",
+        "p_8cca7c9f",
+        "p_3faa36ee"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_5a163181",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 11,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/call-tracking/bundle/callTrackingBundleCostCalculator.ts",
+        "cost-calculators/call-tracking/variable-rate/variableRateCostCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "usageItem",
+        "makeCostItemFromUsageItem",
+        "usage",
+        "subscription",
+        "usageItem",
+        "sortedBrackets"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken CallExpression(ID PropertyAccessExpression(ID ID) ID ID))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_537e1198"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_8121ab5a",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 14,
+      "fileCount": 2,
+      "files": [
+        "db.ts",
+        "shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "apt",
+        "apt",
+        "partnerId",
+        "subscription",
+        "baseSubscription",
+        "partnerId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken PropertyAccessExpression(PropertyAccessExpression(ID ID) ID)))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_941f752a",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 24,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/volumeV2Calculators/shared.ts",
+        "usage-calculators/volumeV2Calculators/shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "billingTypeId",
+        "billingTypeId",
+        "billingTypeToCostCalcProperties",
+        "Object",
+        "keys",
+        "billingTypeToCostCalcProperties",
+        "includes",
+        "billingTypeId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID NumberKeyword) FirstTypeNode(ID TypeOperator(TypeQuery(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(PropertyAccessExpression(CallExpression(PropertyAccessExpression(ID ID) ID) ID) TemplateExpression(TemplateHead TemplateSpan(ID LastTemplateToken)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_986c344f",
+        "p_b2529c01",
+        "p_d304804e"
+      ],
+      "parentCompositePatterns": [
+        "p_f3ade3af"
+      ]
+    },
+    {
+      "id": "p_b22571cf",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 14,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/daysPeriodMinimum.ts",
+        "usage-calculators/tieredUnitCountUsageCalculator/chargeStrategies/daysPeriodUpfront.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "NUM",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "NUM"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "amount",
+        "1",
+        "additionalData",
+        "baseUsageItem",
+        "additionalData",
+        "usageDays",
+        "0"
+      ],
+      "skeleton": "ObjectLiteralExpression(PropertyAssignment(ID NUM) PropertyAssignment(ID ObjectLiteralExpression(SpreadAssignment(PropertyAccessExpression(ID ID)) PropertyAssignment(ID NUM))))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_c044b199",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 17,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/volumeV2Calculators/shared.ts",
+        "usage-calculators/volumeV2Calculators/shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "isBillingTypeIdInMap",
+        "billingTypeId",
+        "Error",
+        "billingTypeId",
+        "billingTypeId"
+      ],
+      "skeleton": "Block(IfStatement(PrefixUnaryExpression(CallExpression(ID ID)) Block(ThrowStatement(NewExpression(ID TemplateExpression(TemplateHead TemplateSpan(ID LastTemplateToken)))))) ReturnStatement(ID))",
+      "childSmallPatterns": [
+        "p_262eea91",
+        "p_e8dacf98"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_c240775a",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 13,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/propertyVolumeCostCalculator.ts",
+        "cost-calculators/volumeV2Calculators/shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "acc",
+        "ui",
+        "acc",
+        "ui",
+        "amount"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) Parameter(ID) EqualsGreaterThanToken ParenthesizedExpression(BinaryExpression(ID PlusToken PropertyAccessExpression(ID ID))))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_d8ab0377",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 14,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/housingTypeCostCalculator.ts",
+        "cost-calculators/liftBuildingCostCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "usages",
+        "ISubscriptionUsage",
+        "ISubscriptionCost",
+        "buildingBillingTypeCostCalculator",
+        "usages",
+        "BILLING_TYPE_BY_HOUSING_TYPE"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) EqualsGreaterThanToken CallExpression(ID ID ID))",
+      "childSmallPatterns": [
+        "p_8a27e25d"
+      ],
+      "parentCompositePatterns": [
+        "p_8af7a739"
+      ]
+    },
+    {
+      "id": "p_da28bcd1",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 17,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/call-tracking/bundle/callTrackingBundleCostCalculator.ts",
+        "usage-calculators/call-tracking/variable-rate/variableRateUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "acc",
+        "curr",
+        "acc",
+        "curr",
+        "partnerIds"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID) Parameter(ID) EqualsGreaterThanToken ArrayLiteralExpression(SpreadElement(ID) SpreadElement(ParenthesizedExpression(BinaryExpression(PropertyAccessExpression(ID ID) BarBarToken ArrayLiteralExpression)))))",
+      "childSmallPatterns": [
+        "p_3767a5b0"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_dd599c43",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 22,
+      "fileCount": 2,
+      "files": [
+        "cost-calculators/volumeV2Calculators/shared.ts",
+        "usage-calculators/volumeV2Calculators/shared.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "billingTypeId",
+        "isBillingTypeIdInMap",
+        "billingTypeId",
+        "Error",
+        "billingTypeId",
+        "billingTypeId"
+      ],
+      "skeleton": "ArrowFunction(Parameter(ID NumberKeyword) EqualsGreaterThanToken Block(IfStatement(PrefixUnaryExpression(CallExpression(ID ID)) Block(ThrowStatement(NewExpression(ID TemplateExpression(TemplateHead TemplateSpan(ID LastTemplateToken)))))) ReturnStatement(ID)))",
+      "childSmallPatterns": [
+        "p_262eea91",
+        "p_e8dacf98"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_e4a72684",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 24,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/activeBuildingUsageCalculator.ts",
+        "usage-calculators/costPerLeadUsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "currentBuildingIds",
+        "currentSubscription",
+        "subscriptionsHasBuildings",
+        "map",
+        "shb",
+        "shb",
+        "buildingId",
+        "buildingIds",
+        "currentBuildingIds"
+      ],
+      "skeleton": "Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(PropertyAccessExpression(PropertyAccessExpression(ID ID) ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken PropertyAccessExpression(ID ID)))))) ReturnStatement(ArrayLiteralExpression(SpreadElement(ID) SpreadElement(ID))))",
+      "childSmallPatterns": [
+        "p_3767a5b0",
+        "p_2578e610",
+        "p_67ada909",
+        "p_bd7ca492",
+        "p_8cca7c9f",
+        "p_3faa36ee"
+      ],
+      "parentCompositePatterns": []
+    },
+    {
+      "id": "p_ff378264",
+      "granularity": "mid",
+      "count": 2,
+      "nodeCount": 26,
+      "fileCount": 2,
+      "files": [
+        "usage-calculators/volumeV2Calculators/activeFeatureUsageCalculator.ts",
+        "usage-calculators/volumeV2Calculators/propertyVolumeV2UsageCalculator.ts"
+      ],
+      "slotKinds": [
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID",
+        "ID"
+      ],
+      "typedLeafClean": true,
+      "sampleSlotValues": [
+        "subscriptions",
+        "Subscriptions",
+        "year",
+        "month",
+        "Promise",
+        "ISubscriptionUsage",
+        "baseVolumeV2UsageCalculator",
+        "subscriptions",
+        "year",
+        "month",
+        "BILLING_TYPE_ACTIVE_FEATURE"
+      ],
+      "skeleton": "ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(ID ID ID ID ID)))",
+      "childSmallPatterns": [
+        "p_713b2bcf"
+      ],
+      "parentCompositePatterns": [
+        "p_08d4a2ce"
+      ]
+    }
+  ],
   "compositePatterns": [
     {
       "id": "p_3580a1e7",
@@ -8134,7 +9111,8 @@
         "month",
         "BILLING_TYPE_CALL_VOLUME"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID TypeReference(ID) ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken CallExpression(ID ID ID ID ID)))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID TypeReference(ID) ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken CallExpression(ID ID ID ID ID)))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_57073579",
@@ -8156,7 +9134,8 @@
         "billingTypeId",
         "BILLING_TYPE_PROPERTY_VOLUME"
       ],
-      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID ID)))"
+      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID ID)))",
+      "childMidPatterns": []
     },
     {
       "id": "p_589aa8e5",
@@ -8178,7 +9157,8 @@
         "billingTypeId",
         "9"
       ],
-      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID NUM)))"
+      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID NUM)))",
+      "childMidPatterns": []
     },
     {
       "id": "p_08d4a2ce",
@@ -8219,7 +9199,10 @@
         "month",
         "BILLING_TYPE_ACTIVE_FEATURE"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(ID ID ID ID ID))))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(ID ID ID ID ID))))))",
+      "childMidPatterns": [
+        "p_ff378264"
+      ]
     },
     {
       "id": "p_366b48fc",
@@ -8277,7 +9260,8 @@
         "clientId",
         "'id'"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID)))) ReturnStatement(CallExpression(ID AwaitExpression(CallExpression(PropertyAccessExpression(ID ID) ID ObjectLiteralExpression(PropertyAssignment(ID ObjectLiteralExpression(PropertyAssignment(ID CallExpression(ID CallExpression(ID ID ID) CallExpression(ID ID ID))) ShorthandPropertyAssignment(ID)))))) ArrayLiteralExpression(STR))))))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID)))) ReturnStatement(CallExpression(ID AwaitExpression(CallExpression(PropertyAccessExpression(ID ID) ID ObjectLiteralExpression(PropertyAssignment(ID ObjectLiteralExpression(PropertyAssignment(ID CallExpression(ID CallExpression(ID ID ID) CallExpression(ID ID ID))) ShorthandPropertyAssignment(ID)))))) ArrayLiteralExpression(STR))))))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_685f494b",
@@ -8325,7 +9309,8 @@
         "monthStart",
         "monthEnd"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID ID ID)))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID ID ID)))) ReturnStatement(CallExpression(ID ID ID ID)))))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) EqualsGreaterThanToken Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID ID ID)))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID CallExpression(ID ID ID)))) ReturnStatement(CallExpression(ID ID ID ID)))))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_8a7f62da",
@@ -8376,7 +9361,8 @@
         "activeFeatureCostCalculator",
         "tieredUnitCountCostCalculator"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) ArrayLiteralExpression(ID ID ID ID ID ID ID ID ID ID ID ID ID ID ID))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) ArrayLiteralExpression(ID ID ID ID ID ID ID ID ID ID ID ID ID ID ID))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_8af7a739",
@@ -8407,7 +9393,10 @@
         "usages",
         "BILLING_TYPE_BY_HOUSING_TYPE"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) EqualsGreaterThanToken CallExpression(ID ID ID)))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) EqualsGreaterThanToken CallExpression(ID ID ID)))))",
+      "childMidPatterns": [
+        "p_d8ab0377"
+      ]
     },
     {
       "id": "p_9db667e8",
@@ -8441,7 +9430,8 @@
         "BILLING_TYPE_CALL_RECORDING_VOLUME",
         "getCallTrackingCallsForMonth"
       ],
-      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID TypeReference(ID TypeReference(ID)) ObjectLiteralExpression(PropertyAssignment(ComputedPropertyName(ID) ID) PropertyAssignment(ComputedPropertyName(ID) ID) PropertyAssignment(ComputedPropertyName(ID) ID)))))"
+      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID TypeReference(ID TypeReference(ID)) ObjectLiteralExpression(PropertyAssignment(ComputedPropertyName(ID) ID) PropertyAssignment(ComputedPropertyName(ID) ID) PropertyAssignment(ComputedPropertyName(ID) ID)))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_bb326cea",
@@ -8481,7 +9471,8 @@
         "month",
         "BILLING_TYPE_LINE_BUNDLE"
       ],
-      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken CallExpression(ID ID ID ID ID)))))"
+      "skeleton": "FirstStatement(ExportKeyword VariableDeclarationList(VariableDeclaration(ID ArrowFunction(AsyncKeyword Parameter(ID ArrayType(TypeReference(ID))) Parameter(ID NumberKeyword) Parameter(ID NumberKeyword) TypeReference(ID ArrayType(TypeReference(ID))) EqualsGreaterThanToken CallExpression(ID ID ID ID ID)))))",
+      "childMidPatterns": []
     },
     {
       "id": "p_bf7c1398",
@@ -8535,7 +9526,10 @@
         "makeCostFromUsage",
         "usage"
       ],
-      "skeleton": "FunctionDeclaration(ExportKeyword ID Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID ID))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID)))))) ReturnStatement(CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken CallExpression(ID ID))))))"
+      "skeleton": "FunctionDeclaration(ExportKeyword ID Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID ID))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID)))))) ReturnStatement(CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken CallExpression(ID ID))))))",
+      "childMidPatterns": [
+        "p_d6523119"
+      ]
     },
     {
       "id": "p_c9fc5db5",
@@ -8588,7 +9582,11 @@
         "billingTypeId",
         "result"
       ],
-      "skeleton": "FunctionDeclaration(ExportKeyword ID Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID)))))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(ID ID ID)))) ReturnStatement(ID)))"
+      "skeleton": "FunctionDeclaration(ExportKeyword ID Parameter(ID ArrayType(TypeReference(ID))) ArrayType(TypeReference(ID)) Block(FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(PropertyAccessExpression(ID ID) ArrowFunction(Parameter(ID) EqualsGreaterThanToken BinaryExpression(PropertyAccessExpression(ID ID) EqualsEqualsEqualsToken ID)))))) FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrayType(TypeReference(ID)) CallExpression(ID ID ID)))) ReturnStatement(ID)))",
+      "childMidPatterns": [
+        "p_d6523119",
+        "p_16906662"
+      ]
     },
     {
       "id": "p_f3ade3af",
@@ -8623,7 +9621,10 @@
         "includes",
         "billingTypeId"
       ],
-      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrowFunction(Parameter(ID NumberKeyword) FirstTypeNode(ID TypeOperator(TypeQuery(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(PropertyAccessExpression(CallExpression(PropertyAccessExpression(ID ID) ID) ID) TemplateExpression(TemplateHead TemplateSpan(ID LastTemplateToken))))))))"
+      "skeleton": "FirstStatement(VariableDeclarationList(VariableDeclaration(ID ArrowFunction(Parameter(ID NumberKeyword) FirstTypeNode(ID TypeOperator(TypeQuery(ID))) EqualsGreaterThanToken ParenthesizedExpression(CallExpression(PropertyAccessExpression(CallExpression(PropertyAccessExpression(ID ID) ID) ID) TemplateExpression(TemplateHead TemplateSpan(ID LastTemplateToken))))))))",
+      "childMidPatterns": [
+        "p_941f752a"
+      ]
     }
   ]
 }

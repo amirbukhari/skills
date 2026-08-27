@@ -11,8 +11,8 @@ hole anywhere in the expansion.
 
 | File | Role |
 |---|---|
-| `miner.js` | AST/structural miner over a corpus, at **two granularities**: SMALL recurring bricks (statements, imports, sub-expressions) → **opaque ids** `p_xxxxxxxx`; COMPOSITE shapes (whole exported declarations / files) → also carried, but the library gives these **readable** names. Writes `catalog/patterns.json`. |
-| `generators.js` | The generator library. **Leaves** (opaque ids) emit one mined brick each; params are `identifier` / `typeName` / `moduleSpecifier` / `identifierList` / `enumChoice` **only** — never prose. **Composites** (readable: `makeVolumeCostingCalculatorFn`, `makeDelegatingCostCalculatorFn`) emit **no raw code**; they return a tree of child generator nodes. Every generator backed by a mined pattern carries its `patternId`. |
+| `miner.js` | AST/structural miner over a corpus, at **three granularities**: SMALL recurring bricks (statements, imports, sub-expressions) → **opaque ids** `p_xxxxxxxx`; **MID** interior sub-trees (block bodies, closures, reshapes) mined by **recursing into composite interiors** and kept only when they repeat across **≥2 files**; COMPOSITE shapes (whole exported declarations / files) → **readable** names in the library. Also emits **hierarchy edges** (small ⊂ mid ⊂ large, via skeleton containment). Writes `catalog/patterns.json`. |
+| `generators.js` | The generator library. **Leaves** (opaque ids) emit one mined brick each; params are `identifier` / `typeName` / `moduleSpecifier` / `identifierList` / `enumChoice` **only** — never prose. **Composites** are multi-level: a **MID** composite (`volumeCostingBody`, mined `p_16906662`) is built of leaves; a **LARGE** composite (`makeVolumeCostingCalculatorFn`, mined `p_c9fc5db5`) is built of the mid composite — a composite built of another composite, not a flat run of leaves. Composites emit **no raw code**; every mined-backed generator carries its `patternId`. |
 | `expander.js` | Walks a composition tree → validates every leaf param against its declared type → emits code. The type validation is what makes "no free-text hole" real: a sentence, a newline-bearing blob, or raw code passed to any param is **rejected**. |
 | `verify-coverage.js` | The falsifiable metric. Expands each composition, line-LCS diffs it against the **real committed file**, and reports the exact `%` reproduced + the exact lines composition could not reach. No rounding up. Also audits that used generators are backed by mined patterns. Writes `results/coverage.json`. |
 
@@ -26,17 +26,25 @@ hole anywhere in the expansion.
 
 ## Corpus & proof
 
-Corpus (read-only): `src/rentsync-api/calculators/` in `billing-system` — 39 files.
-Miner (min-count 2): **266 small** + **13 composite** recurring patterns; **264/266**
-small patterns are typed-leaf-clean.
+Corpus (read-only): `src/rentsync-api/calculators/` in `billing-system` — **all 39 files**.
+Miner (min-count 2): **266 small** + **26 mid** + **13 composite** recurring patterns;
+**5/26** mid patterns are contained in a composite (real small→mid→large edges);
+**264/266** small patterns are typed-leaf-clean.
 
 Three real calculators reproduced by **pure composition**, diffed against the real files:
 
-| Target | Line coverage | Miss |
-|---|---|---|
-| `liftBuildingCostCalculator.ts` | **8/8 = 100%** | — |
-| `volumeV2Calculators/activeFeatureCostCalculator.ts` | **13/14 = 92.9%** | trailing `// 15;` comment |
-| `volumeV2Calculators/propertyVolumeV2CostCalculator.ts` | **13/14 = 92.9%** | trailing `// 14;` comment |
+| Target | Line coverage | Generator-call depth | Miss |
+|---|---|---|---|
+| `liftBuildingCostCalculator.ts` | **8/8 = 100%** | 2 (large→leaf; no interior) | — |
+| `volumeV2Calculators/activeFeatureCostCalculator.ts` | **13/14 = 92.9%** | **3 (large→mid→leaf)** | trailing `// 15;` comment |
+| `volumeV2Calculators/propertyVolumeV2CostCalculator.ts` | **13/14 = 92.9%** | **3 (large→mid→leaf)** | trailing `// 14;` comment |
+
+**Hierarchy.** The two volume calculators expand through a genuine middle tier: the
+LARGE composite `makeVolumeCostingCalculatorFn` (mined `p_c9fc5db5`) is built out of
+the MID composite `volumeCostingBody` (mined `p_16906662`, the function-body block that
+recurs across both volume files), which is built out of the primitive leaves
+(`p_bcbbcc46` filter, `p_bad2f718` delegate, `p_e8dacf98` return). `liftBuilding` stays
+two-tier **honestly** — it is a one-line delegating arrow with no interior to mine.
 
 ### Where composition couldn't reach (the honest gap)
 

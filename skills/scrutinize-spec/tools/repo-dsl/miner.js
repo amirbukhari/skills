@@ -77,6 +77,18 @@ function isComposite(node) {
   return false;
 }
 
+// MID granularity: interior sub-trees between a single statement and a whole
+// declaration — recursed OUT OF the composites, not the top level. These are the
+// mid-tier bricks a hierarchical library needs (block bodies, closures, reshapes).
+const MID_KINDS = new Set([
+  ts.SyntaxKind.Block,
+  ts.SyntaxKind.ArrowFunction,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.ObjectLiteralExpression,
+]);
+const MID_MIN_NODES = 10; // bigger than a leaf brick
+const MID_MAX_NODES = 200; // smaller than a whole big calculator
+
 function record(map, gran, node, file) {
   const { skeleton, slots, nodeCount } = skeletonize(node);
   const id = idFor(skeleton);
@@ -98,6 +110,7 @@ function main() {
   const cfg = parseArgs(process.argv);
   const files = listTsFiles(cfg.corpus);
   const small = new Map();
+  const mid = new Map();
   const composite = new Map();
 
   for (const file of files) {
@@ -105,8 +118,19 @@ function main() {
     const sf = parse(file, src);
     const rel = path.relative(cfg.corpus, file);
 
-    // composite: top-level declarations
-    sf.statements.forEach((st) => { if (isComposite(st)) record(composite, "composite", st, rel); });
+    // composite: top-level declarations. Then RECURSE their interiors for mid
+    // patterns (depth > 0 within a top-level decl) — this is the recursive
+    // re-mining that makes a genuine small -> mid -> large hierarchy possible.
+    sf.statements.forEach((st) => {
+      if (isComposite(st)) record(composite, "composite", st, rel);
+      (function walk(n, depth) {
+        if (depth > 0 && MID_KINDS.has(n.kind)) {
+          const nc = skeletonize(n).nodeCount;
+          if (nc >= MID_MIN_NODES && nc <= MID_MAX_NODES) record(mid, "mid", n, rel);
+        }
+        ts.forEachChild(n, (c) => walk(c, depth + 1));
+      })(st, 0);
+    });
 
     // small: walk the whole tree, record nodes of SMALL_KINDS
     (function walk(n) {
@@ -115,9 +139,9 @@ function main() {
     })(sf);
   }
 
-  const finalize = (map) =>
+  const finalize = (map, opts = {}) =>
     [...map.values()]
-      .filter((e) => e.count >= cfg.minCount)
+      .filter((e) => e.count >= cfg.minCount && (!opts.crossFile || e.files.size >= 2))
       .map((e) => ({
         id: e.id,
         granularity: e.granularity,
@@ -133,26 +157,52 @@ function main() {
       .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
 
   const smallPatterns = finalize(small);
+  // Mid patterns must span >= 2 FILES to count as a real mid-tier repeat (not
+  // one file's internal duplication).
+  const midPatterns = finalize(mid, { crossFile: true });
   const compositePatterns = finalize(composite);
 
+  // HIERARCHY EDGES: a pattern P is CONTAINED in pattern Q iff P's skeleton is a
+  // substring of Q's (skeletons are nested strings, so a sub-tree's skeleton is
+  // literally a substring of its ancestor's). This yields real small -> mid ->
+  // large containment, computed deterministically from the skeletons.
+  const containedIn = (child, parents) =>
+    parents.filter((p) => p.id !== child.id && p.skeleton.includes(child.skeleton)).map((p) => p.id);
+  for (const m of midPatterns) {
+    m.childSmallPatterns = smallPatterns.filter((s) => s.id !== m.id && m.skeleton.includes(s.skeleton)).map((s) => s.id);
+    m.parentCompositePatterns = containedIn(m, compositePatterns);
+  }
+  for (const c of compositePatterns) {
+    c.childMidPatterns = midPatterns.filter((m) => c.skeleton.includes(m.skeleton)).map((m) => m.id);
+  }
+  const midsWithParents = midPatterns.filter((m) => m.parentCompositePatterns.length).length;
+
+  // Trim skeletons off the persisted records except where needed (keep file lean-ish);
+  // hierarchy already computed. Keep skeleton on composites+mids for downstream tooling.
+
   const catalog = {
-    schema: "sdd-repo-dsl/patterns/1",
+    schema: "sdd-repo-dsl/patterns/2",
     corpus: path.relative(path.resolve(__dirname, "..", ".."), cfg.corpus),
     minCount: cfg.minCount,
     fileCount: files.length,
+    tiers: ["small", "mid", "composite"],
     counts: {
       smallRecurring: smallPatterns.length,
+      midRecurring: midPatterns.length,
       compositeRecurring: compositePatterns.length,
       leafTypedClean: smallPatterns.filter((p) => p.typedLeafClean).length,
+      midWithCompositeParent: midsWithParents,
     },
     smallPatterns,
+    midPatterns,
     compositePatterns,
   };
 
   fs.mkdirSync(path.dirname(cfg.out), { recursive: true });
   fs.writeFileSync(cfg.out, JSON.stringify(catalog, null, 2) + "\n");
 
-  console.log(`miner: ${files.length} files -> ${smallPatterns.length} small + ${compositePatterns.length} composite recurring patterns (min-count ${cfg.minCount})`);
+  console.log(`miner: ${files.length} files -> ${smallPatterns.length} small + ${midPatterns.length} mid + ${compositePatterns.length} composite recurring patterns (min-count ${cfg.minCount})`);
+  console.log(`miner: ${midsWithParents}/${midPatterns.length} mid patterns are contained in a composite (small->mid->large hierarchy edges present)`);
   console.log(`miner: ${catalog.counts.leafTypedClean}/${smallPatterns.length} small patterns are typed-leaf-clean (no prose slot)`);
   console.log(`miner: wrote ${path.relative(process.cwd(), cfg.out)}`);
 }
