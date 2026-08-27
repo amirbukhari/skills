@@ -10,11 +10,20 @@
  *                                       generators, write the library + coverage.
  *   repo-dsl gate   <dir> --min P       Coverage GATE for the SDD pipeline: pass/
  *                        [--min-file Q] fail on corpus (and optional worst-file)
- *                                       coverage; machine JSON to results/, exit 1 on fail.
+ *                        [--no-mine]    coverage; machine JSON to results/, exit 1 on fail.
+ *                                       --no-mine reads the persisted catalog instead
+ *                                       of re-mining (snappy on a large corpus).
  *   repo-dsl verify <dir>               Byte-identity plumbing check: every file
  *                                       reconstructs exactly from its token stream.
+ *   repo-dsl verify-expand <calc>       PER-MODULE gate: expand one .calc and byte-
+ *                        [--against F]  diff it against its target (default the
+ *                        [--min P]      module's generated file); machine JSON verdict
+ *                                       {pass, coveragePct, byteIdentical, residueClasses}.
  *   repo-dsl expand <file>              Curated surface -> code: expand a .calc
  *                                       (DSL) or composition .json to native code.
+ *   repo-dsl explain <calc>             Emit the GENERATOR TREE a composition invokes
+ *                                       (composites + leaf ids + typed signatures,
+ *                                       nesting order) as machine JSON for the panel.
  *   repo-dsl report                     Reprint the last mine rollup.
  *
  * Robust by design: a file that doesn't fully reduce lowers its coverage and adds
@@ -73,18 +82,29 @@ function cmdMine(args) {
   printRollup(runMine(dir, +flag(args, "--min", 2)));
 }
 
+/** Load the persisted mine output (for gate --no-mine): coverage rollup + library. */
+function loadPersisted() {
+  if (!fs.existsSync(COVERAGE_JSON) || !fs.existsSync(LIBRARY_JSON))
+    throw new Error(`--no-mine needs a prior run: ${path.relative(process.cwd(), COVERAGE_JSON)} and ${path.relative(process.cwd(), LIBRARY_JSON)} must exist (run: repo-dsl mine)`);
+  const cov = JSON.parse(fs.readFileSync(COVERAGE_JSON, "utf8"));
+  const library = JSON.parse(fs.readFileSync(LIBRARY_JSON, "utf8"));
+  return { rollup: cov.rollup, fileReports: cov.files, library, corpus: cov.corpus };
+}
+
 function cmdGate(args) {
   const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
   const min = +flag(args, "--min", 80);        // corpus coverage threshold (%)
   const minFile = flag(args, "--min-file", null); // optional worst-file threshold (%)
-  const res = runMine(dir, +flag(args, "--min-count", 2)); // LZW recurrence threshold
+  const noMine = args.includes("--no-mine");
+  const res = noMine ? loadPersisted() : runMine(dir, +flag(args, "--min-count", 2)); // LZW recurrence threshold
   const corpus = res.rollup.coveragePct;
   const worst = res.fileReports[0];
   const corpusPass = corpus >= min;
   const filePass = minFile == null || worst.coveragePct >= +minFile;
   const pass = corpusPass && filePass;
   const out = {
-    schema: "sdd-repo-dsl/gate/1", pass, thresholds: { corpus: min, perFile: minFile == null ? null : +minFile },
+    schema: "sdd-repo-dsl/gate/1", pass, source: noMine ? "persisted" : "mined",
+    thresholds: { corpus: min, perFile: minFile == null ? null : +minFile },
     corpusCoveragePct: corpus, worstFile: { rel: worst.rel, coveragePct: worst.coveragePct },
     generators: res.library.counts,
   };
@@ -115,6 +135,28 @@ function cmdVerify(args) {
   process.exit(fail ? 1 : 0);
 }
 
+function cmdVerifyExpand(args) {
+  const { verifyExpand } = require("./verify-expand");
+  const calc = args.find((a) => !a.startsWith("--"));
+  if (!calc) { console.error("usage: repo-dsl verify-expand <calc> [--against <file>] [--min <pct>]"); process.exit(1); }
+  const out = verifyExpand(path.resolve(process.cwd(), calc), {
+    against: flag(args, "--against", null), min: flag(args, "--min", 100),
+  });
+  fs.mkdirSync(RESULTS, { recursive: true });
+  fs.writeFileSync(path.join(RESULTS, `verify-expand-${out.module}.json`), JSON.stringify(out, null, 2) + "\n");
+  console.log(JSON.stringify(out, null, 2));
+  process.exit(out.pass ? 0 : 1);
+}
+
+function cmdExplain(args) {
+  const { explainTree } = require("./explain");
+  const calc = args.find((a) => !a.startsWith("--"));
+  if (!calc) { console.error("usage: repo-dsl explain <calc>"); process.exit(1); }
+  const p = path.resolve(process.cwd(), calc);
+  const tree = p.endsWith(".json") ? JSON.parse(fs.readFileSync(p, "utf8")) : require("./dsl").parseText(fs.readFileSync(p, "utf8"));
+  process.stdout.write(JSON.stringify(explainTree(tree), null, 2) + "\n");
+}
+
 function cmdExpand(args) {
   const file = args[0];
   if (!file) { console.error("usage: repo-dsl expand <file.calc|composition.json>"); process.exit(1); }
@@ -138,10 +180,12 @@ function main() {
     case "mine": return cmdMine(args);
     case "gate": return cmdGate(args);
     case "verify": return cmdVerify(args);
+    case "verify-expand": return cmdVerifyExpand(args);
     case "expand": return cmdExpand(args);
+    case "explain": return cmdExplain(args);
     case "report": return cmdReport();
     default:
-      console.error("usage: repo-dsl <mine|gate|verify|expand|report> [args]  (see README)");
+      console.error("usage: repo-dsl <mine|gate|verify|verify-expand|expand|explain|report> [args]  (see README)");
       process.exit(1);
   }
 }
