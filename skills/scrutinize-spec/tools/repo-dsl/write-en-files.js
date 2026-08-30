@@ -64,8 +64,10 @@ for (const abs of src) {
   perFile.push({ rel, ...r.stats });
 }
 
-/* ---------- 3. gitignore the cache ---------- */
-fs.writeFileSync(path.join(CORPUS, ".gitignore"), "# STEP 7: derived compose/build intermediates — regenerable, never committed.\n.cache/\n");
+/* ---------- 3. .gitignore is a hand-maintained TRACKED source file now (lists derived paths to
+ * ignore); the build no longer regenerates it. Create a minimal one only if it is missing. ---------- */
+if (!fs.existsSync(path.join(CORPUS, ".gitignore")))
+  fs.writeFileSync(path.join(CORPUS, ".gitignore"), "# derived build intermediates — regenerable, never committed.\n.cache/\n");
 
 /* ---------- 4. manifest + report ---------- */
 perFile.sort((a, b) => b.englishPct - a.englishPct);
@@ -80,7 +82,10 @@ const manifest = {
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
 };
-fs.writeFileSync(path.join(specDir, "en-index.json"), JSON.stringify(manifest, null, 2));
+// en-index.json is DERIVED -> write it into the gitignored cache, not the source spec/ tree.
+const enIndexOut = path.join(CORPUS, ".cache", "spec-derived", "en-index.json");
+fs.mkdirSync(path.dirname(enIndexOut), { recursive: true });
+fs.writeFileSync(enIndexOut, JSON.stringify(manifest, null, 2));
 
 const residualCalc = walkAll(specDir, (p) => p.endsWith(".calc")).length;
 console.log("=== STEP 7 — ENGLISH SOURCE OF TRUTH ===");
