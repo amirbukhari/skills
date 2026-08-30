@@ -4,8 +4,10 @@
  *
  * Replaces the FLAT window-cluster catalog (build-generators.js -> generators.json, PRD §4A
  * defect) with an LZW dictionary run over per-statement CANONICAL SYMBOLS. Output is a word
- * GRAPH: leaf words (one statement key) and composite words (members:[prefixWord, appendedLeaf])
- * — generators referencing generators, with emergent hierarchyDepth.
+ * GRAPH: leaf words (one statement key) and composite words (m:[prefixWord, appendedLeaf])
+ * — generators referencing generators, with emergent depth d. The word-graph fields (len/d/sym/m)
+ * are the canonical short forms shared verbatim by the writer (engine/wordlzw.js) and the reader
+ * (engine/enlzw.js); see wordlzw.js's header for why they are abbreviated.
  *
  * Corpus is READ-ONLY (walked, never written). The catalog is written into the SKILLS REPO
  * (catalog/generators-lzw.json), NOT under hydra-source — the SOURCE-PROTECTED generators.json
@@ -56,21 +58,22 @@ for (const abs of files) {
 function buildAxis(streams, axis) {
   const model = W.buildSaturated(streams, { maxWin: MAXWIN, minCount: MIN_COUNT });
   const prom = W.promote(model, { minCount: MIN_COUNT, minSkelPerStmt: MIN_SKEL, skelBytesOf: G.skelBytes, saturated: true });
-  const dictWrap = { words: prom.words, symOfId: model.symOfId };
-  // serialize: words{}, leaf{sym->wordId}, ext{prefixWordId|appendedSym -> wordId}
+  // serialize: words{}, leaf{sym->wordId}, ext{prefixWordId|appendedSym -> wordId}.
+  // promote() already emits the canonical word-graph fields (len/d/sym/m), so this is a straight
+  // projection — no field renaming — keeping only the fields the on-disk catalog carries.
   const words = {}, leaf = {}, ext = {};
   let maxDepth = 0, composites = 0, edges = 0;
   for (const idStr in prom.words) {
     const w = prom.words[idStr];
     if (w.len === 1) {
-      words[w.id] = { len: 1, d: 0, sym: w.sym };
+      words[w.id] = { len: 1, d: w.d, sym: w.sym };
       leaf[w.sym] = w.id;
     } else {
-      words[w.id] = { len: w.len, d: w.hierarchyDepth, m: w.members }; // m=[prefixWordId, appendedLeafWordId]
-      const appendedSym = model.symOfId[model.dict[w.members[1]].appended];
-      ext[w.members[0] + "|" + appendedSym] = w.id;
+      words[w.id] = { len: w.len, d: w.d, m: w.m }; // m=[prefixWordId, appendedLeafWordId]
+      const appendedSym = model.symOfId[model.dict[w.m[1]].appended];
+      ext[w.m[0] + "|" + appendedSym] = w.id;
       composites++; edges += 2;
-      if (w.hierarchyDepth > maxDepth) maxDepth = w.hierarchyDepth;
+      if (w.d > maxDepth) maxDepth = w.d;
     }
   }
   const leaves = Object.keys(leaf).length;

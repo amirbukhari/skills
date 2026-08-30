@@ -11,10 +11,17 @@
  *   ALPHABET  = the distinct per-statement canonical keys (one statement -> one symbol).
  *               Each symbol already refills BYTE-EXACT via engine/generators.js parts.
  *   WORD      = an LZW dictionary entry. A length-1 word is a leaf (one statement key).
- *               A length-K word is `members:[prefixWordId, appendedLeafId]` — i.e. a
+ *               A length-K word is `m:[prefixWordId, appendedLeafId]` — i.e. a
  *               GENERATOR THAT REFERENCES GENERATORS, by construction (LZW's prefix+symbol
- *               rule). `hierarchyDepth` = the prefix-chain length -> the tier hierarchy
+ *               rule). `d` = the prefix-chain length -> the tier hierarchy
  *               (ARCHETYPE>SKELETON>IDIOM>LEAF) is the EMERGENT dictionary depth, not a label.
+ *
+ *   CANONICAL FIELD NAMES — the word-graph fields are the short forms `m` (members) and
+ *   `d` (depth), plus `len`/`sym`, and NOTHING ELSE. They are deliberately abbreviated: the
+ *   catalog is a ~0.67 MB machine-read artifact of thousands of words per axis, where `m`/`d`
+ *   over `members`/`hierarchyDepth` is a real size win. The reader (engine/enlzw.js) and the
+ *   serializer (build-lzw-generators.js) use these exact names; wordlzw-enlzw-fields.test.js
+ *   pins writer and reader to them so the two halves can never drift apart again.
  *
  * BYTE-IDENTITY is preserved as a representational identity, not a new invariant:
  *   expandKey(word) === the exact flat window key that a monolithic window would emit
@@ -170,8 +177,8 @@ function segment(stream, model, kept) {
 /** Ordered list of the leaf statement-symbol strings this word expands to (recurses members). */
 function expandSymbols(word, dict) {
   if (word.len === 1) return [dict.symOfId[word.appended]];
-  return expandSymbols(dict.words[word.members[0]], dict).concat(
-         expandSymbols(dict.words[word.members[1]], dict));
+  return expandSymbols(dict.words[word.m[0]], dict).concat(
+         expandSymbols(dict.words[word.m[1]], dict));
 }
 /** The flat window key: statement symbols joined by the literal `‹gap›` marker.
  *  Identical to what engine/generators.js windowParts produces for the same run. */
@@ -180,7 +187,7 @@ function expandKey(word, dict) { return expandSymbols(word, dict).join(GAP); }
 /* ---- promotion: pick which words become catalog generators (recur >= minCount) ---- */
 /**
  * promote(model, { minCount, minSkelPerStmt, skelBytesOf }) -> {
- *   words: { [wordId]: {id, len, freq, sym?, members?, hierarchyDepth} },  // the graph
+ *   words: { [wordId]: {id, len, freq, sym?, m?, d} },  // the graph (canonical fields m/d)
  *   symOfId, byKey, idOfSym, keptKeys
  * }
  * A word is kept iff len===1 && recurs (a reusable leaf) OR len>=2 && freq>=minCount and
@@ -225,8 +232,8 @@ function promote(model, opts = {}) {
   const words = {};
   for (const id of kept) {
     const e = dict[id];
-    if (e.len === 1) words[id] = { id, len: 1, freq: freqOf(e), sym: symOfId[e.appended], appended: e.appended, hierarchyDepth: 0 };
-    else words[id] = { id, len: e.len, freq: freqOf(e), members: [e.prefixId, e.appended], hierarchyDepth: depthOf.get(id) };
+    if (e.len === 1) words[id] = { id, len: 1, freq: freqOf(e), sym: symOfId[e.appended], appended: e.appended, d: 0 };
+    else words[id] = { id, len: e.len, freq: freqOf(e), m: [e.prefixId, e.appended], d: depthOf.get(id) };
   }
   return { words, symOfId, byKey, idOfSym, keptKeys: byKey, minCount };
 }
