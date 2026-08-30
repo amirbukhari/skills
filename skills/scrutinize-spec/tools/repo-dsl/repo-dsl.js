@@ -50,8 +50,17 @@ function flag(args, name, def) {
   return i >= 0 && i + 1 < args.length ? args[i + 1] : def;
 }
 
-function runMine(dir, minCount) {
-  const res = mine(dir, { minCount });
+/** Parse `--lift bool,type,null` into a lift config, or undefined (current behavior). */
+function parseLift(args) {
+  const raw = flag(args, "--lift", null);
+  if (!raw) return undefined;
+  const set = new Set(raw.split(",").map((s) => s.trim().toLowerCase()));
+  const all = set.has("all");
+  return { bool: all || set.has("bool"), type: all || set.has("type"), nullc: all || set.has("null") || set.has("nullc") };
+}
+
+function runMine(dir, minCount, lift) {
+  const res = mine(dir, { minCount, lift });
   fs.mkdirSync(RESULTS, { recursive: true });
   fs.mkdirSync(CATALOG, { recursive: true });
   fs.writeFileSync(LIBRARY_JSON, JSON.stringify(res.library, null, 2) + "\n");
@@ -83,7 +92,9 @@ function printRollup(res) {
 
 function cmdMine(args) {
   const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
-  printRollup(runMine(dir, +flag(args, "--min", 2)));
+  const lift = parseLift(args);
+  if (lift) console.log(`(lift knob: ${Object.entries(lift).filter(([, v]) => v).map(([k]) => k).join("+") || "none"})`);
+  printRollup(runMine(dir, +flag(args, "--min", 2), lift));
 }
 
 /** Load the persisted mine output (for gate --no-mine): coverage rollup + library. */
