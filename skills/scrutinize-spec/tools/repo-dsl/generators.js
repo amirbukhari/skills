@@ -102,6 +102,26 @@ const LEAVES = {
     emit: () => `}`,
   },
 
+  // return LEFT * RIGHT;   (authored scalar-product return — NOT mined. No corpus
+  // calculator contains a bare scalar return, so this leaf cannot be promoted from
+  // a pattern; it is hand-authored for the self-evolution step. patternId:null +
+  // authored:true keep it distinct from mined leaves and out of the coverage claim.)
+  authored_scalar_return: {
+    patternId: null, authored: true,
+    label: "scalar product return",
+    params: { left: "identifier", right: "identifier" },
+    emit: ({ left, right }) => `return ${left} * ${right};`,
+  },
+
+  // --- structural brick: the scalar function header (container syntax, no mined id) ---
+  authored_scalar_open: {
+    patternId: null, structural: true,
+    label: "export scalar function header (two numeric params -> number)",
+    params: { name: "identifier", left: "identifier", right: "identifier" },
+    emit: ({ name, left, right }) =>
+      `export function ${name}(${left}: number, ${right}: number): number {`,
+  },
+
   // --- trivia (a canned comment; comments are not AST nodes -> enumerable set) ---
   trivia_note: {
     patternId: null, trivia: true,
@@ -209,6 +229,33 @@ const COMPOSITES = {
       { leaf: "p_2c6b9735", params: { name: p.delegateFn, from: p.importSharedFrom } },
       { gap: 1 },
       { leaf: "p_8af7a739", params: { name: p.exportName, paramName: "usages", paramType: p.elemType, returnType: p.costType, delegateFn: p.delegateFn, args: ["usages", p.billingTypeConst] } },
+    ],
+  },
+
+  /**
+   * scalarProduct — SELF-EVOLUTION word (hand-authored, first shipped in catalog
+   * v4). A minimal scalar calculator with NO filter / billingTypeId / delegate
+   * scaffolding: it wraps a single arithmetic return in a two-numeric-param
+   * function. Added to express the lean flat-fee (Case 2) that the two
+   * mined-shaped words (`volumeCosting`, `delegatingCost`) structurally could not.
+   * Like every composite it emits ONLY leaves (structural header + authored
+   * return + close), never raw code.
+   *
+   * The field param NAMES double as the surface markers (see dsl.classify), so the
+   * signature `{exportName, multiply, by}` renders as the surface form:
+   *     scalarProduct <exportName>
+   *       multiply <a> by <b>
+   */
+  scalarProduct: {
+    patternId: null, authored: true,
+    label: "scalar product calculator (return a * b)",
+    params: { exportName: "identifier", multiply: "identifier", by: "identifier" },
+    build: (p) => [
+      { leaf: "authored_scalar_open", params: { name: p.exportName, left: p.multiply, right: p.by } },
+      { indent: 1, children: [
+        { leaf: "authored_scalar_return", params: { left: p.multiply, right: p.by } },
+      ] },
+      { leaf: "struct_func_close", params: {} },
     ],
   },
 };
