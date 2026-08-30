@@ -1,0 +1,2 @@
+scalarProduct flatFeeCostCalculator
+  multiply flatFee by count

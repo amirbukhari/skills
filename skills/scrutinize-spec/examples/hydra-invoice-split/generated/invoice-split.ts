@@ -9,15 +9,15 @@ export const roundFloatToCents = (
   const mag = Math.abs(float);
   const sign = float < 0 ? -1 : 1;
   
-  const centCountWithEpsilon = mag * 100 + ROUND_EPSILON;
+  const centsMag = mag * 100 + ROUND_EPSILON;
   
   let centCount: number;
-  if (algorithm === 'up') {
-    centCount = Math.ceil(centCountWithEpsilon);
-  } else if (algorithm === 'down') {
-    centCount = Math.floor(centCountWithEpsilon);
+  if (algorithm === 'nearest') {
+    centCount = Math.round(centsMag);
+  } else if (algorithm === 'up') {
+    centCount = Math.ceil(centsMag);
   } else {
-    centCount = Math.round(centCountWithEpsilon);
+    centCount = Math.floor(centsMag);
   }
   
   return (centCount / 100) * sign;
@@ -30,7 +30,7 @@ export const evenlySplitWithCorrection = (
   const unrounded = total / count;
   const parts = new Array(count).fill(0).map(() => roundFloatToCents(unrounded));
   
-  const sum = parts.reduce((acc, val) => acc + val, 0);
+  const sum = parts.reduce((acc, p) => acc + p, 0);
   const diff = roundFloatToCents(total - sum);
   
   const numCorrections = Math.min(count, Math.round(Math.abs(diff) / CORRECTION_UNIT));

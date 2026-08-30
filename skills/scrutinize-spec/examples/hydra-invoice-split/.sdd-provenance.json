@@ -12,11 +12,11 @@
       "verified": true,
       "specInputs": {
         "spec/contracts/invoice-split.contract.md": "589b34492175c4f256b22739f9921e0d3a68264f2cfdb6b2d2786b775f2db8ff",
-        "spec/modules/invoice-split/constants.md": "aac736b858362d7aafff3233c62ebe94e139ea27f105d2a7e6834bc10299b498",
-        "spec/modules/invoice-split/spec.md": "2e06727e4bc2104511a577b5267d448efffb1a90784d4c26fec1c32c3544ecd8",
+        "spec/modules/invoice-split/constants.md": "ecc692e696a95553ed51f380ada2d632e64593a56758abd416c5589b081b07df",
+        "spec/modules/invoice-split/spec.md": "940abe706765510e2c1e22c8e8b96656e561053c1018b9ac1f1f828e91b5d496",
         "spec/standards/conventions.md": "935df82e374cd546eed68074c7faf482a172937586bc2d0e8865521db34d41d5"
       },
-      "fixturesHash": "00e2ec107befcf150ad77dd1de06f1bf18feddd43f1663b378163bd7213d3a08"
+      "fixturesHash": "962777641930185b2e0eec5ac057a7e94b081cd515a7a9f273351496c582c400"
     }
   ]
 }

@@ -15,8 +15,23 @@
       },
       "composite": "makeVolumeCostingCalculatorFn",
       "paramCount": 9,
-      "emitterId": "stub:composition.calc",
+      "emitterId": "claude-cli:claude-sonnet-4-5",
       "codeLines": 14
+    },
+    {
+      "module": "flatFeeCostCalculator",
+      "spec": {
+        "path": "spec/modules/flatFeeCostCalculator/spec.md",
+        "hash": "468e0daae28d0e84d1642756b959fc3d71a962fd8cd41cf3be8a9c56ce99f372"
+      },
+      "composition": {
+        "path": "spec/modules/flatFeeCostCalculator/composition.calc",
+        "hash": "7f38de1cf96bd0fd9b67d8bc7f18566e247967e330da986f01eacdadfa341206"
+      },
+      "composite": "scalarProduct",
+      "paramCount": 3,
+      "emitterId": "claude-cli:claude-sonnet-4-5",
+      "codeLines": 3
     }
   ]
 }
