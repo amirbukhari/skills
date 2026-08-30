@@ -11,6 +11,12 @@
  *
  * The .en -> .ts round-trip is the gate: it must hold for ALL files. Deterministic; 0 model.
  *   node write-en-files.js
+ *
+ * --no-write (alias --dry-run): run the FULL render + verify + report path without mutating the
+ * corpus — no .calc relocation, no .en writes, no .gitignore, and no en-index unless --out <dir>
+ * is given. Lets the production code path prove the byte-identity gate and the recursive/flat
+ * instrumentation against a protected corpus.
+ *   node write-en-files.js --no-write [--out <dir>]
  */
 const fs = require("fs");
 const path = require("path");
@@ -18,6 +24,10 @@ const ts = require("typescript");
 const EN = require("./engine/enfile");
 
 const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+// --no-write / --dry-run: prove the gate + instrumentation with ZERO corpus mutation.
+const DRY = process.argv.includes("--no-write") || process.argv.includes("--dry-run");
+const outFlag = process.argv.indexOf("--out");
+const OUT_DIR = outFlag >= 0 ? process.argv[outFlag + 1] : null;
 const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 const walkAll = (d, pred, o = []) => { if (!fs.existsSync(d)) return o; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walkAll(p, pred, o); else if (pred(p)) o.push(p); } return o; };
@@ -26,7 +36,7 @@ const walkAll = (d, pred, o = []) => { if (!fs.existsSync(d)) return o; for (con
 const specDir = path.join(CORPUS, "spec");
 const calcFiles = walkAll(specDir, (p) => p.endsWith(".calc"));
 let movedFiles = 0, movedOther = 0;
-for (const abs of calcFiles) {
+if (!DRY) for (const abs of calcFiles) {
   const relFromSpec = path.relative(specDir, abs); // e.g. files/src/foo.ts.calc  OR  modules/x/composition.calc
   let dest;
   if (relFromSpec.startsWith("files" + path.sep)) {
@@ -59,9 +69,11 @@ for (const abs of src) {
   try { r = EN.renderFileEn(source, index); back = EN.compileFileEn(r.en, index); } catch (e) { failures.push([rel, "THREW: " + e.message]); continue; }
   if (back !== source) { failures.push([rel, "MISMATCH"]); continue; }
   byteExact++;
-  const outPath = path.join(enFilesDir, rel + ".en");
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, r.en);
+  if (!DRY) {
+    const outPath = path.join(enFilesDir, rel + ".en");
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, r.en);
+  }
   totBytes += r.stats.totalBytes; engBytes += r.stats.englishBytes; stmtSpans += r.stats.stmtSpans; dataSpans += r.stats.dataSpans;
   genSpans += r.stats.genSpans || 0; genStmtsCollapsed += r.stats.genStmtsCollapsed || 0; if (r.stats.genSpans) filesWithGen++;
   genRecursive += r.stats.genRecursive || 0; genFlatFallback += r.stats.genFlatFallback || 0; if (r.stats.genFlatFallback) filesWithFlat++;
@@ -72,7 +84,7 @@ for (const abs of src) {
 
 /* ---------- 3. .gitignore is a hand-maintained TRACKED source file now (lists derived paths to
  * ignore); the build no longer regenerates it. Create a minimal one only if it is missing. ---------- */
-if (!fs.existsSync(path.join(CORPUS, ".gitignore")))
+if (!DRY && !fs.existsSync(path.join(CORPUS, ".gitignore")))
   fs.writeFileSync(path.join(CORPUS, ".gitignore"), "# derived build intermediates — regenerable, never committed.\n.cache/\n");
 
 /* ---------- 4. manifest + report ---------- */
@@ -91,20 +103,22 @@ const manifest = {
   topEnglishFiles: perFile.slice(0, 15),
 };
 // en-index.json is DERIVED -> write it into the gitignored cache, not the source spec/ tree.
-const enIndexOut = path.join(CORPUS, ".cache", "spec-derived", "en-index.json");
-fs.mkdirSync(path.dirname(enIndexOut), { recursive: true });
-fs.writeFileSync(enIndexOut, JSON.stringify(manifest, null, 2));
+// In --no-write mode, write it to --out <dir> if given, else skip it (numbers still printed).
+const enIndexOut = DRY
+  ? (OUT_DIR ? path.join(OUT_DIR, "en-index.json") : null)
+  : path.join(CORPUS, ".cache", "spec-derived", "en-index.json");
+if (enIndexOut) { fs.mkdirSync(path.dirname(enIndexOut), { recursive: true }); fs.writeFileSync(enIndexOut, JSON.stringify(manifest, null, 2)); }
 
 const residualCalc = walkAll(specDir, (p) => p.endsWith(".calc")).length;
-console.log("=== STEP 7 — ENGLISH SOURCE OF TRUTH ===");
-console.log(`  .en written .................. ${byteExact}/${src.length}  -> spec/files/<rel>.en`);
+console.log(`=== STEP 7 — ENGLISH SOURCE OF TRUTH ===${DRY ? "  (DRY RUN — no corpus writes)" : ""}`);
+console.log(`  .en ${DRY ? "rendered (not written)" : "written ............."} ${byteExact}/${src.length}  ${DRY ? "" : "-> spec/files/<rel>.en"}`);
 console.log(`  .en -> .ts BYTE-IDENTICAL ..... ${byteExact}/${src.length}   ${manifest.gate.allByteIdentical ? "(ALL PASS)" : "FAILURES: " + failures.length}`);
 for (const f of failures.slice(0, 10)) console.log(`       FAIL ${f[0]} ${f[1]}`);
 console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   (${stmtSpans} logic-stmt spans + ${dataSpans} data spans)`);
 console.log(`  generator spans ............... ${genSpans}   recursive ${genRecursive} / flat-fallback ${genFlatFallback} (${manifest.generators.flatFallbackPct}% fallback)`);
 console.log(`  flat-fallback (perm. holes) ... ${filesWithFlat} file(s); max composition depth ${maxDepth}`);
-console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/`);
+console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
 console.log(`  .calc REMAINING under spec/ ... ${residualCalc}   ${residualCalc === 0 ? "(spec tree is .calc-free)" : "(!!)"}`);
-console.log(`  wrote .gitignore ( .cache/ ) + spec/en-index.json`);
+console.log(DRY ? `  en-index ...................... ${enIndexOut ? enIndexOut : "(not written: pass --out <dir> to emit)"}` : `  wrote .gitignore ( .cache/ ) + spec/en-index.json`);
 console.log(`\n  most-English files:`);
 for (const f of perFile.slice(0, 8)) console.log(`     ${String(f.englishPct).padStart(5)}%  ${f.rel}`);
