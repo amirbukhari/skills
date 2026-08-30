@@ -24,6 +24,7 @@ const ts = require("typescript");
 const cnl = require("./cnl");
 const DATA = require("./data-english");
 const G = require("./generators");
+const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
 
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
@@ -54,7 +55,12 @@ function loadIndex(corpusRoot) {
     } catch (_) { /* fall through */ }
   }
   idx = idx || cnl.loadWordsIndex([]);
-  idx._generators = loadGenerators(corpusRoot); // attach the multi-line generator layer
+  idx._generators = loadGenerators(corpusRoot); // attach the FLAT generator layer (fallback only)
+  // attach the RECURSIVE word dictionary — the PRIMARY generator layer. It lives in the skills
+  // repo catalog (regenerable via build-lzw-generators.js), not the corpus. Absent -> layer
+  // disabled and rendering falls back entirely to the flat layer.
+  try { idx._lzw = EL.loadLzw(path.join(__dirname, "..", "catalog", "generators-lzw.json")); }
+  catch (_) { idx._lzw = null; }
   return idx;
 }
 
@@ -72,6 +78,17 @@ function hasRenderableData(node, sf) {
 /* ------------------------------ RENDER (.ts -> .en) ------------------------------ */
 const isSimpleForGen = (st) => G.isFoldable(st); // foldable = simple + control-flow (v2)
 function b64(obj) { return Buffer.from(JSON.stringify(obj), "utf8").toString("base64"); }
+
+/* human gloss for a collapsed span (DISPLAY ONLY — the compiler reads the payload, not this).
+ * Re-parse the covered slice into its top-level statements and describe them in plain English. */
+function genLabel(start, end, source, stmts) {
+  try {
+    const frag = ts.createSourceFile("s.ts", source.slice(start, end), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const g = G.glossForStatements([...frag.statements], frag);
+    if (g) return g;
+  } catch (_) { /* fall through to structural label */ }
+  return "compose " + stmts + " statements";
+}
 
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
  * Narrow-preferred (longest narrow match at a position), widened generators only claim a
@@ -131,7 +148,21 @@ function renderFileEn(source, index) {
   const spans = []; // {start, end, en, kind}
 
   // Pass 0 — multi-line generator collapse (takes precedence over the single-statement passes).
-  const genSpans = generatorSpans(sf, source, index._generators);
+  //   0a PRIMARY: the RECURSIVE word dictionary — generators referencing generators, so a span
+  //      can compose to real depth. Byte-gated inside enlzw.genSpans (fill === source slice).
+  //   0b FALLBACK ONLY: the FLAT generators.json, admitted solely for byte ranges the recursive
+  //      dictionary did not claim. A flat span is a depth-1 hole in the language; it is measured.
+  const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
+  const genSpans = recSpans.map((s) => ({
+    start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,
+    en: GEN + " " + genLabel(s.start, s.end, source, s.stmts) + " " + PAY_OPEN + b64(s.payload) + PAY_CLOSE,
+  }));
+  const overlapsRec = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
+  const flatSpans = generatorSpans(sf, source, index._generators);
+  for (const f of flatSpans) {
+    if (overlapsRec(f.start, f.end)) continue; // recursive dictionary already owns these bytes
+    f.tier = "flat"; f.depth = 1; genSpans.push(f); // genuine fallback: verbatim tiling, no composition
+  }
   for (const g of genSpans) spans.push(g);
   const inGen = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
 
@@ -173,14 +204,25 @@ function renderFileEn(source, index) {
   // reconstruct .en: swap accepted spans for «en», keep the rest verbatim
   spans.sort((a, b) => a.start - b.start);
   let out = "", pos = 0, englishBytes = 0, stmtN = 0, dataN = 0, genN = 0, genStmts = 0;
+  let recN = 0, flatN = 0, maxDepth = 0; const depthHist = {};
   for (const sp of spans) {
     if (sp.start < pos) continue; // safety: never overlap
     out += source.slice(pos, sp.start) + OPEN + sp.en + CLOSE;
     pos = sp.end; englishBytes += sp.end - sp.start;
-    if (sp.kind === "stmt") stmtN++; else if (sp.kind === "gen") { genN++; genStmts += sp.stmts || 0; } else dataN++;
+    if (sp.kind === "stmt") { stmtN++; continue; }
+    if (sp.kind !== "gen") { dataN++; continue; }
+    genN++; genStmts += sp.stmts || 0;
+    if (sp.tier === "flat") flatN++; else recN++;
+    const d = sp.depth || 0; depthHist[d] = (depthHist[d] || 0) + 1; if (d > maxDepth) maxDepth = d;
   }
   out += source.slice(pos);
-  return { en: out, stats: { totalBytes: source.length, englishBytes, englishPct: source.length ? +(100 * englishBytes / source.length).toFixed(1) : 0, stmtSpans: stmtN, dataSpans: dataN, genSpans: genN, genStmtsCollapsed: genStmts } };
+  return { en: out, stats: {
+    totalBytes: source.length, englishBytes,
+    englishPct: source.length ? +(100 * englishBytes / source.length).toFixed(1) : 0,
+    stmtSpans: stmtN, dataSpans: dataN,
+    genSpans: genN, genStmtsCollapsed: genStmts,
+    genRecursive: recN, genFlatFallback: flatN, maxDepth, depthHist,
+  } };
 }
 
 /* ------------------------------ COMPILE (.en -> .ts) ------------------------------ */
@@ -188,11 +230,16 @@ function compileChunk(chunk, index) {
   if (chunk[0] === GEN) { // multi-line generator: refill catalog template with per-site holes
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
-    const { g, h } = JSON.parse(Buffer.from(chunk.slice(a + 1, b), "base64").toString("utf8"));
+    const obj = JSON.parse(Buffer.from(chunk.slice(a + 1, b), "base64").toString("utf8"));
+    if (obj.w !== undefined) { // RECURSIVE tier: payload { a:"n"|"w", w:wordId, h:holes }
+      if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
+      return EL.compileSpan(obj, index._lzw);
+    }
+    // FLAT fallback tier: payload { g:generatorId, h:holes }
     const gens = index && index._generators;
-    const rec = gens && gens.byId && gens.byId.get(g);
-    if (!rec) throw new Error("enfile: unknown generator id " + g);
-    return G.refill(rec.key, h);
+    const rec = gens && gens.byId && gens.byId.get(obj.g);
+    if (!rec) throw new Error("enfile: unknown generator id " + obj.g);
+    return G.refill(rec.key, obj.h);
   }
   if (DATA_PREFIX.test(chunk)) return DATA.compileData(chunk);
   return cnl.compileStatement(chunk, index);

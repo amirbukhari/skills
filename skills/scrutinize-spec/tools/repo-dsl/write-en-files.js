@@ -48,6 +48,9 @@ const index = EN.loadIndex(CORPUS);
 const src = walk(CORPUS);
 let byteExact = 0, failures = [];
 let totBytes = 0, engBytes = 0, stmtSpans = 0, dataSpans = 0, genSpans = 0, genStmtsCollapsed = 0, filesWithGen = 0;
+// recursive-producer instrumentation: recursive (word-of-words) vs flat-fallback spans, and the
+// composition-depth distribution. A flat-fallback span is a permanent depth-1 hole in the language.
+let genRecursive = 0, genFlatFallback = 0, filesWithFlat = 0, maxDepth = 0; const depthHist = {};
 const perFile = [];
 for (const abs of src) {
   const rel = path.relative(CORPUS, abs);
@@ -61,6 +64,9 @@ for (const abs of src) {
   fs.writeFileSync(outPath, r.en);
   totBytes += r.stats.totalBytes; engBytes += r.stats.englishBytes; stmtSpans += r.stats.stmtSpans; dataSpans += r.stats.dataSpans;
   genSpans += r.stats.genSpans || 0; genStmtsCollapsed += r.stats.genStmtsCollapsed || 0; if (r.stats.genSpans) filesWithGen++;
+  genRecursive += r.stats.genRecursive || 0; genFlatFallback += r.stats.genFlatFallback || 0; if (r.stats.genFlatFallback) filesWithFlat++;
+  if ((r.stats.maxDepth || 0) > maxDepth) maxDepth = r.stats.maxDepth;
+  for (const k of Object.keys(r.stats.depthHist || {})) depthHist[k] = (depthHist[k] || 0) + r.stats.depthHist[k];
   perFile.push({ rel, ...r.stats });
 }
 
@@ -78,7 +84,9 @@ const manifest = {
   gate: { totalFiles: src.length, byteIdentical: byteExact, allByteIdentical: byteExact === src.length && failures.length === 0 },
   englishBytesPct: totBytes ? +(100 * engBytes / totBytes).toFixed(1) : 0,
   stmtSpans, dataSpans,
-  generators: { calls: genSpans, statementsCollapsed: genStmtsCollapsed, netStatementReduction: genStmtsCollapsed - genSpans, filesUsing: filesWithGen },
+  generators: { calls: genSpans, statementsCollapsed: genStmtsCollapsed, netStatementReduction: genStmtsCollapsed - genSpans, filesUsing: filesWithGen,
+    recursive: genRecursive, flatFallback: genFlatFallback, flatFallbackPct: genSpans ? +(100 * genFlatFallback / genSpans).toFixed(1) : 0,
+    filesWithFlatFallback: filesWithFlat, maxCompositionDepth: maxDepth, depthHistogram: depthHist },
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
 };
@@ -93,6 +101,8 @@ console.log(`  .en written .................. ${byteExact}/${src.length}  -> spe
 console.log(`  .en -> .ts BYTE-IDENTICAL ..... ${byteExact}/${src.length}   ${manifest.gate.allByteIdentical ? "(ALL PASS)" : "FAILURES: " + failures.length}`);
 for (const f of failures.slice(0, 10)) console.log(`       FAIL ${f[0]} ${f[1]}`);
 console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   (${stmtSpans} logic-stmt spans + ${dataSpans} data spans)`);
+console.log(`  generator spans ............... ${genSpans}   recursive ${genRecursive} / flat-fallback ${genFlatFallback} (${manifest.generators.flatFallbackPct}% fallback)`);
+console.log(`  flat-fallback (perm. holes) ... ${filesWithFlat} file(s); max composition depth ${maxDepth}`);
 console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/`);
 console.log(`  .calc REMAINING under spec/ ... ${residualCalc}   ${residualCalc === 0 ? "(spec tree is .calc-free)" : "(!!)"}`);
 console.log(`  wrote .gitignore ( .cache/ ) + spec/en-index.json`);
