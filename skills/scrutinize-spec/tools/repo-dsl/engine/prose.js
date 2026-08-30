@@ -467,4 +467,4 @@ const LLM_UPGRADE_NOTE =
   + "(e.g. `EBillingAccountClientType`) would read as \"the client type\". Everything above is derived "
   + "deterministically from the persisted tiers with no model call.";
 
-module.exports = { renderProse, describeEntity, describeRouter, describeRedux, describeBarrel, barrelReexports, moduleWords, describeTypeDefs, describeConstEnum, describeConfigMap, fileSurface, pureSurfaceShape, SHAPE_RENDERERS, describeLogicFile, summarizeFunction, parseFunctions, skeletonToWords, coverage, coverageLine, words, list, byteToLine, KIND_VERB, IDIOM_PHRASE, LLM_UPGRADE_NOTE };
+module.exports = { renderProse, describeEntity, describeRouter, describeRedux, describeBarrel, barrelReexports, moduleWords, describeTypeDefs, describeConstEnum, describeConfigMap, fileSurface, pureSurfaceShape, SHAPE_RENDERERS, describeLogicFile, summarizeFunction, parseFunctions, skeletonToWords, coverage, coverageLine, words, list, a, byteToLine, KIND_VERB, IDIOM_PHRASE, LLM_UPGRADE_NOTE };

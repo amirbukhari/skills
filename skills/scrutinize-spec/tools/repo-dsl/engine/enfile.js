@@ -25,6 +25,7 @@ const cnl = require("./cnl");
 const DATA = require("./data-english");
 const G = require("./generators");
 const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
+const P = require("./prose"); // reuse deterministic humanisation helpers (words/list/a) for labels
 
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
@@ -79,14 +80,109 @@ function hasRenderableData(node, sf) {
 const isSimpleForGen = (st) => G.isFoldable(st); // foldable = simple + control-flow (v2)
 function b64(obj) { return Buffer.from(JSON.stringify(obj), "utf8").toString("base64"); }
 
-/* human gloss for a collapsed span (DISPLAY ONLY — the compiler reads the payload, not this).
- * Re-parse the covered slice into its top-level statements and describe them in plain English. */
+/* MANDATORY: a label is display-only, but it is embedded between the scanner sentinels, so it must
+ * never contain any of them — «»⟪⟫ would corrupt renderFileEn's span scan / compileChunk's payload
+ * parse, and ▶ marks a generator chunk. A throw MESSAGE could in theory contain any of these, so
+ * every label passes through here before it is emitted. Replacing with a straight quote keeps the
+ * text readable while making the sentinels structurally impossible. */
+const LABEL_SENTINELS = /[«»⟪⟫▶]/g;
+function sanitizeLabel(s) { return String(s).replace(LABEL_SENTINELS, "'").replace(/\s+/g, " ").trim(); }
+
+/* first call name anywhere under a node (the operation it performs), or null. */
+function firstCallName(node) {
+  let name = null;
+  const v = (n) => {
+    if (name) return;
+    if (ts.isCallExpression(n)) {
+      if (ts.isPropertyAccessExpression(n.expression)) name = n.expression.name.text;
+      else if (ts.isIdentifier(n.expression)) name = n.expression.text;
+    }
+    ts.forEachChild(n, v);
+  };
+  v(node);
+  return name;
+}
+/* the Error message string of a throw, if it is a literal/template — the business rule in English. */
+function throwMessage(node) {
+  let msg = null;
+  const v = (n) => {
+    if (msg) return;
+    if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && n.arguments && n.arguments.length) {
+      const arg = n.arguments[0];
+      if (ts.isStringLiteralLike(arg)) { msg = arg.text; return; }
+      if (ts.isTemplateExpression(arg)) { msg = arg.head.text + "…"; return; }
+    }
+    ts.forEachChild(n, v);
+  };
+  v(node);
+  return msg ? msg.trim().replace(/[.\s]+$/, "") : null;
+}
+const throwStmtOf = (branch) => (ts.isThrowStatement(branch) ? branch
+  : (ts.isBlock(branch) ? branch.statements.find(ts.isThrowStatement) || null : null));
+const isGuardThrow = (st) => ts.isIfStatement(st) && !st.elseStatement && !!throwStmtOf(st.thenStatement);
+
+/* Tier-1 prose: describe a run of statements as English grouped by ROLE — a lead sequence of
+ * actions (declarations / calls / returns) plus the guard rules pulled out as "failing when …",
+ * surfacing the real throw messages. DISPLAY ONLY; deterministic; zero model. */
+function spanProse(win, sf) {
+  const actions = [], guards = [];
+  const isAwait = (st) => /\bawait\b/.test(st.getText(sf).slice(0, 80));
+  for (const st of win) {
+    if (isGuardThrow(st)) {
+      const msg = throwMessage(throwStmtOf(st.thenStatement));
+      if (msg) guards.push('“' + msg + '”');
+      else { const c = firstCallName(st); guards.push(c ? "a " + P.words(c) + " check fails" : "a check fails"); }
+      continue;
+    }
+    if (ts.isVariableStatement(st)) {
+      const decls = st.declarationList.declarations;
+      const names = decls.map((d) => d.name.getText(sf)).filter((n) => /^[A-Za-z_$][\w$]*$/.test(n));
+      const nm = names.length ? P.list(names.map((n) => "`" + n + "`")) : "a value";
+      const init = decls[0] && decls[0].initializer;
+      if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) { actions.push("define " + nm); continue; }
+      const call = firstCallName(st);
+      if (isAwait(st)) actions.push("await " + (call ? P.words(call) : "a value") + " into " + nm);
+      else if (call) actions.push("get " + nm + " from " + P.words(call));
+      else actions.push("compute " + nm);
+      continue;
+    }
+    if (ts.isReturnStatement(st)) { const c = firstCallName(st); actions.push(c ? "return " + P.words(c) : "return the result"); continue; }
+    if (ts.isThrowStatement(st)) { const m = throwMessage(st); actions.push(m ? "throw “" + m + "”" : "throw an error"); continue; }
+    if (ts.isExpressionStatement(st)) {
+      const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
+      const callee = ts.isCallExpression(inner) ? inner.expression : null;
+      if (callee && ts.isPropertyAccessExpression(callee) && callee.expression.getText(sf) === "console") { actions.push("log a message"); continue; }
+      const name = firstCallName(st);
+      actions.push((isAwait(st) ? "await " : "call ") + (name ? P.words(name) : "a step"));
+      continue;
+    }
+    if (ts.isForStatement(st) || ts.isForOfStatement(st) || ts.isForInStatement(st) || ts.isWhileStatement(st) || ts.isDoStatement(st)) {
+      const c = firstCallName(st); actions.push(c ? "loop over " + P.words(c) : "loop"); continue;
+    }
+    if (ts.isIfStatement(st)) { const c = firstCallName(st.thenStatement); actions.push(c ? "if a condition holds, " + P.words(c) : "branch on a condition"); continue; }
+    if (ts.isTryStatement(st)) { const c = firstCallName(st.tryBlock); actions.push(c ? "try " + P.words(c) : "run a try/catch"); continue; }
+    if (ts.isSwitchStatement(st)) { actions.push("switch on a value"); continue; }
+    const c = firstCallName(st); actions.push(c ? "call " + P.words(c) : "run a step");
+  }
+  let out = P.list(actions, "then");
+  if (guards.length) out += (out ? " — " : "") + "failing when " + guards.join("; ");
+  return out;
+}
+
+/* human label for a collapsed span (DISPLAY ONLY — the compiler reads the payload, not this).
+ * Re-parse the covered slice into its top-level statements and describe them as English. */
 function genLabel(start, end, source, stmts) {
+  const slice = source.slice(start, end);
   try {
-    const frag = ts.createSourceFile("s.ts", source.slice(start, end), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const frag = ts.createSourceFile("s.ts", slice, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const p = spanProse([...frag.statements], frag);
+    if (p) return sanitizeLabel(p);
+  } catch (_) { /* fall through to the older shallow gloss, then structural */ }
+  try {
+    const frag = ts.createSourceFile("s.ts", slice, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
     const g = G.glossForStatements([...frag.statements], frag);
-    if (g) return g;
-  } catch (_) { /* fall through to structural label */ }
+    if (g) return sanitizeLabel(g);
+  } catch (_) { /* fall through */ }
   return "compose " + stmts + " statements";
 }
 
@@ -265,4 +361,4 @@ function genRanges(source, index) {
   return generatorSpans(sf, source, index && index._generators).map((s) => [s.start, s.end]);
 }
 
-module.exports = { renderFileEn, compileFileEn, loadIndex, genRanges };
+module.exports = { renderFileEn, compileFileEn, loadIndex, genRanges, genLabel, spanProse, sanitizeLabel };
