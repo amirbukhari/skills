@@ -25,6 +25,25 @@ function loadLzw(catalogPath) {
   return j;
 }
 
+/* A "named unit" is a function/class definition (or a `const` whose initializer is one) — the
+ * thing a reader thinks of as a single item. A composed span must never straddle >=2 of them, or
+ * its label reads as several unrelated things joined however well each clause renders (e.g. "define
+ * A, define B, define C" for three unrelated helpers). This predicate is the meaning-aware span
+ * boundary. It is applied as candidate ADMISSIBILITY before the weighted-interval scheduler runs,
+ * so it only ever REMOVES candidates — every surviving candidate still passes the identical byte
+ * gate, and any statement left uncovered falls back to per-statement rendering, itself byte-gated.
+ * Byte-identity is therefore preserved BY CONSTRUCTION. Shared with the flat-fallback path in
+ * enfile.js so a merge rejected here cannot silently reappear there. */
+function isUnit(st) {
+  if (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) return true;
+  if (ts.isVariableStatement(st)) {
+    const d = st.declarationList.declarations[0];
+    const init = d && d.initializer;
+    return !!(init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init) || ts.isClassExpression(init)));
+  }
+  return false;
+}
+
 /* expand a word id in one axis to its flat window key (per-statement keys joined by ‹gap›). */
 function expandKey(axis, id) {
   const w = axis.words[id];
@@ -79,6 +98,7 @@ function genSpans(sf, source, cat) {
           for (const w of ws) {
             if (w.len < 2) continue;
             const win = run.slice(p, p + w.len);
+            if (win.filter(isUnit).length >= 2) continue; // meaning-aware boundary: never straddle >=2 units
             const start = win[0].getStart(sf), end = win[win.length - 1].getEnd();
             const wp = G.windowParts(win, sf, wide);
             if (wp && wp.fill === source.slice(start, end)) {
@@ -131,4 +151,4 @@ function compileSpan(payload, cat) {
   return G.refill(key, payload.h);
 }
 
-module.exports = { loadLzw, genSpans, compileSpan, expandKey };
+module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit };

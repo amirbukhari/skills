@@ -209,13 +209,20 @@ function generatorSpans(sf, source, gens) {
       while (p < run.length) {
         let hit = null;
         const maxK = Math.min(MAXWIN, run.length - p);
+        // meaning-aware boundary (SAME constraint as the recursive path, EL.isUnit): a flat window
+        // must not straddle >=2 unit definitions either — otherwise a merge rejected on the
+        // recursive path silently reappears here as a flat-fallback merge and the fix only LOOKS
+        // complete. Applied in the K-search so the longest ADMISSIBLE window still wins.
+        const straddlesUnits = (K) => run.slice(p, p + K).filter(EL.isUnit).length >= 2;
         // longest NARROW match first
         for (let K = maxK; K >= 2 && !hit; K--) {
+          if (straddlesUnits(K)) continue;
           const wp = G.windowFromCache(nc, gaps, p, K);
           if (wp && gens.byKey.has(wp.key)) hit = { K, wp, g: gens.byKey.get(wp.key) };
         }
         // else longest WIDE match (additive: only where narrow found nothing here)
         if (!hit) for (let K = maxK; K >= 2 && !hit; K--) {
+          if (straddlesUnits(K)) continue;
           const wp = G.windowFromCache(wc, gaps, p, K);
           if (wp && gens.byKey.has(wp.key) && gens.byKey.get(wp.key).level === "opw") hit = { K, wp, g: gens.byKey.get(wp.key) };
         }
