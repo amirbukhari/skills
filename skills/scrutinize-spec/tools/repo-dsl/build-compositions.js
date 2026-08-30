@@ -5,7 +5,7 @@
  * every file expands BYTE-IDENTICAL, and persists panel-readable artifacts:
  *
  *   hydra-source/catalog/compose-words.json   <- shared word dictionary (id -> template/example)
- *   hydra-source/spec/files/<rel>.calc        <- per-file composition IR (JSON); expands byte-exact
+ *   hydra-source/.cache/compose/files/<rel>.calc  <- per-file composition IR (DERIVED, gitignored) (JSON); expands byte-exact
  *   hydra-source/files-index.json             <- file browser index + boss-view rollup
  *
  * Deterministic, no model. Byte-verify is the gate: a per-file .calc is only
@@ -39,7 +39,9 @@ function main() {
   const { dict, byShape } = buildDictionary(perFile);
 
   // ---- compose + byte-verify + persist each file ----
-  const filesDir = path.join(PROJECT, "spec", "files");
+  // STEP 7: the compose IR (.calc) is DERIVED plumbing — it lives in a gitignored cache,
+  // NOT in the spec tree (spec/files holds the human-editable .en source only).
+  const filesDir = path.join(PROJECT, ".cache", "compose", "files");
   fs.rmSync(filesDir, { recursive: true, force: true });
   fs.mkdirSync(filesDir, { recursive: true });
 
@@ -106,7 +108,7 @@ function main() {
     project: PROJECT, generatedAt: new Date().toISOString(), modelCalls: 0,
     corpusCommentFree: true,
     totalFiles: index.length,
-    perFileModuleTemplate: "spec/files/<rel>.calc",
+    perFileModuleTemplate: ".cache/compose/files/<rel>.calc",
     wordDictionary: "catalog/compose-words.json",
     expandVerify: "node compose-expand.js <projectDir> <rel> --verify",
     rollup: {
