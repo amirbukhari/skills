@@ -34,12 +34,14 @@ function walkDir(dir, out = []) {
 
 function mine(dir, opts = {}) {
   const minCount = opts.minCount || 2;
+  const lift = opts.lift || undefined; // {bool,type,nullc}; undefined => current behavior
+  const cutDepth = opts.cutDepth || 0;  // 0 => whole-statement leaves (baseline); >0 => finer expression cut
   const files = walkDir(dir).sort();
 
   // Stage 1: fan-out.
   const perFile = files.map((f) => {
     const source = fs.readFileSync(f, "utf8");
-    const { tokens, gaps } = tokenize(f, source);
+    const { tokens, gaps } = tokenize(f, source, lift, cutDepth);
     return { file: f, rel: path.relative(dir, f), source, tokens, gaps };
   });
 

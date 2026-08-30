@@ -42,7 +42,9 @@ function loadGenerators(corpusRoot) {
 
 /* best-effort coined-word index so cnl can render coined phrases too (empty is fine) */
 function loadIndex(corpusRoot) {
-  const tryFiles = ["word-library.json", "catalog/mined-library.json"].map((f) => path.join(corpusRoot || "", f));
+  // small load-bearing coined-word catalog; older large snapshots (word-library.json,
+  // mined-library.json) yield the SAME index (verified byte-identical .en) and are derived.
+  const tryFiles = ["catalog/coined-words.json", "catalog/mined-library.json"].map((f) => path.join(corpusRoot || "", f));
   let idx = null;
   for (const f of tryFiles) {
     try {
@@ -109,7 +111,8 @@ function generatorSpans(sf, source, gens) {
           const start = win[0].getStart(sf), end = win[hit.K - 1].getEnd();
           const slice = source.slice(start, end);
           if (G.refill(hit.wp.key, hit.wp.holes) === slice) { // absolute byte gate at emission
-            const en = GEN + " " + hit.g.gloss + " " + PAY_OPEN + b64({ g: hit.g.id, h: hit.wp.holes }) + PAY_CLOSE;
+            const label = hit.g.name || hit.g.gloss; // domain phrase if the naming pass set one, else structural gloss (label only — compiler reads the payload, not this)
+            const en = GEN + " " + label + " " + PAY_OPEN + b64({ g: hit.g.id, h: hit.wp.holes }) + PAY_CLOSE;
             spans.push({ start, end, en, kind: "gen", stmts: hit.K });
             p += hit.K; continue;
           }

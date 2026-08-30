@@ -64,7 +64,7 @@ function idFor(skeleton) {
 /** Are every slot value small + typed (identifier / type / number / bool / short string)? */
 function slotsAreTyped(slots) {
   return slots.every((s) => {
-    if (s.kind === "ID" || s.kind === "NUM" || s.kind === "BOOL") return true;
+    if (s.kind === "ID" || s.kind === "NUM" || s.kind === "BOOL" || s.kind === "TYPE" || s.kind === "NULLC") return true;
     if (s.kind === "STR") return s.text.length <= 64 && !/\n/.test(s.text); // short string literal, not prose
     return false;
   });
