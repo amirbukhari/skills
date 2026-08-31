@@ -1591,3 +1591,43 @@ headline number and needs Amir's name on it. This entry documents the metric as 
 touch the computation.
 
 **Commit:** see below.
+
+---
+
+## 2026-08-31 — why `collapsed > body`: two populations, not two nesting depths. MEASURED, NOT FIXED.
+
+s7/5f found the arithmetic (`collapsedStatements` 22,760 > `bodyStatements` 17,852, R-MEAS-2 now
+fails on it) and handed the consequence to me, since `write-en-files.js:143,148` compute the corpus
+residual as a **clamped difference of sums**. Confirmed, and then measured the cause.
+
+**The guess on the table was double-counted nested statements. That is not it.**
+`engine/enfile.js countBodyStatements` counts only statements that are **direct children of a
+function-like body**. The generator layer folds statements **anywhere in the file, including
+top-level**. The clearest single case: `packages/hydra-internal/src/index.ts` has **0** statements
+inside any function body and reports **9** collapsed. Numerator and denominator range over
+different populations.
+
+Counting deeper is not sufficient either — under "every statement at any depth *inside a function
+body*" (33,100), **583 of 1,037 files still have collapsed > body**. Only "every statement at any
+depth, in or out of a function" makes it coherent:
+
+| denominator | S | files with collapsed > S | residual | reviewSurface | ratio |
+|---|---|---|---|---|---|
+| shipped (fn-body direct children) | 17,852 | **809** | 0 *(clamped)* | 5,731 | 95.4% |
+| all stmts in fn bodies, any depth | 33,100 | **583** | — | — | — |
+| every statement, any depth | 33,918 | **0** | 11,158 | 16,889 | **50.2%** |
+
+The narrower fix alone — `SUM(per-file residual)` instead of `max(0, SUM − SUM)` — gives residual
+1,932 and reviewSurface 7,663, but leaves the ratio dividing 22,760 by 17,852.
+
+**Not fixed, and deliberately so.** §7.3 calls this definition FROZEN and the PRD calls it the
+number the whole engine exists to move; the honest fix takes the headline from 95.4% to 50.2%.
+That is Amir's call, not a late-night edit at the edge of my file. Put to the user with all three
+numbers; stopped pending an answer. R-MEAS-2 failing is the correct interim state.
+
+`verbatimStatements` at `write-en-files.js:142` has the same clamped-difference-of-sums shape and
+is presumably wrong in the same direction — it reads 0 today, which is not credible next to 895
+restated. It moves with whichever denominator is chosen, so it was left alone too.
+
+**Measured with a read-only probe** over all 1,037 files (`renderFileEn` + a second AST pass per
+file), run from the scratchpad, writing nothing. The engine tree was not modified.
