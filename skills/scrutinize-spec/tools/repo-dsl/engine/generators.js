@@ -110,7 +110,9 @@ const isCFStmt = (st) => ts.isIfStatement(st) || ts.isForStatement(st) || ts.isF
  * through the same generic getChildren walk as control flow, which is self-verifying: identifiers
  * and module specifiers become holes, keywords stay skeleton, and `fillOf !== exact slice` returns
  * null. So this widens what is ELIGIBLE without touching the byte-exact gate. */
-const isDeclStmt = (st) => ts.isImportDeclaration(st);
+const isDeclStmt = (st) => ts.isImportDeclaration(st) || ts.isInterfaceDeclaration(st) ||
+  ts.isTypeAliasDeclaration(st) || ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) ||
+  ts.isExportDeclaration(st) || ts.isExportAssignment(st) || ts.isEnumDeclaration(st);
 function pushExpr(node, out, wide) { const tmp = []; if (wide) wExpr(node, tmp); else ops.canonExpr(node, tmp, "op"); for (const x of tmp) out.push(x); }
 function genericParts(node, sf, wide, out) {
   let cursor = node.getStart(sf);
@@ -129,12 +131,43 @@ function appendKid(kid, sf, wide, out) {
     return;
   }
   if (ts.isBlock(kid) || ts.isStatement(kid)) { const p = generalStmtPartsInner(kid, sf, wide); if (p) for (const x of p) out.push(x); else out.push({ hole: true, type: "expr", text: kid.getText(sf) }); return; }
-  if (isExprNode(kid)) { pushExpr(kid, out, wide); return; }
+  if (isExprNode(kid)) {
+    /* The expression canon cannot express every shape (e.g. `new Koa<T>()` drops its type
+     * arguments, some optional-chaining conditionals). When its output does not refill this kid
+     * exactly, roll back and emit the kid as ONE opaque hole carrying its exact source text.
+     * The statement then folds and stops splitting the run, at the cost of that sub-expression
+     * being a hole rather than structure. Byte-exactness is preserved either way — the hole text
+     * IS the source bytes — and the enclosing statement is still self-verified by genericExact. */
+    const mark = out.length;
+    pushExpr(kid, out, wide);
+    if (fillOf(out.slice(mark)) !== kid.getText(sf)) {
+      out.length = mark;
+      out.push({ hole: true, type: "expr", text: kid.getText(sf) });
+    }
+    return;
+  }
   genericParts(kid, sf, wide, out); // SyntaxList, clauses, decl-lists, etc.
 }
+function genericExact(st, sf, wide) {
+  const out = [];
+  genericParts(st, sf, wide, out);
+  if (fillOf(out) !== sf.text.slice(st.getStart(sf), st.getEnd())) return null;
+  return out;
+}
 function generalStmtPartsInner(st, sf, wide) {
-  if (isSimpleStmt(st)) return stmtPartsExact(st, sf, wide);
-  if (isCFStmt(st) || isDeclStmt(st)) { const out = []; genericParts(st, sf, wide, out); if (fillOf(out) !== sf.text.slice(st.getStart(sf), st.getEnd())) return null; return out; }
+  if (isSimpleStmt(st)) {
+    const p = stmtPartsExact(st, sf, wide);
+    if (p) return p;
+    /* The specialised canon (ops.canonStmt / wStmt) cannot express every shape — regex literals,
+     * type-annotated declarations, parenthesised multi-line chains, `as` casts in conditionals.
+     * 3,681 statements (11% of the corpus) failed here, and each failure did double damage: the
+     * statement was lost AND it split the run at that point. Falling back to the same generic
+     * getChildren walk the declaration/control-flow paths use recovers most of them.
+     * This does NOT weaken the byte-exact gate: genericExact returns null unless fillOf equals
+     * the exact source slice, so a shape that still cannot refill is still excluded. */
+    return genericExact(st, sf, wide);
+  }
+  if (isCFStmt(st) || isDeclStmt(st)) return genericExact(st, sf, wide);
   return null;
 }
 /** foldable statement (simple OR control-flow) -> exact parts | null */

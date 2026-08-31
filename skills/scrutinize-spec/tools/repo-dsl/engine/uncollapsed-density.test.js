@@ -77,9 +77,15 @@ if (!fs.existsSync(CORPUS)) {
       };
       visit(sf);
     }
-    // Non-vacuous: the corpus must actually contain both kinds, or this test proves nothing.
-    assert.ok(allHole > 0, `expected real all-placeholder bodies in the corpus, found ${allHole}`);
+    // Non-vacuous: the corpus must contain bodies the rule ADMITS, or this test proves nothing.
     assert.ok(genuine > 0, `expected real genuine-shape bodies in the corpus, found ${genuine}`);
+    // The all-placeholder population is no longer required to be non-empty. It was 51 when this
+    // guard was written; the foldability work (import + declaration folding, the generic-walk
+    // fallback, and the expression-level rollback) took it to 0 by making almost every statement
+    // generalizable — 3,683 canonicalizer failures down to 15, stream-eligible 67.3% -> 99.8%.
+    // The RULE is unchanged and still frozen; the corpus simply stopped exercising this class.
+    // The pure cases above pin the rule itself and are mutation-checked, so coverage is not lost.
+    // If this number ever rises again, the loop below still asserts every such body is excluded.
     console.log(`      (real corpus: ${allHole} all-placeholder bodies excluded, ${genuine} genuine bodies kept)`);
   });
 }
