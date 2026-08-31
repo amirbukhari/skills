@@ -59,11 +59,82 @@ function parseLift(args) {
   return { bool: all || set.has("bool"), type: all || set.has("type"), nullc: all || set.has("null") || set.has("nullc") };
 }
 
+/* The reporting contract with the SDD panel. The panel reads
+ * `<corpusDir>/catalog/mined-library.v<N>.json` and renders `counts` verbatim — it does no
+ * depth arithmetic of its own, so whatever this file declares IS what the operator sees and
+ * makes decisions from. Two rules follow, and both are enforced in publishLibrary():
+ *
+ *   1. The artifact lives WITH the corpus it describes. Writing only to the engine's shared
+ *      catalog is what let a different project's library be served for this one: the reader
+ *      finds no library beside the corpus, falls back to the shared catalog, and renders
+ *      another repo's numbers as though they were this corpus's. A per-corpus artifact makes
+ *      that substitution impossible rather than merely unlikely.
+ *   2. Declared counts must equal what was actually walked. A number smaller than the truth is
+ *      the dangerous failure here, because it is indistinguishable from a real answer once it
+ *      reaches the panel. So the fidelity check throws instead of writing.
+ */
+const LIBRARY_SCHEMA_VERSION = 1;
+
+/** Highest `hierarchyDepth` actually present on the mined composites, or 0 when there are none. */
+function observedMaxHierarchyDepth(composites) {
+  return composites.reduce((deepest, c) => (
+    typeof c.hierarchyDepth === "number" && c.hierarchyDepth > deepest ? c.hierarchyDepth : deepest
+  ), 0);
+}
+
+/**
+ * Write the mined library beside the corpus it describes, as the versioned file the SDD panel
+ * reads. The SINGLE writer of a `mined-library.v<N>.json` — `mine` and `publish` both route
+ * here, so a second producer can never disagree with the first about what the corpus contains.
+ *
+ * Refuses to write a library that under-reports its own tree: if `counts.maxHierarchyDepth`
+ * disagrees with the deepest composite actually mined, or composites carry no depth at all,
+ * it throws rather than emitting a smaller, plausible-looking number the panel would render as
+ * truth. A loud failure is recoverable; a quiet under-report is not.
+ *
+ * @param corpusDir Absolute path of the mined corpus; the artifact is written to its `catalog/`.
+ * @param library The mined library object (`counts`, `composites`, `leaves`).
+ * @returns The absolute path written.
+ */
+function publishLibrary(corpusDir, library) {
+  const composites = library.composites || [];
+  const declared = library.counts ? library.counts.maxHierarchyDepth : undefined;
+  const observed = observedMaxHierarchyDepth(composites);
+
+  if (composites.length && !composites.some((c) => typeof c.hierarchyDepth === "number")) {
+    throw new Error(`mined-library: ${composites.length} composites carry no hierarchyDepth — `
+      + "refusing to publish a library whose depth cannot be verified");
+  }
+  if (declared !== observed) {
+    throw new Error(`mined-library: declared maxHierarchyDepth ${declared} != observed ${observed} `
+      + `over ${composites.length} composites — refusing to publish an under-reporting library`);
+  }
+
+  const dest = path.join(corpusDir, "catalog", `mined-library.v${LIBRARY_SCHEMA_VERSION}.json`);
+  const artifact = {
+    schema: `sdd-repo-dsl/mined-library/v${LIBRARY_SCHEMA_VERSION}`,
+    version: `v${LIBRARY_SCHEMA_VERSION}`,
+    corpus: corpusDir,
+    generatedAt: new Date().toISOString(),
+    // Asserted above, then stated in the artifact so a consumer can reject a partial library
+    // instead of quietly rendering it.
+    complete: true,
+    minCount: library.minCount,
+    counts: library.counts,
+    leaves: library.leaves || [],
+    composites,
+  };
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(artifact, null, 2) + "\n");
+  return dest;
+}
+
 function runMine(dir, minCount, lift) {
   const res = mine(dir, { minCount, lift });
   fs.mkdirSync(RESULTS, { recursive: true });
   fs.mkdirSync(CATALOG, { recursive: true });
   fs.writeFileSync(LIBRARY_JSON, JSON.stringify(res.library, null, 2) + "\n");
+  res.publishedTo = publishLibrary(dir, res.library);
   fs.writeFileSync(COVERAGE_JSON, JSON.stringify({
     schema: "sdd-repo-dsl/corpus-coverage/1", corpus: dir, minCount: res.minCount,
     rollup: res.rollup, files: res.fileReports, residueSamples: res.residueSamples,
@@ -202,10 +273,41 @@ function cmdReport() {
   for (const f of j.files) console.log(`  ${f.coveragePct.toString().padStart(5)}%  ${f.rel}`);
 }
 
+/**
+ * `repo-dsl publish <corpusDir> [--from <library.json>]` — re-publish an already-mined library
+ * beside its corpus, through the same writer `mine` uses. For a corpus whose library was mined
+ * before the artifact was written per-corpus; it re-runs no mining, so it cannot invent numbers.
+ * The `--from` library must name that corpus, so one project's library can't be published as
+ * another's — the substitution this whole contract exists to prevent.
+ */
+function cmdPublish(args) {
+  const corpusDir = args[0] && !args[0].startsWith("--") ? path.resolve(args[0]) : null;
+  if (!corpusDir) { console.error("usage: repo-dsl publish <corpusDir> [--from <library.json>]"); process.exit(1); }
+  const from = path.resolve(flag(args, "--from", LIBRARY_JSON));
+  if (!fs.existsSync(from)) { console.error(`no mined library at ${from} — run: repo-dsl mine ${corpusDir}`); process.exit(1); }
+
+  let library;
+  try { library = JSON.parse(fs.readFileSync(from, "utf8")); }
+  catch (e) { console.error(`cannot parse ${from}: ${e.message}`); process.exit(1); }
+
+  if (path.resolve(library.corpus || "") !== corpusDir) {
+    console.error(`refusing to publish: ${from} was mined from ${library.corpus}, not ${corpusDir}`);
+    process.exit(1);
+  }
+
+  let dest;
+  try { dest = publishLibrary(corpusDir, library); }
+  catch (e) { console.error(e.message); process.exit(1); }
+  const c = library.counts || {};
+  console.log(`published ${dest}`);
+  console.log(`  ${c.leafGenerators} primitives · ${c.compositeGenerators} words · depth ${c.maxHierarchyDepth}`);
+}
+
 function main() {
   const [cmd, ...args] = process.argv.slice(2);
   switch (cmd) {
     case "mine": return cmdMine(args);
+    case "publish": return cmdPublish(args);
     case "gate": return cmdGate(args);
     case "verify": return cmdVerify(args);
     case "verify-expand": return cmdVerifyExpand(args);
@@ -214,7 +316,7 @@ function main() {
     case "refine-language": return cmdRefineLanguage(args);
     case "report": return cmdReport();
     default:
-      console.error("usage: repo-dsl <mine|gate|verify|verify-expand|expand|explain|refine-language|report> [args]  (see README)");
+      console.error("usage: repo-dsl <mine|publish|gate|verify|verify-expand|expand|explain|refine-language|report> [args]  (see README)");
       process.exit(1);
   }
 }

@@ -1,1 +1,0 @@
-I want a calculator that charges $20 for each website domain a client has

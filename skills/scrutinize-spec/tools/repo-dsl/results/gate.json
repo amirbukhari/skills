@@ -1,9 +1,9 @@
 {
   "schema": "sdd-repo-dsl/gate/1",
-  "pass": true,
+  "pass": false,
   "source": "mined",
   "thresholds": {
-    "corpus": 25,
+    "corpus": 80,
     "perFile": null
   },
   "corpusCoveragePct": 30.5,

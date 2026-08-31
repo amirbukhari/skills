@@ -108,7 +108,7 @@ are elided; indentation is transparent. Shape:
     "children": [
       { "kind": "leaf", "id": "p_2c6b9735", "tier": "leaf", "label": "named-import (single specifier)",
         "signature": { "name": "identifier", "from": "moduleSpecifier" },
-        "args": { "name": "BILLING_TYPE_ACTIVE_FEATURE", "from": "'@llws/hydra-shared'" } },
+        "args": { "name": "BILLING_TYPE_EXAMPLE", "from": "'@shared'" } },
       { "kind": "composite", "name": "volumeCostingBody", "tier": "mid", "children": [ … leaves … ] }
     ]
   },
@@ -300,7 +300,7 @@ Two signature-driven transforms produce that form:
 
 That ambiguity is real in this corpus: `ISubscriptionUsage`/`ISubscriptionCost`
 are imported under **five** different relative/alias specifiers across the 39
-files. The alias `'@src/rentsync-api/…'` dominates, so `activeFeature` and
+files. The alias `'@api/…'` dominates, so `activeFeature` and
 `liftBuilding` (which use it) go fully import-free, but `propertyVolumeV2` uses
 the `'../../../…'` relative form and honestly keeps those two imports visible:
 

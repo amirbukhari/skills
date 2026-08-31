@@ -1,3 +1,0 @@
-delegatingCost liftBuildingCostCalculator
-  ISubscriptionUsage -> ISubscriptionCost
-  billingType LIFT_BUILDING via buildingBillingTypeCostCalculator

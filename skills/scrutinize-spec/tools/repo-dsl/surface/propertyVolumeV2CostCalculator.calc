@@ -1,3 +1,0 @@
-volumeCosting propertyVolumeV2CostCalculator
-  ISubscriptionUsage from '../../../ISubscriptionUsage' -> ISubscriptionCost from '../../../ISubscriptionCost'
-  billingType PROPERTY_VOLUME_V2 via getVolumeCostingItems

@@ -1,23 +1,17 @@
-# Proprietary Hydra source and Hydra-derived artifacts.
-# The repo-DSL engine READS the Hydra corpus from an external checkout
-# (HYDRA_CORPUS, default /home/amir/Documents/Rentsync/delonix/hydra-source);
-# nothing derived from it belongs in this repo's tracked set.
-# See the security audit on spec-driven-dev.
-
-# Verbatim Hydra source kept as behavioural oracles
-**/reference/*.ts
-**/spec/modules/**/source.ts
-
-# Mining worksheets: generated from the corpus, embed verbatim source snippets.
-# Regenerate with: node name-words-lzw.js worksheet
-name-worksheet.json
-name-words-lzw-worksheet.json
-**/name-worksheet.json
-**/name-words-lzw-worksheet.json
-
-# Per-calculator expansion results
-results/verify-expand-*.json
+# Hydra-derived artifacts must never enter this repo.
+# The repo-DSL engine READS the proprietary corpus from an external checkout
+# (HYDRA_CORPUS); everything it mines is regenerable there and belongs there.
+# These rules are guards: re-running `node repo-dsl.js mine` recreates this
+# output locally, and it must not be committed back.
+skills/scrutinize-spec/tools/repo-dsl/catalog/
+skills/scrutinize-spec/tools/repo-dsl/results/
+skills/scrutinize-spec/tools/repo-dsl/compositions/
+skills/scrutinize-spec/tools/repo-dsl/surface/
+skills/scrutinize-spec/tools/repo-dsl/name-worksheet.json
+skills/scrutinize-spec/tools/repo-dsl/name-words-lzw-worksheet.json
+skills/scrutinize-spec/tools/repo-dsl/name-generators.names.json
 **/results/verify-expand-*.json
+skills/scrutinize-spec/examples/hydra-*/
 
 # Browser-scrape dumps (unaudited page content, multi-MB)
 .playwright-mcp/
