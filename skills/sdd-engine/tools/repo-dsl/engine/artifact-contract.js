@@ -80,6 +80,16 @@ const ARTIFACTS = Object.freeze({
     corpusPinned: true, requires: ["leaves", "composites"],
     role: "the compose-layer composition graph (leaves carry `id`; composites DO NOT — see idOf)",
   },
+  /* import-resolution.json sat in sen/catalog/ — the TRACKED §8B home — with a schema string typed
+   * by hand, no fingerprint, and no entry here, so `validate` could never run on it and a shape
+   * change was silent on BOTH sides: resolve-imports.js hand-joined the path to write it and
+   * dsl.js hand-joined the same path to read it. Same shape as the name-queue incident above and
+   * as repo-dsl.js publishing mined-library unstamped. `requires` is what dsl.js actually reads. */
+  "import-resolution": {
+    schema: "sdd-repo-dsl/import-resolution/1", home: "tracked", file: "import-resolution.json",
+    corpusPinned: true, requires: ["symbols"],
+    role: "the mined import map — which module a bare symbol canonically comes from (dsl.js canonicalModule)",
+  },
   "word-names": {
     schema: "sdd-repo-dsl/word-names/1", home: "tracked", file: "word-names.json",
     corpusPinned: false, requires: ["names", "orphans"],
@@ -155,8 +165,26 @@ function stamp(kind, body, opts = {}) {
   if (spec.corpusPinned && !opts.corpus) {
     throw new ArtifactContractError(kind, "(stamp)", "a corpus path (this kind is corpusPinned)", "none passed");
   }
+  /* R-MECH-4 MADE RUNNABLE, 2026-08-31. The register's check used to read `foldModelCalls === 0
+   * and buildModelCalls === 0 in every published catalog` — fields that exist only in `archive/`,
+   * so the single most load-bearing requirement in the PRD ("zero model calls") could not be
+   * checked against anything on disk. Measured: of the four registered artifacts present in the
+   * corpus, exactly ONE carried a model-call field at all.
+   *
+   * Every stamped artifact now declares `modelCalls`, DEFAULTING TO 0 — because deterministic is
+   * not merely the common case here, it is the requirement (§2 P1), and a producer that spends a
+   * model call has to say so on purpose. A non-numeric value is refused rather than coerced: an
+   * unparseable claim about model calls is worse than none, since it reads as a zero to a scanner.
+   *
+   * It stays in the fingerprinted body rather than joining HEADER_KEYS on purpose. Making it a
+   * header key would exclude it from the fingerprint, so a later hand-edit flipping a 0 to a 12
+   * would not disturb the seal — the one edit the field exists to catch. */
   const clean = {};
   for (const k of Object.keys(body)) if (!HEADER_KEYS.includes(k)) clean[k] = body[k];
+  if (clean.modelCalls === undefined) clean.modelCalls = 0;
+  if (typeof clean.modelCalls !== "number" || !Number.isFinite(clean.modelCalls) || clean.modelCalls < 0) {
+    throw new ArtifactContractError(kind, "(stamp)", "modelCalls: a finite count >= 0 (omit it to declare 0)", JSON.stringify(clean.modelCalls));
+  }
   const head = {
     schema: spec.schema,
     artifactVersion: Number(spec.schema.split("/").pop()),

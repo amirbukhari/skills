@@ -12,7 +12,7 @@
 
 **Tiers (top → bottom) — realized as composition (§2.4, §5B), not as labels.** A file is described at the coarsest tier that conforms, and each tier expands *through* the tier below it (a higher generator's fill invokes a lower generator, down to leaves):
 1. **Archetype** (`archetypes.js`) — the file *is* a word: a fixed architectural template with big typed slots (Entity = `@Entity` + columns\* + relations\*; RouterModule = `Router(prefix)` + routes\*). Conformance-gated: residual top-level code is *reported*, never absorbed to inflate the number.
-2. **Skeleton / operation-idiom** (`operations.js`, `build-operation-idioms.js`) — recurring statement/procedure shapes via anti-unification, **assembled from tier-3 idioms**. *(Middle tier — partially built; flow in §5A, composition requirement in §5B.)*
+2. **Skeleton / operation-idiom** (`operations.js`; the builder `build-operation-idioms.js` is **archived**, see the retirement notice below) — recurring statement/procedure shapes via anti-unification, **assembled from tier-3 idioms**. *(Middle tier — **RETIRED**; kept in this list only because the tier numbering below refers to it. Flow in §5A, composition requirement in §5B.)*
 3. **Statement + data idiom** (`cnl.js`, `data-english.js`) — single statements and data leaves rendered as controlled English.
 4. **Leaf / literal** — opaque atoms and genuinely-novel bytes, verbatim (the base case of the composition recursion).
 

@@ -2104,3 +2104,113 @@ should not have named an owner from a working-tree diff; a diff shows what chang
 hand. Same lesson as the `-o` entry, at the level of attribution rather than of committing.
 
 **Commit:** 17e40c5
+
+---
+
+## 2026-08-31 · s7 · R-MECH-4 was unrunnable, and I did not build a second checker for it
+
+**Found (s12's handoff, confirmed):** R-MECH-4 — "zero model calls", the most load-bearing
+requirement in the PRD — had a Check line naming `foldModelCalls`/`buildModelCalls` "in every
+published catalog". Those fields exist only in `archive/`. The check pointed at nothing on disk.
+
+**What I nearly did wrong.** I wrote a new `engine/zero-model-calls.test.js` to check it, ran it, and
+only then found that `verify-register.js` **already has a runnable R-MECH-4 row** (a live grep) that
+HOLDS. s12's finding was true of the register's *text*, not of reality. I deleted my new test rather
+than keep it: two producers for one fact is the R-MECH-8 shape, and I would have been adding it
+while correcting someone else's version of the same mistake.
+
+**What I did instead.** Extended the existing row with the half nothing checked: every registered
+artifact present must declare `modelCalls === 0`. `AC.stamp` now writes `modelCalls` into the
+**fingerprinted body** (defaulting to 0; a non-numeric value is refused, not coerced).
+
+**Judgment call — why the body and not the header.** Header keys are excluded from the fingerprint.
+Putting `modelCalls` there would mean a hand-edit flipping 0 to 12 leaves the seal intact — the exact
+edit the field exists to catch. In the body it is sealed.
+
+**Why not require it everywhere immediately.** Making it mandatory would break the mine producers
+until each was edited, and I cannot exercise a full mine today (expensive; Amir's call). The default
+means artifacts get it *as they are next produced*: `generators-lzw` picked it up within the minute,
+from another lane's mine already running. `mined-library` and `corpus-coverage` still predate the
+field; the verifier reports them by name as predating rather than passing them silently.
+
+**Why both halves and not one.** The grep checks the code; the declaration checks the producer's own
+testimony. A producer that grew a network call and kept `modelCalls: 0` passes the field and fails
+the requirement; a call reached through an indirection passes the grep. Each covers the other's
+blind spot, and neither is worth much alone.
+
+**Shown to fail:** a planted `gate.json` declaring `modelCalls: 7`, in a throwaway corpus directory
+(never the real one), flips the row to FAILS. Temp directory removed after.
+
+---
+
+## 2026-08-31 · s7 · Six PRD statements that were false on disk, corrected rather than softened
+
+Each was checked against the filesystem before editing, and each correction says what the text used
+to claim, so a stale memory cannot re-derive it:
+
+1. `results/name-queue.json` and `results/gate.json` — **no `results/` directory exists anywhere.**
+   Both kinds are `home: "cache"` → `<corpus>/.cache/spec-derived/`. Four sites corrected.
+2. `measure-middle-tier.js` as the WIDE canon (§8) — **the file does not exist and never did.** The
+   live canon is `engine/generators.js generalStmtParts(st, sf, wide)`.
+3. Front 5's "source of truth" list (§19) named three scripts that do not exist, not even archived
+   (`measure-bytes.js`, `measure-middle-tier.js`, `measure-windows.js`). Replaced with the six that
+   do. A "source of truth" nobody had run is precisely what §7's measurement discipline forbids.
+4. `build-operation-idioms.js` cited as live tier 2 in `05-architecture.md:15`, **four lines above
+   the notice retiring that layer.** It is in `archive/`.
+5. R-MECH-4's Check — see the entry above.
+6. The §7.3 frozen `S` — see the denominator entry above.
+
+**The assumption I am flagging:** I treated "the file is not on disk" as decisive that the PRD text
+was stale, not that the file was lost. For all six that is safe — `git log` shows no deletion of a
+`measure-bytes.js` that ever existed. If any of these was meant to be *built* rather than *cited*,
+the correction reads as abandonment and should be reversed.
+
+---
+
+## 2026-08-31 — a fourth unregistered artifact, with a silently-degrading consumer to match
+
+**Found** while re-checking the CLAUDE.md §5 gitignore trap: `<CORPUS>/sen/catalog/` holds
+`import-resolution.json`, which **is not a registered kind**. It sat in the TRACKED §8B artifact
+home looking exactly like a §8B artifact, with `schema` typed by hand and **no `artifactVersion`,
+no `generated`, no `fingerprint`** — so `AC.validate` could never have run on it.
+
+Both ends were outside the contract, which is what made it invisible:
+
+| | before | after |
+|---|---|---|
+| producer `resolve-imports.js:71` | hand-written header, `path.join(CR.senDir(), "catalog", …)` | `AC.stamp` + `AC.pathFor` |
+| consumer `dsl.js:54` | hand-joined the same path, `? … : {}` on absence | `AC.pathFor` + `AC.load`, absence stated |
+| registry | absent | registered, `requires: ["symbols"]` |
+
+This is the third instance tonight of the shape CLAUDE.md §8 names, after `repo-dsl.js` publishing
+`mined-library`/`corpus-coverage` unstamped and the `name-queue` incident already recorded in the
+registry comments. The recurring tell is a **hand-joined path**: every time the layout is spelled
+somewhere other than `AC.pathFor`, the header goes with it.
+
+**The consumer was the worse half.** `dsl.js` degraded to `{}` on absence — which does not read as
+*"the artifact is missing"*, it reads as *"no symbol in your corpus resolves to a canonical
+module"*, and every import silently loses its canonicalization. That is the
+`catch { return null }` class CLAUDE.md §8 exists to eliminate. Degrading is still correct here
+(dsl.js must work on a never-mined corpus) — it now says so, naming the path and the command that
+produces it.
+
+**Verified by running it, both directions:**
+
+- Regenerated through the contract: `fingerprint c2fc39da0de20645`, `artifactVersion 1`,
+  `generated 2026-08-31`, and it `AC.load`s. The payload is **byte-identical** to the artifact I
+  backed up first — 2,308 symbols before and after, `JSON.stringify(a) === JSON.stringify(b)`. The
+  header was added; nothing else moved.
+- With the artifact present, `canonicalModule` still resolves for real:
+  `ISubscriptionUsage → '@src/rentsync-api/ISubscriptionUsage'`,
+  `BILLING_TYPE_LIFT_BUILDING → '@llws/hydra-shared'`, unknown symbol → `null`.
+- Pointed at a throwaway corpus with no artifact, it prints the absence and the fix instead of
+  silently returning `{}`.
+- `engine/artifact-location.test.js` **6 assertions passed**, `engine/corpus-root.test.js`
+  **11 passed**.
+
+**Note for whoever tracks the registry blocker:** `artifact-location.test.js` assertion (e) has
+been fixed by another lane — it now reads *"every artifact PRESENT on disk is contract-valid"* plus
+*"absent registered artifacts are named, not hidden"*. That was the exact guard I was blocked on
+earlier when I declined to register an `english` kind. **The registry can take new members now**,
+and `english` for §7.0 gates 2 and 3 is unblocked — though it should wait on the §7.3 denominator
+decision, since what it would publish is the number under dispute.

@@ -51,8 +51,18 @@ const { COMPOSITES } = require("./generators");
 let _resolution = null;
 function resolution() {
   if (_resolution) return _resolution;
-  const p = path.join(CR.senDir(), "catalog", "import-resolution.json");
-  _resolution = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")).symbols : {};
+  /* An absent import map used to degrade SILENTLY to {} — which does not read as "the artifact is
+   * missing", it reads as "no symbol resolves anywhere in your corpus", and every import silently
+   * loses its canonical module. That is the `catch { return null }` class CLAUDE.md §8 exists to
+   * kill: `{ optional: true }` returns a REASON, never a bare null. Degrading is still the right
+   * behaviour here — dsl.js must work on a corpus that has never been mined — but it says so. */
+  const p = AC.pathFor("import-resolution");
+  if (!fs.existsSync(p)) {
+    console.error(`[import-resolution] absent at ${p} — every bare symbol will resolve to NO canonical`);
+    console.error(`[import-resolution] module, so import canonicalization is OFF. Produce it: node resolve-imports.js`);
+    return (_resolution = {});
+  }
+  _resolution = AC.load("import-resolution", p).symbols;
   return _resolution;
 }
 function canonicalModule(symbol) {

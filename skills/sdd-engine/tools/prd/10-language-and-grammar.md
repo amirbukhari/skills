@@ -51,7 +51,7 @@ Names outlive the words they were written for, so the naming catalog is append-a
 
 1. A name whose skeleton no longer exists moves to the **`orphans` ledger**. It is never deleted.
 2. Before generating any new name, the authoring pass **matches against orphans first**.
-3. A match produces a **re-adoption PROPOSAL** written to the rename queue (`results/name-queue.json`,
+3. A match produces a **re-adoption PROPOSAL** written to the rename queue (`<corpus>/.cache/spec-derived/name-queue.json`,
    derived/gitignored), scored by token edit distance. **It is never applied automatically.**
 4. **Queue length is a first-class metric**, reported beside byte-identity.
 

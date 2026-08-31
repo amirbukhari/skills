@@ -195,10 +195,31 @@ const MANUAL = (why, how) => ({ verdict: "MANUAL", got: null, why, how });
 const ROWS = [
   { id: "R-MECH-4", req: "Discovery, expansion and compilation MUST make zero model calls.",
     run() {
+      /* TWO HALVES, because neither is sufficient on its own. The grep checks the CODE; the
+       * artifact field checks the producer's own DECLARATION. A producer that grew a network call
+       * and kept `modelCalls: 0` passes the field and fails the requirement; a call reached through
+       * an indirection passes the grep. Requiring both closes each one's blind spot.
+       *
+       * The declaration half is new on 2026-08-31. The register's Check line used to name
+       * `foldModelCalls`/`buildModelCalls` "in every published catalog" — fields that exist only in
+       * `archive/`, so the PRD's most load-bearing requirement pointed at nothing on disk.
+       * `AC.stamp` now writes `modelCalls` (defaulting to 0) into the FINGERPRINTED body of every
+       * artifact, so flipping the number by hand breaks the seal. */
       const hits = liveGrep(/\b(anthropic|openai|fetch\s*\(|https?:\/\/api\.)/i, { excludeTests: true })
         .filter((h) => !/prose-llm|llm-render/.test(h));
-      return hits.length ? FAILS(hits.join(", "), "a live file reaches a model or a network API")
-        : HOLDS("no model/network call on any live path", "grep over the live tree, archive excluded");
+      if (hits.length) return FAILS(hits.join(", "), "a live file reaches a model or a network API");
+
+      const AC2 = require("./engine/artifact-contract.js");
+      const declared = [], silent = [];
+      for (const kind of AC2.kindsOf()) {
+        let j; try { j = JSON.parse(fs.readFileSync(AC2.pathFor(kind, AC2.corpusRoot()), "utf8")); } catch (_) { continue; }
+        if (j.modelCalls === undefined) silent.push(kind);           /* stamped before the field existed */
+        else if (j.modelCalls !== 0) return FAILS(`${kind} declares modelCalls ${j.modelCalls}`, "a published artifact admits a model call");
+        else declared.push(kind);
+      }
+      return HOLDS(`no model/network call on any live path; ${declared.length} artifact(s) declare modelCalls 0` +
+          (silent.length ? ` (${silent.join(", ")} predate the field and re-declare on the next mine)` : ""),
+        "grep over the live tree (archive excluded) AND the stamped, fingerprinted declaration on every artifact present");
     } },
 
   { id: "R-MECH-7", req: "The flat path MUST NOT stand as a second producer beside the LZW path.",

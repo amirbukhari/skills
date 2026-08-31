@@ -13,7 +13,7 @@ Every threshold the implementation depends on, with its literal value and source
 | Frozen vacuous-clause list | frozen; **may be added to, never removed to lower the count** (§7.0) | `engine/clause-quality.js` `VACUOUS` |
 | `MIN_WORD_CHARS` (ignore trivial punctuation tokens as words) | **4** — **RETIRED constant.** It belonged to the flat composer, which no longer exists on any live path (R-MECH-7). The only definition left is `archive/engine/compose.js:23`; nothing live reads it | `archive/engine/compose.js:23` (retired) |
 | Gate corpus-coverage threshold | **≥ 20%**; note the `--min` flag default in code is 80 | `repo-dsl gate --min` |
-| Gate worst-file threshold | **disabled (null)** — no per-file floor is enforced | `results/gate.json → thresholds.perFile` = `null`; `repo-dsl gate --min-file` unset |
+| Gate worst-file threshold | **disabled (null)** — no per-file floor is enforced | `<corpus>/.cache/spec-derived/gate.json → thresholds.perFile` = `null`; `repo-dsl gate --min-file` unset |
 | Byte-identity requirement | **every file, always — the floor** (§7.0) | §7 |
 | Enfile-layer walk SKIP set | `node_modules, .git, .worktrees, dist, build, coverage, sen, spec, catalog, .cache, demo, coined-demo` (both `sen` and `spec` on purpose — §1B.2) | `write-en-files.js` `SKIP` |
 | Roots | **not a constant** — `SOURCE` (read) and `CORPUS` (write), resolved per root: flag > env > `<engine>/.env` > engine-relative default (§1B.1) | `engine/corpus-root.js` `ROOTS` |

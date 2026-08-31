@@ -4,7 +4,7 @@
 
 This is the one piece of *new* work, specified end-to-end so it can be built without guessing.
 
-**Input.** The corpus `.ts` file set (the enfile-layer walk, §4). Each function/method body is canonicalized twice: once by the existing **narrow** axis (`operations.js` `fnKey`) and once by the **widened** axis (`measure-middle-tier.js` WIDE canon — member-access names, method names, and constructor names become typed holes `‹m›`/`‹ctor›`, on top of the narrow data/identifier holes). A body is a **middle-tier candidate** when its widened key recurs across the corpus with frequency **≥ `minCount` (2)** and it is not already claimed by an archetype slot.
+**Input.** The corpus `.ts` file set (the enfile-layer walk, §4). Each function/method body is canonicalized twice: once by the existing **narrow** axis (`operations.js` `fnKey`) and once by the **widened** axis (`engine/generators.js` `generalStmtParts(st, sf, wide)` — the live WIDE canon; *`measure-middle-tier.js`, named here before 2026-08-31, does not exist on disk and never did* — member-access names, method names, and constructor names become typed holes `‹m›`/`‹ctor›`, on top of the narrow data/identifier holes). A body is a **middle-tier candidate** when its widened key recurs across the corpus with frequency **≥ `minCount` (2)** and it is not already claimed by an archetype slot.
 
 **Generator record (schema).** Each promoted middle-tier generator is one catalog entry in `<corpus>/sen/catalog/mined-library.json → composites[]`, same envelope as existing composites, with these fields:
 - `id` — `g_<len>_<sha256-10>` (opaque; the librarian pass may add a `name`).

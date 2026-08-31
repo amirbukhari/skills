@@ -15,7 +15,7 @@ reading is not.
 | 1 | **Byte-identity** | `en-index.json → gate.byteIdentical` | **Every file in the corpus, always.** This is the floor and it never regresses. A change that improves readability and loses one byte of identity is a regression, not a trade. |
 | 2 | **Vacuous clauses** | `measure-english.js` (i), classifier frozen in `engine/clause-quality.js` | **Zero** — or a floor stated with sampled evidence for why it cannot be zero. |
 | 3 | **English-completeness** | `measure-english.js` (ii) | **100%, held.** No clause may carry TypeScript syntax outside quoted verbatim regions. |
-| 4 | **Rename queue** | `results/name-queue.json` | **Reported, never minimised.** The number is information, not a target to drive down. |
+| 4 | **Rename queue** | `<corpus>/.cache/spec-derived/name-queue.json` | **Reported, never minimised.** The number is information, not a target to drive down. |
 
 **Gate 2 — the frozen vacuous classifier.** A fixed list of placeholder clauses (`run a step`,
 `compute a value`, `return the result`, `branch on a condition`, …) — the phrases that say only that

@@ -68,9 +68,13 @@ function main() {
     };
   }
 
-  const out = { schema: "sdd-repo-dsl/import-resolution/1", corpus, symbols: map };
-  fs.mkdirSync(path.join(CR.senDir(), "catalog"), { recursive: true });
-  fs.writeFileSync(path.join(CR.senDir(), "catalog", "import-resolution.json"), JSON.stringify(out, null, 2) + "\n");
+  /* AC.stamp and AC.pathFor, never a hand-written header and never a hand-joined layout
+   * (CLAUDE.md §8). This wrote its own `schema` string with no artifactVersion, generated or
+   * fingerprint, into the tracked artifact home, for a kind the registry did not list. */
+  const out = AC.stamp("import-resolution", { symbols: map }, { corpus });
+  const dest = AC.pathFor("import-resolution");
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(out, null, 2) + "\n");
 
   const probe = ["ISubscriptionUsage", "ISubscriptionCost", "getVolumeCostingItems",
     "buildingBillingTypeCostCalculator", "BILLING_TYPE_ACTIVE_FEATURE",
