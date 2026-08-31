@@ -608,8 +608,27 @@ const ROWS = [
        * late-night one, and it is with him. A red row is the correct interim state -- it is the only
        * thing standing between a flattering number and a reader who believes it. Do not "fix" this
        * by adjusting the clamp; that produces a different wrong number and clears the row. */
+      /* CHECKED FIRST, and deliberately independent of the disputed VALUE: there must be exactly
+       * ONE live definition of S. Two functions in the live tree count "statements" by different
+       * rules and both feed published numbers -- operations.fnStmtCount (which recurses into
+       * if/loop/try bodies) is read by measure-operations.js, while enfile.js computes its own
+       * bodyStatements inline. §7.3 names fnStmtCount as the frozen one. Whichever denominator is
+       * chosen, mixing two definitions is what this row forbids, so this half fails on its own --
+       * fixing the inequality alone must NOT clear the row. */
+      const problems = [];
+      const ef = read("engine/enfile.js");
+      if (!ef.ok) return FAILS(null, ef.why);
+      const cbs = ef.text.match(/function countBodyStatements[\s\S]*?\n}/);
+      if (!cbs) problems.push("engine/enfile.js has no countBodyStatements to check");
+      else if (!/fnStmtCount/.test(cbs[0])) {
+        const other = liveGrep(/fnStmtCount\(/, { excludeTests: true })
+          .filter((h) => !/^engine[\/\\]operations\.js/.test(h));
+        problems.push(`enfile.js countBodyStatements defines S inline instead of calling ` +
+          `operations.fnStmtCount, which §7.3 names as frozen and which is live at ${other.join(", ") || "operations.js only"}`);
+      }
       const i = enIndex();
-      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.absent) return problems.length ? FAILS(problems.join("; "), "two definitions of S, and no manifest to check the identity against")
+                                           : MANUAL(`no manifest at ${i.where}`, "npm run render");
       if (i.err) return FAILS(null, i.err);
       const rs = i.j.reviewSurface, g = i.j.generators;
       if (!rs || !g) return FAILS(null, "no reviewSurface/generators block to check the identity against");
@@ -620,7 +639,8 @@ const ROWS = [
       if ([body, coll, resid].some((n) => typeof n !== "number"))
         return FAILS(JSON.stringify(rs).slice(0, 120), "the identity's terms are not all reported");
       if (coll > body)
-        return FAILS(`collapsedStatements ${coll} > bodyStatements ${body} (excess ${coll - body})`,
+        return FAILS(`collapsedStatements ${coll} > bodyStatements ${body} (excess ${coll - body})` +
+          (problems.length ? ` -- AND ${problems.join("; ")}` : ""),
           `collapsed cannot exceed the population it is drawn from, so the two are not one denominator; ` +
           `residual is published as ${resid} even though the manifest's own worstFiles lists per-file ` +
           `residuals (worst: ${worst}), and only ${full} of ${total} files are fully covered; ` +
@@ -631,8 +651,11 @@ const ROWS = [
       if (rs.reviewSurface !== g.calls + resid)
         return FAILS(`reviewSurface ${rs.reviewSurface} != calls ${g.calls} + residual ${resid}`,
                      "the frozen §7.3 definition does not reproduce");
+      if (problems.length)
+        return FAILS(problems.join("; "),
+          "the identity closes, but S is still defined twice -- one of the two definitions must go");
       return HOLDS(`collapsed ${coll} <= body ${body}; residual ${resid} unclamped; ` +
-        `reviewSurface ${rs.reviewSurface} = calls ${g.calls} + residual ${resid}`);
+        `reviewSurface ${rs.reviewSurface} = calls ${g.calls} + residual ${resid}; one definition of S`);
     } },
 
   { id: "R-MEAS-3", req: "Placeholder density MUST be a STRICT comparison: holes / N < 0.5.",

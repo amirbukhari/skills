@@ -84,8 +84,15 @@ const runSlow = ALL || only("slow");
  * An empty `needs` with no `files` means the test has NO corpus prerequisite and always runs. */
 const CORPUS_TIER = new Map([
   ["engine/artifact-location.test.js", {
-    needs: "*",
-    why: "asserts every registered artifact is present, contract-valid and in its home",
+    /* WAS `needs: "*"`, which held the file's own strongest assertions hostage. Assertions (a)-(d)
+     * are properties of the ENGINE TREE -- no artifact need exist for them to be true or false --
+     * and (d) is the leak recurrence guard. Gating the file on every artifact meant one absent
+     * artifact silently disabled the guard whose header says "none of it had been pushed" must stop
+     * being luck. (e) now checks only artifacts that ARE present and (f) names the absent ones, so
+     * the file has no corpus prerequisite and always runs. Existence stays enforced here, per test,
+     * where a missing artifact produces a loud SKIP instead of a misattributed failure. */
+    needs: [],
+    why: "asserts engine-tree properties plus contract-validity of whatever artifacts are present",
   }],
   ["engine/word-names.test.js", {
     needs: ["generators-lzw", "word-names"],

@@ -82,13 +82,46 @@ ok("no engine source names a corpus artifact relative to __dirname", () => {
   assert.deepStrictEqual(bad, [], `engine code writing corpus artifacts into the engine tree:\n    ${bad.join("\n    ")}`);
 });
 
-/* (e) Cross-check against the corpus: the artifacts really are where the contract says. */
-ok("every registered artifact is readable and contract-valid at its corpus location", () => {
+/* (e) Cross-check against the corpus. SPLIT DELIBERATELY, because the old single assertion
+ *     conflated two different kinds of claim and the cheaper one held the stronger one hostage:
+ *
+ *       "an artifact PRESENT on disk is contract-valid and in its home"  <- a CONTRACT invariant,
+ *          always true, always checkable, and the thing this file exists to enforce.
+ *       "every registered kind exists right now"                        <- pipeline STATE, which
+ *          depends on whether a mine has run, and which the registry cannot know.
+ *
+ *     Asserting the second turned a missing artifact into a failure of the first, so the runner
+ *     gated the WHOLE FILE on `needs: "*"` and (a)-(d) -- the actual leak guard, the reason the
+ *     header says "none of it had been pushed stops being luck" -- stopped running at all whenever
+ *     any artifact was absent. A guard disabled by an unrelated absence is not a guard.
+ *
+ *     It also made the registry unextendable: registering a new kind turned this red until someone
+ *     produced the file, so §7.0's gates could not be given artifacts. That is a contract guard
+ *     preventing the contract from growing.
+ *
+ *     Existence is still enforced, one layer up and per test: run-tests.js declares each corpus
+ *     test's prerequisites and SKIPS it by name when they are absent. A skip is loud and is not a
+ *     pass -- which is the right place for a claim about state. */
+ok("every artifact PRESENT on disk is contract-valid and in its declared home", () => {
+  const checked = [];
   for (const kind of AC.kindsOf()) {
     const p = AC.pathFor(kind);
-    assert.ok(fs.existsSync(p), `${kind} missing at ${p}`);
+    if (!fs.existsSync(p)) continue;
     AC.load(kind, p);                                             // throws on any drift
+    checked.push(kind);
   }
+  assert.ok(checked.length > 0,
+    `no registered artifact exists anywhere, so this assertion checked nothing — that is a STATE, ` +
+    `not a contract breach, but it means the corpus is empty: run \`npm run mine\``);
+  console.log(`      validated ${checked.length} present: ${checked.join(", ")}`);
+});
+
+/* (f) Absence is REPORTED, never silently tolerated. Naming the missing kinds is what keeps (e)
+ *     from reading as "all clear" when it merely had little to check. */
+ok("absent registered artifacts are named, not hidden", () => {
+  const absent = AC.kindsOf().filter((k) => !fs.existsSync(AC.pathFor(k)));
+  if (absent.length) console.log(`      absent (STATE, not failure): ${absent.join(", ")}`);
+  assert.ok(Array.isArray(absent));
 });
 
 console.log(`\n${pass} assertions passed`);
