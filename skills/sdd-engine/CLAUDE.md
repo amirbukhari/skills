@@ -155,8 +155,15 @@ Amir's three-folder direction (English source / TypeScript source / TypeScript b
 Today's `SOURCE`/`CORPUS` work is the **current, un-flipped direction with cleaner names.** It is
 not the flip and does not move the project across that line.
 
-Detail, including what specifically is open: **`tools/PRD.md` §1B.5** (and §1A / §1A.2, which
-already ruled that byte-identity at 1037/1037 is *not* sufficient to flip).
+Detail, including what specifically is open: **`tools/prd/14-two-roots.md` §1B.5**, and **`Q-1`** in
+`tools/prd/18-open-questions.md`. Byte-identity over the whole corpus is **necessary and not
+sufficient** to flip: the gate only ever tests machine-rendered `.en`, and word ids are renumbered by
+every re-mine (`R-PAY-6`), so after a flip one re-mine would silently invalidate every `.en` — a
+compile producing wrong bytes, not an error.
+
+*(This used to cite `§1A` and a byte-identity count. §1A — the `EN_ROOT`/`TS_ROOT`/`BUILD_ROOT`
+three-root proposal — was **cut** on 2026-08-31 at Amir's word, and the count was a point-in-time
+reading, not a threshold. Both are gone from the PRD.)*
 
 Any session touching direction-of-truth must ask Amir which direction is current before assuming.
 This gap was silently forgotten once already.

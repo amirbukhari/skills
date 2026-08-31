@@ -1,12 +1,14 @@
 # PRD — English-as-Source (the repo-DSL engine)
 
-The PRD, one file per section. Content is **migrated and verified** against `../PRD.md`
-(1,387 lines, every one accounted for: 1,335 into the files below, 8 title block, 44 replaced by
-this table, 6 `# PART` dividers carried by the grouping here).
+The PRD, one file per section. Content was **migrated and verified** against the single-file PRD before that file was reduced:
+every substantive line accounted for, the only non-carried lines being the old table of contents and
+the `# PART` dividers, whose job this table now does. Re-verified independently at collapse time —
+zero substantive lines missing.
 
-`../PRD.md` is still the source of truth and is being actively edited elsewhere — **it has not been
-modified or reduced**, so the two are duplicates until whoever owns the restructure collapses it to
-a pointer at this file. Re-run the migration rather than hand-editing both.
+`../PRD.md` has been **collapsed to a pointer at this file** — the migration is complete and the
+duplication is gone. This directory is the PRD. Edit the section file, never the pointer; the pointer
+changes only when a section is added, removed or renamed, and then both change in the same commit so
+a `§`-citation from the code never dead-ends.
 
 Ordinals are physical reading order. The section label (`§8B`, `R-ART`, `Q-4`) is the citation
 authority, because the numbering is deliberately non-sequential — §5 precedes §4, §1B sits in

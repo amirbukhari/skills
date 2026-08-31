@@ -79,8 +79,10 @@ skills/sdd-engine/
 ├── .claude/                   project settings scoped to this skill — see .claude/README.md
 ├── Examples/hydra-source/     the CORPUS: a real TypeScript billing system. Gitignored here.
 └── tools/
-    ├── PRD.md                 THE SPECIFICATION. Section numbers cited everywhere (§1B roots,
-    │                          §7 scoreboard, §8A/§8B the artifact contract).
+    ├── prd/                   THE SPECIFICATION, one file per section. Start at prd/README.md.
+    │                          Section labels are cited from the code (§1B roots, §7 gates,
+    │                          §8A/§8B the artifact contract) and did not change.
+    ├── PRD.md                 a pointer at prd/, plus the §-label -> file lookup table.
     ├── sdd-*.js               lane 1+2: spec -> code generation, and the drift check
     └── repo-dsl/              lane 3: the English-as-source engine. See its README for the map.
         ├── README.md          THE MAP — the live pipeline, and which of the 40 root scripts is what
@@ -124,7 +126,7 @@ decode against the wrong vocabulary. This rule exists because it was violated si
 | you want | read |
 |---|---|
 | to run something | this file, then `npm run roots` |
-| the design and every §-number cited in the code | `tools/PRD.md` |
+| the design and every §-number cited in the code | `tools/prd/README.md` (`tools/PRD.md` is the breadcrumb) |
 | which script is live and which is a one-off | `tools/repo-dsl/README.md` |
 | why a rule exists / what has already gone wrong | `CLAUDE.md` |
 | why a script was retired | `tools/repo-dsl/archive/README.md` |
