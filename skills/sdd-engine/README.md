@@ -56,18 +56,26 @@ produce them.
 |---|---|
 | `npm run test:unit` | unit tier only — needs nothing but the source |
 | `npm run test:corpus` | tests that need mined artifacts under `<CORPUS>/sen/catalog/` |
-| `npm run test:slow` | full-corpus round-trips, **minutes each** |
+| `npm run test:slow` | full-corpus round-trips. **~24s each, ~850MB peak** — measured 2026-08-31, one at a time |
 | `npm run test:all` | everything, round-trips included |
 | `npm run stamp:check` | every artifact honours the §8B header contract |
 | `npm run gate` | the measurement gate |
-| `npm run clean` | dry-run: names what a wipe *would* delete, deletes nothing |
-| `npm run clean:sen` | still a dry-run. Deleting `sen/` also requires `--go`, typed by hand |
+| `npm run clean` | dry-run: names what a wipe *would* delete, deletes nothing. **Exits 3** |
+| `npm run clean:sen` | still a dry-run. Deleting `sen/` also requires `--go`, typed by hand. **Exits 3** |
 | `npm run steps` | the step manifest as JSON — what a UI renders as the pipeline |
 | `npm run status` | resolved roots + artifact state as JSON |
 | `npm run sdd-run -- <step>` | run one step and get a structured JSON result envelope |
 
 The last three are the machine-callable front end (`tools/repo-dsl/sdd-run.js`): stdout is
 exactly one JSON document, child prose goes to stderr, and the exit code is the step's own.
+
+**Non-zero does not mean broken here, and three commands prove it.** `npm run clean` and
+`npm run clean:sen` exit **3** because refusing to delete without an explicit flag is their job;
+`npm run register` exits **1** while any mechanized §R row fails, and one does today. Read the
+reason, not the code: the cleaners name what they would have deleted with file and byte counts,
+and the register prints its own `holds / fails / manual` summary (`--json` carries it as
+`summary`). A UI that renders any of these three as "the tool crashed" is wrong. And capture the
+code directly — piping through `tail` or `head` reports the *pipe's* status, not the command's.
 They exist so the pipeline can be driven from a UI without screen-scraping.
 
 > **Never run the full suite casually.** `test:all` and `test:slow` have OOM-killed on shared
