@@ -178,6 +178,39 @@ function genLabel(start, end, source, stmts) {
   return "compose " + stmts + " statements";
 }
 
+/* ---- NAMED LABELS (PRD §2.2) -------------------------------------------------------------
+ * The word dictionary's own names, keyed by content hash of each LEAF skeleton (engine/word-names).
+ * A span's sentence is COMPOSED from its members' names, in source order, never invented whole:
+ * w.m = [prefix, appended] is binary and left-leaning, so a depth-4 word is a chain of 5 leaves and
+ * clause i belongs to statement i. Any leaf without a name degrades to that ONE statement's
+ * spanProse clause, so a partially-named span still reads, and a span with no named leaf at all
+ * falls back to today's genLabel unchanged.
+ *
+ * DISPLAY ONLY. compileChunk finds the payload with lastIndexOf(PAY_OPEN) and decodes only that;
+ * it never reads this text. A wrong name is wrong prose, never wrong bytes. */
+const WN = require("./word-names");
+const NAMES = WN.load(path.join(__dirname, "..", "catalog", "word-names.json"));
+
+function namedLabel(s, source, cat, names) {
+  const clauses = WN.clausesFor(cat, s.payload, names);
+  if (!clauses) return null;
+  let frag;
+  try { frag = ts.createSourceFile("s.ts", source.slice(s.start, s.end), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS); }
+  catch (_) { return null; }
+  const stmts = [...frag.statements];
+  if (stmts.length !== clauses.length) return null; // leaf/statement alignment broken — do not guess
+  const filled = clauses.map((c, i) => c || spanProse([stmts[i]], frag) || null).filter(Boolean);
+  if (!filled.length) return null;
+  // collapse runs of the identical clause — names are per-skeleton, so seven identical imports
+  // should say it once with a count rather than seven times.
+  const runs = [];
+  for (const c of filled) {
+    const last = runs[runs.length - 1];
+    if (last && last.c === c) last.n++; else runs.push({ c, n: 1 });
+  }
+  return sanitizeLabel(P.list(runs.map((r) => (r.n > 1 ? r.c + " (×" + r.n + ")" : r.c)), "then"));
+}
+
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
  * Narrow-preferred (longest narrow match at a position), widened generators only claim a
  * position narrow leaves fully verbatim. Emits a span ONLY if refill === exact source slice. */
@@ -194,7 +227,8 @@ function renderFileEn(source, index) {
   const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
   const genSpans = recSpans.map((s) => ({
     start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,
-    en: GEN + " " + genLabel(s.start, s.end, source, s.stmts) + " " + PAY_OPEN + PAY.encode(s.payload) + PAY_CLOSE,
+    en: GEN + " " + (namedLabel(s, source, index._lzw, NAMES.names) || genLabel(s.start, s.end, source, s.stmts))
+      + " " + PAY_OPEN + PAY.encode(s.payload) + PAY_CLOSE,
   }));
   for (const g of genSpans) spans.push(g);
   const inGen = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
@@ -289,4 +323,4 @@ function compileFileEn(en, index) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, loadIndex, genLabel, spanProse, sanitizeLabel };
+module.exports = { renderFileEn, compileFileEn, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES };

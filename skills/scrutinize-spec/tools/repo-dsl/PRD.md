@@ -319,6 +319,11 @@ The composition capability was nearly lost by being treated as deletable derived
   vocabulary the live `.en` compiles through (§4A). It supersedes `catalog/generators.json`, which
   belonged to the deleted flat path and is no longer read by anything.
 - **`catalog/mined-library.json`** (the compose-layer composites — `compositeGenerators`, `builtFromComposites`, `maxHierarchyDepth 9`) — the **composition graph** (§4A, §5B). This is the artifact that was nearly lost; protect it explicitly.
+- **`catalog/word-names.json`** — the NAMES of the dictionary's leaf words, keyed by content hash
+  of each canonical skeleton (§2.2). Hand-authored and *not* reproducible by a re-mine: the mine
+  rebuilds the words, never their names. It also carries the `orphans` ledger, which is the only
+  record of names authored for skeletons that have since drifted — deleting it destroys work that
+  no amount of re-mining brings back.
 - **`word-library.json` / coined-word catalog** and **`catalog/english-idioms.json`** — read-time coined-phrase and narration vocabularies.
 
 Only `.calc` IR, coverage/index reports, and naming worksheets are wipable-derived (§5 on-disk layout). A cleanup that cannot tell these apart must **stop and ask**, never delete a catalog.
