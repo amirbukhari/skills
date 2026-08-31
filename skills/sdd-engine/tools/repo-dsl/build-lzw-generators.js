@@ -54,6 +54,17 @@ const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus wa
 //   64 -> maxDepth 57 (NOT pinned - ceiling found), calls 4782, net 15,455, dict 12.58 MB,
 //         .en 4,829,217   <- the default; longest stream in the corpus is 60 statements
 //  128 -> byte-for-byte identical to 64. Saturated; higher values are wasted work.
+// RE-MEASURED 2026-08-31 — THE TWO LINES ABOVE ARE STALE. The corpus grew: its longest fold stream
+// is now 77 statements (src/hydra-api/invoice.ts), with 5 streams >= 64. So 64 DOES pin, and
+// maxDepth 63 == MAXWIN-1 is this file's own signature of pinning, not a found ceiling.
+//  128 -> maxDepth 76 (= 77-1, so here the ceiling really is the corpus), +171 composites per axis,
+//         4.2s mine. Rendered against it: byte-identity 1037/1037 and review surface 16,889 from
+//         S=33,918 (50.2%) -- IDENTICAL TO 64, to the statement. The deeper words exist; the render
+//         does not use them.
+// So the default stays 64, for a different reason than the one written above: not "past the corpus
+// ceiling" but "past the point where more ceiling buys any review surface". Re-measure the stream
+// lengths, not the depth, if this is ever revisited -- depth pinned at MAXWIN-1 tells you only that
+// the bound bound, never whether relaxing it would help.
 // Mine wall-clock was 1-2s at every value, so cost was never the constraint.
 // WHOLE-FILE WORDS DID NOT MOVE: 74/1037 at every value. MAXWIN was never what blocked them.
 const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 64);

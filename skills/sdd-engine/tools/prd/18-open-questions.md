@@ -140,8 +140,35 @@ constant with two values is not a constant.
 
 Flagged rather than silently promoted or cut:
 
-- **`MAXWIN` "inert" is CONTRADICTED BY THE ARTIFACT — this is now a measurement, not a
-  confirmation** (§4B, §8, R-MINE-2). The PRD calls 64 *"the point past which the parameter is
+- **`MAXWIN` — MEASURED AND CLOSED, 2026-08-31.** Both halves, and they do not point the same way:
+
+  **The bound DOES bind at 64, and the code's own comment is stale.** The corpus's longest fold
+  stream is **77 statements** (`src/hydra-api/invoice.ts`), with **5** streams at 64 or longer, so
+  `maxDepth 63 = MAXWIN − 1` is pinning exactly as `build-lzw-generators.js:52` says. The comment
+  claiming *"64 → maxDepth 57 (NOT pinned — ceiling found), longest stream in the corpus is 60
+  statements"* was true when written; **the corpus grew past it.** Measured without a mine, by
+  walking the corpus's own `Block`/`SourceFile` statement runs — the same streams the miner feeds.
+
+  **And relaxing it changes nothing that matters.** `MAXWIN=128`: `maxDepth` **76** on both axes
+  (= 77 − 1, so at 128 the ceiling really is the corpus), **+171 composites** per axis, 4.2s mine.
+  Rendered against that dictionary: **byte-identity 1037/1037, review surface 16,889 from S =
+  33,918, 50.2% — identical to 64, to the statement.** The deeper words exist and the render does
+  not use them.
+
+  **So "inert" was the right word for the wrong reason,** and both the PRD and the code comment
+  should say the real one: 64 is not past the corpus ceiling, it is past the point where extra
+  ceiling buys any review surface. **This does not clear R-ARCH-15** (one word per file) — it
+  removes `MAXWIN` from the list of things that could be blocking it, which is what §5D.4 already
+  suspected when it named THE RESIDUAL rather than the window bound.
+
+  *Method note: the dictionary was backed up, re-mined at 128, rendered dry-run to a temp directory,
+  and the original bytes restored — verified by md5. The re-mine at the default also proved the mine
+  deterministic in content: only `minedAt` and the seal over it moved, which is the defect recorded
+  in the entry below.*
+
+  *This bullet used to ask only whether "inert" was meant permanently; it did not know the artifact
+  disagreed with it. Original text follows.*
+  ~~The PRD calls 64 "the point past which the parameter is inert".~~ (§4B, §8, R-MINE-2). The PRD calls 64 *"the point past which the parameter is
   inert"*. On disk, `sen/catalog/generators-lzw.json` reports `maxDepth` **63** on **both** axes —
   exactly `MAXWIN − 1`, which `build-lzw-generators.js:52` **itself** names as the signature of the
   bound **PINNING**. The code's own sweep comment records 64 → *"maxDepth 57 (NOT pinned — ceiling
@@ -152,10 +179,13 @@ Flagged rather than silently promoted or cut:
   *This bullet used to ask only whether "inert" was meant permanently; it did not know the artifact
   disagreed with it.*
 
-- **A second live `MAXWIN`.** `engine/enfile.js:34` defines `MAXWIN = 8` — same name, different
-  value, different module from the miner's 64, and undocumented. Not a contradiction (they bound
-  different windows) but a name collision that will mislead someone. Needs one sentence in §8 saying
-  which is which.
+- **A second live `MAXWIN` — RESOLVED 2026-08-31, and it was not "live".** `engine/enfile.js:34`
+  defined `MAXWIN = 8`: same name, different value, different module from the miner's 64. Measured
+  before writing the sentence §8 was going to get — **the constant is declared once and never read.
+  It was dead.** Deleted rather than documented, with a comment at the site recording that it
+  existed and what it was mistaken for. A dead constant that contradicts a live one by name is worse
+  than no constant, and worse than a paragraph explaining it: the paragraph makes the reader believe
+  there are two windows to reason about.
 - **`minCount` appears twice with different values** — `MIN_COUNT = 1` for word promotion
   (§4B, §8, R-MINE-1) and `minCount ≥ 2` for middle-tier body candidacy (§5A, §7.3, R-WIDE-3).
   They are two different thresholds in two different modules, and this document has never said so in

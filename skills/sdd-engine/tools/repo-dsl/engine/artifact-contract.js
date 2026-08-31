@@ -148,6 +148,37 @@ function fingerprintOf(obj) {
   return crypto.createHash("sha256").update(canonicalBody(obj), "utf8").digest("hex").slice(0, 16);
 }
 
+/* VOLATILE — fields that differ between two runs that produced THE SAME CONTENT. Declared as a
+ * list, not guessed at by name shape, so adding one is a decision somebody makes on purpose.
+ *   minedAt / generatedAt / builtAt / timestamp   wall-clock
+ *   node                                          the interpreter that ran, not what it produced
+ *   regenerate                                    the command line, which embeds ABSOLUTE paths and
+ *                                                 so differs between two machines byte for byte
+ * Everything else is content. */
+const VOLATILE = Object.freeze(["minedAt", "generatedAt", "builtAt", "timestamp", "node", "regenerate"]);
+
+/* WHY THIS EXISTS, measured 2026-08-31. Re-mining the same corpus at the same settings produced a
+ * DIFFERENT `fingerprint` — counts identical to the entry, `minedAt` and the seal over it the only
+ * two fields that moved. So the fingerprint could not answer the one question that matters for
+ * drift: "is this artifact what the current code and corpus would produce?" It answers only "has
+ * anyone edited this file since it was written", because a wall-clock value inside the seal makes
+ * every honest re-run look like a change.
+ *
+ * That is not academic. An hour before this was written, R-MEAS-2 read as a live FAILURE against a
+ * manifest that was merely STALE — written before a fix, by code that was already correct. Nothing
+ * on the artifact could distinguish "stale" from "wrong", and the only way to find out was to
+ * re-render and look.
+ *
+ * So: `fingerprint` stays exactly as it was — the tamper seal over everything, and existing
+ * artifacts keep validating. `contentFingerprint` is the comparable one. Two runs that produced
+ * the same content agree on it, on any machine, at any time. Additive on purpose: artifacts stamped
+ * before today simply do not carry it, and are reported as not comparable rather than as equal. */
+function contentFingerprintOf(obj) {
+  const body = {};
+  for (const k of Object.keys(obj).sort()) if (!HEADER_KEYS.includes(k) && !VOLATILE.includes(k) && k !== "contentFingerprint") body[k] = obj[k];
+  return crypto.createHash("sha256").update(JSON.stringify(body), "utf8").digest("hex").slice(0, 16);
+}
+
 function kindsOf() { return Object.keys(ARTIFACTS); }
 function specOf(kind) {
   const s = ARTIFACTS[kind];
@@ -191,6 +222,9 @@ function stamp(kind, body, opts = {}) {
     generated: opts.generated || new Date().toISOString().slice(0, 10),
   };
   if (spec.corpusPinned) head.corpus = opts.corpus;
+  /* Order matters: contentFingerprint goes into the body BEFORE the tamper seal is taken over it,
+   * so editing one without the other is caught. It excludes itself from its own computation. */
+  clean.contentFingerprint = contentFingerprintOf(clean);
   head.fingerprint = fingerprintOf(clean);
   return Object.assign(head, clean);
 }
@@ -242,4 +276,4 @@ function idOf(rec) {
   return null;
 }
 
-module.exports = { ARTIFACTS, HEADER_KEYS, HOMES, ArtifactContractError, stamp, validate, load, fingerprintOf, kindsOf, specOf, idOf, corpusRoot, pathFor };
+module.exports = { ARTIFACTS, HEADER_KEYS, HOMES, VOLATILE, ArtifactContractError, stamp, validate, load, fingerprintOf, contentFingerprintOf, kindsOf, specOf, idOf, corpusRoot, pathFor };

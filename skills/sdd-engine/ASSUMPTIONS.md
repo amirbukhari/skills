@@ -2423,3 +2423,59 @@ outcome, wrong about the mechanism — it refuses BECAUSE the clamped value brea
 because the clamping was taken out.
 
 **Commit:** this entry; no code change.
+
+---
+
+## 2026-08-31 · s7 · Q-6 closed by measurement — and "inert" was right for the wrong reason
+
+**MAXWIN binds at 64.** The corpus's longest fold stream is **77 statements**, with 5 at 64 or
+longer, so `maxDepth 63 = MAXWIN − 1` is the miner's own signature of *pinning*. The code comment
+claiming *"64 → maxDepth 57 (NOT pinned), longest stream is 60 statements"* was true when written;
+the corpus grew past it. I measured this **without a mine**, by walking the corpus's own
+`Block`/`SourceFile` statement runs — the same streams the miner is fed.
+
+**And relaxing it buys nothing.** At `MAXWIN=128`: maxDepth 76 (= 77 − 1, so the ceiling really is
+the corpus there), +171 composites per axis, 4.2s. Rendered against that dictionary: byte-identity
+1037/1037, review surface **16,889 from S = 33,918, 50.2% — identical to 64, to the statement.**
+
+**The judgment call:** the default stays 64, but the PRD and the code comment now give the real
+reason — not "past the corpus ceiling" (false) but "past the point where more ceiling buys any
+review surface" (measured). And the note says to re-measure *stream lengths*, not depth, if this is
+revisited: depth pinned at `MAXWIN−1` tells you the bound bound, never whether relaxing it helps.
+
+**Method, since this touched the live dictionary:** backed it up, re-mined at 128, rendered
+**dry-run to a temp directory** (no corpus writes), restored the original bytes, verified by md5.
+The 4.2s mine is `build-lzw-generators.js`, not the expensive compose-layer mine Amir asked to be
+consulted about.
+
+**What this does NOT do:** it does not clear R-ARCH-15 (one word per file). It removes MAXWIN from
+the list of things that could be blocking it — which is what §5D.4 already suspected when it named
+THE RESIDUAL rather than the window bound.
+
+---
+
+## 2026-08-31 · s7 · The fingerprint could not tell "stale" from "wrong"
+
+**Found while restoring the dictionary:** re-mining the same corpus at the same settings produced a
+**different `fingerprint`**. Counts identical to the entry; the only fields that moved were `minedAt`
+and the seal taken over it. A wall-clock value inside the seal makes every honest re-run look like a
+change, so the fingerprint could only answer *"has anyone edited this file"* — never *"is this what
+the current code and corpus would produce"*.
+
+**That is exactly what cost time an hour earlier:** R-MEAS-2 read as a live FAILURE against a
+manifest that was merely **stale**, written before a fix by code that was already correct. Nothing on
+the artifact could distinguish the two, and the only way to find out was to re-render and look.
+
+**Fix, deliberately additive:** `fingerprint` is unchanged — the tamper seal over everything, so
+every existing artifact keeps validating. New: `contentFingerprint`, computed over the body minus a
+**declared** `VOLATILE` list (`minedAt`, `generatedAt`, `builtAt`, `timestamp`, `node`, `regenerate`
+— the last because it embeds absolute paths and so differs between machines). Two runs producing the
+same content agree on it anywhere; different content still differs; hand-editing it breaks the outer
+seal, because it is written into the body *before* the seal is taken.
+
+**Assumption to correct if wrong:** that `node` (the interpreter version) is provenance rather than
+content. If a toolchain change could ever alter what the miner produces, excluding it would hide a
+real difference — but then the *content* would differ too and `contentFingerprint` would move anyway.
+
+**Not done:** artifacts stamped before today do not carry the field and are reported as *not
+comparable*, never as equal. They pick it up as they are next produced, like `modelCalls`.

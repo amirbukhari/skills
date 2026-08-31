@@ -31,7 +31,11 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
 const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator span: «▶ gloss ⟪lzw1 payload⟫»
-const MAXWIN = 8;
+/* (There was a `const MAXWIN = 8` here until 2026-08-31. It was declared once and never read —
+ * dead, and misleading: same name as the miner's live `MAXWIN` (64, `build-lzw-generators.js`)
+ * with a different value, in a different module, which reads as "there are two windows to
+ * reason about" when there is one. Deleted rather than documented; the note stays so the next
+ * reader of §Q-6 does not go looking for it.) */
 
 /* VERBATIM SENTINEL SAFETY — the other half of payload.js's guarantee.
  *
