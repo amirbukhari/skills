@@ -31,6 +31,103 @@ So "English source" here is not translation and not documentation. It is a *loss
 
 ---
 
+## 1A. THE THREE ROOTS — spec only, nothing moved (2026-08-31)
+
+Amir: *"I think there needs to be 3 folders involved. Theres the English source code folder, then
+theres the typescript source folder, then theres the typescript build folder."* This section names
+them and states their contract. **Nothing has been moved; this is a specification awaiting a
+decision.**
+
+| root | contents | written by | read by | authoritative? | safe to wipe? |
+|---|---|---|---|---|---|
+| **EN_ROOT** — English source | `**/*.en` | today `write-en-files.js`; **after the flip, a human** | `compileFileEn` | **intended** source of truth (§1) | **NO** |
+| **TS_ROOT** — TypeScript source | `src/`, `packages/`, `tests/` | today a human; after the flip, the compiler | `tsc`, the miner, every tool | **today's** source of truth | **NO** — see §1A.2 |
+| **BUILD_ROOT** — TypeScript build | `tsc` output (`dist/`) | `tsc` | the running application | never | **YES, always** |
+
+**VOCAB is not a fourth root — it belongs to EN_ROOT.** `generators-lzw.json`, `mined-library.json`
+and `word-names.json` (§8B, `<corpus>/spec/catalog/`) are *part of the English source*: a `.en`
+cannot compile without them, exactly as a program cannot compile without its headers. Wiping VOCAB
+is wiping source. This is why they are SOURCE-PROTECTED (§8A) and tracked, not cached.
+
+### 1A.1 The direction-of-truth question
+
+§1 has always said the `.en` is the source and the `.ts` is derived. §8A protects the `.ts` and
+treats the `.en` as derived. **These are opposite rules over the same bytes**, and the contradiction
+has been latent because we only ever render in one direction.
+
+**Ruling: the PRD should state what §1 already states — the `.en` is the source.** Amir's phrase
+"English source code folder" is the project's thesis, not a new idea. §8A's protection of the `.ts`
+is not a competing claim about authorship; it is a **transitional safety** covering the period in
+which the `.ts` is still the only copy. §8A should say so in those words, so a reader stops seeing a
+contradiction and starts seeing a sequence.
+
+### 1A.2 Is byte-identity 1037/1037 sufficient to flip? **NO.**
+
+It is necessary and it is not sufficient, and the gap is specific, not theoretical:
+
+1. **It only tests machine-rendered `.en`.** The gate asserts `compile(render(ts)) === ts`. A
+   *hand-edited* `.en` — the entire point of the flip — exercises paths the gate has never run.
+2. **THE BLOCKER: `.en` payloads reference word IDS, and the ids move.** The payload dialect is
+   `lzw1 <axis><wordId>⟨hole⟨…` (`engine/payload.js`), and those ids are **array indices into
+   `generators-lzw.json` that are renumbered by every re-mine** (`engine/word-names.js:6`). So a
+   `.en` is decodable **only against the exact dictionary it was rendered with**. Today that is
+   harmless because the `.ts` is authoritative and a `.en` can always be re-rendered. After the flip
+   it is fatal: **one re-mine silently invalidates every `.en` in the repo**, and the failure mode is
+   a compile that produces *wrong bytes*, not an error.
+
+**Nothing may flip until (2) is fixed.** Two ways, in preference order:
+- **Pin the dictionary per file.** Each `.en` names the dictionary `fingerprint` it was rendered
+  against (§8B headers now carry one), and `compileFileEn` **REFUSES** on mismatch rather than
+  decoding against the wrong vocabulary. Cheap, and it converts a silent corruption into a loud
+  refusal — the §8B rule applied to the payload.
+- **Make ids content-addressed**, as skeleton names already are (`sha256(sym)[0:16]`, §5C), so a
+  re-mine cannot renumber anything. Strictly better and strictly more work.
+
+### 1A.3 The safe transition — the `.ts` is never the only copy
+
+1. **Fix the id/fingerprint blocker.** No step below is safe before this.
+2. **Parallel period.** Both trees tracked; `.ts` remains authoritative; CI asserts
+   `compile(.en) === .ts` for all 1037 files on every commit. Nothing is wiped, nothing is
+   untracked.
+3. **Prove the authoring direction.** A human edits a `.en`, compiles it, and the resulting `.ts`
+   is reviewed as a normal diff. Until that has happened on real files, "English is the source" is
+   an assertion about a path nobody has walked.
+4. **Flip the protection language** in §8A only when 1–3 hold.
+5. **The `.ts` stays generated AND committed, permanently.** Like generated clients or protobufs:
+   authored elsewhere, checked in anyway. A broken compiler then costs a rebuild, never the code.
+
+**The failure this ordering exists to prevent:** flipping the protection rule first would let a
+cleanup treat `src/` as derived output while the `.en` still cannot be trusted to reproduce it —
+deleting the only copy on the strength of a gate that never tested hand-authored input. This effort
+has already destroyed irreplaceable artifacts once.
+
+### 1A.4 The panel contract — three roots, and no cross-project read
+
+Amir's binding rule: **Kraken's SDD UI reads and writes only the paths specified in the SDD Panel.**
+With three roots, the panel specifies three, and the `corpusDir` ambiguity dissolves:
+
+> The panel's **selected project** determines EN_ROOT, TS_ROOT and BUILD_ROOT together. There is no
+> independent `corpusDir` input to artifact resolution — a second setting for one fact is a second
+> source of truth, and keeping two paths equal by discipline is not an invariant. Resolution and
+> validation take the **same** root from the **same** source:
+> `AC.load(kind, AC.pathFor(kind, selected), { corpus: selected })`.
+
+**The invariant that makes a cross-project read IMPOSSIBLE, not merely unlikely:** every
+corpus-pinned artifact **declares the tree it was mined from** in its own `corpus` header field, and
+every read passes the selected root as the expectation. A mismatch **REFUSES at the read**, naming
+both paths (§8B). Equality of two independently-maintained settings is a coincidence that holds
+until the day it doesn't — which is precisely how s2's A/B test went red. An artifact that names its
+own origin holds even when the settings diverge.
+
+### 1A.5 BUILD_ROOT is a naming exercise, not work
+
+`tsc` output. Nothing in this system writes it, reads it, mines it, or gates on it, and it is the one
+root that is **always** safe to delete and regenerate. It is named here **only** so that "the
+TypeScript folder" is never ambiguous between source and build — an ambiguity that has already cost
+us once in a different guise. **No work is proposed for it and none should be inferred.**
+
+---
+
 ## 2. Non-negotiable principles
 
 1. **Pattern discovery IS LZW dictionary construction over the bottom-up AST node stream — deterministic, zero model calls.** The miner parses each file to its AST, linearizes it bottom-up (leaves first), and runs the encoding half of LZW to build a **recursive word dictionary**: each entry = a prior entry + one symbol, so every word is defined in terms of smaller words and **generators reference generators by construction** (§5). Each hole records the exact source span it abstracted, so expansion rebuilds the site's **original bytes**; LZW is lossless, so byte-exactness and compression coexist. See `engine/pipeline.js`, `engine/lzw.js`, `engine/compose.js`, `engine/fanout.js`.
@@ -561,7 +658,7 @@ Every threshold the implementation depends on, with its literal value and source
 
 ### 8A. SOURCE-PROTECTED artifacts (never wipable-derived)
 
-**All SOURCE-PROTECTED artifacts live in the CORPUS tree, never in the engine tree (§8B).** The composition capability was nearly lost by being treated as deletable derived output. The following are **SOURCE-PROTECTED**: they are the mined vocabulary the English source *depends on to compile and to compose*, and must **never** be classified as regenerable-cache, gitignored-away, or deleted in any cleanup — even though a mine can rebuild them, deleting them without a full re-mine breaks `.en → .ts`:
+**All SOURCE-PROTECTED artifacts live in the CORPUS tree, never in the engine tree (§8B).** **TRANSITIONAL, NOT A CLAIM ABOUT AUTHORSHIP (see §1A.1).** §1 states the `.en` is the source and the `.ts` is derived. The protections below cover the period in which the `.ts` is still the only copy; they are a sequence, not a contradiction, and §1A.3 states what must be true before they flip. The composition capability was nearly lost by being treated as deletable derived output. The following are **SOURCE-PROTECTED**: they are the mined vocabulary the English source *depends on to compile and to compose*, and must **never** be classified as regenerable-cache, gitignored-away, or deleted in any cleanup — even though a mine can rebuild them, deleting them without a full re-mine breaks `.en → .ts`:
 
 - **`<corpus>/spec/catalog/generators-lzw.json`** — the recursive LZW word dictionary; the ONLY generator
   vocabulary the live `.en` compiles through (§4A). It supersedes `catalog/generators.json`, which
