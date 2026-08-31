@@ -148,3 +148,16 @@ const totBytes = targets.reduce((s, t) => s + t.bytes, 0);
 console.log(`\n${targets.length} entr${targets.length === 1 ? "y" : "ies"} / ${totFiles} files / ${mb(totBytes)} MB ` +
   (GO ? "REMOVED." : "— dry run. Pass --go to remove."));
 if (WIPE_SEN && !GO) console.log(`${SEN}/ IS in that list because --wipe-sen was passed.`);
+
+/* EXIT CODE — a refusal must not look like an action (PRD R-CFG-8).
+ * This printed "REFUSING to touch sen/" and then exited 0, so a caller could not tell "refused,
+ * nothing deleted" from "deleted" — for the one destructive tool in the tree.
+ *
+ * 3, deliberately NOT 2: `sdd-run.js` reserves exit 2 for "the wrapper itself refused" and passes
+ * a child's code through unchanged, so a 2 from here would be indistinguishable from the wrapper
+ * refusing. 0 = did what was asked · 1 = error (the hard refusals above throw) · 3 = declined,
+ * nothing deleted.
+ *
+ * A dry run is NOT a refusal — it is what was asked for, so it stays 0. Only the path where sen/
+ * exists and --wipe-sen was withheld exits 3. */
+if (!WIPE_SEN && sen) process.exit(3);

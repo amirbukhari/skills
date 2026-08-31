@@ -141,3 +141,29 @@ console.log("corpus files parsed:", parsed);
 console.log("NARROW  leaves:", narrow.counts.leaves, " composites:", narrow.counts.composites, " maxDepth:", narrow.counts.maxDepth, " dictEntries:", narrow.counts.dictEntries);
 console.log("WIDE    leaves:", wide.counts.leaves, " composites:", wide.counts.composites, " maxDepth:", wide.counts.maxDepth, " dictEntries:", wide.counts.dictEntries);
 console.log("wrote", OUT, "(" + (fs.statSync(OUT).size / 1e6).toFixed(2) + " MB)");
+
+/* ---------- EXIT CODE — a mine that mined nothing must not report success ----------
+ * This script exited 0 unconditionally, so `npm run mine` (and `sdd-run.js mine`, which passes the
+ * child's code through unchanged) reported success for a run that walked zero files or promoted an
+ * empty vocabulary. That is PRD §8B failure mode 2 in its most direct form — "the miner cannot mine
+ * what it never sees, so the gap is reported as un-collapsed structure rather than as a walk
+ * mismatch", the mismatch that once accounted for 696 of 937 un-collapsed bodies. A wrong SOURCE, a
+ * SKIP set that swallowed the tree, or a corpus of only .d.ts files all land here, and all three
+ * used to look like a clean mine that simply found little.
+ *
+ * R-PIN-6 is the same rule stated for artifacts: "a build that cannot walk the whole tree MUST fail
+ * loudly or mark itself complete:false — it never emits a smaller plausible number."
+ *
+ * Measured before the change: parsed 1037, narrow 5684 leaves, wide 3238 leaves — exits 0. */
+const problems = [];
+if (!parsed) problems.push(`walked ${files.length} file(s) under ${path.resolve(SRC)} and parsed NONE`);
+for (const ax of [narrow, wide]) {
+  if (!ax.counts.leaves) problems.push(`${ax.axis} axis promoted 0 leaf words — an empty vocabulary`);
+}
+if (problems.length) {
+  console.error("\nMINE FAILED — refusing to report success:");
+  for (const p of problems) console.error("  " + p);
+  console.error(`  SOURCE ${path.resolve(SRC)}\n  CORPUS ${path.resolve(CORPUS)}`);
+  console.error("  check the root (npm run roots) and the SKIP set before trusting any downstream number.");
+  process.exit(1);
+}

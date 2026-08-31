@@ -7,13 +7,20 @@
  *   (ii) ENGLISH-COMPLETE — share of clauses with no TypeScript left after removing `identifiers`
  *        and “literals”, which are deliberately verbatim (PRD §3).
  *
- * THE TWO CEILINGS this reports against (measured, not projected):
+ * THE TWO CEILINGS this reports against:
  *   sentence level ~100%  — every in-span statement can carry a site-specific clause
- *   byte level      33.8% — skeleton 8.4% + gap 4.5% + word-like holes 20.9%; 40.2% optimistic
- *                           if long-but-structureless holes count as readable.
- * 39.7% of the corpus is code-bearing hole interiors. That is NOT a gap to close: a hole holding a
- * 40-line arrow function with its own guards and returns is a program, not connective tissue with
- * a noun missing. Reporting it as a shortfall would be dishonest.
+ *   byte level     bounded well below 100% — most corpus bytes are code-bearing hole interiors.
+ * That is NOT a gap to close: a hole holding a 40-line arrow function with its own guards and
+ * returns is a program, not connective tissue with a noun missing. Reporting it as a shortfall
+ * would be dishonest.
+ *
+ * NO FROZEN READINGS. This header used to name 33.8%, 40.2%, 8.4%, 4.5%, 20.9% and 39.7% as the
+ * ceiling, and the last printed line compared the live number against 33.8/40.2. Those were
+ * point-in-time measurements of one corpus baked into the tool that measures it — the defect PRD
+ * §7 removed from the document ("every number that was a point-in-time measurement has been
+ * removed — run the tools for current values"). A tool that ships the answer it is supposed to
+ * compute cannot report a regression, and on another corpus it is simply wrong. The byte
+ * accounting below prints the live split; read the ceiling off that.
  *
  * Label-region only. compileChunk never reads a label, so nothing here can move a byte.
  */
@@ -123,4 +130,12 @@ Object.keys(archB).sort((a, b) => archB[b] - archB[a]).forEach((k) => {
     + (100 * archB[k] / corpus).toFixed(1).padStart(5) + "% of corpus  "
     + (100 * (archPanel[k] || 0) / archB[k]).toFixed(1).padStart(5) + "% of their bytes read as English");
 });
-console.log("\n  --> reads as English ....... " + pc(skel + gap + word) + "   ceiling 33.8%  (optimistic " + pc(skel + gap + word + longSimple) + " / 40.2%)");
+console.log("\n  --> reads as English ....... " + pc(skel + gap + word)
+  + "   (optimistic, counting long-but-structureless holes: " + pc(skel + gap + word + longSimple) + ")");
+
+/* EXIT CODE — this already printed "*** FLOOR BREACHED ***" and then exited 0, the same defect
+ * write-en-files.js had. PRD R-REND-1 is unconditional, so a breach must fail the caller. */
+if (bad) {
+  console.error(`\nBYTE-IDENTITY FLOOR BREACHED — ${bad} of ${ok + bad} files do not round-trip (PRD R-REND-1).`);
+  process.exit(1);
+}
