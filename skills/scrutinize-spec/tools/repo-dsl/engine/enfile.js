@@ -113,6 +113,119 @@ const throwStmtOf = (branch) => (ts.isThrowStatement(branch) ? branch
   : (ts.isBlock(branch) ? branch.statements.find(ts.isThrowStatement) || null : null));
 const isGuardThrow = (st) => ts.isIfStatement(st) && !st.elseStatement && !!throwStmtOf(st.thenStatement);
 
+/* ---- ARCHETYPE PROSE: decorated classes and route registrations ------------------------------
+ * These read the SAME AST facts engine/archetypes.js's extractEntity/extractRouter read, but they
+ * render on the live round-tripping path instead of through a second, disconnected producer. The
+ * word dictionary has already discovered these shapes — a TypeORM entity is one span whose payload
+ * holes ARE the grammar's slots (measured: 90.5% of entity bytes sit inside spans, 141 hole slots
+ * per file). What was missing was never the structure; it was the sentence.
+ *
+ * NOTE on extractEntity: it is NOT broken. An earlier report of mine said its className/table/
+ * column names came back undefined — that was my probe reading g.className and c.name instead of
+ * g.slots.className and c.prop. Retracted. Nothing here is a workaround for a bug in it. */
+const COLUMN_DECS = new Set(["Column", "PrimaryGeneratedColumn", "PrimaryColumn", "CreateDateColumn", "UpdateDateColumn", "DeleteDateColumn", "VersionColumn", "ObjectIdColumn"]);
+const RELATION_DECS = new Set(["ManyToOne", "OneToMany", "ManyToMany", "OneToOne"]);
+const REL_VERB = { ManyToOne: "belongs to a", OneToMany: "has many", ManyToMany: "links to many", OneToOne: "pairs with one" };
+const ROUTE_VERBS = new Set(["get", "post", "put", "patch", "delete", "del", "all", "head", "options"]);
+
+const decsOf = (n) => (ts.canHaveDecorators(n) ? (ts.getDecorators(n) || []) : []);
+const decNameOf = (d, sf) => { const e = d.expression; return (ts.isCallExpression(e) ? e.expression : e).getText(sf); };
+
+/* the string value of `key` in a decorator's object argument, or null */
+function decOption(dec, key, sf) {
+  const e = dec.expression;
+  if (!ts.isCallExpression(e)) return null;
+  for (const arg of e.arguments) {
+    if (ts.isStringLiteral(arg) && key === "name") return arg.text;
+    if (!ts.isObjectLiteralExpression(arg)) continue;
+    for (const pr of arg.properties) {
+      if (!ts.isPropertyAssignment(pr) || safeMemberName(pr.name, sf) !== key) continue;
+      const v = pr.initializer;
+      if (ts.isStringLiteral(v)) return v.text;
+      if (v.kind === ts.SyntaxKind.TrueKeyword) return true;
+      if (v.kind === ts.SyntaxKind.FalseKeyword) return false;
+      if (ts.isIdentifier(v)) return { id: v.text };
+    }
+  }
+  return null;
+}
+
+/* "an optional `year` (int)" / "a required `status` (enum `EStatus`)" / "an auto-generated `id`" */
+function columnClause(m, dec, sf) {
+  const name = safeMemberName(m.name, sf);
+  if (!name) return null;
+  const dn = decNameOf(dec, sf);
+  if (dn === "PrimaryGeneratedColumn") return "an auto-generated " + q(name);
+  if (dn === "PrimaryColumn") return "a primary key " + q(name);
+  if (dn === "CreateDateColumn") return "an automatic created-at " + q(name);
+  if (dn === "UpdateDateColumn") return "an automatic updated-at " + q(name);
+  if (dn === "DeleteDateColumn") return "a soft-delete " + q(name);
+  const nullable = decOption(dec, "nullable", sf);
+  const need = (nullable === true || !!m.questionToken) ? "an optional " : "a required ";
+  const dbType = decOption(dec, "type", sf);
+  const en = decOption(dec, "enum", sf);
+  let type = null;
+  if (typeof dbType === "string") type = dbType === "enum" && en && en.id ? "enum " + q(en.id) : dbType;
+  /* a TS type is a plain type WORD here, not a backticked identifier: it goes inside the
+   * parenthesised type idiom, and a backtick there would leave "( )" behind for the scanner. */
+  else if (m.type) { const t = m.type.getText(sf); if (/^[A-Za-z_$][\w$]*$/.test(t)) type = t; }
+  return need + q(name) + (type ? " (" + type + ")" : "");
+}
+
+/* "belongs to a `BillingAccount` (join `account_id`)" / "has many `Installment`" */
+function relationClause(m, ds, sf) {
+  const rel = ds.find((d) => RELATION_DECS.has(decNameOf(d, sf)));
+  if (!rel) return null;
+  const dn = decNameOf(rel, sf);
+  let target = null;
+  const e = rel.expression;
+  if (ts.isCallExpression(e) && e.arguments.length) {
+    const a0 = e.arguments[0];
+    const body = ts.isArrowFunction(a0) ? a0.body : a0;             // () => Target
+    if (body && ts.isIdentifier(body)) target = body.text;
+  }
+  if (!target && m.type) { const t = m.type.getText(sf).replace(/\[\]$/, ""); if (/^[A-Za-z_$][\w$]*$/.test(t)) target = t; }
+  if (!target) return null;
+  const join = ds.map((d) => (decNameOf(d, sf) === "JoinColumn" ? decOption(d, "name", sf) : null)).find((x) => typeof x === "string");
+  return REL_VERB[dn] + " " + q(target) + (join ? " (join " + q(join) + ")" : "");
+}
+
+/* the whole entity as one sentence, or null when this is not a decorated persistence class. */
+function entityProse(cls, sf) {
+  const entDec = decsOf(cls).find((d) => decNameOf(d, sf) === "Entity");
+  const cols = [], rels = [];
+  for (const m of cls.members) {
+    if (!ts.isPropertyDeclaration(m)) continue;
+    const ds = decsOf(m);
+    if (!ds.length) continue;
+    if (ds.some((d) => RELATION_DECS.has(decNameOf(d, sf)))) { const r = relationClause(m, ds, sf); if (r) rels.push(r); continue; }
+    const cd = ds.find((d) => COLUMN_DECS.has(decNameOf(d, sf)));
+    if (cd) { const c = columnClause(m, cd, sf); if (c) cols.push(c); }
+  }
+  if (!entDec && !cols.length) return null;
+  if (!cols.length && !rels.length) return null;
+  const table = entDec ? decOption(entDec, "name", sf) : null;
+  let out = "describe the stored record " + q(cls.name.text) + (typeof table === "string" ? " in " + q(table) : "");
+  if (cols.length) out += " — " + P.list(cols);
+  if (rels.length) out += (cols.length ? " — it " : " — it ") + P.list(rels);
+  return out;
+}
+
+/* "serve GET `/:accountId`" — a Koa/Express route registration. RouterModule is the largest
+ * grammar-carriable archetype (7.6% of corpus bytes) and every one of these rendered as
+ * "call get" before this. */
+function routeClause(node, sf) {
+  if (!ts.isCallExpression(node)) return null;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return null;
+  const verb = callee.name.text;
+  if (!ROUTE_VERBS.has(verb)) return null;
+  const a0 = node.arguments && node.arguments[0];
+  if (!a0 || !ts.isStringLiteralLike(a0)) return null;
+  const method = (verb === "del" ? "DELETE" : verb === "all" ? "ANY" : verb.toUpperCase());
+  return "serve " + method + " " + q(a0.text);
+}
+
 /* ---- prose helpers for spanProse -------------------------------------------------------------
  * Everything emitted into a clause is either a template word or a backticked/quoted verbatim
  * fragment. That is not cosmetic: engine/clause-quality's English-completeness scanner strips
@@ -268,7 +381,11 @@ function spanProse(win, sf) {
       actions.push("list the choices for " + q(st.name.text) + (ms.length ? " — " + P.list(ms.map(q)) : ""));
       continue;
     }
-    if (ts.isClassDeclaration(st) && st.name) { actions.push("define the class " + q(st.name.text)); continue; }
+    if (ts.isClassDeclaration(st) && st.name) {
+      const ent = entityProse(st, sf);
+      actions.push(ent || "define the class " + q(st.name.text));
+      continue;
+    }
     if (ts.isFunctionDeclaration(st) && st.name) { actions.push("define " + q(st.name.text)); continue; }
     if (ts.isModuleDeclaration(st) && st.name) { actions.push("declare the module " + q(st.name.getText(sf))); continue; }
 
@@ -289,6 +406,13 @@ function spanProse(win, sf) {
       const nm = names.length ? P.list(names.map(q)) : null;
       const init = decls[0] && decls[0].initializer;
       if (!nm) { actions.push("compute a value"); continue; } // nothing true to say — counts, by design
+      if (init && ts.isNewExpression(init) && /Router$/.test(init.expression.getText(sf))) {
+        const a0 = init.arguments && init.arguments[0];
+        let pfx = null;
+        if (a0 && ts.isObjectLiteralExpression(a0)) for (const pr of a0.properties)
+          if (ts.isPropertyAssignment(pr) && safeMemberName(pr.name, sf) === "prefix" && ts.isStringLiteralLike(pr.initializer)) pfx = pr.initializer.text;
+        actions.push("open the route group " + nm + (pfx ? " at " + q(pfx) : "")); continue;
+      }
       if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) { actions.push("define " + nm); continue; }
       const call = firstCallName(st);
       if (isAwait(st)) { actions.push("await " + (call ? P.words(call) : "a value") + " into " + nm); continue; }
@@ -362,6 +486,12 @@ function spanProse(win, sf) {
         if (d && (up || inner.operator === ts.SyntaxKind.MinusMinusToken)) {
           actions.push((up ? "count up " : "count down ") + q(d)); continue;
         }
+      }
+      { /* a route registration, possibly chained: router.get(...).post(...) */
+        const routes = []; let cur = inner;
+        while (ts.isCallExpression(cur)) { const r = routeClause(cur, sf); if (r) routes.unshift(r);
+          cur = ts.isPropertyAccessExpression(cur.expression) ? cur.expression.expression : null; if (!cur) break; }
+        if (routes.length) { actions.push(P.list(routes)); continue; }
       }
       if (ts.isCallExpression(inner) && inner.expression.kind === ts.SyntaxKind.SuperKeyword) {
         actions.push("call the parent constructor"); continue;

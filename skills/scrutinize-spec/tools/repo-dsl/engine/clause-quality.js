@@ -59,14 +59,19 @@ function isVacuous(clause) { return VACUOUS_LOOKUP.has(String(clause).trim()); }
 /* (ii) Strip what is deliberately verbatim, then look for surviving TypeScript.
  * `(×7)` is a prose idiom this renderer emits for a collapsed run of identical clauses — it is
  * not source, so it is removed before the scan rather than counted as a stray parenthesis. */
-const VERBATIM = /`[^`]*`|“[^”]*”|\(×\d+\)/g;
+const VERBATIM = /`[^`]*`|“[^”]*”/g;
+/* Prose idioms this renderer emits deliberately, stripped AFTER the verbatim spans so that a
+ * parenthesis whose contents were a backticked name is judged on what is left. Both are bounded:
+ * `(×7)` is a collapsed run, and `(int)` / `(enum )` is a type word. Neither can admit code — a
+ * comma, colon, dot or operator inside the parentheses fails the class and the clause is flagged. */
+const IDIOMS = /\(×\d+\)|\([A-Za-z][A-Za-z0-9 ]*\)/g;
 /* Every alternation here is LOAD-BEARING, established by dropping each and re-running the suite:
  * the character class, `?.`, and member access each turn it red on their own. `=>` and `::` were
  * removed — `=>` is already caught by `>`, and `::` is not TypeScript syntax at all. A regex with
  * dead alternations reads like more coverage than it has. */
 const TS_SYNTAX = /[{}()[\];=<>|&]|\?\.|\w\.\w/;
 
-function residueOf(label) { return String(label).replace(VERBATIM, " "); }
+function residueOf(label) { return String(label).replace(VERBATIM, " ").replace(IDIOMS, " "); }
 function isEnglishComplete(label) { return !TS_SYNTAX.test(residueOf(label)); }
 
-module.exports = { VACUOUS, clausesOf, isVacuous, isEnglishComplete, residueOf, TS_SYNTAX };
+module.exports = { VACUOUS, clausesOf, isVacuous, isEnglishComplete, residueOf, TS_SYNTAX, IDIOMS };

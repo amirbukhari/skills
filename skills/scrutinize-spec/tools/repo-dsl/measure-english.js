@@ -23,6 +23,7 @@ const ts = require("typescript");
 const EN = require("./engine/enfile");
 const EL = require("./engine/enlzw");
 const Q = require("./engine/clause-quality");
+const ARCH = require("./engine/archetypes");
 
 const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
 const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
@@ -35,6 +36,10 @@ const LABEL = /«▶ ([\s\S]*?) ⟪/g;
 const wordLike = (v) => !/\n/.test(v) && B(v) <= 40;
 const codeBearing = (v) => /=>|\bfunction\b|\breturn\b|\bif\b|\bawait\b/.test(v) || (/\n/.test(v) && /[{[]/.test(v));
 
+/* Per-ARCHETYPE reading, because the direct comparison is against a hand-authored entity grammar.
+ * "panel-quality" is decidable, not a judgement: the file's bytes sit inside a span whose label is
+ * English-complete and carries no vacuous clause. */
+const archB = {}, archPanel = {}, archN = {};
 const idx = EN.loadIndex(CORPUS);
 const cat = idx._lzw;
 let ok = 0, bad = 0;
@@ -58,8 +63,25 @@ for (const f of walk(CORPUS).sort()) {
     }
   }
 
+  let akind = "(unclassified)";
+  try { akind = ARCH.classifyFile(ARCH.analyzeFile(path.relative(CORPUS, f), src)); } catch (_) { /* keep default */ }
+  archB[akind] = (archB[akind] || 0) + B(src);
+  archN[akind] = (archN[akind] || 0) + 1;
+
   const sf = ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   let spans = []; try { spans = EL.genSpans(sf, src, cat); } catch (_) { /* none */ }
+  {
+    let m2; const RX = /«▶ ([\s\S]*?) ⟪/g; const labels = [];
+    while ((m2 = RX.exec(en))) labels.push(m2[1]);
+    let good = 0, li = 0;
+    for (const s of spans) {
+      const lab = labels[li++];
+      if (lab == null) continue;
+      const cs = Q.clausesOf(lab);
+      if (cs.length && cs.every((c) => Q.isEnglishComplete(c) && !Q.isVacuous(c))) good += B(src.slice(s.start, s.end));
+    }
+    archPanel[akind] = (archPanel[akind] || 0) + good;
+  }
   for (const s of spans) {
     span += B(src.slice(s.start, s.end));
     const axis = s.payload.a === "n" ? cat.narrow : cat.wide;
@@ -90,4 +112,13 @@ console.log("  gap (whitespace/comments) .. " + pc(gap));
 console.log("  word-like holes (verbatim) . " + pc(word));
 console.log("  long but structureless ..... " + pc(longSimple));
 console.log("  CODE-BEARING (code by nature)" + pc(code));
-console.log("  --> reads as English ....... " + pc(skel + gap + word) + "   ceiling 33.8%  (optimistic " + pc(skel + gap + word + longSimple) + " / 40.2%)");
+console.log("\nPANEL-QUALITY READING by archetype (bytes inside spans whose every clause is");
+console.log("English-complete and non-vacuous). GENERATIVE archetypes marked * have a hand-authored");
+console.log("grammar in engine/archetypes.js that this path deliberately does NOT consume.");
+Object.keys(archB).sort((a, b) => archB[b] - archB[a]).forEach((k) => {
+  const star = ARCH.GENERATIVE.includes(k) ? " *" : "  ";
+  console.log("  " + star + " " + k.padEnd(20) + String(archN[k]).padStart(4) + " files  "
+    + (100 * archB[k] / corpus).toFixed(1).padStart(5) + "% of corpus  "
+    + (100 * (archPanel[k] || 0) / archB[k]).toFixed(1).padStart(5) + "% of their bytes read as English");
+});
+console.log("\n  --> reads as English ....... " + pc(skel + gap + word) + "   ceiling 33.8%  (optimistic " + pc(skel + gap + word + longSimple) + " / 40.2%)");
