@@ -72,13 +72,42 @@ const runSlow = ALL || only("slow");
 /* CORPUS-tier tests, declared. Everything else under engine/*.test.js is UNIT by default, so a
  * NEW test is unit until someone says otherwise — the safe direction, since a unit test that
  * secretly needs a corpus fails loudly rather than being silently skipped. */
-const CORPUS_TIER = new Set([
-  "engine/artifact-location.test.js",     // asserts every §8B artifact is present and in its home
-  "engine/word-names.test.js",            // reads word-names.json
-  "engine/unit-boundary.test.js",         // reads the dictionary
-  "engine/enfile-label-sanitize.test.js", // reads the dictionary
-  "engine/operation-idioms.test.js",      // reads the legacy STEP-4 catalog/
-  "engine/sdd.test.js",                   // reads mined skeletons/archetypes
+/* PER TEST, its OWN prerequisites -- not one shared gate. The gate used to be all-or-nothing over
+ * ["generators-lzw","word-names"], so a single absent artifact skipped all six, and four of them
+ * were reported as "needs a mined corpus" when the corpus they needed was fully mined. A skip has
+ * to name the thing that is actually missing, or it is a measurement of the gate, not the corpus.
+ *
+ * `needs`  registered §8B artifact kinds, resolved through the contract (never by guessing paths).
+ *          "*" means EVERY registered kind -- for the test that asserts exactly that.
+ * `files`  paths relative to <CORPUS>, for prerequisites that are NOT §8B artifacts (the legacy
+ *          STEP-4 catalog/ tree, which is deliberately outside the contract -- see CLAUDE.md 5).
+ * An empty `needs` with no `files` means the test has NO corpus prerequisite and always runs. */
+const CORPUS_TIER = new Map([
+  ["engine/artifact-location.test.js", {
+    needs: "*",
+    why: "asserts every registered artifact is present, contract-valid and in its home",
+  }],
+  ["engine/word-names.test.js", {
+    needs: ["generators-lzw", "word-names"],
+    why: "needs the dictionary to have leaves and word-names.json to have named them",
+  }],
+  ["engine/unit-boundary.test.js", {
+    needs: ["generators-lzw"],
+    why: "reads the recursive dictionary (enlzw.loadLzw)",
+  }],
+  ["engine/enfile-label-sanitize.test.js", {
+    needs: [],
+    why: "sentinel stripping over an intentionally EMPTY index -- no corpus artifact required",
+  }],
+  ["engine/operation-idioms.test.js", {
+    needs: [],
+    files: [path.join("catalog", "operation-idioms.json"), path.join("catalog", "function-archetypes.json")],
+    why: "reads the legacy STEP-4 catalog/ tree, which no §8B artifact kind covers",
+  }],
+  ["engine/sdd.test.js", {
+    needs: [],
+    why: "builds its own project in a tmpdir; sdd.js names no root and reads no artifact",
+  }],
 ]);
 const SLOW_TIER = ["test-gen-roundtrip.js", "test-lzw-roundtrip.js"];
 
@@ -86,14 +115,25 @@ const unit = fs.readdirSync(path.join(HERE, "engine"))
   .filter((f) => f.endsWith(".test.js")).map((f) => path.join("engine", f))
   .filter((f) => !CORPUS_TIER.has(f)).sort();
 
-/* Is the corpus mined? One question, asked through the contract, not by guessing at paths. */
-function corpusReady() {
+/* What does the corpus actually hold? Asked ONCE, through the contract, never by guessing paths.
+ * A resolver failure is its own state: no root means no question can be answered about it. */
+function corpusState() {
   try {
     const AC = require("./engine/artifact-contract");
     const root = CR.corpusRoot();
-    const missing = ["generators-lzw", "word-names"].filter((k) => !fs.existsSync(AC.pathFor(k, root)));
-    return { ready: missing.length === 0, missing, root };
-  } catch (e) { return { ready: false, missing: ["(resolver failed: " + e.message.split("\n")[0] + ")"], root: null }; }
+    const all = AC.kindsOf();
+    const present = new Set(all.filter((k) => fs.existsSync(AC.pathFor(k, root))));
+    return { ok: true, root, all, present };
+  } catch (e) { return { ok: false, root: null, reason: e.message.split("\n")[0] }; }
+}
+
+/* Exactly what is missing for ONE test, by name. Empty array = nothing blocks it. */
+function blockersFor(spec, st) {
+  if (!st.ok) return [`(resolver failed: ${st.reason})`];
+  const kinds = spec.needs === "*" ? st.all : spec.needs;
+  const out = kinds.filter((k) => !st.present.has(k));
+  for (const rel of spec.files || []) if (!fs.existsSync(path.join(st.root, rel))) out.push(rel);
+  return out;
 }
 
 const results = [];
@@ -120,15 +160,21 @@ if (runUnit) {
 }
 
 if (runCorpus) {
-  const st = corpusReady();
-  console.log(`CORPUS — ${CORPUS_TIER.size} tests, need mined artifacts under ${CR.LAYOUT.sen}/catalog/`);
-  if (!st.ready) {
-    skipped = [...CORPUS_TIER];
-    console.log(`  SKIPPED — the corpus at ${st.root} is not mined (absent: ${st.missing.join(", ")}).`);
-    console.log(`  This is a STATE, not a failure. To produce them:  npm run mine && npm run name`);
-    for (const f of skipped) console.log(`  skip  ${f}`);
-  } else {
-    for (const f of [...CORPUS_TIER].sort()) run(f, "corpus", 300000);
+  const st = corpusState();
+  console.log(`CORPUS — ${CORPUS_TIER.size} tests, gated INDIVIDUALLY on what each one reads`);
+  console.log(`  corpus: ${st.ok ? st.root : `UNRESOLVED — ${st.reason}`}`);
+  for (const f of [...CORPUS_TIER.keys()].sort()) {
+    const blockers = blockersFor(CORPUS_TIER.get(f), st);
+    if (blockers.length) {
+      skipped.push(f);
+      console.log(`  skip  ${f.padEnd(42)} absent: ${blockers.join(", ")}`);
+    } else {
+      run(f, "corpus", 300000);
+    }
+  }
+  if (skipped.length) {
+    console.log(`\n  An absent artifact is a STATE, not a failure. To produce the §8B ones:`);
+    console.log(`    npm run mine && npm run name`);
   }
   console.log("");
 }
@@ -147,5 +193,6 @@ for (const r of failed) {
 }
 
 const passed = results.filter((r) => r.ok).length;
-console.log(`${passed} passed, ${failed.length} failed, ${skipped.length} skipped (needs a mined corpus)`);
+const tail = skipped.length ? ` (${skipped.length} skipped — each named its own absent prerequisite above)` : "";
+console.log(`${passed} passed, ${failed.length} failed, ${skipped.length} skipped${tail}`);
 process.exit(failed.length ? 1 : 0);

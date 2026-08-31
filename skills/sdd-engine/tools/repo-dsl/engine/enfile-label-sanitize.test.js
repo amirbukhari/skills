@@ -4,6 +4,9 @@
 // which would corrupt the span scan or the payload parse. This test proves every sentinel is
 // stripped from the label, and that a file whose code carries a sentinel-laden throw still
 // round-trips byte-identical.
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const EN = require("./enfile");
 
 let passed = 0;
@@ -32,7 +35,12 @@ ok(/failing when/.test(label), "genLabel surfaced the guard as a 'failing when' 
 console.log("  label:", label);
 
 /* 3. a file whose code carries a sentinel-laden throw still round-trips byte-identical */
-const index = EN.loadIndex("/definitely/no/corpus/here"); // empty index: no gen spans, exercises the pipeline
+/* An EMPTY index on purpose: no gen spans, so this exercises the verbatim pipeline. It used to
+ * ask for "/definitely/no/corpus/here", which worked only while a missing root fell back silently.
+ * Under §8B a set-but-missing root REFUSES by design, so the fixture now uses a real EMPTY dir --
+ * same empty index, no reliance on the failure mode the contract exists to remove. */
+const EMPTY_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "enfile-empty-"));
+const index = EN.loadIndex(EMPTY_ROOT);
 const src = [
   "export async function run(subs) {",
   "  const partner = getPartner(subs);",
