@@ -1875,3 +1875,41 @@ with a reason. Proven by injecting a throw at the top of `sdd-run.js` — before
 `FAIL --list is parseable at all` and exit 1.
 
 **Commit:** see below.
+
+---
+
+## 2026-08-31 — R-LANG-14's red is a false positive, twice over. NOT MY FILE, measured and handed back.
+
+`sdd-engine-e2` reported R-LANG-14 flipped to FAILS on `new-archetype.js:52`, *"so a UI cannot drive
+it"*, and flagged it as unowned. Measured before anyone acts on it. **The row should not be red.**
+
+**Reason 1 — the script does not block.** `readSentence()` reads fd 0 **only** when the caller passes
+`--stdin`; with no input flag it returns `null`. Run with stdin closed:
+
+```
+$ timeout 5 node new-archetype.js --json < /dev/null
+{ "ok": false, "error": "no input — pass --sentence <text>, --sentence-file <path>, or --stdin" }
+EXIT=2
+```
+
+Structured JSON on stdout, prose on stderr, a distinct exit code, no prompt, terminates immediately.
+That is R-LANG-14 **satisfied**, not violated. `verify-register.js:677` greps for the pattern
+`readFileSync\(0` and fails the row on a textual match, so it cannot tell *"blocks on stdin
+unconditionally"* from *"reads piped input when the caller explicitly asks"* — which is how a UI
+feeds a script, not a prompt. The requirement is right; the check is too coarse.
+
+**Reason 2, and the more general one — the checker reads UNTRACKED files.** `new-archetype.js` is
+`??` in `git status`: never committed, somebody's in-progress work (the archetype lane's, by
+subject). `liveGrep` walks the working tree, so **a register row can go red because a colleague has
+an unsaved scratch file on disk**, and green again when they delete it. The register's verdict is
+not reproducible from a commit. That is worth fixing independently of this row.
+
+**Correcting myself:** earlier tonight I reported *"no interactive or blocking prompts anywhere in
+the live tree"* from a grep for `readline|createInterface|process.stdin`. That pattern **misses
+`fs.readFileSync(0, ...)`**, which reads fd 0 without naming `process.stdin`. The conclusion still
+holds — the one fd-0 read is opt-in — but I reached it with an incomplete pattern and got the right
+answer by luck. `verify-register.js:677` already includes `readFileSync\(0`; mine did not.
+
+**Not fixed, and deliberately.** `verify-register.js` belongs to the register lane, and
+`new-archetype.js` is another lane's uncommitted file. Both measurements handed to `sdd-engine-5f`
+(owner of the checker) and `sdd-engine-e2` (who reported the row).
