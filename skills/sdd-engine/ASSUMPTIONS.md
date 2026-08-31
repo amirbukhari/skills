@@ -1407,3 +1407,72 @@ OOM-killed") and its description of these two as "the expensive full-corpus ones
 **one at a time** costs 24s and 0.85GB; running the whole suite concurrently is a different
 question and this measurement says nothing about it. Weakening a safety rule on evidence that does
 not address it is how the rule stops being obeyed.
+
+## 2026-08-31 — the headline review-surface figure is stated as a failing row, not fixed
+
+**Decided:** R-MEAS-2 is mechanized to FAIL on the live manifest (`collapsedStatements 22760 >
+bodyStatements 17852`) and the defect is left in place, with `write-en-files.js:143,148` named in the
+row and the commit message. I did not edit `write-en-files.js`.
+
+**Why:** two reasons, and the second is the one that decided it. First, that file was claimed by
+another lane tonight (sdd-engine-5a, exit codes, commit 391bb25), and the standing constraint is not
+to reach into it. Second, and independent of ownership: fixing this MOVES A HEADLINE METRIC. The
+corpus residual would go from 0 to something positive and `reviewSurface` would stop equalling
+`calls`, which changes the number the PRD calls the one the whole engine exists to move. That is not
+a change to make silently at the edge of someone else's work at night. A failing row with the two
+line numbers in it loses nothing and forces the decision into daylight.
+
+**Verified by running it:** `node verify-register.js --id R-MEAS-2` → FAILS, exit 1. The core of it
+needs no run at all: `sum(collapsed) 22760 > sum(body) 17852` proves at least one file reports more
+statements collapsed than it contains, from the two published sums alone.
+
+**Also caught, and corrected before commit:** my first draft of the failure message asserted "397
+files with residual > 0", derived as `totalFiles - filesFullyCovered`. That is an overclaim —
+`filesFullyCovered` excludes files with `bodyStatements === 0`, so the 397 is not all residual. The
+row now cites the manifest's own `worstFiles` per-file residuals (135, 142, 101) instead, which prove
+the same point directly from a published field.
+
+**Commit:** 30d2297
+
+## 2026-08-31 — reproducible is not independent; recorded in R-MEAS-1 rather than as a new row
+
+**Decided:** R-MEAS-1 is mechanized (18 metrics must each resolve to a numeric field of the stamped
+manifest; the two derived figures are recomputed). The finding that the two round-trip gates are ONE
+collapse measurement is recorded in that row's comment, and NOT given a row id of its own.
+
+**Why:** no existing §R row governs gate independence — R-MEAS-8 is candidates-vs-collapse, R-MEAS-2
+is denominators, R-PIN-7/R-CFG-2 are about roots. Inventing an id, or attaching the check to a row
+that does not say it, is exactly the cite rot I spent this evening removing from four "SETTLED" rows.
+So it goes in the comment of the nearest governing row and is flagged for s7, who owns `tools/prd/**`.
+
+**Verified by running it:** `grep -n genSpans` across the three files. `enlzw.js:176` exports the sole
+`genSpans`; `test-lzw-roundtrip.js:32` calls `EN.genSpans` directly; `enfile.js:839` calls the same
+`EL.genSpans`, and `test-gen-roundtrip.js:27` reports it via `stats.genSpans`. Raised by sdd-engine-5a
+and confirmed here at the call sites rather than taken on report.
+
+**The distinction that matters:** as BYTE-IDENTITY gates the two are genuinely independent — different
+compile paths, `compileFileEn` vs the test's own span scan + `compileSpan` — so R-REND-1 leans on that
+legitimately. As COLLAPSE measurements they are one implementation printed twice. Both halves are in
+the comment, because "the gates aren't independent" would be the wrong lesson and would discard real
+evidence.
+
+**Commit:** 30d2297
+
+## 2026-08-31 — reproduced both of 5a's findings before acting on either
+
+**Decided:** re-derived the TDZ failure and the single-`genSpans` claim myself instead of accepting a
+peer's report.
+
+**Why:** CLAUDE.md §7 — "for any 'broken' or failing claim, reproduce it first". Two of the last three
+findings handed to this project were stale, and one of my own §R rows cited `npm run test:slow` as
+"the stronger check" for R-REND-1, so whether that script could start was load-bearing for a row I
+had already committed.
+
+**Verified by running it:** checked out `522adf8^`, ran it — dies at line 11, `const CORPUS =
+CR.sourceRoot()` above its own `require` at line 18. Both of 5a's findings confirmed exactly as
+stated. R-REND-1's citation is sound now but was naming a dead script when I wrote it; the row's own
+wording already made the manifest gate the primary evidence and test:slow the secondary, which is why
+the row was not wrong, only luckier than it deserved.
+
+**Commit:** 30d2297 (no code change from this; recorded because it changes how much weight R-REND-1's
+secondary citation carries)
