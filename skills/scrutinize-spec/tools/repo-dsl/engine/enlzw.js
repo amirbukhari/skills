@@ -52,6 +52,9 @@ function expandKey(axis, id) {
   return expandKey(axis, w.m[0]) + W_GAP + expandKey(axis, w.m[1]);
 }
 const W_GAP = W.GAP;
+/* Render one level down from the whole-run word. Default ON; LIFT_TOP=0 restores the collapsed
+ * form. Rendering-only: the dictionary and the compiler are unchanged. */
+const LIFT_TOP = process.env.LIFT_TOP !== "0";
 
 /* ALL kept words starting at run position p over symbol strings syms[], walking the prefix+symbol
  * automaton (leaf then ext). Returns [{ id, len }] for len 1..Lmax (kept words are prefix-closed,
@@ -97,6 +100,21 @@ function genSpans(sf, source, cat) {
         const push = (ws, axis, wide) => {
           for (const w of ws) {
             if (w.len < 2) continue;
+            /* LIFT (PRD §1 "re-emitted as a stream of those words"). A word that covers an ENTIRE
+             * run collapses the whole thing to one opaque reference — technically maximal reuse,
+             * useless to a reader. Refuse it so the scheduler must build the run out of the
+             * largest words that are strictly smaller, i.e. the words the top word is made of.
+             *
+             * Why not "expand the top word one level": measured, 317 of 317 whole-file words
+             * expand to [N-1, 1]. LZW entries are prefix + one symbol (§2.1), so a one-level lift
+             * is ALWAYS a chain, never a branch, and lifting until a branch appears would recurse
+             * to leaves and hand back the raw statements. Re-segmenting is the only lift that
+             * yields a real paragraph.
+             *
+             * Byte-identity is untouched: this only removes a candidate. Every emitted span is
+             * still byte-gated, and any statement left uncovered falls back to per-statement
+             * rendering, itself byte-gated. */
+            if (LIFT_TOP && w.len >= run.length && run.length >= 2) continue;
             const win = run.slice(p, p + w.len);
             if (win.filter(isUnit).length >= 2) continue; // meaning-aware boundary: never straddle >=2 units
             const start = win[0].getStart(sf), end = win[win.length - 1].getEnd();
