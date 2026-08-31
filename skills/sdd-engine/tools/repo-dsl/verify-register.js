@@ -439,8 +439,41 @@ const ROWS = [
                       "npm run mine && node repo-dsl.js mine <corpus> && npm run stamp:check") },
 
   { id: "R-REND-1", req: "compileFileEn(renderFileEn(src)) === src MUST hold for every file, always.",
-    run: () => MANUAL("the floor; decided only by a full-corpus round-trip",
+    run: () => MANUAL("the floor; decided only by a full-corpus round-trip. NOTE: `npm run measure` " +
+                      "reporting byte-identity 1037/1037 is NOT evidence about the .en tree on disk -- " +
+                      "measure-english.js:59-62 walks <SOURCE>/**/*.ts and round-trips IN MEMORY, and " +
+                      "scores 1037/1037 with zero .en files written. That is the right evidence for THIS " +
+                      "row, which is an in-memory identity, and the wrong evidence for R-REND-5",
                       "npm run test:slow  (test-lzw-roundtrip.js, minutes)") },
+
+  { id: "R-REND-5", req: "The .en MUST be written to <CORPUS>/sen/files/<rel>.en; derived .calc IR to a gitignored .cache/.",
+    run() {
+      /* Two different answers must not be confused here, which is the whole reason this row is
+       * mechanized separately from R-REND-1: "render has not been run" is a STATE, and ".en files
+       * exist somewhere other than sen/files/" is a VIOLATION. An in-memory round-trip score says
+       * nothing either way -- see the note on R-REND-1. */
+      let CR2, root;
+      try { CR2 = require("./engine/corpus-root"); root = CR2.corpusRoot(); }
+      catch (e) { return FAILS(null, `root unresolvable: ${e.message.split("\n")[0]}`); }
+      const home = path.join(CR2.senDir(), "files");
+      const SKIP = new Set(["node_modules", ".git", ".cache", "catalog"]);
+      const stray = [];
+      let inHome = 0;
+      (function walk(d) {
+        let ents; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+        for (const e of ents) {
+          if (SKIP.has(e.name)) continue;
+          const q = path.join(d, e.name);
+          if (e.isDirectory()) walk(q);
+          else if (q.endsWith(".en")) { q.startsWith(home + path.sep) ? inHome++ : stray.push(path.relative(root, q)); }
+        }
+      })(root);
+      if (stray.length) return FAILS(stray.slice(0, 3).join(", "),
+        `${stray.length} .en outside ${path.relative(root, home)}/`);
+      return inHome ? HOLDS(`${inHome} .en files, all under ${path.relative(root, home)}/`)
+        : MANUAL(`no .en on disk under ${root} -- render has not been run since the corpus was wiped`,
+                 "npm run render  (this is a STATE, not a violation; an in-memory round-trip score is not evidence for this row)");
+    } },
 
   { id: "R-COMP-7", req: "generators.maxDepth on the live .en path MUST be >= 2 and rising.",
     run: () => MANUAL("needs a rendered corpus and its en-index.json (open: §Q-8)",
