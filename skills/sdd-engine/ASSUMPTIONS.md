@@ -2332,3 +2332,62 @@ against a **stale `en-index.json`** — a manifest written before the denominato
 already right. A corpus-pinned, fingerprinted artifact still has no pin on the *code version* that
 produced it, so a stale artifact reads as a live failure. Re-rendered (no mine; `Examples/` is
 gitignored and no other lane was running) and the row went green on the real numbers.
+
+## 2026-08-31 — my "S is defined twice" finding was half wrong; s7's correction accepted
+
+**What I claimed:** R-MEAS-2 failed on a second ground — that `S` was defined twice in the live tree,
+`operations.fnStmtCount` versus `enfile.js`'s inline `countBodyStatements`, and that §7.3 named the
+former as frozen.
+
+**What is actually true:** `fnStmtCount` has exactly ONE live consumer, `measure-operations.js:84`,
+where it sizes a single clustered function body. It is a per-function count, not a rival corpus
+denominator — so there were never two definitions of S competing. §7.3 had simply **named the wrong
+function** as S. s7 corrected the row and, importantly, kept its teeth while adding two mine lacked:
+S must be EXPORTED so a second consumer cannot re-derive it, and no ratio anywhere may divide by the
+per-function count.
+
+**Why I got it wrong:** I inferred "two definitions" from two functions that both count statements,
+without checking what the second one's single caller actually does with the number. Counting the same
+kind of thing is not the same as being a rival denominator. The check I wrote would also have gone
+green the moment anyone made the two functions identical — which would have been the wrong fix.
+
+**The decision I was holding the row red for has been made and recorded.** S is now "every statement
+that is a direct child of a Block or a SourceFile" — the folder's own walk — written into §7.3, and
+the headline fell from 95.4% to 50.2%. I did not make that call and did not need to; noting for the
+record that Amir was away when it landed and that s7 records it as written into the PRD.
+
+**Verified by running it, before accepting any of it:** the accounting now closes EXACTLY — collapsed
+22,760 + residual 11,158 = 33,918 = S, with `reviewSurface 16,889 = calls 5,731 + residual 11,158`;
+`restated 895 <= residual 11,158`, so the impossibility is gone; gate 1037/1037 byte-identical;
+`write-en-files.js:198,201,204` now THROWS three ways rather than publish parts that do not sum to S;
+`countBodyStatements` is exported at `enfile.js:1072`; and a grep for `fnStmtCount` used as a ratio
+denominator returns 0. Full suite 26 passed, 0 failed, 2 skipped. Register 41 rows, 38 hold, 0 fail,
+3 manual.
+
+**The lesson, which is the one at the top of CLAUDE.md:** the strong half of my finding (the clamp
+hiding a residual, the populations not matching) came from arithmetic on published numbers and held
+up completely. The weak half came from reading two functions and inferring a relationship between
+them, and it did not. Same file, same hour, two different standards of evidence.
+
+**Commit:** the correction is s7's (fa24b22); this entry is the acceptance.
+
+## 2026-08-31 — six root/provenance rows were swept into fa24b22; noted, not rewritten
+
+**Decided:** R-CFG-1/2/3/4 and R-PIN-1/4 were uncommitted in the shared tree when s7 committed
+`fa24b22`, so they landed inside a commit whose message describes only the R-MEAS-2 rewrite. I added
+a `git notes` entry naming the six rows and their verdicts rather than rewriting history.
+
+**Why:** same precedent as the earlier sweeps tonight — the content is intact on HEAD and all six
+report HOLDS, so nothing is lost and a rewrite of a pushed shared branch would cost more than the
+misfiling. A note makes the commit findable by someone reading `git log` later.
+
+**Verified by running it:** all six rows present on HEAD (`git show HEAD:… | grep -c`) and all six
+green when run from HEAD's content.
+
+**Worth stating plainly:** this is the fifth-or-more sweep today and none has lost work, but every one
+has cost someone a diagnosis. The defence that works is still the one logged earlier —
+`git diff --numstat` before committing — and it failed me here in the other direction: my numstat came
+back EMPTY, which I first read as "my edits vanished" rather than "someone already committed them".
+An empty numstat on a file you just edited means someone else committed your work, not that you lost it.
+
+**Commit:** note on fa24b22
