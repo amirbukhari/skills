@@ -1631,3 +1631,40 @@ restated. It moves with whichever denominator is chosen, so it was left alone to
 
 **Measured with a read-only probe** over all 1,037 files (`renderFileEn` + a second AST pass per
 file), run from the scratchpad, writing nothing. The engine tree was not modified.
+
+## 2026-08-31 — the UI contract had no test; wrote one, and proved it can fail
+
+**Decided:** added `tools/repo-dsl/engine/sdd-run.test.js` (UNIT tier, 10 assertions). It pins the
+stdout contract, the per-step field shape, the two refusals, and the three CROSS-REFERENCES that can
+rot silently: every `cmd` script exists on disk, every `npm` name exists in `package.json`, every
+`needs` kind is registered in the artifact contract.
+
+**Why this and not something else tonight:** `sdd-run.js` is the one interface built to be consumed
+by a machine, Amir is wiring it into a UI next week, and **nothing guarded it**. Every other file
+here is checked by the thing downstream of it — a bad dictionary fails the round-trip, a bad header
+fails `stamp:check`. The manifest has no consumer yet, so a script renamed out from under a step
+would surface as a person clicking a button and getting an error, which is the most expensive place
+to find it.
+
+**What it deliberately does NOT pin:** the step list, the timings, the prose. Those change
+legitimately, and a test that froze them would be noise that gets ignored and then deleted. Adding a
+step must not fail this test; renaming a script out from under one must.
+
+**Verified by running it — including that it can FAIL.** A guard that passes on first write is not
+evidence, so I mutated the wrapper five ways in a restorable copy and confirmed each fired the right
+assertion and only that one: script renamed → "every script a step runs exists on disk"; npm name
+dropped → the package.json row; `needs` typo → the artifact-kind row; `destructive: true` flipped to
+`false` → the refusal row; and the coverage count restored to the exact stale text that shipped twice
+today → the rot guard. `sdd-run.js` restored and confirmed clean via `git diff --numstat` afterwards.
+`run-tests.js --tier=unit` → **21 passed, 0 failed, 0 skipped** (was 20).
+
+**The rot guard is the pointed one.** The register coverage paragraph rotted in TWO files today, both
+times asserting zero failures on a day a row fails. The test now rejects an undated "mechanizes N
+rows" claim in the manifest, so the fix (defer to `verify-register.js --json summary`) cannot be
+quietly undone by someone helpfully writing today's number back in.
+
+**Also fixed:** the same stale sentence in `tools/repo-dsl/README.md` — "13 rows of a ~100-row
+register". Replaced with an explicit instruction not to read a coverage count out of that file,
+naming what it said and what was true, plus the `tail`-swallows-the-exit-code trap.
+
+**Commit:** see below.

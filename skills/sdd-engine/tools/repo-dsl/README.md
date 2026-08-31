@@ -116,8 +116,17 @@ Or through npm: `npm run steps`, `npm run status`, `npm run sdd-run -- <step>`.
 
 The `register` step wraps `verify-register.js` (owned by another lane). Its `coverageWarning`
 field exists because the exit code alone is misleading: **MANUAL is not a pass, and a row absent
-from the runner is not a row that holds.** It mechanizes 13 rows of a ~100-row register. A UI
-must show the mechanized fraction beside the result.
+from the runner is not a row that holds.** A UI must show the mechanized fraction beside the
+result.
+
+**Do not read a coverage count out of this file.** Coverage moves every time a row is mechanized,
+so any number written here is stale by the next commit — this paragraph itself carried "13 rows of
+a ~100-row register" until 2026-08-31, when the real figure was 35 of 119 with one row failing.
+Read `summary` from `node verify-register.js --json` (`holds`, `fails`, `manual`, `total`,
+`mechanizedRows`); the runner prints the same line in human mode. Note the runner **exits 1 while
+any row fails**, and one does today — read `summary.fails` rather than treating non-zero as a
+broken runner. Capture that exit code directly: piping through `tail` or `head` reports the
+pipe's status, not the runner's.
 
 **The stdout contract:** stdout carries **exactly one JSON document** and nothing else. Child
 prose is relayed to stderr, so a UI parses stdout with no heuristic and streams stderr as the
