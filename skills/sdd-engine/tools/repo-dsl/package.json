@@ -2,8 +2,31 @@
   "name": "sdd-repo-dsl",
   "version": "0.1.0",
   "private": true,
-  "description": "SDD CODE stage: AST miner -> deterministic generator library (ID leaves + readable composites) -> composition-tree expander, over the Hydra billing calculators corpus.",
+  "description": "The English-as-source repo-DSL engine: mines a TypeScript tree (SOURCE) into a recursive LZW word dictionary, renders it to .en under CORPUS/sen/, and compiles back byte-identically. Roots are set in ../../.env \u2014 see ../PRD.md.",
   "devDependencies": {
     "typescript": "5.4.5"
+  },
+  "scripts": {
+    "test": "node run-tests.js",
+    "test:unit": "node run-tests.js --unit",
+    "test:corpus": "node run-tests.js --corpus",
+    "test:slow": "node run-tests.js --slow",
+    "test:all": "node run-tests.js --all",
+    "roots": "node roots.js",
+    "mine": "node build-lzw-generators.js",
+    "name": "node name-words-lzw.js worksheet",
+    "reconcile": "node reconcile-names.js",
+    "render": "node write-en-files.js",
+    "measure": "node measure-english.js",
+    "measure:uncollapsed": "node measure-uncollapsed.js",
+    "stamp:check": "node stamp-artifacts.js --check",
+    "gate": "node repo-dsl.js gate",
+    "clean": "node sdd-clean.js",
+    "clean:sen": "node sdd-clean.js --wipe-sen",
+    "build": "npm run mine && npm run name && npm run render && npm run measure",
+    "name:author": "node author-names.js"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
