@@ -11,13 +11,13 @@ design.
 | | **Skeleton NAMES** | **Per-site PRODUCTIONS** |
 |---|---|---|
 | granularity | one per mined word | one per statement kind |
-| where | `catalog/word-names.json`, applied in `namedLabel` | `spanProse` in `engine/enfile.js` |
+| where | `<corpus>/sen/catalog/word-names.json`, applied in `namedLabel` | `spanProse` in `engine/enfile.js` |
 | sees | the canonical skeleton only | the actual AST at the actual site — identifiers, callees, literals |
 | population | the whole nameable-word queue | **a handful of statement kinds** |
 | ceiling | the skeleton share of corpus bytes — a hard cap | everything a statement can say about itself |
 
 **Productions are the larger and cheaper half, and that is the central finding.** Fourteen
-statement kinds reach further than two and a half thousand names, because a production reads the
+statement kinds reaches further than the entire nameable-word queue, because a production reads the
 site and a name cannot. Naming is a background trickle against the queue; productions are the line
 of work.
 
@@ -35,10 +35,8 @@ thousand sites. An unnamed word is honest; a vacuous name is noise that looks li
 ## Names key on content, never on word id
 
 A name's key is **`sha256(canonical skeleton)[0:16]`**, axis-prefixed — never the word's dictionary
-id, which is an artifact of mining order and changes when anything upstream changes. Measured
-stability:
+id, which is an artifact of mining order and changes when anything upstream changes.
 
-| change | names surviving | collisions |
 **The property that must hold: mining-parameter changes orphan NOTHING, and a canonicalizer change
 orphans exactly the skeletons it altered.** Because names key on the content hash of the canonical
 skeleton (never on the word id), retuning `MAXWIN`, `MIN_COUNT` or `MIN_SKEL` cannot orphan a name —

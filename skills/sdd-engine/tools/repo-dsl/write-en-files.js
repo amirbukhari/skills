@@ -63,6 +63,15 @@ let totBytes = 0, engBytes = 0, stmtSpans = 0, dataSpans = 0, genSpans = 0, genS
 // recursive-producer instrumentation: recursive (word-of-words) vs flat-fallback spans, and the
 // composition-depth distribution. A flat-fallback span is a permanent depth-1 hole in the language.
 let genRecursive = 0, genFlatFallback = 0, filesWithFlat = 0, maxDepth = 0; const depthHist = {};
+/* Dictionary-level counts, read from the catalog the renderer actually loaded (never recomputed
+ * here — recomputing is how a producer and a consumer come to disagree, PRD §8B). The WIDE axis is
+ * the one the renderer composes through. Absent dictionary -> zeros, which is honest: no dictionary
+ * means no composition, and R-COMP-7 should read 0 rather than nothing. */
+const dictCounts = (() => {
+  const z = { composites: 0, compositionEdges: 0, maxDepth: 0, dictEntries: 0 };
+  const c = index && index._lzw && (index._lzw.wide || index._lzw.narrow);
+  return c && c.counts ? { ...z, ...c.counts } : z;
+})();
 const perFile = [];
 for (const abs of src) {
   const rel = path.relative(SRC, abs);
@@ -98,9 +107,24 @@ const manifest = {
   gate: { totalFiles: src.length, byteIdentical: byteExact, allByteIdentical: byteExact === src.length && failures.length === 0 },
   englishBytesPct: totBytes ? +(100 * engBytes / totBytes).toFixed(1) : 0,
   stmtSpans, dataSpans,
+  /* PRD R-COMP-6 names THREE fields a consumer reads: generators.maxDepth, .composites and
+   * .compositionEdges. Only the first existed here, under a different name (maxCompositionDepth),
+   * and the other two did not exist at all — so R-COMP-7's gate ("maxDepth >= 2 on the live path")
+   * was reading `undefined` and comparing it, which is neither pass nor fail. That is the §8B drift
+   * shape with the PRD as the consumer: the spec named fields the producer never wrote.
+   *   maxDepth and dictionaryMaxDepth are DIFFERENT NUMBERS and are kept apart deliberately:
+   *   - maxDepth           the deepest span the LIVE .en path actually emitted. This is the
+   *                        R-COMP-7 gate value; it is what "the live compile composes" means.
+   *   - dictionaryMaxDepth how deep the MINED dictionary goes. Always >= maxDepth, because a
+   *                        deep word only counts once a file actually renders through it.
+   * Conflating them would let a deep dictionary report a composing renderer that never composed.
+   * maxCompositionDepth is retained as an alias so existing readers do not break. */
   generators: { calls: genSpans, statementsCollapsed: genStmtsCollapsed, netStatementReduction: genStmtsCollapsed - genSpans, filesUsing: filesWithGen,
     recursive: genRecursive, flatFallback: genFlatFallback, flatFallbackPct: genSpans ? +(100 * genFlatFallback / genSpans).toFixed(1) : 0,
-    filesWithFlatFallback: filesWithFlat, maxCompositionDepth: maxDepth, depthHistogram: depthHist },
+    filesWithFlatFallback: filesWithFlat,
+    maxDepth: maxDepth, maxCompositionDepth: maxDepth, depthHistogram: depthHist,
+    composites: dictCounts.composites, compositionEdges: dictCounts.compositionEdges,
+    dictionaryMaxDepth: dictCounts.maxDepth, dictEntries: dictCounts.dictEntries },
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
 };
@@ -117,8 +141,12 @@ console.log(`  .en ${DRY ? "rendered (not written)" : "written ............."} $
 console.log(`  .en -> .ts BYTE-IDENTICAL ..... ${byteExact}/${src.length}   ${manifest.gate.allByteIdentical ? "(ALL PASS)" : "FAILURES: " + failures.length}`);
 for (const f of failures.slice(0, 10)) console.log(`       FAIL ${f[0]} ${f[1]}`);
 console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   (${stmtSpans} logic-stmt spans + ${dataSpans} data spans)`);
-console.log(`  generator spans ............... ${genSpans}   recursive ${genRecursive} / flat-fallback ${genFlatFallback} (${manifest.generators.flatFallbackPct}% fallback)`);
-console.log(`  flat-fallback (perm. holes) ... ${filesWithFlat} file(s); max composition depth ${maxDepth}`);
+/* NOT "recursive X / flat Y (Y% fallback)". There is no flat producer (engine/enfile.js pass 0b),
+ * so a 0% fallback figure is a tautology dressed as a measurement — the class of number PRD
+ * R-MECH-8 forbids publishing. Printed as a structural fact plus a tripwire instead. */
+console.log(`  generator spans ............... ${genSpans}   all recursive (no flat producer exists)`);
+if (genFlatFallback) console.log(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
+console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
 console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
 console.log(`  .calc REMAINING under sen/ .... ${residualCalc}   ${residualCalc === 0 ? "(sen tree is .calc-free)" : "(!!)"}`);
 console.log(DRY ? `  en-index ...................... ${enIndexOut ? enIndexOut : "(not written: pass --out <dir> to emit)"}` : `  wrote .gitignore ( .cache/ ) + sen/en-index.json`);

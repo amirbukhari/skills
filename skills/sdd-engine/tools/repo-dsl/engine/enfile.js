@@ -785,8 +785,17 @@ function renderFileEn(source, index) {
   // Pass 0 — multi-line generator collapse (takes precedence over the single-statement passes).
   //   0a PRIMARY: the RECURSIVE word dictionary — generators referencing generators, so a span
   //      can compose to real depth. Byte-gated inside enlzw.genSpans (fill === source slice).
-  //   0b FALLBACK ONLY: the FLAT generators.json, admitted solely for byte ranges the recursive
-  //      dictionary did not claim. A flat span is a depth-1 hole in the language; it is measured.
+  //   0b THERE IS NO PASS 0b. This comment used to describe a FALLBACK to the flat
+  //      generators.json for ranges the recursive dictionary did not claim. No such pass is
+  //      implemented below, and nothing live reads generators.json — the four remaining mentions
+  //      of it in this tree are all prose. Kept as a correction rather than deleted, because the
+  //      comment outlived the code it described and a reader was entitled to believe it.
+  //      Consequence, measured 2026-08-31: `tier` is set to "recursive" at exactly one place, so
+  //      the flat counters below (flatN / genFlatFallback / flatFallbackPct) are STRUCTURALLY
+  //      ZERO — not measured-zero. Per PRD R-MECH-8 the engine must not publish a number no mine
+  //      can move, so they are retained as a TRIPWIRE for a re-introduced flat producer, not
+  //      reported as a coverage figure. A non-zero value means someone added a flat tier without
+  //      updating the composition gate (R-COMP-7).
   const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
   const genSpans = recSpans.map((s) => ({
     start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,

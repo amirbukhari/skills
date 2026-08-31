@@ -16,7 +16,13 @@
 3. **Statement + data idiom** (`cnl.js`, `data-english.js`) — single statements and data leaves rendered as controlled English.
 4. **Leaf / literal** — opaque atoms and genuinely-novel bytes, verbatim (the base case of the composition recursion).
 
-✅ **Live-path status (§4A):** these tiers are realized as real composition on the live path, at depth 14 through `catalog/generators-lzw.json`. The flat `generators.json` is no longer read by anything.
+✅ **Live-path status — MEASURED, not asserted (§Q-2, 2026-08-31).** These tiers are realized as real
+composition on the live path: `enfile.js` loads `<CORPUS>/sen/catalog/generators-lzw.json` and
+nothing else, spans are all recursive with no flat producer in existence, and `generators.maxDepth`
+on the live path clears R-COMP-7's `≥ 2`. The flat `generators.json` is read by nothing live.
+*(This line previously carried a specific depth figure and a `catalog/…` path. Both were stale — the
+figure was a point-in-time reading and the path predates §8B moving every artifact under the corpus
+root. How deep the REAL corpus goes is unmeasured and is §Q-8.)*
 
 ⛔ **The statement-idiom layer is RETIRED and must not be revived as a parallel producer.** It was
 never invoked by the mine, so its catalog froze at its last manual run and **no action a user could

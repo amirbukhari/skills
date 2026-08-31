@@ -3,7 +3,12 @@
 *PART I — WHAT THIS IS · [index](README.md)*
 
 1. **Pattern discovery IS LZW dictionary construction over the bottom-up AST node stream — deterministic, zero model calls.** The miner parses each file to its AST, linearizes it bottom-up (leaves first), and runs the encoding half of LZW to build a **recursive word dictionary**: each entry = a prior entry + one symbol, so every word is defined in terms of smaller words and **generators reference generators by construction** (§5). Each hole records the exact source span it abstracted, so expansion rebuilds the site's **original bytes**; LZW is lossless, so byte-exactness and compression coexist. See `engine/pipeline.js`, `engine/lzw.js`, `engine/compose.js`, `engine/fanout.js`.
-   *Deviation to fix (§4A):* the current live path uses **flat anti-unification / clone detection** (`engine/operations.js`, `engine/generators.js`) instead of LZW dictionary construction — this is the root defect, not the intended mechanism.
+   *Status, measured 2026-08-31 (§Q-2):* **this is what the live path does.** `enfile.js` loads the
+   recursive dictionary and nothing else; spans are 20/20 recursive at composition depth 3 with
+   byte-identity held. This line used to read *"Deviation to fix (§4A): the current live path uses
+   flat anti-unification … this is the root defect"*. That was true when written and had since gone
+   stale, which is why §Q-2 existed; it is corrected rather than deleted so the old claim cannot be
+   re-derived from a stale memory.
 
 2. **The LLM may only propose NAMES — never anything correctness-relevant.** The "librarian" pass (`refine-language.js`) proposes readable names for mined `g_<len>_<hash>` generators and is **gated on byte-identity + coverage invariance**: a rename that changes a single output byte or lowers coverage is rejected. Names are cosmetic by construction.
 

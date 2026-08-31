@@ -23,14 +23,14 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 
 | ID | Requirement | Check | Why (§) |
 |---|---|---|---|
-| R-MECH-1 | Pattern discovery **MUST** be LZW dictionary construction over the bottom-up AST node stream. Flat anti-unification / clone detection **MUST NOT** be the discovery mechanism. | The live `.en` compile path loads `generators-lzw.json` through `engine/enlzw.js` and no other generator vocabulary. | §2 P1, §4A, §5 |
+| R-MECH-1 | Pattern discovery **MUST** be LZW dictionary construction over the bottom-up AST node stream. Flat anti-unification / clone detection **MUST NOT** be the discovery mechanism. | The live `.en` compile path loads `generators-lzw.json` through `engine/enlzw.js` and no other generator vocabulary. **HOLDS — measured §Q-2.** | §2 P1, §4A, §5 |
 | R-MECH-2 | Every non-leaf dictionary entry **MUST** be an existing entry **plus exactly one symbol** (`m[0]` + `m[1]`). | For each entry, `m[0]` resolves to an earlier entry and `m[1]` is a single symbol. | §5 step 3 |
 | R-MECH-3 | The dictionary **MUST** be a DAG: no entry may transitively reference itself. | Promotion rejects a cycle; `hierarchyDepth` is finite for every entry. | §5B cycle safety |
 | R-MECH-4 | Discovery, expansion and compilation **MUST** make **zero** model calls. | `foldModelCalls === 0` and `buildModelCalls === 0` in every published catalog. | §2 P1 |
 | R-MECH-5 | Every hole **MUST** record the exact source span it abstracted. | `fillOf(template, boundHoles) === ` the site's original bytes, at every admitted site. | §2 P1, §5A |
 | R-MECH-6 | Tiers **MUST NOT** be hand-assigned labels; tier **is** dictionary depth. | ARCHETYPE→SKELETON→IDIOM→LEAF is derivable from `hierarchyDepth`, not stored as a tier field. | §2 P4, §5 |
-| R-MECH-7 | The flat, holes-are-verbatim path is permitted **only** as a fallback for genuinely-unique one-offs that recur nowhere, and **MUST NOT** stand as a second producer beside the LZW path. | No live code path reads `catalog/generators.json`. | §2 P4, §4A |
-| R-MECH-8 | A retired layer **MUST NOT** be revived as a parallel producer, and the engine **MUST NOT** publish a number that no mine can move. | Every published count is produced by the mine, not by a stale manual run. | §5 (retired statement-idiom layer) |
+| R-MECH-7 | The flat, holes-are-verbatim path is permitted **only** as a fallback for genuinely-unique one-offs that recur nowhere, and **MUST NOT** stand as a second producer beside the LZW path. | No live code path reads `generators.json`. **HOLDS — measured §Q-2, and more strongly than required: no flat producer exists at all.** `tier` is set to `"recursive"` at one place and `"flat"` nowhere, so the flat counters are a tripwire, not a metric (R-MECH-8). | §2 P4, §4A |
+| R-MECH-8 | A retired layer **MUST NOT** be revived as a parallel producer, and the engine **MUST NOT** publish a number that no mine can move. | Every published count is produced by the mine, not by a stale manual run. **One violation found and removed 2026-08-31**: the render printed `flat-fallback 0 (0% fallback)`, which is structurally zero rather than measured (§Q-2). Compare R-ARCH-4 — the same defect in the archetype layer. | §5 (retired statement-idiom layer) |
 
 ## R-MINE — mining parameters
 
@@ -71,8 +71,8 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 | R-COMP-3 | The **fully-expanded** result at a top-level `.en` span **MUST** equal the site's exact source bytes, so every nested level is implicitly gated. | Byte-exact gate applied to the final expansion. | §2 P3, §5B |
 | R-COMP-4 | A composite record **MUST** carry `members[]` (ordered ids of the generators it invokes) and `hierarchyDepth` (longest path to a leaf, leaf = 0). | `mined-library.json → composites[]`. | §5B |
 | R-COMP-5 | Each generator-reference hole **MUST** name a `memberId` and the ordered params to pass to it. | Schema. | §5B |
-| R-COMP-6 | The manifest **MUST** expose `generators.composites`, `generators.maxDepth` and `generators.compositionEdges`, so **flatness is visible as a regression**. | `en-index.json`. | §5B |
-| R-COMP-7 | `generators.maxDepth` on the **live** `.en` path **MUST** be ≥ 2 and rising. Depth 1 is the degenerate flat path. | §7.3 remaining gates. | §2 P4, §7.3 |
+| R-COMP-6 | The manifest **MUST** expose `generators.composites`, `generators.maxDepth` and `generators.compositionEdges`, so **flatness is visible as a regression**. `maxDepth` (deepest span the **live path** emitted) **MUST** stay a distinct field from `dictionaryMaxDepth` (depth of the **mined dictionary**) — conflating them lets a deep dictionary report a renderer that never composed. | `en-index.json → generators`. **Was NOT met until 2026-08-31**: the producer wrote `maxCompositionDepth` and neither of the other two, so R-COMP-7 was comparing `undefined` (§Q-2). All four now emitted by `write-en-files.js`. | §5B |
+| R-COMP-7 | `generators.maxDepth` on the **live** `.en` path **MUST** be ≥ 2 and rising. Depth 1 is the degenerate flat path. | `en-index.json → generators.maxDepth`. **Clears the bar on a composition fixture (depth 3, §Q-2); unmeasured on the real corpus — §Q-8.** | §2 P4, §7.3 |
 | R-COMP-8 | Promotion **MUST** reject any composite whose `members` would introduce a cycle. | Cycle check at promotion. | §5B |
 | R-COMP-9 | The `.en` pass **MUST** emit the **highest-tier** admitted generator for a span, and a composite **MUST** outrank its own members on a coverage tie. | §5A arbitration, extended. | §5B |
 

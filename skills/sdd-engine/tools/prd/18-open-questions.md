@@ -29,23 +29,51 @@ human having actually authored a `.en` and reviewed the compiled `.ts` as a diff
 **Downstream of it, and therefore also open:** when `sen/`'s wipe gate must harden from *"explicit
 flag"* to *"refuse"* (§1B.3 says "at the flip"; the flip has no defined trigger).
 
-## Q-2 — Is the LZW core front DONE? This document contradicts itself. · CLARIFY · one measurement
+## Q-2 — ~~Is the LZW core front DONE?~~ **CLOSED 2026-08-31 by measurement. The LZW path is live.**
 
-**The contradiction, verbatim from two places in this file:**
+**Answer: the live `.en` path runs through the recursive LZW dictionary. It is not flat
+anti-unification.** The §5/§4A/§4B claims were right; §2 P1's *"Deviation to fix"* and §6 fronts 0
+and 4 were **stale text**, and have been rewritten. Kept here rather than deleted so a stale memory
+elsewhere cannot re-derive the contradiction.
 
-| says | where |
+**The measurement.** A synthetic 4-file corpus was built specifically to force composition —
+repeated statement runs, with longer runs *containing* shorter ones, so each dictionary entry is a
+prior entry plus one symbol. Mined and rendered in a throwaway directory (`SOURCE=CORPUS=<tmp>`), so
+no real mine was spent:
+
+| | |
 |---|---|
-| the live path **is** the LZW dictionary; "the flat anti-unification layer is deleted"; tiers are realized as real composition at depth | §5 (both status lines), §4A ("the requirement"), §4B ("the STANDING STATE, not a roadmap item") |
-| the live path **is still** flat anti-unification, and replacing it is the core front; the composition capability "already exists on the abandoned path and is being lost" | §2 P1 ("Deviation to fix"), §6 front 0, §6 front 4 |
+| generator spans emitted | **20, all recursive** |
+| flat-fallback spans | **0** — and see the structural finding below |
+| composition depth, **live `.en` path** (`generators.maxDepth`) | **3** — clears R-COMP-7's `≥ 2` |
+| composition depth, mined dictionary | 5, across 20 composites / 40 edges |
+| byte-identity | **4/4** |
 
-**Both cannot be true.** The requirement is not in doubt — **R-MECH-1** and **R-COMP-7** stand
-either way. What is unknown is whether they currently hold.
+**Why a synthetic corpus is the right instrument here, and what it does not prove.** Q-2 asks which
+*code path* is live — a property of the engine, not of any corpus — and a 4-file fixture answers
+that exactly. It does **not** establish depth or coverage numbers for the real corpus; those need a
+real mine, which is Amir's call to spend. **What is settled is the mechanism. What is unmeasured is
+the magnitude.**
 
-**What closing it requires:** one measurement, not a reading. Run the render and report
-`generators.maxDepth` and which vocabulary `enfile.js` actually loaded. If `maxDepth ≥ 2` through
-`generators-lzw.json`, the §5/§4A claims are right and §2 P1's "deviation to fix" plus §6 fronts 0
-and 4 are stale text to cut. If not, the reverse. **Do not settle it by reading the code** — that
-method has produced a confident wrong answer here before.
+**Two findings the measurement produced, both now fixed:**
+
+1. **R-COMP-6 was not met, and R-COMP-7 could not be evaluated.** The register requires the manifest
+   to expose `generators.maxDepth`, `.composites` and `.compositionEdges`. The producer wrote
+   `maxCompositionDepth` and neither of the other two — so the gate that makes *"flatness visible as
+   a regression"* was comparing `undefined`, which is neither pass nor fail. This is the §8B drift
+   shape with the PRD itself as the consumer: the spec named fields the producer never wrote. All
+   three are now emitted, and `maxDepth` (deepest span the **live path** emitted) is kept distinct
+   from `dictionaryMaxDepth` (how deep the **mined dictionary** goes), because conflating them would
+   let a deep dictionary report a composing renderer that never composed.
+2. **The "flat-fallback 0 (0% fallback)" metric was a tautology.** `tier` is set to `"recursive"` at
+   exactly one place in `enfile.js` and `"flat"` nowhere, so the flat counters are **structurally**
+   zero, not measured-zero — precisely the number R-MECH-8 forbids publishing. The counters are
+   retained as a **tripwire** for a re-introduced flat producer and are no longer reported as a
+   coverage figure. `enfile.js` also carried a comment describing a *"pass 0b FALLBACK ONLY: the FLAT
+   generators.json"* that **is not implemented below it**; corrected in place rather than deleted,
+   because the comment outlived its code and a reader was entitled to believe it.
+
+**What is still open, and it is narrower than Q-2 was — see Q-8.**
 
 ## Q-3 — The archetype/word hybrid: how does a slot bind to a word? · DESIGN · Amir + a design pass
 
@@ -116,3 +144,19 @@ it is not, and the document should say why.
 **This is a gap surfaced by reorganizing, not a new requirement — it is not in the register.**
 
 ---
+
+## Q-8 — Does composition depth clear the bar on the REAL corpus? · CLARIFY · one real mine · Amir's call to spend it
+
+Q-2 settled the mechanism: the live path composes, and `generators.maxDepth` is now a field that
+actually exists, so R-COMP-7 is evaluable. **The magnitude is unmeasured.** On a 4-file fixture the
+live path reached depth 3 while the dictionary reached 5 — most spans (16 of 20) were still depth 1.
+
+**The open question is not "does it compose" but "how much of the real corpus renders through depth
+≥ 2".** The gap between dictionary depth and live-path depth is the interesting number: a deep word
+buys nothing until a file actually renders through it, and that gap is where §6 front 3's
+whole-repo leverage would show up or fail to.
+
+**What closing it requires:** `npm run mine && npm run name && npm run render`, then read
+`generators.maxDepth`, `.dictionaryMaxDepth` and `.depthHistogram` from `en-index.json`. That is a
+full mine — tens of minutes — so it is **Amir's call when to spend it**, not something to kick off
+unasked. Nothing else is blocked on it: the requirements stand either way.
