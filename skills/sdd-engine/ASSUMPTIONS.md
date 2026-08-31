@@ -441,3 +441,202 @@ quoting them. The relay also said explicitly not to chase the three blocked test
 nothing removed, nothing renumbered, the three tests stay red/skipped and now say exactly why.
 
 **Ask Amir:** retire the kind outright, or keep it registered and mark it optional?
+
+---
+
+# Lane: PRD / archetype design (session a04aa2e5) — 2026-08-31
+
+## Q-2 closed by measurement on a SYNTHETIC corpus, not the real one
+
+**Decided:** declared the LZW live path proven and struck §2-P1's "Deviation to fix" and §6 fronts
+0 and 4 as stale. **Why:** built a 4-file corpus engineered so longer statement runs contain shorter
+ones, mined and rendered it: 20/20 spans recursive, 0 flat, live-path `maxDepth` 3, dictionary depth
+5, 40 composition edges, byte-identity 4/4. **The judgment call:** a synthetic corpus proves the
+*mechanism* is live, not that the *real* corpus collapses well. I did not conflate the two — the
+real-corpus question was split out as **Q-8** and left open, needing one full mine, which is Amir's
+spend to authorize. **Commit:** `1bc1bc4`.
+
+## Wrote R-COMP-6/7 gate inputs into the manifest rather than relaxing the gate
+
+**Decided:** the manifest now emits `composites`, `compositionEdges`, `maxDepth`, `dictEntries`.
+**Why:** R-COMP-6 read as unmet and R-COMP-7 as unevaluable, but the cause was the manifest writing
+`maxCompositionDepth` and neither count — the gate was comparing `undefined`. Fixing the producer
+was correct; lowering the threshold would have hidden it. Also removed a "flat-fallback 0 (0%)"
+line as a **tautology** (`tier:"flat"` is never produced), which R-MECH-8 forbids publishing.
+**Commit:** `1bc1bc4`.
+
+## PRD restructure — split into 20 files, legacy `§` labels kept
+
+**Decided:** one file per section under `tools/prd/`, `tools/PRD.md` collapsed to a pointer; legacy
+section numbers (`§5C`, `§8B`) preserved verbatim as file *content* anchors even though filenames
+are sequential. **Why:** engine source comments cite `PRD §8B` by name in dozens of places;
+renumbering would silently break every one. **Judgment call:** `§4A` and `§8B` were promoted out of
+their parent sections into their own files (most-cited anchors); `§4B`, `§8A`, `§8C` were not.
+**Commits:** `19210b4`, `87d4159`, `8c4135f`.
+
+## Reported five PRD edits as landed when they had not
+
+**What happened:** the restructure assembled Part II from a snapshot written *before* the
+stats-strip edits were applied, silently dropping both §5 CONTESTED markers, a table header fix, one
+phrase, and two path corrections. I had reported them done. **Why it slipped:** I diffed the rebuilt
+document against its source, which catches lost *content* but not a lost *edit* — the unedited line
+is present in both. **The check that would have caught it:** assert each intended edit's *old* text
+is **absent** from the output. Re-applied in `1bc1bc4`.
+
+## Archetype/§5E design — four of Q-3's five unknowns resolved by argument, not by ruling
+
+**Decided:** wrote `prd/20-archetype-hybrid-design.md` resolving unknowns 1–5 (slot binding, whether
+an archetype is a dictionary entry, arbitration, hand-authored grammars, per-site productions).
+**Why each is defensible without Amir:** each is *forced* by a constraint he already set —
+AT-ARCH-1 (idempotence under re-mine) forces the archetype to be a dictionary entry; the PaymentPlan
+example forces alternatives on a variadic slot; R-WIDE-8's widest-claim rule already decides
+arbitration. **The judgment call:** I resolved these rather than parking them, on the reading that
+mechanics forced by settled direction are not new decisions. Five genuinely-open mechanics were left
+open with recommendations (§5E.8) rather than picked silently.
+
+## R-REND-6 rewritten — the sentence is authoritative, not the payload
+
+**Decided:** cut *"names are cosmetic by construction"* and inverted it: a hand-edit to a clause's
+English must change the compiled TypeScript; the payload becomes a derived index. **Why:** it
+directly contradicts Amir's statement 4 (hand-edit the `.en`, it goes back into the codebase). If
+`compileChunk` never reads the label region, hand-editing does nothing. **This is the largest single
+reversal in the pass** and it invalidates a guarantee the PRD had celebrated as structural. Old text
+kept verbatim in §10 and in the §5D.3 ledger. **Risk:** `compileChunk` does not do this yet — the
+requirement is now ahead of the code, deliberately, and §5E.8 item 5 recommends derive-and-check as
+the first cut rather than a rewrite.
+
+## R-MINE-7 (THE LIFT) amended rather than deleted
+
+**Decided:** *"a file is never one word"* → refuse an **opaque** whole-run word; require a
+compositional, editable one. **Why:** Amir's statements 6 and 7 override the prohibition explicitly
+(*"dont tell me that you cant do this"*), but the rule's stated *purpose* — no opaque reference in
+place of structure — is satisfied by statement 7 rather than discarded. **Judgment call:** I
+preserved the purpose clause instead of dropping the requirement, on the reading that he overturned
+the ban, not the reasoning.
+
+## R-LANG-7's "never applied automatically" narrowed, not cut
+
+**Decided:** naming now *applies* (R-LANG-13), but **orphan re-adoption** stays a proposal.
+**Why:** statement 5 is about the naming step. Re-adoption is a different act — a name silently
+re-attaching to a skeleton it merely *resembles* — and no gate catches it, because the output is
+byte-identical either way. **This is the one place I did not fully apply "cut what disagrees",** so
+it is logged loudly. If Amir wants re-adoption automated too, say so and it goes.
+
+## Wrote the review-surface metric into §7 without waiting on s12
+
+**Decided:** wrote Amir's *"its not about compression, its about less of a review surface"* into
+`15-success-criteria.md` and `02-problem-and-goal.md`, rewriting the old *"Byte size IS a metric"*
+text. **Why:** checked `git log` first — no lane had written it, and the instruction was that it
+must land somewhere authoritative even if not this lane's file. **Possible collision:** if s12 also
+writes §7, this will conflict; mine is additive under a dated heading to make a merge obvious.
+
+## Flagged, NOT resolved: `word-names.json` vs "get rid of that words file"
+
+**The tension:** §5D.2 (Amir's statement 5) makes naming a first-class pipeline stage whose output
+is names, and I described that output as `word-names.json` because that is what the code writes.
+Another lane has logged Amir saying *"get rid of that words file its old we dont need it anymore."*
+**I did not reconcile these.** The naming *stage* is settled by statement 5; which *artifact* holds
+its output is not, and picking one by inference would change the §8B contract. Added to that lane's
+open ask rather than answered here.
+
+---
+
+## 2026-08-31 — a wrapper, not `--json` on eleven scripts
+
+**Decided:** added `tools/repo-dsl/sdd-run.js`, a machine-callable front end that runs the
+pipeline scripts as subprocesses and emits a structured envelope. Did **not** add an output mode
+to the eleven existing scripts.
+
+**Why:** Amir wants the steps wired into a UI next week. Measured first, rather than assuming the
+scripts needed de-interactivising: there are **zero** interactive or blocking prompts in the live
+tree — no `readline`, `createInterface`, `process.stdin` or `readFileSync(0)`. The real gap was
+output shape. Only `measure-uncollapsed.js` speaks JSON; the other ten print prose, so a UI would
+have to screen-scrape.
+
+Adding `--json` to each means editing every one of them, including `write-en-files.js` and the
+byte-identity path, where a change is a regression risk for no functional gain. The wrapper adds
+the machine interface with **zero blast radius** — delete `sdd-run.js` and nothing else changes
+behaviour. That reversibility is the whole argument.
+
+**The contract it fixes:** stdout is exactly one JSON document, child prose relays to stderr,
+exit code is the child's unchanged, `2` means the wrapper refused. A UI parses stdout without a
+heuristic.
+
+**Verified by running it:** `--list`, `--status` and a real step all parse as JSON from stdout;
+exit codes checked directly (`bogus`→2, `clean:sen`→2, `roots`→0); `npm run steps` / `npm run
+status` work from both the skill root and the engine. `test:unit` 20 passed, 0 failed.
+
+**Commit:** `ac55d48`
+
+---
+
+## 2026-08-31 — per-step prerequisites, after reimplementing a bug that was already fixed
+
+**Decided:** each step declares `needs` — the §8B artifact kinds it actually loads — and a step
+that cannot run reports `not-ready` naming the missing kind. Replaced the first version, which
+gated every corpus step on one shared `["generators-lzw", "word-names"]` check.
+
+**Why this is logged as a mistake and not a design:** the first version was wrong, and
+`run-tests.js` already contained the reason in a comment I had read earlier in the same session:
+an all-or-nothing gate over exactly those two artifacts meant one absent artifact skipped all six
+corpus tests, and four were reported as needing a mined corpus *when the corpus they needed was
+fully mined*. I reproduced that defect verbatim in new code.
+
+It surfaced immediately on a real run: `sdd-run.js measure` reported "needs a mined corpus and
+the artifacts are absent" while `generators-lzw` was present and contract-valid — it was
+`word-names` that was absent, which `measure` does not read. After the fix, `measure` runs (`ok`,
+exit 0) and `reconcile` blocks naming `word-names` specifically.
+
+**The general lesson, which is the point of the entry:** the prohibition on inventing a second
+resolver applies to *policy* as well as paths. "Is the corpus ready?" already had an answer in
+this tree, arrived at by fixing this exact bug. A new component should adopt the existing answer,
+not re-derive one.
+
+Each step's `needs` is derived from what the script actually loads — grepped for `AC.pathFor` /
+`AC.load` / `EN.loadIndex` per script — not guessed from the filename.
+
+**Commit:** `ac55d48`
+
+---
+
+## 2026-08-31 — two manifest facts taken from a peer's measurement, not from the docs
+
+**Decided:** the `mine` step is described as **~3.6s over 1037 files**, not "tens of minutes",
+and is no longer flagged `expensive`. The `test` step carries a `knownRed` field.
+
+**Why:** I had written "Tens of minutes on a real corpus" from `CLAUDE.md` and
+`.claude/settings.json`, where the mine sits behind an explicit ask because it *was* expensive.
+Session `sdd-engine-5f` ran both mines tonight and measured pipeline A at 3.6s and pipeline B at
+1.17s. A UI that warns "this takes tens of minutes" before a 3.6-second job is teaching its user
+something false, so the measurement wins over the doc.
+
+`knownRed` records that `npm test` currently exits 1 for one real reason — a byte-identity
+finding in `engine/enfile-label-sanitize.test.js`, where source carrying `«` or `»` verbatim is
+eaten by the compile-side span scanner. Corpus exposure measured at 0 files, so byte-identity
+still holds. It is in the manifest so a red `test` is not mistaken for the wrapper misbehaving,
+and explicitly so nobody silences it.
+
+**Verified by:** a peer session's direct measurement, relayed with the numbers. I did not re-run
+the mine myself — it is behind an explicit ask and Amir is unreachable. Logged as second-hand
+rather than presented as my own measurement.
+
+**Commit:** `ac55d48`
+
+---
+
+## 2026-08-31 — `npm run name` left exactly as it is
+
+**Decided:** `sdd-run.js` exposes `name` as `name-words-lzw.js worksheet`, matching
+`package.json` today. Changed nothing about the naming steps.
+
+**Why:** session `sdd-engine-5f` has an OPEN question on whether the `word-names` **kind** should
+be retired from the §8B registry, following Amir's relayed "get rid of that words file its old we
+dont need it anymore". That touches the artifact registry, `engine/word-names.js`, its test, both
+`name` scripts and the §8A protected-artifact story. It asked to be consulted before anything in
+my pass changed `npm run name`.
+
+Two open questions pointing at the same scripts is a good reason for a callability pass to stay
+descriptive. `sdd-run.js` reflects what the scripts do today; if the kind is retired, the manifest
+entry and the `reconcile` step's `needs` are a one-line change each.
+
+**Commit:** `ac55d48` (no change to naming behaviour)
