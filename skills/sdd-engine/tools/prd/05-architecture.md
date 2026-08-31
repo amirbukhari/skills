@@ -153,15 +153,76 @@ Three consequences, all of them requirements:
    **gate**, not a review queue: a name that changes one output byte, lowers coverage, or breaks
    grammar injectivity is rejected mechanically. (The one place a proposal queue survives is
    **orphan re-adoption** — see §5D.3 note 3.)
-3. **The LLM's blast radius stays exactly where §3 P2 put it: names and grammar surface only.**
-   Nothing correctness-relevant comes from a model — not a hole, not a span boundary, not a
-   dictionary entry, not a compile. R-LANG-11 is unchanged by this and is reinforced by it.
+3. **The LLM's blast radius is WORDS — the spelling of a nonterminal — and nothing else.**
+   Nothing correctness-relevant comes from a model: not a hole, not a span boundary, not a
+   dictionary entry, not a compile, and **not a production, a connective, or a slot boundary**.
+   The grammar shell is deterministic and code-owned; see **§5D.3A**, which pins the split and
+   retires the older phrasing of this line ("names *and grammar surface* only" — a phrase defined
+   nowhere, whose loose reading would have let a model author the sentence shapes themselves).
+   R-LANG-11 is tightened to match.
 
 **Why the `.en` is readable at all** — Amir's last clause is the mechanism, and it is worth stating
 plainly: *"it knows the whole domain of the code base because each pattern/code generator is word
 made up of other words."* Readability is **compositional**. Naming a word does not require describing
 everything it covers, because its parts are already named — so stage 2's cost is per *word*, not per
 *site*, and a name at depth 5 inherits the domain vocabulary of everything beneath it.
+
+### 5D.3A THE SPLIT — a DETERMINISTIC GRAMMAR SHELL, and an LLM that fills only WORDS
+
+**Settled 2026-08-31.** Amir, on the fixed-slot template he wants the naming stage to produce:
+*"structured English with grammar rules and syntax that stops you from drifting outside of the
+patterns."* The line this draws is the one that matters for stage 2, and §5D.2's table did not draw
+it sharply enough on its own:
+
+> **The grammar, the syntax, the template and the slot boundaries are DETERMINISTIC and produced by
+> code. The model supplies WORDS — the name that spells a nonterminal — and nothing else. It never
+> writes a sentence, never chooses a connective, never decides where a slot begins or ends, and
+> never emits prose.**
+
+| | produced by | may a model touch it? |
+|---|---|---|
+| the production (`Entity → "«Name» is an entity stored in «table»." Columns Relations`) | code, from the entry's role signature | **no** |
+| slot boundaries, order, and the connectives between them | code | **no** |
+| which alternative of a production applies at a site | code, from the mined structure | **no** |
+| hole fills (the file's actual bytes) | the mine, byte-gated | **no** |
+| **the SPELLING of a nonterminal** — `g_412_a1b2c3` → `chargeCommission` | **the model** | **yes, and only this** |
+
+**This is not a new mechanism; it is the one `refine-language.js` already implements.** That script
+is the working precedent and it is stricter than the prose that describes it:
+
+- The model is asked for, and may return, **only** `[{index, name, rationale}]` — a name per mined
+  composite, keyed by index. There is no channel through which a sentence could arrive.
+- Grammar productions are **derived**, never authored: `renderProduction(c)` builds a composite's
+  one-line production from its **role signature** (subject, types, marked roles), so the shape is a
+  function of the mined structure and the model has no say in it.
+- The gate is **structural identity modulo names**: `structuralSkeleton()` strips `name`,
+  `minedName` and `namedBy` from both libraries and compares the rest **as JSON strings**. A step
+  that changed anything but names fails with *"refined library changed the mined structure —
+  refusing (step must touch names/metadata only)"*, on top of byte-identity and coverage invariance.
+
+So the answer to *"does the spec already separate it this way"* is **yes in the pipeline, and yes in
+the built precedent — but there was one loophole in the wording, and it is closed here.**
+
+**The loophole, named.** R-LANG-11 read *"An LLM **MAY** produce names **and grammar surface** only"*,
+and §5D.2 consequence 3 repeated it. **"Grammar surface" was never defined anywhere in this
+document.** Read strictly it means "the spelling of nonterminals", which is the rule above. Read
+loosely it permits a model to author productions — the sentence shapes themselves — which is exactly
+the drift Amir's constraint exists to prevent, and it would put the *syntax* of the English inside
+the model's blast radius rather than the *vocabulary*. **The loose reading is retired.** The
+requirement now says names only, and names the deterministic producer of everything else.
+
+**Why this is the right line and not merely the cautious one.** A fixed grammar with model-supplied
+words is *checkable*: injectivity, byte-identity and coverage invariance are all decidable against a
+production set that code owns. A model-authored production set is not — there is nothing to check it
+against, because the thing that would define "correct" is the output being checked. The determinism
+is what makes the LLM's contribution safe to accept, so the shell must not be part of what it
+contributes.
+
+**What stage 2 therefore is, mechanically:** for each unnamed dictionary entry, code emits the
+production and the slot inventory; the model returns one lexical token per entry; the renderer
+substitutes spellings into productions code already built; the gate re-renders the corpus and rejects
+the batch on one changed byte, one point of lost coverage, or one collision that breaks injectivity.
+A rejected name costs a re-ask, never a corpus edit.
 
 ### 5D.4 ONE WORD PER FILE — a statement about STRUCTURE, not about opacity
 

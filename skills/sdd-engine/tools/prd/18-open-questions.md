@@ -252,5 +252,14 @@ is the mechanics, and the current code is on the far side of the change:
   a CLI), how a proposed name is gated *before* it is written (byte-identity + coverage invariance
   are re-runs; injectivity is new), and whether the worksheet survives as a **dry-run mode** of the
   same script. **Recommendation: yes** — `--dry-run` writes the worksheet, the default applies.
-- **Not open:** that stage 1 stays at zero model calls, and that the LLM touches names and grammar
-  surface only (R-MECH-4, R-LANG-11).
+- **Not open, and narrowed further 2026-08-31 (§5D.3A):** stage 1 stays at zero model calls
+  (R-MECH-4), and the model's output is **one lexical token per dictionary entry — the spelling of a
+  nonterminal — and nothing else** (R-LANG-11, tightened). The grammar shell is code-owned:
+  productions are derived from role signatures (`renderProduction`), and a naming run must be
+  **structurally inert modulo names** or it is refused (R-LANG-15). The model has no channel through
+  which a sentence, a connective or a slot boundary could arrive; `refine-language.js` already works
+  this way and is the precedent stage 2 follows.
+- **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
+  (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
+  rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the
+  blast radius**, which is the point of pinning the split first.

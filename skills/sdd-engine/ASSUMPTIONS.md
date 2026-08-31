@@ -2479,3 +2479,41 @@ real difference — but then the *content* would differ too and `contentFingerpr
 
 **Not done:** artifacts stamped before today do not carry the field and are reported as *not
 comparable*, never as equal. They pick it up as they are next produced, like `modelCalls`.
+
+---
+
+## 2026-08-31 · s7 · The naming stage: deterministic grammar shell, model supplies words only
+
+**Amir's framing, on a fixed-slot template image:** *"structured English with grammar rules and
+syntax that stops you from drifting outside of the patterns."* Written into the PRD as **§5D.3A**.
+
+**The line, as pinned:** productions, slot boundaries, connectives, alternative selection and hole
+fills are **produced by code**. The model supplies **one lexical token per dictionary entry — the
+spelling of a nonterminal** — and has no channel through which a sentence, a connective or a slot
+boundary could arrive.
+
+**A loophole I found in the existing wording, and closed rather than flagged.** R-LANG-11 read *"An
+LLM MAY produce names **and grammar surface** only"*, and §5D.2 consequence 3 repeated it.
+**"Grammar surface" is defined nowhere in the document.** Read strictly it means the spelling of
+nonterminals; read loosely it permits a model to author the productions themselves — putting the
+*syntax* of the English inside the blast radius rather than the *vocabulary*, which is precisely the
+drift Amir's constraint exists to prevent. Retired the loose reading, quoted in place.
+
+**The claim I am making, and it is checkable:** this is not a new mechanism. `refine-language.js`
+already implements it and is **stricter than the prose that described it** — the model may return
+only `[{index, name, rationale}]`; `renderProduction(c)` derives a production from the entry's role
+signature; `structuralSkeleton()` strips `name`/`minedName`/`namedBy` and compares the rest, refusing
+with *"refined library changed the mined structure — refusing (step must touch names/metadata only)"*.
+I read the code before writing the section rather than describing the requirement's intent.
+
+**The reasoning I would want challenged:** I argued the deterministic shell is not merely the
+cautious choice but the *checkable* one — injectivity, byte-identity and coverage invariance are all
+decidable against a production set code owns, and undecidable against one a model authored, because
+the thing that would define "correct" is the output being checked. If Amir wants the model to
+propose productions too, that argument is what has to be answered, not the caution.
+
+**Also recorded:** the naming stage still has no **reference specimen** — no hand-authored example of
+what a named `.en` file should look like on the page. §5D.1's PaymentPlan sentence plays that role
+for the archetype work and is why the archetype grammar could be built and pinned. Stage 2 has the
+constraints but no target rendering, so it could be built to spec and still miss what Amir pictures.
+Flagged, not invented: writing that specimen is a decision about the target, and it is his.
