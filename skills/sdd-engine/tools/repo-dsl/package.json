@@ -13,6 +13,8 @@
     "test:slow": "node run-tests.js --tier=slow",
     "test:all": "node run-tests.js --tier=all",
     "roots": "node roots.js",
+    "register": "node verify-register.js",
+    "register:json": "node verify-register.js --json",
     "steps": "node sdd-run.js --list",
     "status": "node sdd-run.js --status",
     "sdd-run": "node sdd-run.js",

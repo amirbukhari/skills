@@ -156,6 +156,7 @@ investigation, kept for its findings; not on any path.
 | `stamp-artifacts.js` | **PIPELINE** 5 | re-stamps / verifies §8B headers, idempotent. `npm run stamp:check` |
 | `roots.js` | **TOOL** | prints where the engine is pointed and which layer decided it. `npm run roots` — run this first when anything looks wrong |
 | `run-tests.js` | **TOOL** | the three-tier test runner (unit / corpus / slow). `npm test` lands here |
+| `verify-register.js` | **TOOL** | evaluates the §R requirements register mechanically. `npm run register`, or `--json` for a caller. `MANUAL` is not a pass |
 | `sdd-clean.js` | **TOOL** | wipes derived content out of CORPUS. Dry-run unless `--wipe-sen --go`. Never touches SOURCE. `npm run clean` |
 | `repo-dsl.js` | **TOOL** | the pipeline-B CLI: `mine\|publish\|gate\|verify\|verify-expand\|expand\|explain\|refine-language\|report`. `npm run gate` |
 | `author-names.js` | **TOOL** (broken input) | proposes names for leaf skeletons. `npm run name:author` — **needs a census file as argv[2] and nothing live produces one**; it crashes without one. See `../../CLAUDE.md` §9 |
