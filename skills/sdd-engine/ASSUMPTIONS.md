@@ -1558,3 +1558,36 @@ spans. R-REND-6's defect was narrower than its wording implied, and the PRD now 
 zero false positives**; with the check off a gloss hand-edit compiles the un-edited code (asserted,
 so the defect cannot be quietly reintroduced); with it on the same edit throws and prints written vs
 derived.
+
+## 2026-08-31 — sdd-run's own register warning had gone stale; disputed metrics now labelled at the manifest
+
+**Decided:** corrected `sdd-run.js`'s `register` step `coverageWarning`, which claimed "13 rows of a
+~100-row register — 9 hold, 0 fail, 4 manual". The real numbers today are **35 mechanized of 119 —
+31 hold, 1 FAILS, 3 manual**. Added `exitCodeNote` (the register exits 1 while a row fails, which is
+it working, not breaking) and `knownRed` naming R-MEAS-2. Added `disputedOutput` to the `measure`
+step.
+
+**Why:** the warning existed precisely to stop a UI rendering the register as "all green", and it had
+itself rotted into a wrong number — the exact cite-rot class this project keeps paying for. Rather
+than re-freeze a new count that will rot the same way, the string now says the counts are a dated
+measurement and points at the runner's own printed summary / `--json` `summary` as authoritative.
+
+**Verified by running it, not by reading it:** `node verify-register.js --json` → `{holds:31, fails:1,
+manual:3, total:35, mechanizedRows:35}`, real exit code **1** (captured directly, not through a pipe —
+`| tail` had reported 0, which is `tail`'s status, not the runner's). Register row count
+`grep -cE '^\|\s*`?R-' tools/prd/11-requirements-register.md` → **119**. `--list` re-parsed as JSON
+after the edit; `git diff --numstat` → 4/1, as expected for 3 added lines plus 1 replaced.
+
+**On the disputed metrics — the narrow claim, checked before writing it:** sdd-run does **NOT** parse
+or republish `reviewSurface` / `collapseRatioPct` / `residualStatements`. It relays the child's stderr
+verbatim and its stdout carries only its own JSON, so no sdd-run field is contaminated by R-MEAS-2.
+But `measure` is the step that *prints* those three, and a UI author reading the manifest had no way
+to know they are currently wrong and flattering. So the caveat is attached to the step that emits
+them, stating they WILL move when R-MEAS-2 is fixed.
+
+**Not fixed here, deliberately:** the R-MEAS-2 defect itself lives in `write-en-files.js:143,148` and
+is owned by another lane (sdd-engine-5a), with the substantive reason being that the fix moves a
+headline number and needs Amir's name on it. This entry documents the metric as disputed; it does not
+touch the computation.
+
+**Commit:** see below.
