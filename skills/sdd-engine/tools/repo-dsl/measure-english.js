@@ -35,7 +35,7 @@ const CR = require("./engine/corpus-root");
 
 const CORPUS = CR.corpusRoot();   // WRITE root
 const SRC = CR.sourceRoot();       // READ root: the .ts tree
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 const B = (s) => Buffer.byteLength(s);
 const LABEL = /«▶ ([\s\S]*?) ⟪/g;

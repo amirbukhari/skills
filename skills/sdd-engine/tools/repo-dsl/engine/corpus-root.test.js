@@ -140,7 +140,7 @@ const scanLines = (pred, { skipSelf = true } = {}) => {
     if (skipSelf && p === SELF) continue;
     fs.readFileSync(p, "utf8").split("\n").forEach((line, i) => {
       if (/^\s*(?:\/\/|\/\*|\*)/.test(line)) return;          // comments describe history
-      if (pred(line)) bad.push(`${path.relative(ENGINE, p)}:${i + 1}  ${line.trim().slice(0, 100)}`);
+      if (pred(line, path.relative(ENGINE, p))) bad.push(`${path.relative(ENGINE, p)}:${i + 1}  ${line.trim().slice(0, 100)}`);
     });
   }
   return bad;
@@ -159,14 +159,24 @@ ok("no live engine source names a root — only the registry and .env may", () =
  *       - the SDD lane's own <projectRoot|outDir|exampleDir>/spec/modules (sdd-code-from-spec.js,
  *         selfhost-package.js, package-delonix.js) — a DIFFERENT tree with its own layout;
  *       - ".cache/spec-derived", a directory inside .cache that Amir did not rename;
- *       - "spec" inside a walk SKIP set, which keeps excluding a not-yet-renamed corpus.
+ *       - "spec" inside engine/walk-skip.js, the ONE canonical walk SKIP set, which keeps
+ *         excluding a not-yet-renamed corpus. Exempted BY FILE, not by shape — see below.
  *     So this asserts the specific joins that used to point at the renamed folder. */
 ok("no live engine source joins a corpus root to a 'spec' path segment", () => {
-  const bad = scanLines((line) =>
-    /* a walk SKIP set legitimately lists BOTH names — `"sen", "spec", "catalog"` — so that a
-     * corpus which has not been renamed yet stays excluded. It is the one shape below that is
-     * not a path join, and exempting it is what keeps this guard from crying wolf. */
-    (!/SKIP\s*=\s*new Set\(/.test(line)) && (
+  const bad = scanLines((line, rel) =>
+    /* THE ONE EXEMPTION IS A FILE, NOT A SHAPE. The canonical walk SKIP set legitimately lists
+     * BOTH names — `"sen", "spec"` — so that a corpus which has not been renamed yet stays
+     * excluded. It now lives in exactly one place, so the exemption names that place.
+     *
+     * This used to exempt any line matching `SKIP = new Set(`, which blessed the shape wherever
+     * it appeared and so exempted all 13 copies. Narrowing it to the file is what centralizing
+     * earned: the guard can now assert those names appear nowhere else, and a NEW inline SKIP set
+     * anywhere in the tree fires instead of being waved through. Same move as `sen` being spelled
+     * once in LAYOUT.sen.
+     *
+     * The exemption also had to change shape: it was LINE-scoped, and the centralized set spans
+     * several lines, so the names sit on a line with no `SKIP = new Set(` on it to match. */
+    rel !== path.join("engine", "walk-skip.js") && (
     /path\.join\(\s*(?:AC\.corpusRoot\(\)|CR\.corpusRoot\(\)|CORPUS|PROJECT)\s*,\s*["']spec["']/.test(line) ||
     /["']spec\/(?:files|catalog|skeletons|archetypes)["']/.test(line) ||
     /["']spec["']\s*,\s*["'](?:files|catalog|skeletons|archetypes)["']/.test(line)));

@@ -86,7 +86,7 @@ ok("atoms containing a structural delimiter bail to null", () => {
 /* 6. CORPUS PROPERTY: the gate never lies — accepted leaves always round-trip */
 ok("corpus: every dataByteExact-accepted leaf reconstructs its exact source", () => {
   const CORPUS = CR.sourceRoot();
-  const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
+  const { SKIP } = require("./walk-skip");   // the ONE canonical corpus walk-skip set
   const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
   let accepted = 0, checked = 0;
   for (const abs of walk(CORPUS)) {

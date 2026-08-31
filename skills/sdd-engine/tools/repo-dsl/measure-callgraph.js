@@ -31,7 +31,7 @@ const PURE_HOLE = new Set(["id", "str", "num"]); // an english param: noun / str
 const allPure = (key) => holeKindsOf(key).every((h) => PURE_HOLE.has(h));
 
 const CORPUS = CR.sourceRoot();
-const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 const isTestFile = (rel) => /\.(test|spec)\.ts$/.test(rel) || /(^|\/)(__tests__|tests?)(\/|$)/.test(rel);
 

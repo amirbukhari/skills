@@ -27,7 +27,7 @@ const OUT = AC.pathFor("generators-lzw", CORPUS); // CORPUS tree — the engine 
 // MUST match write-en-files.js SKIP exactly. When it did not (this set excluded "tests"), the
 // dictionary was mined over 956 files but applied to 1037, so every recurring body in a test file
 // had no word by construction — 696 of 937 un-collapsed bodies traced to that one mismatch.
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 // MIN_SKEL = minimum skeleton bytes per statement before a word may be promoted. It is the
 // readability dial, not a correctness one: every span is byte-gated at emission regardless.
 // Measured over the full corpus (byte-identity 1037/1037 at every point):

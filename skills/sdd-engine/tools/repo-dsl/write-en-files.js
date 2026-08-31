@@ -31,7 +31,7 @@ const SRC = CR.sourceRoot();      // READ root: the .ts tree
 const DRY = process.argv.includes("--no-write") || process.argv.includes("--dry-run");
 const outFlag = process.argv.indexOf("--out");
 const OUT_DIR = outFlag >= 0 ? process.argv[outFlag + 1] : null;
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 const walkAll = (d, pred, o = []) => { if (!fs.existsSync(d)) return o; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walkAll(p, pred, o); else if (pred(p)) o.push(p); } return o; };
 

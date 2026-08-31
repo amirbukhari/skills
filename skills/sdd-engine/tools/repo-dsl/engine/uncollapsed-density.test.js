@@ -55,7 +55,7 @@ if (!fs.existsSync(CORPUS)) {
   ok("on real corpus source, all-placeholder bodies exist and are excluded", () => {
     const ts = require("typescript");
     const G = require("./generators");
-    const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+    const { SKIP } = require("./walk-skip");   // the ONE canonical corpus walk-skip set
     const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
     const parts = (body, sf) => [...body.statements].map((st) => {
       if (!G.isFoldable(st)) return D.HOLE;
