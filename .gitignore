@@ -1,0 +1,13 @@
+# Proprietary Hydra source and Hydra-derived artifacts.
+# The repo-DSL engine READS the Hydra corpus from an external checkout
+# (/home/amir/Documents/Rentsync/delonix/hydra-source); nothing derived from it
+# belongs in this repo's tracked set. See the security audit on spec-driven-dev.
+**/reference/*.ts
+results/verify-expand-*.json
+**/results/verify-expand-*.json
+
+# Browser-scrape dumps (unaudited page content, multi-MB)
+.playwright-mcp/
+
+# Dependencies
+node_modules/
