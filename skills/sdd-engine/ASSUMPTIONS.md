@@ -1476,3 +1476,54 @@ the row was not wrong, only luckier than it deserved.
 
 **Commit:** 30d2297 (no code change from this; recorded because it changes how much weight R-REND-1's
 secondary citation carries)
+
+---
+
+## 2026-08-31 — `repo-dsl.js` imported the artifact contract and then hand-wrote around it
+
+**Found by grep, proved by running it.** `repo-dsl.js:39` is `const AC = require("./engine/artifact-contract")`
+and `grep -n "AC\." repo-dsl.js` returned **nothing**. The main CLI imported the contract and never
+called it, publishing three registered §8B kinds through hand-written headers instead.
+
+**Proved against a throwaway corpus, never the real one** — `node repo-dsl.js mine <tmp>` wrote
+`mined-library.json` and `corpus-coverage.json` with `schema` and `corpus` present and
+**`artifactVersion`, `generated` and `fingerprint` absent**. Feeding those to a consumer:
+
+```
+REFUSED mined-library    expected: a `fingerprint` field
+                         got:      none — re-stamp with `node stamp-artifacts.js`
+REFUSED corpus-coverage  (same)
+```
+
+So `repo-dsl.js mine` was a **second, contract-breaking producer** for two kinds that a different
+producer already publishes correctly. Run against the real corpus it would have overwritten two
+valid stamped artifacts with ones every consumer refuses — CLAUDE.md §8's landmine (*"a hand-built
+header is how `generators-lzw.json` was born without a `fingerprint` and failed 5 tests"*),
+reproduced in the CLI that fronts the whole pipeline.
+
+**Decided:** routed all three through the contract — `AC.stamp("mined-library"/"corpus-coverage"/"gate")`
+and `AC.pathFor` in place of the hand-joined `COVERAGE_JSON` / `LIBRARY_JSON` / `path.join(RESULTS,
+"gate.json")`. `cmdGate` had also typed its `schema` string by hand.
+
+**Verified by running it:** after the change, mine + gate against the throwaway corpus produce three
+artifacts that all load — `mined-library 04edea37f1652412`, `corpus-coverage 05a50544cd3d0735`,
+`gate c03165b80dffd672`. The gate's own verdict still works both ways: `--min 1` → exit 0 "GATE:
+PASS", `--min 200` → exit 1. `engine/corpus-root.test.js` → 11 assertions passed. The real corpus
+was never mined or gated during any of this; its four artifact fingerprints and mtimes are
+unchanged (20:36 and 21:09, both before this work).
+
+**Left alone deliberately, and each for a reason:**
+
+- **`publishLibrary`'s `catalog/mined-library.v{N}.json`.** It writes into the **legacy STEP-4
+  `<CORPUS>/catalog/` tree** with its own versioning (`schema .../vN`, `version`, `generatedAt` —
+  different key names than the contract's `generated`). CLAUDE.md §5: the two catalogs are
+  different trees and must never be merged without asking Amir. Not a §8B kind, not touched.
+- **`verify-expand-<module>.json`.** Unregistered, and its filename varies per module, so
+  registering it needs a registry design decision about parameterised kinds — not a mechanical fix.
+- **`word-names`.** `engine/artifact-location.test.js` assertion (e) is still red on it, and that
+  is now the ONLY thing between that test and green for the tracked kinds. The honest fix is to
+  deregister it: Amir's call was *"get rid of that words file its old we dont need it anymore."*
+  **I did not do it.** The blast radius is real — `run-tests.js` CORPUS_TIER, `sdd-run.js` `needs`,
+  and `enfile.js`'s NAMES loader all name the kind — and the standing instruction is that these
+  failures *"stay failing/blocked until the requirement itself is revisited."* The requirement has
+  not been revisited. This needs Amir, not me.

@@ -47,9 +47,12 @@ const CR = require("./engine/corpus-root");
 const DEFAULT_CORPUS = CR.sourceRoot();   // the tree `mine`/`gate`/`verify` walk
 /* Corpus-rooted (PRD §8B) — the engine tree never receives corpus-derived output. */
 const RESULTS = path.join(CR.corpusRoot(), ".cache", "spec-derived");
+/* The three §8B kinds this CLI publishes are located BY THE CONTRACT, not by re-joining the
+ * layout here. AC.HOMES owns "sen/catalog" and ".cache/spec-derived"; a second spelling of
+ * either is how two producers end up writing one kind to two places. */
 const CATALOG = path.join(CR.senDir(), "catalog");
-const COVERAGE_JSON = path.join(RESULTS, "corpus-coverage.json");
-const LIBRARY_JSON = path.join(CATALOG, "mined-library.json");
+const COVERAGE_JSON = AC.pathFor("corpus-coverage");
+const LIBRARY_JSON = AC.pathFor("mined-library");
 
 /**
  * Resolve the corpus directory and PROVE it exists. A missing corpus must fail loudly and
@@ -182,14 +185,18 @@ function runMine(dir, minCount, lift) {
   const res = mine(dir, { minCount, lift });
   fs.mkdirSync(RESULTS, { recursive: true });
   fs.mkdirSync(CATALOG, { recursive: true });
-  fs.writeFileSync(LIBRARY_JSON, JSON.stringify(res.library, null, 2) + "\n");
+  /* AC.stamp, never a hand-written header (CLAUDE.md §8). This wrote `res.library` raw: no
+   * artifactVersion, no generated, no fingerprint — so `node repo-dsl.js mine` against the real
+   * corpus overwrote a valid stamped artifact with one every consumer's AC.load REFUSES
+   * ("expected: a `fingerprint` field / got: none"). Measured against a throwaway corpus. */
+  fs.writeFileSync(LIBRARY_JSON, JSON.stringify(AC.stamp("mined-library", res.library, { corpus: dir }), null, 2) + "\n");
   res.publishedTo = publishLibrary(dir, res.library);
   // Provenance so a stored report can never be mistaken for a live one (see cmdReport).
-  fs.writeFileSync(COVERAGE_JSON, JSON.stringify({
+  fs.writeFileSync(COVERAGE_JSON, JSON.stringify(AC.stamp("corpus-coverage", {
     minedAt: new Date().toISOString(), regenerate: `node repo-dsl.js mine ${dir}`,
-    schema: "sdd-repo-dsl/corpus-coverage/1", corpus: dir, minCount: res.minCount,
+    minCount: res.minCount,
     rollup: res.rollup, files: res.fileReports, residueSamples: res.residueSamples,
-  }, null, 2) + "\n");
+  }, { corpus: dir }), null, 2) + "\n");
   return res;
 }
 
@@ -243,14 +250,18 @@ function cmdGate(args) {
   const filePass = minFile == null || worst.coveragePct >= +minFile;
   const pass = corpusPass && filePass;
   const out = {
-    schema: "sdd-repo-dsl/gate/1", pass, source: noMine ? "persisted" : "mined",
+    pass, source: noMine ? "persisted" : "mined",
     thresholds: { corpus: min, perFile: minFile == null ? null : +minFile },
     corpusCoveragePct: corpus, worstFile: { rel: worst.rel, coveragePct: worst.coveragePct },
     generators: res.library.counts,
   };
-  fs.mkdirSync(RESULTS, { recursive: true });
-  fs.writeFileSync(path.join(RESULTS, "gate.json"), JSON.stringify(out, null, 2) + "\n");
-  console.log(JSON.stringify(out, null, 2));
+  /* `gate` is a registered §8B kind. Its schema string was typed by hand here and the file was
+   * written by re-joining RESULTS, so it carried no fingerprint and nothing could verify it. */
+  const stamped = AC.stamp("gate", out);
+  const gatePath = AC.pathFor("gate");
+  fs.mkdirSync(path.dirname(gatePath), { recursive: true });
+  fs.writeFileSync(gatePath, JSON.stringify(stamped, null, 2) + "\n");
+  console.log(JSON.stringify(stamped, null, 2));
   console.log(pass ? "\nGATE: PASS" : "\nGATE: FAIL");
   process.exit(pass ? 0 : 1);
 }
