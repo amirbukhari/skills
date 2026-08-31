@@ -68,7 +68,15 @@ const STEPS = Object.freeze([
   { id: "reconcile", npm: "reconcile", cmd: ["reconcile-names.js"], phase: "pipeline", order: 2,
     title: "Reconcile names after a re-mine",
     detail: "Orphan ledger and re-adoption PROPOSALS. Never applies a name automatically.",
-    reads: ["<CORPUS>/sen/catalog/word-names.json"], writes: ["<CORPUS>/.cache/spec-derived/name-queue.json"],
+    /* MEASURED 2026-08-31: `node reconcile-names.js` with no argument dies at load with
+     * ERR_INVALID_ARG_TYPE — reconcile-names.js:25 reads process.argv[2] as a MANDATORY census file
+     * and reconcile-names.js:40 readFileSync(undefined)s it. This is the same bug class CLAUDE.md §9
+     * records for author-names.js, and no live script writes a census (narrate-census.js reads one,
+     * it does not produce one). So a UI must not render this as a one-click step. */
+    requiresArgv: [{ name: "census", position: 2, why: "reconcile-names.js:25 reads it as a mandatory positional; there is no default and no live producer" }],
+    note: "NOT runnable with no arguments. Needs a census file that nothing in the live pipeline currently produces — see requiresArgv. sdd-run REFUSES rather than letting the child die with ERR_INVALID_ARG_TYPE.",
+    reads: ["<CORPUS>/sen/catalog/word-names.json", "<census> (argv[2], caller-supplied)"],
+    writes: ["<CORPUS>/.cache/spec-derived/name-queue.json"],
     expensive: false, destructive: false, needs: ["word-names"] },
 
   { id: "render", npm: "render", cmd: ["write-en-files.js"], phase: "pipeline", order: 3,
@@ -308,6 +316,20 @@ if (step.destructive && !allowDestructive) {
   emit({ schema: SCHEMA, kind: "error", error: "refused-destructive", step: id,
     why: `step ${JSON.stringify(id)} is marked destructive and requires --allow-destructive`,
     note: "sdd-clean.js additionally requires --go before it deletes anything; this flag does not supply it." });
+  process.exit(2);
+}
+
+/* A step that needs a caller-supplied argument REFUSES when given none, rather than spawning a
+ * child that dies at load with ERR_INVALID_ARG_TYPE. A stack trace on stderr and a non-zero exit
+ * tells a UI "something broke"; this tells it exactly what to supply. Same principle as
+ * `{ optional: true }` returning a reason and never a bare null (CLAUDE.md §8). */
+if (Array.isArray(step.requiresArgv) && step.requiresArgv.length && passthru.length === 0) {
+  emit({ schema: SCHEMA, kind: "error", error: "missing-argv", step: id,
+    requires: step.requiresArgv,
+    why: `step ${JSON.stringify(id)} requires ${step.requiresArgv.map((a) => a.name).join(", ")}, ` +
+         `supplied after \`--\`; with none it would die at load, not fail a check`,
+    hint: `node sdd-run.js ${id} -- <${step.requiresArgv.map((a) => a.name).join("> <")}>`,
+    note: step.note || null });
   process.exit(2);
 }
 

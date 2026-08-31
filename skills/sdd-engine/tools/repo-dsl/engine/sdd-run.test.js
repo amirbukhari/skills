@@ -39,8 +39,20 @@ function sdd(args) {
  * a second document, or one byte of prose, makes JSON.parse throw. */
 const parseOne = (s) => JSON.parse(s);
 
+/* WHY THIS IS GUARDED. The manifest is parsed at module scope so every later assertion can read it,
+ * which means a wrapper that CRASHES leaves this file throwing at load — printing a stack trace and
+ * running zero assertions, which reads as "no failures" to anything grepping for FAIL. That is the
+ * exact shape that let test-lzw-roundtrip.js sit dead for hours (a TDZ ReferenceError at load, every
+ * static check green). So a broken wrapper must surface as a FAILING assertion, not as an
+ * unhandled throw. */
 const listRes = sdd(["--list"]);
-const manifest = parseOne(listRes.out);
+let manifest = null, listParseError = null;
+try { manifest = parseOne(listRes.out); } catch (e) { listParseError = e; }
+ok("--list is parseable at all — a crashing wrapper fails here, it does not kill the suite", () => {
+  assert.strictEqual(listParseError, null,
+    `sdd-run --list did not emit parseable JSON (exit ${listRes.code}). stderr:\n${listRes.err.slice(0, 600)}`);
+});
+if (listParseError) { console.error("\n  ABORTING: the manifest could not be read; later assertions would be meaningless."); process.exit(1); }
 const STEPS = manifest.steps;
 
 ok("--list emits exactly one JSON document on stdout, and exits 0", () => {
@@ -143,6 +155,45 @@ ok("the register step does not hardcode a coverage count — it defers to the ru
   const undated = text.replace(/measured[^.]*\./gi, "");
   assert.ok(!/mechaniz\w*\s+\d+\s+rows?/i.test(undated),
     "an undated 'mechanizes N rows' claim rots the moment a row is mechanized — date it or drop it");
+});
+
+/* THE DEFAULTLESS-POSITIONAL CLASS. reconcile-names.js:25 reads `process.argv[2]` as a mandatory
+ * census file with no default, and nothing in the live pipeline writes one — so `sdd-run reconcile`
+ * used to spawn a child that died at LOAD with ERR_INVALID_ARG_TYPE. A UI would have rendered a
+ * one-click step that can never work, and the failure would read as "the tool crashed" rather than
+ * "you must supply a census". CLAUDE.md §9 records the identical bug in author-names.js, which is
+ * why this pins the CLASS: any step whose script reads a defaultless positional must declare it.
+ *
+ * The check is deliberately narrow — `const X = process.argv[N];` with no `||` fallback. A script
+ * that defaults its positional is fine and must not trip this. */
+ok("a step whose script reads a defaultless positional must declare requiresArgv", () => {
+  let checked = 0;
+  for (const s of STEPS) {
+    const src = fs.readFileSync(path.join(R, s.cmd[0]), "utf8");
+    const m = src.match(/^\s*const\s+(\w+)\s*=\s*process\.argv\[(\d)\]\s*;/m);
+    if (!m) continue;
+    checked++;
+    assert.ok(Array.isArray(s.requiresArgv) && s.requiresArgv.length,
+      `${s.id}: ${s.cmd[0]} reads process.argv[${m[2]}] as ${m[1]} with no default, but the step ` +
+      `does not declare requiresArgv — a UI would offer it as one-click and the child would die at load`);
+  }
+  assert.ok(checked > 0, "the probe still finds at least one such script (reconcile); if not, the regex has rotted");
+});
+
+ok("a step declaring requiresArgv REFUSES with a reason, not a stack trace, when given none", () => {
+  const needy = STEPS.filter((s) => Array.isArray(s.requiresArgv) && s.requiresArgv.length);
+  assert.ok(needy.length > 0, "at least one step declares requiresArgv");
+  for (const s of needy) {
+    const r = sdd([s.id]);
+    assert.strictEqual(r.code, 2, `${s.id}: sdd-run refused (2), rather than relaying a child crash`);
+    const e = parseOne(r.out);
+    assert.strictEqual(e.error, "missing-argv", `${s.id}: refused for the stated reason`);
+    assert.ok(e.hint && e.hint.includes("--"), `${s.id}: the refusal shows HOW to supply it`);
+    /* The refusal must precede the corpus-readiness check: an argument the caller never passed is
+     * the caller's error and is true regardless of what is mined. Otherwise a UI author fixes
+     * "not-ready" first and only then discovers the step could never run. */
+    assert.notStrictEqual(e.kind, "not-ready", `${s.id}: argv refusal comes before the readiness check`);
+  }
 });
 
 console.log(`\n${pass} assertions passed`);

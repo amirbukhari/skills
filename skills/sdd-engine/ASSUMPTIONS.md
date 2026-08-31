@@ -1810,3 +1810,68 @@ which then fail on the stub shape (exit 1). So the guard does not block a corpus
 **Explicitly NOT done:** I did not revive the producer (it points at a denied root), did not
 generate the catalogs by hand, and did not retire the test. Reviving versus retiring is a decision
 for Amir, not a fix.
+
+## 2026-08-31 — the front door promised a command the root could not run, and mis-stated a cost 10x
+
+**Decided:** three corrections to the skill-root `README.md` and `package.json`, all found by RUNNING
+every command the front door promises rather than re-reading it.
+
+1. **`npm run test:slow` said "minutes each".** Measured by another lane the same evening at **~24s
+   each, ~850MB peak** — wrong by an order of magnitude, in the first file a new person reads. Now
+   dated and stated as measured. I did **NOT** re-measure it myself: four lanes are active on this
+   shared machine and CLAUDE.md §7 bans running the full suite here after an OOM kill. So this figure
+   is *cited from that lane's `/usr/bin/time -v` run*, not independently reproduced — recorded as
+   such rather than presented as mine.
+2. **`npm run clean` and `clean:sen` exit 3 by design** (`sdd-clean.js:163`, refusing to delete
+   without a flag) and the table said nothing. Same trap as the register's exit 1. The README now
+   carries one paragraph covering all three: non-zero here means "refused", not "crashed".
+3. **`npm run register` did not exist at the skill root.** `package.json` delegated 18 scripts and
+   missed five: `register`, `register:json`, `reconcile`, `measure:uncollapsed`, `name:author`. All
+   four of the first are now delegated. **The reason this mattered more than a missing alias:** npm
+   exits **1** for an unknown script, and the register exits **1** when a row fails — so at the root
+   the two were *indistinguishable*, and a UI or a person would read "missing script" as "the
+   register found a failure" or vice versa.
+
+**Verified by running it:** each of `roots`, `steps`, `status`, `stamp:check`, `clean` from the skill
+root (`exit 0,0,0,0,3`), and each newly delegated script resolves. `npm run register` at the root
+before the fix → exit 1 with no output; after → the real runner.
+
+**Commit:** see below.
+
+## 2026-08-31 — `reconcile` was a one-click step in the manifest that could never run
+
+**Decided:** `sdd-run.js` now REFUSES a step whose script needs a caller-supplied positional,
+emitting `missing-argv` with the argument's name, why it is required, and the exact command to
+supply it — instead of spawning a child that dies at load.
+
+**The defect, measured:** `node reconcile-names.js` with no argument → `ERR_INVALID_ARG_TYPE` at
+`reconcile-names.js:40`, because line 25 reads `process.argv[2]` as a mandatory census file with no
+default. **Nothing in the live pipeline writes a census** — `narrate-census.js` reads one, it does not
+produce one. This is the same bug class CLAUDE.md §9 already records for `author-names.js`. My
+manifest listed `reconcile` as pipeline step order 2 with no warning, so a UI would have rendered a
+button that always crashes, and the crash would read as "the tool broke" rather than "supply a
+census".
+
+**A design call, and I changed my first answer:** I first placed the refusal AFTER the artifact
+readiness check. Running it showed `reconcile` reporting `not-ready` (word-names is absent), so the
+new guard never fired. Moved it ahead of readiness — an argument the caller never passed is the
+caller's error and is true regardless of what is mined. Otherwise a UI author fixes "not-ready"
+first and only then discovers the step could never run.
+
+**Guarded as a CLASS, not an instance:** the test asserts that any step whose script reads
+`const X = process.argv[N];` with no `||` default must declare `requiresArgv`. The probe currently
+finds exactly one such script and asserts it still finds ≥ 1, so a rotted regex fails loudly instead
+of passing vacuously.
+
+**Verified it can fail:** undeclaring `requiresArgv` fires both new assertions; disabling the guard's
+condition fires the ordering assertion.
+
+**And a harness bug this exposed, which is the one worth keeping.** My first ordering mutation broke
+`sdd-run` outright — and the test file printed *nothing at all*, because it parses the manifest at
+module scope and threw at load. Zero assertions ran, and a grep for `FAIL` saw a clean sweep. That is
+the exact shape 5a reported for `test-lzw-roundtrip.js` (a TDZ error at load, every static check
+green, dead for hours). The parse is now guarded: a crashing wrapper FAILS an assertion and aborts
+with a reason. Proven by injecting a throw at the top of `sdd-run.js` — before, silence; after,
+`FAIL --list is parseable at all` and exit 1.
+
+**Commit:** see below.
