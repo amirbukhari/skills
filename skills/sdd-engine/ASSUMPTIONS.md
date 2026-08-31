@@ -2015,3 +2015,92 @@ writes leaves the English and never an orphan `.ts`. The ordering is not cosmeti
 from a UI" requirement is read as *no interactive prompts, structured stdin, exactly one JSON
 document on stdout, prose to stderr, meaningful exit codes*. `new-archetype.js` follows that shape,
 and it is the shape I will apply to every remaining pipeline script.
+
+## 2026-08-31 — the register's evidence is tracked files only, and R-LANG-14 was narrowed
+
+**Decided:** `liveGrep` in `verify-register.js` now takes its corpus of evidence from `git ls-files`
+instead of walking the working tree, and fails closed (throws) if git cannot answer rather than
+falling back to a walk. Separately, R-LANG-14 no longer fails a script for reading fd 0 when that
+read is gated on an explicit flag.
+
+**Why (the liveGrep half):** a row's verdict depended on what happened to be sitting on disk. This
+was not hypothetical — R-LANG-14 went red because another lane had an uncommitted scratch file that
+matched a pattern, and it would have gone green again when they deleted it. That is the same defect
+as the cite rot this runner exists to remove, one layer down: at the evidence layer rather than the
+citation layer. A violation in an uncommitted file is not missed, only deferred to the moment it is
+committed — which is also the moment it becomes everyone's problem. The fallback is the bug, so there
+is no fallback.
+
+**Why (the R-LANG-14 half):** the pattern failed on any textual `readFileSync(0`, which cannot tell
+"blocks on stdin whether or not you asked" from "reads a pipe because the caller passed `--stdin`".
+The second is *how a UI feeds a script*, so the check inverted the requirement it was serving.
+`readline`/`createInterface` stay unconditional violations — they have no non-interactive form.
+
+**The trade, stated rather than hidden:** the gating test looks at the same line, so it can miss a
+read gated several lines away. In exchange it no longer fails a script for offering a pipe. That is
+wrong in the direction that does not send colleagues chasing a non-bug.
+
+**Verified by running it:** mutation-checked both directions in a tracked file, restored with
+`git checkout` and confirmed byte-exact by an empty numstat — an ungated `readFileSync(0)` FAILS and
+names `run-tests.js:207`; the same read gated on `has("--stdin")` HOLDS. That was the real risk of
+this change: narrowing a check until it cannot fire.
+
+**Credit, explicitly:** both defects were found by other people having to measure a finding I
+reported — `sdd-engine-5a` and `sdd-engine-e2` reproduced the R-LANG-14 false positive, and 5a raised
+the untracked-files problem as the more general defect. My user independently confirmed the premise
+did not hold before I could hand off a wrong fix. The cost of a false positive is paid by whoever
+chases it, which is an argument for narrowing a check even when the requirement text is right.
+
+**Commit:** 47c878a
+
+## 2026-08-31 — the leak guard no longer depends on a mine having run
+
+**Decided:** split `artifact-location.test.js`'s assertion (e) into "every artifact PRESENT on disk is
+contract-valid and in its home" (a contract invariant) plus a new (f) that NAMES the absent kinds
+(pipeline state), and changed the runner's gate for that file from `needs: "*"` to `needs: []`.
+
+**Why:** the single old assertion conflated a contract invariant with pipeline state, and the state
+half held the invariant hostage. Because a missing artifact failed the assertion, the runner gated
+the whole FILE — so assertions (a)–(d), including the leak *recurrence* guard whose header says the
+point is that "none of it had been pushed" stops being luck, silently stopped running whenever any
+artifact was absent. It had been switched off by the absence of `word-names.json`, which is being
+retired. It also made the registry unextendable: registering a new kind turned the guard red until
+someone produced the file, so §7.0's gates could not be given artifacts — a contract guard preventing
+the contract from growing. Both `sdd-engine-5a` and `sdd-engine-e2` hit this wall from other sides.
+
+**Existence is still enforced, one layer up.** `run-tests.js` declares each corpus test's
+prerequisites and skips by name — loud, and not a pass. That is the right home for a claim about state.
+
+**Verified by running it:** 6 assertions pass; 4 artifacts validated, 3 named absent. `test:corpus`
+went 3 passed/3 skipped → 4 passed/2 skipped; full suite 26 passed, 0 failed, 2 skipped. Mutation-
+checked all three ways, because a guard that runs but cannot fail is worse than a skip — it reports
+safety it never tested: a planted `en-index.json` inside `engine/` fails (c); a planted
+`path.join(__dirname, "catalog")` fails (d) with file and line; deleting `fingerprint` from a present
+artifact fails (e) via `AC.load`. Probes removed, and the corrupted artifact restored from a byte-copy
+taken before the mutation.
+
+**Commit:** 17e40c5
+
+## 2026-08-31 — S is defined twice, and R-MEAS-2 checks that separately from the disputed value
+
+**Decided:** R-MEAS-2 now fails on a second, independent ground: `operations.fnStmtCount` (which
+recurses into if/loop/try bodies) is read by `measure-operations.js:84`, while `enfile.js` computes
+`bodyStatements` inline by a different rule. §7.3 names `fnStmtCount` as the frozen one.
+
+**Why check it separately:** whichever denominator Amir chooses, mixing two definitions is exactly
+what R-MEAS-2 forbids — so fixing the inequality alone must not clear the row. A working-tree hunk
+from a third lane currently changes that denominator, and its own comment concedes *"this is NOT
+`fnStmtCount`, so PRD §7.3's frozen `S` needs"* updating, while an escalation to Amir on that same
+decision is pending. Without this half, that hunk landing would have turned the row green and retired
+the question without anyone deciding it.
+
+**Verified by running it:** true at HEAD, so it does not depend on any uncommitted work — `grep -rn
+fnStmtCount` over the live tree shows the definition at `engine/operations.js:123`, its live consumer
+at `measure-operations.js:84`, and no call from `enfile.js`.
+
+**Correcting my own attribution:** I told `sdd-engine-5a` the uncommitted `countBodyStatements` hunk
+was theirs. It is not — they never edited that file, and its own comment credits a third lane. I
+should not have named an owner from a working-tree diff; a diff shows what changed, never by whose
+hand. Same lesson as the `-o` entry, at the level of attribution rather than of committing.
+
+**Commit:** 17e40c5
