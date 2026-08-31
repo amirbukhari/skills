@@ -39,14 +39,15 @@ const path = require("path");
 const AC = require("./engine/artifact-contract");
 const { mine } = require("./engine/pipeline");
 const { tokenize } = require("./engine/fanout");
+const CR = require("./engine/corpus-root");
 
 // The engine mines an EXTERNAL corpus; this repo intentionally contains none (PRD §8).
-// HYDRA_CORPUS wins, matching build-lzw-generators.js / write-en-files.js. The literal
+// SOURCE/CORPUS resolve through engine/corpus-root.js — the single resolver. The literal
 // below is only a developer convenience and is never trusted without an existence check.
-const DEFAULT_CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
+const DEFAULT_CORPUS = CR.sourceRoot();   // the tree `mine`/`gate`/`verify` walk
 /* Corpus-rooted (PRD §8B) — the engine tree never receives corpus-derived output. */
-const RESULTS = path.join(AC.corpusRoot(DEFAULT_CORPUS), ".cache", "spec-derived");
-const CATALOG = path.join(AC.corpusRoot(DEFAULT_CORPUS), "spec", "catalog");
+const RESULTS = path.join(CR.corpusRoot(), ".cache", "spec-derived");
+const CATALOG = path.join(CR.senDir(), "catalog");
 const COVERAGE_JSON = path.join(RESULTS, "corpus-coverage.json");
 const LIBRARY_JSON = path.join(CATALOG, "mined-library.json");
 
@@ -64,7 +65,7 @@ function resolveCorpus(dir, cmd) {
     console.error("no corpus and no Hydra source, so a checkout alone cannot mine anything.");
     console.error("");
     console.error("Point it at one:");
-    console.error(`  HYDRA_CORPUS=/path/to/corpus node repo-dsl.js ${cmd}`);
+    console.error(`  SOURCE=/path/to/corpus node repo-dsl.js ${cmd}`);
     console.error(`  node repo-dsl.js ${cmd} /path/to/corpus`);
     process.exit(2);
   }
@@ -331,7 +332,7 @@ function cmdReport() {
   if (!present) {
     console.log("STALE:  that corpus is not present on this machine — these numbers are a stored");
     console.log("        snapshot, not a live measurement. Re-mine before citing them:");
-    console.log(`          HYDRA_CORPUS=/path/to/corpus node repo-dsl.js mine`);
+    console.log(`          SOURCE=/path/to/corpus node repo-dsl.js mine`);
   }
   console.log("");
   console.log(`corpus ${j.rollup.coveragePct}% over ${j.rollup.files} files; residue chars A${j.rollup.residueChars.A} B${j.rollup.residueChars.B} C${j.rollup.residueChars.C} D${j.rollup.residueChars.D}`);

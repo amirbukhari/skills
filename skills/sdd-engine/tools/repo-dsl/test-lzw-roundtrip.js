@@ -8,13 +8,14 @@ const AC = require("./engine/artifact-contract");
 const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enlzw");
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.sourceRoot();
 const CAT = AC.pathFor("generators-lzw");
-const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 
 const OPEN = "«", CLOSE = "»", GEN = "▶", PO = "⟪", PC = "⟫";
 const PAY = require("./engine/payload"); // payloads are `lzw1` text, not base64(JSON)
+const CR = require("./engine/corpus-root");
 const cat = EN.loadLzw(CAT);
 const files = walk(CORPUS);
 

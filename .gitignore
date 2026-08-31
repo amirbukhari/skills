@@ -29,3 +29,7 @@ skills/sdd-engine/tools/repo-dsl/name-generators.names.json
 # ── Misc ─────────────────────────────────────────────────────────────────
 .playwright-mcp/
 node_modules/
+skills/sdd-engine/Examples/
+
+# ── sdd-engine local config (.env.example is the tracked template) ────────
+skills/sdd-engine/.env

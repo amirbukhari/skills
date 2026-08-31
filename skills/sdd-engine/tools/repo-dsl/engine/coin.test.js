@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { tokenize } = require("./fanout.js");
 const { coinWord, authorWith, readWith, matchStatement } = require("./coin.js");
+const CR = require("./corpus-root");
 
 let pass = 0;
 const ok = (name, fn) => { try { fn(); pass++; console.log(`  ok  ${name}`); } catch (e) { console.error(`FAIL  ${name}\n      ${e.message}`); process.exitCode = 1; } };
@@ -83,7 +84,7 @@ ok("matchStatement binds the param and enforces fixed slots", () => {
 
 /* 6. READ against the REAL corpus: isProduction names its siblings. */
 ok("readWith names the real corpus occurrences of isProduction", () => {
-  const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+  const CORPUS = CR.sourceRoot();
   if (!fs.existsSync(CORPUS)) { console.log("      (corpus absent — skipped)"); return; }
   const w = coinWord({ name: "isProduction", kind: "expression", example: "process.env.NODE_ENV === 'production'" });
   function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }

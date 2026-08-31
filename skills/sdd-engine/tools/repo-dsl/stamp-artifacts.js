@@ -11,7 +11,8 @@
 "use strict";
 const fs = require("fs"), path = require("path");
 const AC = require("./engine/artifact-contract");
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CR = require("./engine/corpus-root");
+const CORPUS = CR.corpusRoot();
 const CHECK = process.argv.includes("--check");
 
 let bad = 0, done = 0, absent = 0;

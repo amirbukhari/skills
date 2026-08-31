@@ -3,11 +3,13 @@
 const fs = require("fs");
 const path = require("path");
 const P = require("./engine/prose.js");
+const CR = require("./engine/corpus-root");
 
-const ROOT = "/home/amir/Documents/Rentsync/delonix/hydra-source";
-function readArch(rel) { return JSON.parse(fs.readFileSync(path.join(ROOT, "spec/archetypes", rel + ".arch.json"), "utf8")); }
-function readBodies(rel) { try { return JSON.parse(fs.readFileSync(path.join(ROOT, "spec/skeletons", rel + ".skel.json"), "utf8")).bodies || []; } catch (_) { return []; } }
-function readSrc(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
+const ROOT = CR.corpusRoot();   // WRITE root: sen/
+const SRC = CR.sourceRoot();    // READ root: the .ts
+function readArch(rel) { return JSON.parse(fs.readFileSync(path.join(CR.senDir(), "archetypes", rel + ".arch.json"), "utf8")); }
+function readBodies(rel) { try { return JSON.parse(fs.readFileSync(path.join(CR.senDir(), "skeletons", rel + ".skel.json"), "utf8")).bodies || []; } catch (_) { return []; } }
+function readSrc(rel) { return fs.readFileSync(path.join(SRC, rel), "utf8"); }
 
 const targets = [
   "src/entities/hydra/BillingAccount.ts",

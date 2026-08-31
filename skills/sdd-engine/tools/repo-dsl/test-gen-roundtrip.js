@@ -5,12 +5,14 @@ const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enfile");
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const CR = require("./engine/corpus-root");
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
+const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 
 const index = EN.loadIndex(CORPUS);
-const files = walk(CORPUS);
+const files = walk(SRC);
 let ok = 0, bad = 0, badList = [];
 let genSpansTotal = 0, genStmtsCollapsed = 0, filesWithGen = 0;
 let totalTsStmts = 0, totalEnStmtsApprox = 0;
@@ -19,11 +21,11 @@ for (const abs of files) {
   let src; try { src = fs.readFileSync(abs, "utf8"); } catch { continue; }
   let en, stats, back;
   try { const r = EN.renderFileEn(src, index); en = r.en; stats = r.stats; back = EN.compileFileEn(en, index); }
-  catch (e) { bad++; badList.push([path.relative(CORPUS, abs), "EXC:" + e.message]); continue; }
-  if (back !== src) { bad++; badList.push([path.relative(CORPUS, abs), "BYTE-MISMATCH"]); continue; }
+  catch (e) { bad++; badList.push([path.relative(SRC, abs), "EXC:" + e.message]); continue; }
+  if (back !== src) { bad++; badList.push([path.relative(SRC, abs), "BYTE-MISMATCH"]); continue; }
   ok++;
   genSpansTotal += stats.genSpans; genStmtsCollapsed += stats.genStmtsCollapsed;
-  if (stats.genSpans) { filesWithGen++; topFiles.push({ f: path.relative(CORPUS, abs), spans: stats.genSpans, collapsed: stats.genStmtsCollapsed }); }
+  if (stats.genSpans) { filesWithGen++; topFiles.push({ f: path.relative(SRC, abs), spans: stats.genSpans, collapsed: stats.genStmtsCollapsed }); }
 }
 console.log("=== gen round-trip ===");
 console.log("files:", files.length, " byte-identical:", ok, " FAILURES:", bad);

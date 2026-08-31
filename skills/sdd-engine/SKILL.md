@@ -48,7 +48,7 @@ to the bytes it abstracts; `gate` and `report` are the measurement surface.
 Rendering the corpus to `.en` is a separate entry point, `write-en-files.js`.
 
 `tools/repo-dsl/README.md` names the live pipeline step by step and distinguishes
-it from the measurement and panel pipelines; `tools/repo-dsl/PRD.md` is the
+it from the measurement and panel pipelines; `tools/PRD.md` is the
 specification, including the artifact contract (§8B) and the three-roots model
 (§1A). `tools/repo-dsl/archive/` holds retired scripts — **retired, not deleted**;
 its README says why each one was retired.
@@ -57,13 +57,18 @@ its README says why each one was retired.
 
 The engine is **corpus-agnostic and publishable**. Every corpus-derived artifact —
 mined dictionaries, word names, coverage results — is written under the corpus tree
-(`<corpus>/spec/catalog/`), resolved through `tools/repo-dsl/engine/artifact-contract.js`
+(`<corpus>/sen/catalog/`), resolved through `tools/repo-dsl/engine/artifact-contract.js`
 and pinned to the tree it was mined from. `engine/artifact-location.test.js` fails
 if the engine ever writes corpus-derived bytes back into this repo. Do not
 reintroduce a catalog here; the remote is public.
 
-The corpus root comes from `HYDRA_CORPUS` or an explicit `--corpus` flag. Nothing
-resolves a corpus by guessing from `__dirname`.
+There are TWO roots, resolved in one module, `tools/repo-dsl/engine/corpus-root.js`:
+`SOURCE` is the READ root (the `.ts` tree that is walked and mined, never written) and
+`CORPUS` is the WRITE root (it holds `sen/` and every derived tree). Each is set
+independently, precedence `--source`/`--corpus` flag > env var > `<engine>/.env` >
+engine-relative default. A root that is set but missing REFUSES, naming the path and the
+layer that supplied it. Nothing resolves a root by guessing from `__dirname`, and nothing
+outside that one module names a root literal — see `tools/PRD.md` §1B.
 
 ## Reading an artifact
 

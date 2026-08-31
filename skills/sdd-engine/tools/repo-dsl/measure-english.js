@@ -24,9 +24,11 @@ const EN = require("./engine/enfile");
 const EL = require("./engine/enlzw");
 const Q = require("./engine/clause-quality");
 const ARCH = require("./engine/archetypes");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
+const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 const B = (s) => Buffer.byteLength(s);
 const LABEL = /«▶ ([\s\S]*?) ⟪/g;
@@ -47,7 +49,7 @@ let corpus = 0, span = 0, skel = 0, gap = 0, word = 0, longSimple = 0, code = 0;
 let clauses = 0, vacuous = 0, complete = 0;
 const vacBy = {}, incompleteEx = [];
 
-for (const f of walk(CORPUS).sort()) {
+for (const f of walk(SRC).sort()) {
   const src = fs.readFileSync(f, "utf8"); corpus += B(src);
   let en; try { en = EN.renderFileEn(src, idx).en; } catch (_) { bad++; continue; }
   let back; try { back = EN.compileFileEn(en, idx); } catch (_) { bad++; continue; }
@@ -64,7 +66,7 @@ for (const f of walk(CORPUS).sort()) {
   }
 
   let akind = "(unclassified)";
-  try { akind = ARCH.classifyFile(ARCH.analyzeFile(path.relative(CORPUS, f), src)); } catch (_) { /* keep default */ }
+  try { akind = ARCH.classifyFile(ARCH.analyzeFile(path.relative(SRC, f), src)); } catch (_) { /* keep default */ }
   archB[akind] = (archB[akind] || 0) + B(src);
   archN[akind] = (archN[akind] || 0) + 1;
 

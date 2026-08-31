@@ -11,7 +11,7 @@
  * Writes ONLY under hydra-source:
  *   catalog/archetypes.json          <- 17 archetypes (features, files) + 4 generative templates/schemas
  *   archetype-index.json             <- rollup (Zipf head, generative vs descriptive, byte-verify counts)
- *   spec/archetypes/<rel>.arch.json  <- per-file archetype + extracted slots (generative files)
+ *   sen/archetypes/<rel>.arch.json  <- per-file archetype + extracted slots (generative files)
  *
  *   node build-archetypes.js
  */
@@ -19,8 +19,10 @@ const fs = require("fs");
 const path = require("path");
 const { walkDir } = require("./engine/pipeline");
 const { analyzeFile, classifyFile, EXTRACTORS, GENERATIVE } = require("./engine/archetypes.js");
+const CR = require("./engine/corpus-root");
 
-const PROJECT = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const PROJECT = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root
 const NAMED_MIN = 3;
 
 const FEATURES = {
@@ -56,10 +58,10 @@ const SLOT_SCHEMA = {
 
 function main() {
   const t0 = Date.now();
-  const files = walkDir(PROJECT).sort();
+  const files = walkDir(SRC).sort();
   const infos = [];
   for (const abs of files) {
-    const rel = path.relative(PROJECT, abs);
+    const rel = path.relative(SRC, abs);
     let src; try { src = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
     let f; try { f = analyzeFile(rel, src); } catch (_) { continue; }
     const archetype = classifyFile(f);
@@ -130,7 +132,7 @@ function main() {
   fs.writeFileSync(path.join(PROJECT, "archetype-index.json"), JSON.stringify(rollup, null, 1));
 
   // ---- persist: per-file .arch.json for generative files ----
-  const archDir = path.join(PROJECT, "spec", "archetypes");
+  const archDir = path.join(CR.senDir(), "archetypes");
   for (const i of infos) if (i.gen) {
     const outPath = path.join(archDir, i.rel + ".arch.json");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -154,6 +156,6 @@ function main() {
   console.log(`\nHEADLINE: repo is ${named.length} kinds of file; ${genConform}/${genFiles} generative files regenerate byte-identical AND conform to archetype+slots.`);
   console.log(`(${genByteId}/${genFiles} tile byte-identical including non-conformers — losslessness holds; conformance is the honest regenerability gate.)`);
   console.log(`\nmine: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log("persisted: catalog/archetypes.json, archetype-index.json, spec/archetypes/<rel>.arch.json");
+  console.log("persisted: catalog/archetypes.json, archetype-index.json, sen/archetypes/<rel>.arch.json");
 }
 main();

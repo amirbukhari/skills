@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
 const { renderData, compileData, dataByteExact } = require("./data-english");
+const CR = require("./corpus-root");
 
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
@@ -84,7 +85,7 @@ ok("atoms containing a structural delimiter bail to null", () => {
 
 /* 6. CORPUS PROPERTY: the gate never lies — accepted leaves always round-trip */
 ok("corpus: every dataByteExact-accepted leaf reconstructs its exact source", () => {
-  const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+  const CORPUS = CR.sourceRoot();
   const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
   const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
   let accepted = 0, checked = 0;

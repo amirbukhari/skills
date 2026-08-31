@@ -31,25 +31,28 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const CR = require("./corpus-root");
 
 /* THE LOCATION RULE (PRD §8B). The engine tree is GENERIC, corpus-agnostic and PUBLISHABLE; it
  * holds engine code and the PRD and NOTHING derived from anyone's corpus. Every artifact resolves
  * from the corpus root the engine was pointed at. An artifact is corpus data, and corpus data lives
  * with the corpus.
- *   home: "tracked" -> <corpus>/spec/catalog/     SOURCE-PROTECTED (§8A): expensive or hand-authored,
+ *   home: "tracked" -> <corpus>/sen/catalog/      SOURCE-PROTECTED (§8A): expensive or hand-authored,
  *                                                 must survive a cleanup, so it is TRACKED in the
  *                                                 corpus's own private repo.
  *   home: "cache"   -> <corpus>/.cache/spec-derived/  purely derived and regenerable by one command;
  *                                                 gitignored there by the corpus's own .gitignore.
- * `spec/catalog/` is deliberate: the corpus .gitignore ignores root `catalog/*`, so an artifact put
+ * `sen/catalog/` is deliberate: the corpus .gitignore ignores root `catalog/*`, so an artifact put
  * there would be silently untracked — which is exactly how a SOURCE-PROTECTED file gets lost. */
-const DEFAULT_CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const HOMES = Object.freeze({ tracked: path.join("spec", "catalog"), cache: path.join(".cache", "spec-derived") });
+const HOMES = Object.freeze({ tracked: path.join(CR.LAYOUT.sen, "catalog"), cache: path.join(".cache", "spec-derived") });
 
+/* WHERE the corpus is, is not this module's business — engine/corpus-root.js is the single
+ * resolver (--corpus > CORPUS env > <engine>/.env > Examples/hydra-source) and this delegates to
+ * it verbatim. It used to keep its own `process.env.<VAR> || "<absolute literal>"` chain,
+ * which is how one of 38 copies of that chain came to sit in the module every other consumer
+ * routes through. Kept as a re-export because callers across the tree already use AC.corpusRoot(). */
 function corpusRoot(explicit) {
-  const r = explicit || process.env.HYDRA_CORPUS || DEFAULT_CORPUS;
-  if (!r) throw new Error("artifact-contract: no corpus root — pass one or set HYDRA_CORPUS");
-  return r;
+  return CR.corpusRoot(explicit);
 }
 /* pathFor(kind, corpusRoot) is the ONLY way to name an artifact's location. Nothing in the engine
  * may join a corpus-derived path against __dirname; engine/artifact-location.test.js fails if it does. */

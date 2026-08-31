@@ -121,6 +121,7 @@ for (const r of leaves.slice(0, N)) {
 
 const prev = WN.load(OUT);
 const out = { schema: "sdd-repo-dsl/word-names/1", generated: today, names, orphans: prev.orphans || {} };
+fs.mkdirSync(path.dirname(OUT), { recursive: true });   // a fresh corpus has no sen/catalog/ yet
 fs.writeFileSync(OUT, JSON.stringify(AC.stamp("word-names", out), null, 1) + "\n");
 
 const tot = leaves.reduce((s, x) => s + x.sites, 0);

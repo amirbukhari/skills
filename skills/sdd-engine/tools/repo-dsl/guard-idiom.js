@@ -2,7 +2,8 @@
 // READ-ONLY: analyze the fetch(G1) / assert(G2) / G1->G2 guard idiom canonicalization.
 const fs = require("fs"), path = require("path");
 const { tokenize } = require("./engine/fanout");
-const corpus = "/home/amir/Documents/Rentsync/delonix/hydra-calculators/calculators";
+const CR = require("./engine/corpus-root");
+const corpus = CR.sourceRoot();
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 const files = walk(corpus).sort();
 const perFile = files.map((f) => ({ rel: path.relative(corpus, f), tokens: tokenize(f, fs.readFileSync(f, "utf8")).tokens }));

@@ -9,8 +9,9 @@ const fs = require("fs");
 const path = require("path");
 const { tokenize, fill } = require("./engine/fanout");
 const { slotsAreTyped } = require("./lib/skeleton");
+const CR = require("./engine/corpus-root");
 
-const corpus = "/home/amir/Documents/Rentsync/delonix/hydra-calculators/calculators";
+const corpus = CR.sourceRoot();
 const MIN = 2;
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 const files = walk(corpus).sort();

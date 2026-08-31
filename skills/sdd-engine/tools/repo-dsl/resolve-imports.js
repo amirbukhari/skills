@@ -19,8 +19,9 @@ const fs = require("fs");
 const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { ts, parse } = require("./lib/skeleton");
+const CR = require("./engine/corpus-root");
 
-const DEFAULT_CORPUS = "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
+const DEFAULT_CORPUS = CR.sourceRoot();
 
 function walk(dir, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -66,8 +67,8 @@ function main() {
   }
 
   const out = { schema: "sdd-repo-dsl/import-resolution/1", corpus, symbols: map };
-  fs.mkdirSync(path.join(AC.corpusRoot(), "spec", "catalog"), { recursive: true });
-  fs.writeFileSync(path.join(AC.corpusRoot(), "spec", "catalog", "import-resolution.json"), JSON.stringify(out, null, 2) + "\n");
+  fs.mkdirSync(path.join(CR.senDir(), "catalog"), { recursive: true });
+  fs.writeFileSync(path.join(CR.senDir(), "catalog", "import-resolution.json"), JSON.stringify(out, null, 2) + "\n");
 
   const probe = ["ISubscriptionUsage", "ISubscriptionCost", "getVolumeCostingItems",
     "buildingBillingTypeCostCalculator", "BILLING_TYPE_ACTIVE_FEATURE",

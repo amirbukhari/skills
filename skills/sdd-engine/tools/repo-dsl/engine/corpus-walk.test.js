@@ -36,7 +36,7 @@ ok("miner and renderer SKIP sets are identical", () => {
 
 ok("the shared SKIP set is the expected inventory", () => {
   assert.deepStrictEqual([...skipOf("build-lzw-generators.js")].sort(),
-    [".cache", ".git", ".worktrees", "build", "catalog", "coined-demo", "coverage", "demo", "dist", "node_modules", "spec"].sort());
+    [".cache", ".git", ".worktrees", "build", "catalog", "coined-demo", "coverage", "demo", "dist", "node_modules", "sen", "spec"].sort());
 });
 
 console.log(`\nPASS ${pass} assertions — miner and renderer walk the same corpus.`);

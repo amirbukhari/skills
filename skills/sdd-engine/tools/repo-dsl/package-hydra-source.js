@@ -22,9 +22,10 @@ const { tokenize } = require("./engine/fanout");
 const wf = require("./engine/wholefile.js");
 const { findFetchAndValidate, normalizedShape } = require("./engine/idioms.js");
 const { findThrowError, findAssertOrThrow } = require("./engine/named-idioms.js");
+const CR = require("./engine/corpus-root");
 
-const PROJECT = "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const CORPUS = PROJECT; // whole .ts tree
+const PROJECT = CR.corpusRoot();
+const CORPUS = CR.sourceRoot(); // whole .ts tree — the READ root
 const CUT = 3;
 
 function main() {
@@ -173,10 +174,10 @@ function main() {
   const commentPct = +(100 * commentChars / R.chars).toFixed(2);
 
   // ---- authored spec modules (from author-hydra-modules.js) ----
-  let authoredModules = { count: 0, expandVerify: "node hydra-expand.js <projectDir> <module> --verify", index: "spec/modules-index.json", modules: [] };
+  let authoredModules = { count: 0, expandVerify: "node hydra-expand.js <projectDir> <module> --verify", index: "sen/modules-index.json", modules: [] };
   try {
-    const idx = JSON.parse(fs.readFileSync(path.join(PROJECT, "spec", "modules-index.json"), "utf8"));
-    authoredModules = { count: idx.modulesAuthored, tier: idx.tier, expandVerify: idx.expandVerify, index: "spec/modules-index.json", modules: idx.modules };
+    const idx = JSON.parse(fs.readFileSync(path.join(CR.senDir(), "modules-index.json"), "utf8"));
+    authoredModules = { count: idx.modulesAuthored, tier: idx.tier, expandVerify: idx.expandVerify, index: "sen/modules-index.json", modules: idx.modules };
   } catch (_) {}
 
   // ---- skeleton tier (from build-skeletons.js, if present) ----
@@ -187,7 +188,7 @@ function main() {
   try {
     const sk = JSON.parse(fs.readFileSync(path.join(PROJECT, "skeleton-index.json"), "utf8"));
     skeletonTier = {
-      catalog: "catalog/skeletons.json", index: "skeleton-index.json", perFile: "spec/skeletons/<rel>.skel.json",
+      catalog: "catalog/skeletons.json", index: "skeleton-index.json", perFile: "sen/skeletons/<rel>.skel.json",
       totalBodies: sk.totalBodies, distinctSkeletons: sk.distinctSkeletons, namedSkeletons: sk.namedSkeletons,
       structureCoverageBodiesPct: sk.structureCoverage.bodiesPct, structureCoverageStatementsPct: sk.structureCoverage.statementsPct,
       structureVsBespoke: { scaffoldPct: sk.structureVsBespoke.scaffoldPct, slotPct: sk.structureVsBespoke.slotPct, bespokePct: sk.structureVsBespoke.bespokePct },
@@ -203,7 +204,7 @@ function main() {
   try {
     const at = JSON.parse(fs.readFileSync(path.join(PROJECT, "archetype-index.json"), "utf8"));
     archetypeTier = {
-      catalog: "catalog/archetypes.json", index: "archetype-index.json", perFile: "spec/archetypes/<rel>.arch.json",
+      catalog: "catalog/archetypes.json", index: "archetype-index.json", perFile: "sen/archetypes/<rel>.arch.json",
       distinctArchetypes: at.distinctArchetypes, namedArchetypes: at.namedArchetypes,
       zipfHead: at.zipfHead, generativeVsDescriptive: at.generativeVsDescriptive,
     };
@@ -252,7 +253,7 @@ function main() {
       words: wholeFileWords,
     },
     // Authored spec modules on disk (the panel's Author targets; each expand===target).
-    // Full list lives in spec/modules-index.json; embedded here for the overview.
+    // Full list lives in sen/modules-index.json; embedded here for the overview.
     authoredModules: authoredModules,
     // THREE named idioms now: fetchAndValidate + throwError + assertOrThrow. Each
     // is a deterministic AST match, 100% byte-identical. These named words are what

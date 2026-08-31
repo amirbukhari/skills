@@ -13,8 +13,10 @@ const path = require("path");
 const ts = require("typescript");
 const A = require("./engine/archetypes.js");
 const { render, renderStatement, loadWordsIndex } = require("./engine/cnl.js");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 let words = []; try { words = JSON.parse(fs.readFileSync(path.join(CORPUS, "catalog", "coined-words.json"), "utf8")).words; } catch (_) {}
@@ -22,7 +24,7 @@ const idx = loadWordsIndex(words);
 
 const TARGET = ["AsyncFunctionModule", "PureModule", "DataAccessModule", "ServiceClass", "FunctionModule"];
 const by = {};
-for (const abs of walk(CORPUS)) { const rel = path.relative(CORPUS, abs); let src, f; try { src = fs.readFileSync(abs, "utf8"); f = A.analyzeFile(rel, src); } catch (_) { continue; } const a = A.classifyFile(f); if (TARGET.includes(a)) (by[a] = by[a] || []).push({ rel, src, chars: f.chars, arche: a }); }
+for (const abs of walk(SRC)) { const rel = path.relative(SRC, abs); let src, f; try { src = fs.readFileSync(abs, "utf8"); f = A.analyzeFile(rel, src); } catch (_) { continue; } const a = A.classifyFile(f); if (TARGET.includes(a)) (by[a] = by[a] || []).push({ rel, src, chars: f.chars, arche: a }); }
 const sample = [];
 for (const a of TARGET) { const list = (by[a] || []).sort((x, y) => x.chars - y.chars); for (let k = 0; k < 6; k++) { const i = Math.floor(((k + 0.5) / 6) * list.length); if (list[i]) sample.push(list[i]); } }
 

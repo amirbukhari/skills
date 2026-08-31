@@ -48,9 +48,14 @@ function loadIndex(corpusRoot) {
     } catch (_) { /* fall through */ }
   }
   idx = idx || cnl.loadWordsIndex([]);
-  // attach the RECURSIVE word dictionary — the PRIMARY generator layer. It lives in the skills
-  // repo catalog (regenerable via build-lzw-generators.js), not the corpus. Absent -> layer
-  // disabled -> no generator spans at all; bodies stay verbatim TS, byte-identity holds.
+  // attach the RECURSIVE word dictionary — the PRIMARY generator layer. It lives in the CORPUS, at
+  // <CORPUS>/sen/catalog/generators-lzw.json, resolved by AC.pathFor below (regenerable via
+  // build-lzw-generators.js). Absent -> layer disabled -> no generator spans at all; bodies stay
+  // verbatim TS, byte-identity holds.
+  //   This comment used to say the dictionary "lives in the skills repo catalog ... not the
+  // corpus". That was true of an older layout and became false when §8B moved every artifact under
+  // the corpus root; the code was already resolving it correctly through the contract, so nothing
+  // failed and the comment went stale unchallenged. Left as a note, not silently deleted.
   /* NO SILENT FALLBACK (PRD §8B). A missing dictionary is a legitimate state (layer disabled,
    * bodies stay verbatim, byte-identity holds); a dictionary that fails the contract is a bug and
    * must surface. Both are reported — the previous `catch { null }` turned either one into the

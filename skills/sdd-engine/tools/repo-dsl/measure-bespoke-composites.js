@@ -25,8 +25,10 @@ const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
 const { renderStatement, loadWordsIndex } = require("./engine/cnl.js");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 let words = []; try { words = JSON.parse(fs.readFileSync(path.join(CORPUS, "catalog", "coined-words.json"), "utf8")).words; } catch (_) {}
@@ -112,9 +114,9 @@ const clusters = new Map(); // shapeKey -> { count, prod, ex: [text...] }
 let scannedFiles = 0, totalStmts = 0, bespoke = 0, fragmentBespoke = 0;
 let prodStmts = 0, prodBespoke = 0;
 
-for (const abs of walk(CORPUS)) {
+for (const abs of walk(SRC)) {
   let src; try { src = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
-  const rel = path.relative(CORPUS, abs);
+  const rel = path.relative(SRC, abs);
   const testFile = isTestFile(rel);
   const sf = ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   scannedFiles++;

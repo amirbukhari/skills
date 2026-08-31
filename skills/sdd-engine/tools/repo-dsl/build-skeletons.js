@@ -13,7 +13,7 @@
  *
  * Writes ONLY under hydra-source:
  *   catalog/skeletons.json           <- named skeleton dictionary (Zipf head, templates, examples)
- *   spec/skeletons/<rel>.skel.json   <- per-file re-expression (compact, structure only)
+ *   sen/skeletons/<rel>.skel.json   <- per-file re-expression (compact, structure only)
  *   skeleton-index.json              <- corpus rollup (the framing numbers)
  *
  *   node build-skeletons.js
@@ -26,8 +26,10 @@ const { tokenize } = require("./engine/fanout");
 const { extractBodies, nameSkeleton } = require("./engine/skeleton.js");
 const { findThrowError, findAssertOrThrow } = require("./engine/named-idioms.js");
 const { findFetchAndValidate } = require("./engine/idioms.js");
+const CR = require("./engine/corpus-root");
 
-const PROJECT = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const PROJECT = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root
 const MIN_BODIES = 5;            // a skeleton is NAMED when it recurs in >= this many bodies
 const shapeId = (s) => "c_" + crypto.createHash("sha256").update(s).digest("hex").slice(0, 10);
 const litLen = (parts) => parts.reduce((a, p) => a + (p.lit !== undefined ? p.lit.length : 0), 0);
@@ -36,7 +38,7 @@ function main() {
   const t0 = Date.now();
   const composeDict = JSON.parse(fs.readFileSync(path.join(PROJECT, "catalog", "compose-words.json"), "utf8")).words;
   const isWord = new Set(Object.keys(composeDict));
-  const files = walkDir(PROJECT).sort();
+  const files = walkDir(SRC).sort();
 
   // ---- pass 1: extract every body, attribute fills, byte-verify tiling ----
   const perFile = [];               // { rel, byteIdentical, bodies:[...] }
@@ -45,7 +47,7 @@ function main() {
 
   for (const f of files) {
     const src = fs.readFileSync(f, "utf8");
-    const rel = path.relative(PROJECT, f);
+    const rel = path.relative(SRC, f);
     let ex; try { ex = extractBodies(src, rel); } catch (e) { perFile.push({ rel, byteIdentical: true, skipped: true, bodies: [] }); continue; }
     const bodies = ex.bodies;
 
@@ -221,7 +223,7 @@ function main() {
   fs.writeFileSync(path.join(PROJECT, "catalog", "skeletons.json"), JSON.stringify(skeletons, null, 1));
   fs.writeFileSync(path.join(PROJECT, "skeleton-index.json"), JSON.stringify(rollup, null, 1));
   // per-file re-expression (compact: structure + names, no raw bytes)
-  const skelDir = path.join(PROJECT, "spec", "skeletons");
+  const skelDir = path.join(CR.senDir(), "skeletons");
   for (const pf of perFile) {
     const outPath = path.join(skelDir, pf.rel + ".skel.json");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -245,7 +247,7 @@ function main() {
   console.log("\nTop 12 named skeletons:");
   for (const s of topSkeletons.slice(0, 12)) console.log(`  ${s.name.padEnd(28)} ${String(s.bodies).padStart(4)} bodies / ${String(s.files).padStart(3)} files  [${s.template}]`);
   console.log(`\nmine: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  console.log("persisted: catalog/skeletons.json, skeleton-index.json, spec/skeletons/<rel>.skel.json");
+  console.log("persisted: catalog/skeletons.json, skeleton-index.json, sen/skeletons/<rel>.skel.json");
 }
 
 // helper: id of the single-token compose word at a statement span (or "" )

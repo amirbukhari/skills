@@ -30,7 +30,7 @@ ok("no registered artifact resolves inside the engine tree", () => {
 
 /* (b) Every artifact also lands in the home its protection level demands. A SOURCE-PROTECTED
  *     artifact in a gitignored cache is how a hand-authored file gets destroyed by a cleanup. */
-ok("tracked artifacts land in <corpus>/spec/catalog, derived ones in the gitignored cache", () => {
+ok("tracked artifacts land in <corpus>/sen/catalog, derived ones in the gitignored cache", () => {
   for (const kind of AC.kindsOf()) {
     const spec = AC.specOf(kind), p = AC.pathFor(kind);
     assert.ok(["tracked", "cache"].includes(spec.home), `${kind}: home must be "tracked" or "cache"`);

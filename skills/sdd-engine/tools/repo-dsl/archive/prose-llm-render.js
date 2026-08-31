@@ -12,12 +12,14 @@
 const fs = require('fs');
 const path = require('path');
 const P = require('./engine/prose.js');
+const CR = require("./engine/corpus-root");
 
-const ROOT = '/home/amir/Documents/Rentsync/delonix/hydra-source';
+const ROOT = CR.corpusRoot();   // WRITE root: sen/
+const SRC = CR.sourceRoot();    // READ root: the .ts
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
-const readArch = (rel) => readJson(path.join(ROOT, 'spec/archetypes', rel + '.arch.json'));
-const readBodies = (rel) => { try { return readJson(path.join(ROOT, 'spec/skeletons', rel + '.skel.json')).bodies || []; } catch (_) { return []; } };
-const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const readArch = (rel) => readJson(path.join(CR.senDir(), 'archetypes', rel + '.arch.json'));
+const readBodies = (rel) => { try { return readJson(path.join(CR.senDir(), 'skeletons', rel + '.skel.json')).bodies || []; } catch (_) { return []; } };
+const readSrc = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
 const DOMAIN = readJson(path.join(ROOT, 'catalog/domain-names.json')).names;
 
 const targets = [

@@ -1,15 +1,17 @@
 "use strict";
 /* Tests for STEP 7 whole-file English source (engine/enfile). The gate: a .en compiles to
  * BYTE-IDENTICAL .ts. Unit cases prove render/compile round-trips and that English actually
- * engages; the corpus property test reads the PERSISTED spec/files/**.en artifacts off disk
+ * engages; the corpus property test reads the PERSISTED sen/files/**.en artifacts off disk
  * and asserts each recompiles to its exact source file. Deterministic; exits non-zero on
  * failure. */
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const { renderFileEn, compileFileEn, loadIndex } = require("./enfile");
+const CR = require("./corpus-root");
 
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
 const rt = (src, index) => compileFileEn(renderFileEn(src, index).en, index);
@@ -60,8 +62,8 @@ ok("compiled .ts contains no guillemets", () => {
 });
 
 /* 6. CORPUS GATE — every persisted .en on disk recompiles to its exact source */
-ok("corpus: all persisted spec/files/**.en compile BYTE-IDENTICAL to their .ts", () => {
-  const enDir = path.join(CORPUS, "spec", "files");
+ok("corpus: all persisted sen/files/**.en compile BYTE-IDENTICAL to their .ts", () => {
+  const enDir = path.join(CR.senDir(), "files");
   if (!fs.existsSync(enDir)) { console.log("      (no .en yet — run write-en-files.js)"); return; }
   const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".en")) o.push(p); } return o; };
   const ens = walk(enDir);
@@ -69,7 +71,7 @@ ok("corpus: all persisted spec/files/**.en compile BYTE-IDENTICAL to their .ts",
   let checked = 0, bad = [];
   for (const enPath of ens) {
     const rel = path.relative(enDir, enPath).replace(/\.en$/, "");
-    const srcPath = path.join(CORPUS, rel);
+    const srcPath = path.join(SRC, rel);
     let source; try { source = fs.readFileSync(srcPath, "utf8"); } catch (_) { continue; }
     const en = fs.readFileSync(enPath, "utf8");
     if (compileFileEn(en, idx) !== source) bad.push(rel);

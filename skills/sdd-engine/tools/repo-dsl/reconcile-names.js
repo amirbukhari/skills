@@ -80,9 +80,11 @@ console.log("RENAME QUEUE ............... " + queue.length + "  unnamed leaves i
 console.log("named ...................... " + Object.keys(names).length);
 
 if (APPLY) {
+  fs.mkdirSync(path.dirname(FILE), { recursive: true });   // a fresh corpus has no sen/catalog/ yet
   fs.writeFileSync(FILE, JSON.stringify(AC.stamp("word-names", { names, orphans }, { generated: today }), null, 1) + "\n");
   console.log("\nwrote " + FILE + " (orphans moved; proposals NOT applied)");
 }
+fs.mkdirSync(path.join(AC.corpusRoot(), ".cache", "spec-derived"), { recursive: true });
 fs.writeFileSync(path.join(AC.corpusRoot(), ".cache", "spec-derived", "name-queue.json"), JSON.stringify({
   schema: "sdd-repo-dsl/name-queue/1", generated: today, newlyOrphaned, orphans: Object.keys(orphans).length,
   proposals, queueLength: queue.length, named: Object.keys(names).length,

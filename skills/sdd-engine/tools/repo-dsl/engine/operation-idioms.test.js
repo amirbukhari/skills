@@ -9,8 +9,11 @@ const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
 const { useSF, canonStmt, keyOf, fillOf } = require("./operations");
+const CR = require("./corpus-root");
 
-const CATALOG = "/home/amir/Documents/Rentsync/delonix/hydra-source/catalog";
+/* These two are STEP 4 catalogs in the corpus's legacy root `catalog/`, not §8B artifacts under
+ * sen/catalog/, so they are joined here rather than resolved via artifact-contract.pathFor. */
+const CATALOG = path.join(CR.corpusRoot(), "catalog");
 const ops = JSON.parse(fs.readFileSync(path.join(CATALOG, "operation-idioms.json"), "utf8"));
 const fns = JSON.parse(fs.readFileSync(path.join(CATALOG, "function-archetypes.json"), "utf8"));
 

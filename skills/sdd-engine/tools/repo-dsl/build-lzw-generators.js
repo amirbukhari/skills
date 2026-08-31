@@ -19,13 +19,15 @@ const AC = require("./engine/artifact-contract");
 const ts = require("typescript");
 const G = require("./engine/generators");
 const W = require("./engine/wordlzw");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const OUT = AC.pathFor("generators-lzw", CORPUS); // CORPUS tree — the engine tree holds no corpus data (PRD §8B)
 // MUST match write-en-files.js SKIP exactly. When it did not (this set excluded "tests"), the
 // dictionary was mined over 956 files but applied to 1037, so every recurring body in a test file
 // had no word by construction — 696 of 937 un-collapsed bodies traced to that one mismatch.
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 // MIN_SKEL = minimum skeleton bytes per statement before a word may be promoted. It is the
 // readability dial, not a correctness one: every span is byte-gated at emission regardless.
 // Measured over the full corpus (byte-identity 1037/1037 at every point):
@@ -75,7 +77,7 @@ function symbolStreams(sf, wide) {
   return streams;
 }
 
-const files = walk(CORPUS);
+const files = walk(SRC);
 const narrowStreams = [], wideStreams = [];
 let parsed = 0;
 for (const abs of files) {
@@ -117,16 +119,20 @@ const wide = buildAxis(wideStreams, "wide");
 
 // PROVENANCE — §8A protects this artifact, which is only meaningful if the next person can
 // regenerate it rather than treat it as a mystery blob. Record the exact corpus and command.
-const catalog = {
-  schema: "sdd-repo-dsl/generators-lzw/1",
-  builtFrom: path.basename(CORPUS),
-  corpus: path.resolve(CORPUS),
+/* STAMPED, not hand-written (PRD §8B). This producer used to assemble the header itself and
+ * write it raw, so the artifact was BORN without `artifactVersion`, `generated` or `fingerprint`
+ * — and every consumer that went through AC.load then refused it, which is exactly the
+ * "missing fingerprint" failure. AC.stamp is the only way to publish: it takes the schema from
+ * the registry, so the string cannot drift, and it fingerprints the body. `minedAt` stays in the
+ * body as provenance; `generated` is the header date. Never re-introduce a raw write here. */
+const catalog = AC.stamp("generators-lzw", {
+  builtFrom: path.basename(SRC),
   minedAt: new Date().toISOString(),
-  regenerate: `HYDRA_CORPUS=${path.resolve(CORPUS)} node build-lzw-generators.js`,
+  regenerate: `SOURCE=${path.resolve(SRC)} CORPUS=${path.resolve(CORPUS)} node build-lzw-generators.js`,
   tool: "build-lzw-generators.js",
   node: process.version,
   fileCount: parsed, gap: W.GAP, narrow, wide,
-};
+}, { corpus: path.resolve(SRC) });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(catalog));
 

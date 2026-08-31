@@ -13,8 +13,9 @@ const fs = require("fs");
 const path = require("path");
 const A = require("./engine/archetypes.js");
 const P = require("./engine/prose.js");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.sourceRoot();
 const ARCH_RENDERERS = new Set(["Entity", "RouterModule", "ReduxModule", "IndexBarrel"]); // file-level archetype narrators
 const SHAPE_LABEL = { types: "pure type/interface", constEnum: "constants/enums-only", config: "config objects" };
 

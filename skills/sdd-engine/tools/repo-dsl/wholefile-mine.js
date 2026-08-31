@@ -17,12 +17,13 @@
 
 const fs = require("fs");
 const AC = require("./engine/artifact-contract");
+const CR = require("./engine/corpus-root");
 const path = require("path");
 const { tokenize } = require("./engine/fanout");
 const { walkDir, mine } = require("./engine/pipeline");
 const wf = require("./engine/wholefile");
 
-const CATALOG = path.join(AC.corpusRoot(), "spec", "catalog");
+const CATALOG = path.join(CR.senDir(), "catalog");
 
 function tokenizeCorpus(corpusDir) {
   return walkDir(corpusDir).sort().map((f) => {

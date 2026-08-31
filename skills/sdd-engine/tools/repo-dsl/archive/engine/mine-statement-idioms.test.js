@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const M = require("./mine-statement-idioms.js");
 const { fill } = require("./fanout.js");
+const CR = require("./corpus-root");
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.error("  FAIL:", m); } };
@@ -37,7 +38,7 @@ ok(M.isMeaningfulShape("ThrowKeyword NewKeyword ID OpenParenToken STR CloseParen
 
 /* ---- real corpus: the gate is absolute ---- */
 {
-  const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+  const CORPUS = CR.sourceRoot();
   function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
   const files = walk(CORPUS).sort().map((f) => ({ rel: path.relative(CORPUS, f), source: fs.readFileSync(f, "utf8") }));
   const { idioms, census } = M.mineStatementIdioms(files, { minSites: 5, minFiles: 2 });

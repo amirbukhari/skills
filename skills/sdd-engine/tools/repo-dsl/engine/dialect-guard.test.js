@@ -17,8 +17,9 @@
 const assert = require("assert");
 const { renderFileEn, compileFileEn, loadIndex } = require("./enfile");
 const PAY = require("./payload");
+const CR = require("./corpus-root");
 
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
 

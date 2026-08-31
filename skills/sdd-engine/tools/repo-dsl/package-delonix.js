@@ -20,6 +20,7 @@
 
 const fs = require("fs");
 const AC = require("./engine/artifact-contract");
+const CR = require("./engine/corpus-root");
 const path = require("path");
 const crypto = require("crypto");
 const dsl = require("./dsl");
@@ -125,7 +126,7 @@ function main() {
 
   // copy the current catalog (v4 authoritative) + its lineage for revertability
   for (const f of ["mined-library.v4.json", "mined-library.v3.json", "mined-library.v2.json"]) {
-    const s = path.join(AC.corpusRoot(), "spec", "catalog", f);
+    const s = path.join(CR.senDir(), "catalog", f);
     if (fs.existsSync(s)) fs.copyFileSync(s, path.join(catDir, f));
   }
   // coverage rollup (from the deterministic mine)

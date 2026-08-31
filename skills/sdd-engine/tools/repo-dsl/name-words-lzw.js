@@ -25,10 +25,12 @@ const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enfile");
 const EL = require("./engine/enlzw");
+const CR = require("./engine/corpus-root");
 
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const WORKSHEET = path.join(__dirname, "name-words-lzw-worksheet.json");
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 
 // Generic filler the label uses when the code carries no domain signal — a word whose whole label
@@ -66,7 +68,7 @@ function worksheet(args) {
 
   const byWord = new Map(); // "axis:id" -> { axis, id, depth, count, snippet, label, file }
   let totalSpans = 0;
-  for (const abs of walk(CORPUS)) {
+  for (const abs of walk(SRC)) {
     let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
     const sf = ts.createSourceFile(abs, source, ts.ScriptTarget.Latest, true);
     let spans; try { spans = EL.genSpans(sf, source, cat); } catch (_) { continue; }
@@ -77,7 +79,7 @@ function worksheet(args) {
       if (!row) {
         const label = EN.sanitizeLabel(EN.genLabel(s.start, s.end, source, s.stmts));
         const snippet = source.slice(s.start, s.end).replace(/\s+/g, " ").trim().slice(0, 200);
-        row = { axis: s.payload.a, id: s.payload.w, depth: s.depth, count: 0, tier1: label, snippet, firstFile: path.relative(CORPUS, abs) };
+        row = { axis: s.payload.a, id: s.payload.w, depth: s.depth, count: 0, tier1: label, snippet, firstFile: path.relative(SRC, abs) };
         byWord.set(key, row);
       }
       row.count++;
@@ -95,7 +97,7 @@ function worksheet(args) {
   const pct = (n) => +(100 * cum(n) / totOcc).toFixed(1);
 
   const out = {
-    corpus: path.basename(CORPUS),
+    corpus: path.basename(SRC),
     builtFrom: "catalog/generators-lzw.json",
     emittedSpans: totalSpans,
     distinctWords: withNames.length,

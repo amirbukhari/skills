@@ -33,15 +33,17 @@ const crypto = require("crypto");
 const { walkDir } = require("./engine/pipeline");
 const { tokenize } = require("./engine/fanout");
 const { findThrowError, findAssertOrThrow } = require("./engine/named-idioms.js");
+const CR = require("./engine/corpus-root");
 
-const PROJECT = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const PROJECT = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root
 const shapeId = (shape) => "c_" + crypto.createHash("sha256").update(shape).digest("hex").slice(0, 10);
 
 function main() {
   const composeWords = JSON.parse(fs.readFileSync(path.join(PROJECT, "catalog", "compose-words.json"), "utf8")).words;
   const isWordHash = new Set(Object.keys(composeWords)); // c_ ids that are actual dictionary words
 
-  const files = walkDir(PROJECT).sort();
+  const files = walkDir(SRC).sort();
   const throwErrorHashes = new Map();   // c_ -> {sites, example}
   const guardHeadHashes = new Map();    // c_ -> {aotSites}  (guard-head token of an assertOrThrow)
   let teSites = 0, aotSites = 0;
@@ -61,7 +63,7 @@ function main() {
 
   for (const f of files) {
     const src = fs.readFileSync(f, "utf8");
-    const rel = path.relative(PROJECT, f);
+    const rel = path.relative(SRC, f);
     let tk; try { tk = tokenize(f, src, undefined, 0); } catch (e) { continue; }
     const tokens = tk.tokens;
 

@@ -43,8 +43,9 @@ const { segment } = require("./engine/lzw");
 const { LEAVES, COMPOSITES } = require("./generators");
 const dsl = require("./dsl");
 const { expand } = require("./expander");
+const CR = require("./engine/corpus-root");
 
-const CATALOG = path.join(AC.corpusRoot(), "spec", "catalog");
+const CATALOG = path.join(CR.senDir(), "catalog");
 const RESULTS = path.join(AC.corpusRoot(), ".cache", "spec-derived");
 const V1 = path.join(CATALOG, "mined-library.json");
 const V2 = path.join(CATALOG, "mined-library.v2.json");
@@ -354,7 +355,7 @@ function refineLanguage(dir, opts = {}) {
 
 function main() {
   const args = process.argv.slice(2);
-  const dir = args.find((a) => !a.startsWith("--")) || "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
+  const dir = CR.sourceRoot(args.find((a) => !a.startsWith("--")));
   const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : "naming";
   const stub = args.includes("--stub") ? args[args.indexOf("--stub") + 1] : null;
   const model = args.includes("--model") ? args[args.indexOf("--model") + 1] : null;

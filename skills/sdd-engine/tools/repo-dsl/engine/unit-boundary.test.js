@@ -17,6 +17,7 @@ const path = require("path");
 const ts = require("typescript");
 const EL = require("./enlzw");
 const EN = require("./enfile");
+const CR = require("./corpus-root");
 
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
@@ -55,7 +56,7 @@ ok("no recursive span straddles >= 2 named units", () => {
 
 /* 3. REAL-SOURCE ORACLE (§10.1): the constraint must not break byte-identity. */
 ok("unit source round-trips byte-identical", () => {
-  const idx = EN.loadIndex(process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source");
+  const idx = EN.loadIndex(CR.corpusRoot());
   assert.strictEqual(EN.compileFileEn(EN.renderFileEn(srcUnits, idx).en, idx), srcUnits);
 });
 

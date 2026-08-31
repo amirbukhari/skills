@@ -55,11 +55,11 @@ function author({ englishText, out, typecheck, tmpRoot } = {}) {
 
 /* ------------------------------------------------------------------- render */
 function render({ projectDir, rel } = {}) {
-  const archPath = path.join(projectDir, "spec/archetypes", rel + ".arch.json");
+  const archPath = path.join(projectDir, "sen", "archetypes", rel + ".arch.json");
   if (!fs.existsSync(archPath)) throw new Error(`no archetype record at ${archPath} — run \`sdd mine ${projectDir}\` first`);
   const arch = JSON.parse(fs.readFileSync(archPath, "utf8"));
   let bodies = [];
-  const skelPath = path.join(projectDir, "spec/skeletons", rel + ".skel.json");
+  const skelPath = path.join(projectDir, "sen", "skeletons", rel + ".skel.json");
   if (fs.existsSync(skelPath)) bodies = JSON.parse(fs.readFileSync(skelPath, "utf8")).bodies || [];
   const src = fs.readFileSync(path.join(projectDir, rel), "utf8");
   return { rel, archetype: arch.archetype, prose: P.renderProse(arch, { bodies, src }) };
@@ -99,7 +99,7 @@ function mine({ projectDir, run } = {}) {
     { name: "skeletons", cmd: ["node", path.join(toolDir, "build-skeletons.js"), projectDir] },
     { name: "package", cmd: ["node", path.join(toolDir, "package-hydra-source.js"), projectDir] },
   ];
-  if (!run) return { executed: false, plan: steps.map((s) => `${s.name}: ${s.cmd.join(" ")}`), note: "dry-run — pass --run to execute (rebuilds catalogs; writes into the project's spec/ + catalog/)" };
+  if (!run) return { executed: false, plan: steps.map((s) => `${s.name}: ${s.cmd.join(" ")}`), note: "dry-run — pass --run to execute (rebuilds catalogs; writes into the project's sen/ + catalog/)" };
   const results = [];
   for (const s of steps) { const rc = cp.spawnSync(s.cmd[0], s.cmd.slice(1), { stdio: "inherit" }).status; results.push({ name: s.name, rc }); if (rc !== 0) break; }
   return { executed: true, results };

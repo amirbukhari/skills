@@ -6,14 +6,16 @@ const fs = require("fs");
 const path = require("path");
 const G = require("./engine/generate.js");
 const Au = require("./engine/author.js");
+const CR = require("./engine/corpus-root");
 
-const ROOT = process.argv[2] || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const ROOT = CR.corpusRoot(process.argv[2]);   // WRITE root: sen/
+const SRC = CR.sourceRoot(process.argv[2]);    // READ root: the .ts
 function walk(d) { let o = []; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) o.push(...walk(p)); else if (e.name.endsWith(".arch.json")) o.push(p); } return o; }
-const rels = walk(path.join(ROOT, "spec/archetypes")).map((f) => JSON.parse(fs.readFileSync(f, "utf8"))).filter((j) => j.archetype === "Entity" && j.conforms).map((j) => j.rel);
+const rels = walk(path.join(CR.senDir(process.argv[2]), "archetypes")).map((f) => JSON.parse(fs.readFileSync(f, "utf8"))).filter((j) => j.archetype === "Entity" && j.conforms).map((j) => j.rel);
 
 let identical = 0; const nameDiv = [], enumArr = [], other = [];
 for (const rel of rels) {
-  const t = G.tileEntity(fs.readFileSync(path.join(ROOT, rel), "utf8"));
+  const t = G.tileEntity(fs.readFileSync(path.join(SRC, rel), "utf8"));
   const orig = { className: t.className, table: t.table, columns: Au.normColumnsFromTile(t.segments), relations: Au.normRelationsFromTile(t.segments) };
   let round;
   try { const m = Au.parseEntityCNL(Au.renderEntityCNL(orig)); round = { columns: Au.normColumnsFromModel(m), relations: Au.normRelationsFromModel(m) }; }

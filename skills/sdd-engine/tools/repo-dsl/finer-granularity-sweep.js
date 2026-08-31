@@ -22,8 +22,9 @@ const path = require("path");
 const { mine } = require("./engine/pipeline");
 const { tokenize, fill } = require("./engine/fanout");
 const { slotsAreTyped } = require("./lib/skeleton");
+const CR = require("./engine/corpus-root");
 
-const DEFAULT_CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-calculators/calculators";
+const DEFAULT_CORPUS = CR.sourceRoot();
 const argv = process.argv.slice(2);
 let corpus = DEFAULT_CORPUS;
 let grains = [0, 1, 2, 3, 4, 6, 8];

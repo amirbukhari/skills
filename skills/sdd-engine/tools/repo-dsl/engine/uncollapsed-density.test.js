@@ -12,6 +12,7 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const D = require("./uncollapsed-density");
+const CR = require("./corpus-root");
 
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
@@ -47,14 +48,14 @@ ok("the frozen threshold has not drifted", () => {
 });
 
 /* ---- real-source case: parse actual corpus bodies and prove the rule bites on real bytes ---- */
-const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.sourceRoot();
 if (!fs.existsSync(CORPUS)) {
-  console.log(`  --  real-source case SKIPPED: no corpus at ${CORPUS} (set HYDRA_CORPUS)`);
+  console.log(`  --  real-source case SKIPPED: no source tree at ${CORPUS} (set SOURCE)`);
 } else {
   ok("on real corpus source, all-placeholder bodies exist and are excluded", () => {
     const ts = require("typescript");
     const G = require("./generators");
-    const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+    const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
     const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
     const parts = (body, sf) => [...body.statements].map((st) => {
       if (!G.isFoldable(st)) return D.HOLE;

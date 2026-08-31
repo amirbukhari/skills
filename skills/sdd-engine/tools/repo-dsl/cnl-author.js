@@ -9,12 +9,14 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { compile, render, CnlError, loadWordsIndex } = require("./engine/cnl.js");
+const CR = require("./engine/corpus-root");
 
 const REPO = __dirname;
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.corpusRoot();   // WRITE root
+const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const OUT = path.join(CORPUS, "coined-demo");
 fs.mkdirSync(OUT, { recursive: true });
-const rel = (f) => path.relative(CORPUS, f);
+const rel = (f) => path.relative(SRC, f);
 const log = (...a) => console.log(...a);
 
 const words = JSON.parse(fs.readFileSync(path.join(CORPUS, "catalog", "coined-words.json"), "utf8")).words;
@@ -50,7 +52,7 @@ log(`\n  wrote ${rel(demoFile)} ; tsc --noEmit --strict (hermetic): ${tsc}`);
 
 /* ============ 2. RENDER: existing corpus function -> English ============ */
 log("\n=== 2. RENDER — an existing corpus function to English (read-only) ===");
-const srcFile = path.join(CORPUS, "src/hydra-api/actions/handlers/migrateLiftSubs.ts");
+const srcFile = path.join(SRC, "src/hydra-api/actions/handlers/migrateLiftSubs.ts");
 const srcLines = fs.readFileSync(srcFile, "utf8").split("\n");
 const fnText = srcLines.slice(11, 18).join("\n"); // createHubspotDealIfProd (lines 12-18)
 log(`  source — ${rel(srcFile)}:12-18`);

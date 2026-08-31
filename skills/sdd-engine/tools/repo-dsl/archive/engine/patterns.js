@@ -43,7 +43,7 @@ function refill(template, holeTexts) {
 }
 
 /* ============================ CORPUS STATISTICS (deterministic) ============================ */
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 function walkTs(d, o = []) {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
     if (SKIP.has(e.name)) continue;

@@ -25,11 +25,12 @@ const path = require("path");
 const ts = require("typescript");
 const { useSF, canonStmt, keyOf, fnKey } = require("./engine/operations");
 const DATA = require("./engine/data-english"); // STEP 6: object/array/template -> English (byte-exact)
+const CR = require("./engine/corpus-root");
 const holeKindsOf = (key) => (key.match(/‹(\w+)›/g) || []).map((h) => h.slice(1, -1));
 const PURE_HOLE = new Set(["id", "str", "num"]); // an english param: noun / string value / number
 const allPure = (key) => holeKindsOf(key).every((h) => PURE_HOLE.has(h));
 
-const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";
+const CORPUS = CR.sourceRoot();
 const SKIP = new Set(["node_modules", ".git", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 const isTestFile = (rel) => /\.(test|spec)\.ts$/.test(rel) || /(^|\/)(__tests__|tests?)(\/|$)/.test(rel);
