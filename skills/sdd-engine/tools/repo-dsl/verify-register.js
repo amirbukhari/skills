@@ -552,13 +552,65 @@ const ROWS = [
     run: () => MANUAL("static analysis cannot see what a mine writes; pipeline B publishes mined-library and corpus-coverage unstamped and relies on a later stamp-artifacts.js run",
                       "npm run mine && node repo-dsl.js mine <corpus> && npm run stamp:check") },
 
-  { id: "R-REND-1", req: "compileFileEn(renderFileEn(src)) === src MUST hold for every file, always.",
-    run: () => MANUAL("the floor; decided only by a full-corpus round-trip. NOTE: `npm run measure` " +
-                      "reporting byte-identity 1037/1037 is NOT evidence about the .en tree on disk -- " +
-                      "measure-english.js:59-62 walks <SOURCE>/**/*.ts and round-trips IN MEMORY, and " +
-                      "scores 1037/1037 with zero .en files written. That is the right evidence for THIS " +
-                      "row, which is an in-memory identity, and the wrong evidence for R-REND-5",
-                      "npm run test:slow  (test-lzw-roundtrip.js, minutes)") },
+  { id: "R-REND-1", req: "compileFileEn(renderFileEn(src)) === src MUST hold for every file, always. The floor.",
+    run() {
+      /* Checked against the artifact §R itself names: `en-index.json -> gate.byteIdentical`. This is
+       * the render pass's own per-file verdict, produced by the run and not by eye (R-MEAS-1).
+       *
+       * WHAT THIS IS NOT. It is not the full-corpus round-trip test, which exercises
+       * renderFileEn/compileFileEn in isolation and is strictly stronger; that stays the last word
+       * and is named below. And it is NOT `npm run measure`'s 1037/1037 -- measure-english.js:59-62
+       * walks <SOURCE>/**\/*.ts and round-trips IN MEMORY, scoring 1037/1037 even with zero .en on
+       * disk. That number is correct evidence for THIS row's property and useless for R-REND-5. */
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}; the floor is unverified`,
+                                  "npm run render, or npm run test:slow for the stronger check");
+      if (i.err) return FAILS(null, i.err);
+      const g = i.j.gate;
+      if (!g) return FAILS(null, "no `gate` block in the manifest -- the floor is not being reported");
+      const { totalFiles, byteIdentical, allByteIdentical } = g;
+      if (typeof byteIdentical !== "number" || typeof totalFiles !== "number")
+        return FAILS(JSON.stringify(g), "the gate does not report counts");
+      if (byteIdentical !== totalFiles || allByteIdentical !== true)
+        return FAILS(`${byteIdentical}/${totalFiles}, allByteIdentical=${allByteIdentical}`,
+                     "the floor is breached -- this never regresses, it is not a tradeoff");
+      return HOLDS(`${byteIdentical}/${totalFiles} byte-identical on the emitted tree`,
+        "the stronger check is `npm run test:slow` (round-trip in isolation); this is the cited gate");
+    } },
+
+  { id: "R-REND-7", req: "Measurement MUST run over the whole corpus with a published SKIP set; showcase/demo trees MUST be excluded.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      let SKIP, SRC;
+      try {
+        SKIP = require("./engine/walk-skip").SKIP;
+        SRC = require("./engine/corpus-root").sourceRoot();
+      } catch (e) { return FAILS(null, `cannot resolve the canonical walk: ${e.message.split("\n")[0]}`); }
+      for (const d of ["demo", "coined-demo"]) {
+        if (!SKIP.has(d)) return FAILS(`SKIP lacks "${d}"`, "a showcase tree would be measured as if it were the corpus");
+      }
+      /* Recount SOURCE with the SAME canonical SKIP and compare to what the run reported. A walk
+       * that quietly missed files reports a smaller, flattering denominator -- R-PIN-6 bans exactly
+       * that, and it is invisible unless the count is reproduced independently. */
+      let n = 0;
+      (function walk(d) {
+        let ents; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+        for (const e of ents) {
+          if (SKIP.has(e.name)) continue;
+          const q = path.join(d, e.name);
+          if (e.isDirectory()) walk(q);
+          else if (q.endsWith(".ts") && !q.endsWith(".d.ts")) n++;
+        }
+      })(SRC);
+      const reported = i.j.gate && i.j.gate.totalFiles;
+      return n === reported
+        ? HOLDS(`${reported} files measured = ${n} counted independently over SOURCE with the canonical SKIP`,
+                "demo and coined-demo excluded; the denominator is the whole corpus")
+        : FAILS(`manifest says ${reported}, independent walk finds ${n}`,
+                "the measured denominator is not the corpus -- silent under-reporting (R-PIN-6)");
+    } },
 
   { id: "R-REND-5", req: "The .en MUST be written to <CORPUS>/sen/files/<rel>.en; derived .calc IR to a gitignored .cache/.",
     run() {
