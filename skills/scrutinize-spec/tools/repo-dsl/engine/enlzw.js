@@ -151,4 +151,4 @@ function compileSpan(payload, cat) {
   return G.refill(key, payload.h);
 }
 
-module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit };
+module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit, wordsAt };

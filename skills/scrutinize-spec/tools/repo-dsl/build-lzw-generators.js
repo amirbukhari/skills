@@ -21,8 +21,20 @@ const W = require("./engine/wordlzw");
 
 const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
 const OUT = path.join(__dirname, "catalog", "generators-lzw.json"); // SKILLS REPO, not corpus
-const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo", "tests"]);
-const MIN_COUNT = 2, MIN_SKEL = +(process.env.MIN_SKEL || 12), MAXWIN = +(process.env.MAXWIN || 16);
+// MUST match write-en-files.js SKIP exactly. When it did not (this set excluded "tests"), the
+// dictionary was mined over 956 files but applied to 1037, so every recurring body in a test file
+// had no word by construction — 696 of 937 un-collapsed bodies traced to that one mismatch.
+const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+// MIN_SKEL = minimum skeleton bytes per statement before a word may be promoted. It is the
+// readability dial, not a correctness one: every span is byte-gated at emission regardless.
+// Measured over the full corpus (byte-identity 1037/1037 at every point):
+//   12 -> filesUsing 649, netStatementReduction 5187   (was the default; too strict)
+//    8 -> filesUsing 715, netStatementReduction 6920   <- the knee, and the default
+//    6 -> filesUsing 719, netStatementReduction 7123
+//    4 -> filesUsing 732, netStatementReduction 7209, but English coverage jumps 35.9% -> 45.4%
+//         by promoting near-trivial skeletons, which makes the .en noisier to read.
+// Lower it via MIN_SKEL= if more collapse is wanted; it cannot break byte-identity.
+const MIN_COUNT = 2, MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 16);
 
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 function blocks(sf) { const out = []; const visit = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) { if (n.statements.length) out.push([...n.statements]); } ts.forEachChild(n, visit); }; visit(sf); return out; }
