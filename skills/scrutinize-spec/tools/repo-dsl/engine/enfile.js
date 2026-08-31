@@ -113,6 +113,131 @@ const throwStmtOf = (branch) => (ts.isThrowStatement(branch) ? branch
   : (ts.isBlock(branch) ? branch.statements.find(ts.isThrowStatement) || null : null));
 const isGuardThrow = (st) => ts.isIfStatement(st) && !st.elseStatement && !!throwStmtOf(st.thenStatement);
 
+/* ---- prose helpers for spanProse -------------------------------------------------------------
+ * Everything emitted into a clause is either a template word or a backticked/quoted verbatim
+ * fragment. That is not cosmetic: engine/clause-quality's English-completeness scanner strips
+ * exactly `…` and “…” and then fails the clause if any TypeScript survives, so a helper that
+ * splices raw source into prose is caught by the metric rather than by review. */
+const q = (s) => "`" + String(s) + "`";
+
+/* A member name safe to place in a sentence. A COMPUTED property name (`[\`${E.x}\`]`) is an
+ * expression, not a word — splicing it in produces code wearing a sentence's clothes, which is
+ * precisely what the English-completeness scanner exists to catch. It caught this one. */
+function safeMemberName(nm, sf) {
+  if (!nm) return null;
+  if (ts.isIdentifier(nm) || ts.isPrivateIdentifier(nm)) return nm.text;
+  if (ts.isStringLiteral(nm) || ts.isNoSubstitutionTemplateLiteral(nm)) return nm.text;
+  if (ts.isNumericLiteral(nm)) return nm.getText(sf);
+  return null; // computed
+}
+
+/* the real names bound by a declaration, INCLUDING destructuring patterns. The old code filtered
+ * names through /^[A-Za-z_$][\w$]*$/, which silently dropped every `const { a, b } = …` and sent
+ * it to "compute a value". */
+function bindingNames(name, sf) {
+  if (!name) return [];
+  if (ts.isIdentifier(name)) return [name.text];
+  if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+    return [].concat(...name.elements.map((e) => (e && e.name ? bindingNames(e.name, sf) : [])));
+  }
+  return [];
+}
+
+/* `a`, `a.b`, `a.b.c` — a plain dotted path and nothing else. Returns null for anything with a
+ * call, index, await or operator in it, because those are code and belong in a hole, not a
+ * sentence. */
+function dottedText(n, sf) {
+  if (!n) return null;
+  if (ts.isIdentifier(n)) return n.text;
+  if (ts.isPropertyAccessExpression(n)) {
+    const base = dottedText(n.expression, sf);
+    return base ? base + "." + n.name.text : null;
+  }
+  if (n.kind === ts.SyntaxKind.ThisKeyword) return "this";
+  return null;
+}
+
+/* a literal a reader can be told about without quoting code at them. An object/array literal is
+ * described by its KEYS or its emptiness — never by splicing its body into the sentence. */
+function literalGloss(n, sf) {
+  if (!n) return null;
+  if (n.kind === ts.SyntaxKind.NullKeyword || n.kind === ts.SyntaxKind.UndefinedKeyword) return "nothing";
+  if (n.kind === ts.SyntaxKind.TrueKeyword) return "true";
+  if (n.kind === ts.SyntaxKind.FalseKeyword) return "false";
+  if (ts.isNumericLiteral(n)) return q(n.getText(sf));
+  if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+    const t = n.text.trim();
+    return t && !/\n/.test(t) && t.length <= 60 ? "“" + t + "”" : "some text";
+  }
+  if (ts.isArrayLiteralExpression(n)) return n.elements.length ? null : "an empty list";
+  if (ts.isObjectLiteralExpression(n)) {
+    if (!n.properties.length) return "an empty object";
+    const keys = n.properties.map((pr) => safeMemberName(pr.name, sf)).filter(Boolean);
+    if (keys.length !== n.properties.length || keys.length > 6) return null; // spreads / too many — say nothing
+    return "an object with " + P.list(keys.map(q));
+  }
+  return null;
+}
+
+/* a CONDITION stated in English, or null. Null is the honest answer for anything this cannot say
+ * truthfully — the caller then emits the vacuous clause and the metric counts it. */
+const CMP = { [ts.SyntaxKind.EqualsEqualsEqualsToken]: "is", [ts.SyntaxKind.EqualsEqualsToken]: "is",
+  [ts.SyntaxKind.ExclamationEqualsEqualsToken]: "is not", [ts.SyntaxKind.ExclamationEqualsToken]: "is not",
+  [ts.SyntaxKind.LessThanToken]: "is under", [ts.SyntaxKind.GreaterThanToken]: "is over",
+  [ts.SyntaxKind.LessThanEqualsToken]: "is at most", [ts.SyntaxKind.GreaterThanEqualsToken]: "is at least" };
+function condGloss(n, sf) {
+  if (!n) return null;
+  if (ts.isParenthesizedExpression(n)) return condGloss(n.expression, sf);
+  if (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.ExclamationToken) {
+    const d = dottedText(n.operand, sf);
+    return d ? q(d) + " is missing" : null;
+  }
+  const d = dottedText(n, sf);
+  if (d) return q(d) + " is set";
+  if (ts.isBinaryExpression(n)) {
+    const op = CMP[n.operatorToken.kind];
+    if (!op) {
+      if (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+        || n.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+        const l = condGloss(n.left, sf), r = condGloss(n.right, sf);
+        if (l && r) return l + (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? " and " : " or ") + r;
+      }
+      return null;
+    }
+    const lhs = dottedText(n.left, sf);
+    const rhs = dottedText(n.right, sf) ? q(dottedText(n.right, sf)) : literalGloss(n.right, sf);
+    return lhs && rhs ? q(lhs) + " " + op + " " + rhs : null;
+  }
+  return null;
+}
+
+/* import/export shapes the naming pass does not cover (rare arities, `* as`, aliases). */
+function importGloss(st, sf) {
+  const c = st.importClause;
+  if (!c) return "load a module for its side effects only";
+  if (c.namedBindings && ts.isNamespaceImport(c.namedBindings)) return "import a whole module under one namespace";
+  const named = c.namedBindings && ts.isNamedImports(c.namedBindings) ? c.namedBindings.elements.length : 0;
+  if (c.name && named) return "import a module's default export plus " + named + " more names";
+  if (c.name) return "import a module's default export";
+  if (named) return "import " + named + " name" + (named === 1 ? "" : "s") + " from a module";
+  return null;
+}
+function exportGloss(st, sf) {
+  if (!st.moduleSpecifier) {
+    if (st.exportClause && ts.isNamedExports(st.exportClause)) {
+      const n = st.exportClause.elements.length;
+      return "export " + n + " name" + (n === 1 ? "" : "s") + " from this module";
+    }
+    return null;
+  }
+  if (!st.exportClause) return "re-export everything from another module";
+  if (ts.isNamedExports(st.exportClause)) {
+    const n = st.exportClause.elements.length;
+    return "re-export " + n + " name" + (n === 1 ? "" : "s") + " from another module";
+  }
+  return null;
+}
+
 /* Tier-1 prose: describe a run of statements as English grouped by ROLE — a lead sequence of
  * actions (declarations / calls / returns) plus the guard rules pulled out as "failing when …",
  * surfacing the real throw messages. DISPLAY ONLY; deterministic; zero model. */
@@ -126,38 +251,132 @@ function spanProse(win, sf) {
       else { const c = firstCallName(st); guards.push(c ? "a " + P.words(c) + " check fails" : "a check fails"); }
       continue;
     }
-    if (ts.isVariableStatement(st)) {
-      const decls = st.declarationList.declarations;
-      const names = decls.map((d) => d.name.getText(sf)).filter((n) => /^[A-Za-z_$][\w$]*$/.test(n));
-      const nm = names.length ? P.list(names.map((n) => "`" + n + "`")) : "a value";
-      const init = decls[0] && decls[0].initializer;
-      if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) { actions.push("define " + nm); continue; }
-      const call = firstCallName(st);
-      if (isAwait(st)) actions.push("await " + (call ? P.words(call) : "a value") + " into " + nm);
-      else if (call) actions.push("get " + nm + " from " + P.words(call));
-      else actions.push("compute " + nm);
+
+    /* ---- DECLARATIONS. spanProse had NO production for these at all, so every interface, type
+     * alias, enum and class in the corpus rendered as "run a step" (783 statements). The names
+     * are already the clearest available words (PRD §3), so they are quoted verbatim, not
+     * translated — `IPartnerCutAmountSource` is what the reader will grep for. */
+    if (ts.isInterfaceDeclaration(st)) {
+      const fields = st.members.map((m) => safeMemberName(m.name, sf)).filter(Boolean);
+      actions.push("describe the shape " + q(st.name.text)
+        + (fields.length ? " with " + P.list(fields.map(q)) : " with no fields"));
       continue;
     }
-    if (ts.isReturnStatement(st)) { const c = firstCallName(st); actions.push(c ? "return " + P.words(c) : "return the result"); continue; }
+    if (ts.isTypeAliasDeclaration(st)) { actions.push("name the type " + q(st.name.text)); continue; }
+    if (ts.isEnumDeclaration(st)) {
+      const ms = st.members.map((m) => safeMemberName(m.name, sf)).filter(Boolean);
+      actions.push("list the choices for " + q(st.name.text) + (ms.length ? " — " + P.list(ms.map(q)) : ""));
+      continue;
+    }
+    if (ts.isClassDeclaration(st) && st.name) { actions.push("define the class " + q(st.name.text)); continue; }
+    if (ts.isFunctionDeclaration(st) && st.name) { actions.push("define " + q(st.name.text)); continue; }
+    if (ts.isModuleDeclaration(st) && st.name) { actions.push("declare the module " + q(st.name.getText(sf))); continue; }
+
+    /* imports/exports the naming pass did not cover (rare arities) */
+    if (ts.isImportDeclaration(st)) { const w = importGloss(st, sf); if (w) { actions.push(w); continue; } }
+    if (ts.isExportDeclaration(st)) { const w = exportGloss(st, sf); if (w) { actions.push(w); continue; } }
+
+    if (ts.isVariableStatement(st)) {
+      const decls = st.declarationList.declarations;
+      /* A destructuring pattern is a list of real names; the old filter dropped it on the floor
+       * and the statement fell through to "compute a value" (388 sites). */
+      const names = [].concat(...decls.map((d) => bindingNames(d.name, sf)));
+      const nm = names.length ? P.list(names.map(q)) : null;
+      const init = decls[0] && decls[0].initializer;
+      if (!nm) { actions.push("compute a value"); continue; } // nothing true to say — counts, by design
+      if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) { actions.push("define " + nm); continue; }
+      const call = firstCallName(st);
+      if (isAwait(st)) { actions.push("await " + (call ? P.words(call) : "a value") + " into " + nm); continue; }
+      if (call) { actions.push("get " + nm + " from " + P.words(call)); continue; }
+      /* no call: the initializer is a value, a field, or a literal — say which. */
+      if (init) {
+        const src = dottedText(init, sf);
+        if (src) { actions.push("take " + nm + " from " + q(src)); continue; }
+        const lit = literalGloss(init, sf);
+        if (lit) { actions.push("set " + nm + " to " + lit); continue; }
+      }
+      actions.push("compute " + nm);
+      continue;
+    }
+
+    if (ts.isReturnStatement(st)) {
+      const e = st.expression;
+      if (!e) { actions.push("return"); continue; }
+      const lit = literalGloss(e, sf);
+      if (lit) { actions.push("return " + lit); continue; }
+      const dotted = dottedText(e, sf);
+      if (dotted) { actions.push("return " + q(dotted)); continue; }
+      const c = firstCallName(st);
+      actions.push(c ? "return " + P.words(c) : "return the result");
+      continue;
+    }
+
     if (ts.isThrowStatement(st)) { const m = throwMessage(st); actions.push(m ? "throw “" + m + "”" : "throw an error"); continue; }
+
     if (ts.isExpressionStatement(st)) {
       const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
+      /* assignment: `ctx.body = {...}` had no call, so it rendered as "run a step" */
+      if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        const lhs = dottedText(inner.left, sf);
+        if (lhs) {
+          const lit = literalGloss(inner.right, sf);
+          actions.push("set " + q(lhs) + (lit ? " to " + lit : ""));
+          continue;
+        }
+      }
       const callee = ts.isCallExpression(inner) ? inner.expression : null;
-      if (callee && ts.isPropertyAccessExpression(callee) && callee.expression.getText(sf) === "console") { actions.push("log a message"); continue; }
+      if (callee && ts.isPropertyAccessExpression(callee) && callee.expression.getText(sf) === "console") {
+        const lvl = callee.name.text, msg = throwMessage(inner);
+        const noun = lvl === "error" ? "an error" : lvl === "warn" ? "a warning" : "a message";
+        actions.push(msg ? "log " + noun + " “" + msg + "”" : "log " + (lvl === "log" ? "a message" : noun));
+        continue;
+      }
       const name = firstCallName(st);
       actions.push((isAwait(st) ? "await " : "call ") + (name ? P.words(name) : "a step"));
       continue;
     }
+
     if (ts.isForStatement(st) || ts.isForOfStatement(st) || ts.isForInStatement(st) || ts.isWhileStatement(st) || ts.isDoStatement(st)) {
       const c = firstCallName(st); actions.push(c ? "loop over " + P.words(c) : "loop"); continue;
     }
-    if (ts.isIfStatement(st)) { const c = firstCallName(st.thenStatement); actions.push(c ? "if a condition holds, " + P.words(c) : "branch on a condition"); continue; }
+
+    if (ts.isIfStatement(st)) {
+      /* describe the TEST and what the branch does with it. Emit only when the condition can be
+       * stated truthfully; otherwise fall through to the vacuous clause and let it count. */
+      const cond = condGloss(st.expression, sf);
+      const then = st.thenStatement;
+      const body = ts.isBlock(then) ? then.statements[0] : then;
+      if (cond && then) {
+        /* what the branch DOES is the point of the sentence. A block that ends in a throw or a
+         * return is a guard even when it does other work first (logging, status codes) —
+         * isGuardThrow only recognises the bare form, so those were understated as
+         * "check whether …", which describes the test and hides the consequence. */
+        const stmts = ts.isBlock(then) ? [...then.statements] : [then];
+        const last = stmts[stmts.length - 1];
+        if (last && ts.isThrowStatement(last)) {
+          const m = throwMessage(last);
+          actions.push("fail when " + cond + (m ? " — “" + m + "”" : "")); continue;
+        }
+        if (last && ts.isReturnStatement(last)) { actions.push("stop early when " + cond); continue; }
+        if (stmts.length === 1) { const c = firstCallName(stmts[0]); if (c) { actions.push("when " + cond + ", " + P.words(c)); continue; } }
+        actions.push("check whether " + cond); continue;
+      }
+      const c = firstCallName(st.thenStatement);
+      actions.push(c ? "if a condition holds, " + P.words(c) : "branch on a condition");
+      continue;
+    }
+
     if (ts.isTryStatement(st)) { const c = firstCallName(st.tryBlock); actions.push(c ? "try " + P.words(c) : "run a try/catch"); continue; }
-    if (ts.isSwitchStatement(st)) { actions.push("switch on a value"); continue; }
+    if (ts.isSwitchStatement(st)) {
+      const on = dottedText(st.expression, sf);
+      actions.push(on ? "choose on " + q(on) : "switch on a value"); continue;
+    }
     const c = firstCallName(st); actions.push(c ? "call " + P.words(c) : "run a step");
   }
   let out = P.list(actions, "then");
-  if (guards.length) out += (out ? " — " : "") + "failing when " + guards.join("; ");
+  /* joined as prose, not with a semicolon: the English-completeness scanner correctly flagged
+   * `"A"; "B"` as leftover punctuation, and it was right — a semicolon is not English. */
+  if (guards.length) out += (out ? " — " : "") + "failing when " + P.list(guards);
   return out;
 }
 

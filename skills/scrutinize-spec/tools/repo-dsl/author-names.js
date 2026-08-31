@@ -66,12 +66,12 @@ const RULES = [
   [/^‹id›\.status = ‹num›;$/, () => "set the HTTP status code"],
   [/^‹id›\.use\(‹args›\);$/, () => "mount a middleware on the app"],
 
-  /* ---- declarations. spanProse has no production for these at all. ---- */
-  [/^(export‹gap›)?interface‹gap›‹id›‹gap›\{.*\}$/, (s) =>
-    "declare an interface with " + plural(count(s, /‹id›/g) - 1, "field")],
-  [/^(export‹gap›)?enum‹gap›‹id›‹gap›\{.*\}$/, (s) =>
-    "declare an enumeration of " + plural(Math.floor((count(s, /‹id›/g) - 1) / 1) - Math.floor((count(s, /‹id›/g) - 1) / 2), "case")],
-  [/^type‹gap›‹id›‹gap›=‹gap›unknown;$/, () => "declare a placeholder type that is not yet pinned down"],
+  /* ---- declarations: RETIRED. These were named while spanProse had no production for
+   * interfaces, enums or type aliases. It has one now, and it WINS — it can quote the real name
+   * and the real members ("list the choices for `EApiValidatorStatus` — `enabled`, `disabled`")
+   * where a per-skeleton name is stuck at "declare an enumeration of one case". Keeping them
+   * would be a name beating a better per-site rendering, which is the exact thing this pass
+   * refuses to do. Retired here rather than left to rot. ---- */
 
   /* ---- test scaffolding: the domain is testing, and the skeleton names the operation. ---- */
   [/^(test|it)\(‹args›\);$/, () => "declare a test case"],
