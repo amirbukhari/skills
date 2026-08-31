@@ -92,7 +92,7 @@ compiles to a valid TypeORM entity (`--typecheck` → `CLEAN — 0 errors`). Sen
 
 The controlled form is *lossless* for the fields it carries and honest about the two it
 cannot express: a **bespoke DB column name** that isn't the `snake_case` of the property, and
-an **anonymous inline enum union** (it names enum *types*). See `author-roundtrip.js`.
+an **anonymous inline enum union** (it names enum *types*). See `../archive/author-roundtrip.js` (retired).
 
 ### `sdd render <projectDir> <relpath>`
 Read the persisted tiers for a file and emit a **plain-language narrative**. Bespoke
