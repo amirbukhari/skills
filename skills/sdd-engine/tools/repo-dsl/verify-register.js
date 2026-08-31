@@ -127,6 +127,18 @@ function lzw() {
   } catch (e) { return (_lzw = { err: e.message.split("\n")[0] }); }
 }
 
+/* The render manifest. Like the dictionary: loaded at most once, only if a row asks. */
+let _idx;
+function enIndex() {
+  if (_idx !== undefined) return _idx;
+  try {
+    const CR2 = require("./engine/corpus-root");
+    const f = path.join(CR2.corpusRoot(), ".cache", "spec-derived", "en-index.json");
+    if (!fs.existsSync(f)) return (_idx = { absent: true, where: f });
+    return (_idx = { ok: true, j: JSON.parse(fs.readFileSync(f, "utf8")), where: f });
+  } catch (e) { return (_idx = { err: e.message.split("\n")[0] }); }
+}
+
 /* ---------- the rows. Each `run()` returns {verdict, got, why} -- HOLDS | FAILS | MANUAL. ---------- */
 
 const HOLDS = (got, why) => ({ verdict: "HOLDS", got, why });
@@ -475,9 +487,42 @@ const ROWS = [
                  "npm run render  (this is a STATE, not a violation; an in-memory round-trip score is not evidence for this row)");
     } },
 
-  { id: "R-COMP-7", req: "generators.maxDepth on the live .en path MUST be >= 2 and rising.",
-    run: () => MANUAL("needs a rendered corpus and its en-index.json (open: §Q-8)",
-                      "npm run render, then read en-index.json -> generators.maxDepth") },
+  { id: "R-COMP-6", req: "The manifest MUST expose generators.composites, .maxDepth and .compositionEdges, and maxDepth MUST stay distinct from dictionaryMaxDepth.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const g = i.j.generators;
+      if (!g) return FAILS(null, "no `generators` block in the manifest");
+      const need = ["composites", "maxDepth", "compositionEdges"];
+      const missing = need.filter((k) => g[k] === undefined);
+      if (missing.length) return FAILS(`missing ${missing.join(", ")}`,
+        "the producer wrote maxCompositionDepth and neither of the others once, so R-COMP-7 compared undefined");
+      if (g.dictionaryMaxDepth === undefined) return FAILS("no dictionaryMaxDepth",
+        "conflating the two lets a deep dictionary report a renderer that never composed");
+      const conflated = g.maxDepth === g.dictionaryMaxDepth;
+      return HOLDS(`composites ${g.composites}, edges ${g.compositionEdges}, maxDepth ${g.maxDepth} vs dictionaryMaxDepth ${g.dictionaryMaxDepth}`,
+        conflated ? "the two depths are EQUAL -- distinct fields, but check the producer is not copying one into the other"
+                  : "the two depths are separate fields with separate values, as required");
+    } },
+
+  { id: "R-COMP-7", req: "generators.maxDepth on the live .en path MUST be >= 2 and rising. Depth 1 is the degenerate flat path.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const g = i.j.generators || {};
+      const d = g.maxDepth;
+      if (typeof d !== "number") return FAILS(String(d), "maxDepth is not a number -- see R-COMP-6");
+      if (d < 2) return FAILS(`maxDepth ${d}`, "depth 1 is the degenerate flat path");
+      /* A single deep span could carry the bar alone, so report the SHAPE too: composition is real
+       * only if the histogram is populated above depth 1. */
+      const h = g.depthHistogram || {};
+      const above1 = Object.entries(h).filter(([k]) => +k > 1).reduce((a, [, v]) => a + v, 0);
+      const at1 = h["1"] || 0;
+      return HOLDS(`maxDepth ${d} on the live path; ${above1} spans deeper than 1 vs ${at1} at 1; flatFallback ${g.flatFallback}`,
+        "measured on the REAL corpus, not a fixture -- this is the measurement §Q-8 was waiting for");
+    } },
 ];
 
 /* ---------- evaluate ---------- */
