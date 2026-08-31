@@ -48,15 +48,22 @@ byte-elimination on the narrow tier. Add a **second, coexisting layer** (§5A): 
 generators for byte-elimination on structural clones, *and* add member/ctor-generalized procedure
 generators that claim spans currently emitted verbatim.
 
-## Compression is achievable under the byte-exact gate — the flat path is why it looked otherwise
+## Byte size is not the success axis — review surface is (§7.3)
 
-An earlier draft concluded that physical byte compression is capped under the byte-exact gate.
-**That holds only for the FLAT anti-unification path**, where every per-site-unique token — names,
-types, member and method names, URLs, field keys — re-emits verbatim into a hole and nothing
-cross-references. **The intended LZW design is lossless *and* compressing:** repeated structure is
-replaced by a single recursive word reference, so a file reusing a deep word does not re-emit that
-structure at all. Byte-identity is preserved either way; compression is what the correct mechanism
-adds on top. Any observation that the `.en` is larger than the `.ts` is a symptom to attribute, not a
-law to accept.
+An earlier draft concluded that physical byte compression is capped under the byte-exact gate, and
+attributed it to the FLAT anti-unification path — where every per-site-unique token re-emits verbatim
+into a hole and nothing cross-references. A later draft inverted it and made byte compression a gate
+the `.en` had to clear.
+
+**Both framings are retired, because the thing being measured was wrong.** Amir, 2026-08-31:
+*"its not about compression, its about less of a review surface."* The LZW design is lossless *and*
+structurally compressing — repeated structure becomes a single recursive word reference — but the
+`.en` also carries gloss prose and span structure the `.ts` never had, so the *file* can grow while
+the *reading* shrinks. Those are different quantities and only the second one is the goal.
+
+*Measured 2026-08-31, over the 1,037-file enfile-layer walk, with the flat path deleted:* the `.en`
+is **19% larger** than the `.ts` (4,830,829 B against 4,058,328 B) **and 63.5% of body statements
+left the reader's view** (17,029 of 26,824, §7.3). The size gap was never the flat path; attributing
+it there was a guess that measurement refuted. Byte size is reported. Review surface is the gate.
 
 ---
