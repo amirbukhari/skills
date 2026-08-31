@@ -34,7 +34,17 @@ const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "co
 //    4 -> filesUsing 732, netStatementReduction 7209, but English coverage jumps 35.9% -> 45.4%
 //         by promoting near-trivial skeletons, which makes the .en noisier to read.
 // Lower it via MIN_SKEL= if more collapse is wanted; it cannot break byte-identity.
-const MIN_COUNT = 2, MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 16);
+//
+// MIN_COUNT = how many times a window must recur before it may become a word. It was frozen at 2,
+// which made a WHOLE-FILE word impossible by construction: a file's own shape occurs exactly once,
+// so no number of passes could ever admit it. At 1 a window may become a word on a single
+// occurrence. Measured over the full corpus (byte-identity 1037/1037 at both settings):
+//   2 -> filesUsing 916, net 11,180, dict 1.50 MB, .en 4,598,270 B, 0 whole-file words
+//   1 -> filesUsing 929, net 15,388, dict 11.56 MB, .en 4,830,829 B, 74 whole-file words
+// It is an ECONOMIC dial, not a correctness one: every span is byte-gated at emission regardless.
+// NOTE: at MIN_COUNT=1 the binding constraint becomes MAXWIN, not recurrence — maxDepth pins at 15
+// (= MAXWIN-1) and a file collapses to one word only if its eligible run is <= 16 statements.
+const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 16);
 
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 function blocks(sf) { const out = []; const visit = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) { if (n.statements.length) out.push([...n.statements]); } ts.forEachChild(n, visit); }; visit(sf); return out; }
