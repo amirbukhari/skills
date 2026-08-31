@@ -92,24 +92,52 @@ const exists = (rel) => fs.existsSync(path.join(HERE, rel));
  *
  * A guard that cries wolf gets ignored, then removed. These exemptions are what keep it honest --
  * so widen them only with a measurement, never to quiet a hit you have not read. */
+/* TRACKED FILES ONLY, and this is a correctness property of the register, not an optimisation.
+ *
+ * liveGrep used to walk the working tree, which meant a row's verdict depended on what happened to
+ * be sitting on disk. Demonstrated for real tonight: R-LANG-14 went red because ANOTHER LANE had an
+ * uncommitted scratch file (`new-archetype.js`, `??` in git status) that matched a pattern -- and it
+ * would have gone green again when they deleted it. A register whose answer changes with a
+ * colleague's unsaved work is not reproducible from a commit, which is the same defect as the cite
+ * rot this runner exists to remove, one layer down: at the evidence layer rather than the citation
+ * layer. Raised independently by sdd-engine-5a and by my user; the credit is theirs.
+ *
+ * So the corpus of evidence is `git ls-files` -- exactly what a second engineer gets from a clone.
+ * A violation in an uncommitted file is not missed, only deferred to the moment it is committed,
+ * which is also the moment it becomes everyone's problem.
+ *
+ * FAIL-CLOSED: if git cannot answer, this throws rather than falling back to walking the tree. The
+ * fallback IS the bug; a row that silently reverts to unreproducible evidence is worse than a row
+ * that says it could not check. The runner turns the throw into a named FAILS. */
+let _tracked;
+function trackedJs() {
+  if (_tracked) return _tracked;
+  let out;
+  try {
+    out = require("child_process").execFileSync("git", ["-C", HERE, "ls-files", "-z", "*.js"],
+      { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch (e) {
+    throw new Error(`cannot list tracked files (git ls-files failed: ${e.message.split("\n")[0]}); ` +
+      `refusing to fall back to a working-tree walk, whose verdict is not reproducible from a commit`);
+  }
+  return (_tracked = out.split("\0").filter(Boolean));
+}
+
 function liveGrep(re, opts = {}) {
   const SKIP = new Set(["node_modules", ".git", "archive", "sen", "spec", ".cache", "catalog"]);
   const SELF = path.basename(__filename);
   const hits = [];
-  (function walk(d) {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      if (SKIP.has(e.name)) continue;
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) { walk(p); continue; }
-      if (!p.endsWith(".js")) continue;
-      if (path.basename(p) === SELF) continue;                    // exemption 2
-      if (opts.excludeTests && p.endsWith(".test.js")) continue;
-      fs.readFileSync(p, "utf8").split("\n").forEach((l, i) => {
-        if (/^\s*(?:\/\/|\/\*|\*)/.test(l)) return;                   // exemption 1
-        if (re.test(l)) hits.push(`${path.relative(HERE, p)}:${i + 1}`);
-      });
-    }
-  })(HERE);
+  for (const rel of trackedJs()) {
+    if (rel.split("/").some((seg) => SKIP.has(seg))) continue;
+    if (path.basename(rel) === SELF) continue;                    // exemption 2
+    if (opts.excludeTests && rel.endsWith(".test.js")) continue;
+    const abs = path.join(HERE, rel);
+    let text; try { text = fs.readFileSync(abs, "utf8"); } catch { continue; }  // tracked but deleted
+    text.split("\n").forEach((l, i) => {
+      if (/^\s*(?:\/\/|\/\*|\*)/.test(l)) return;                   // exemption 1
+      if (re.test(l)) hits.push(`${rel}:${i + 1}`);
+    });
+  }
   return hits;
 }
 
@@ -674,9 +702,29 @@ const ROWS = [
 
   { id: "R-LANG-14", req: "Every pipeline script MUST be callable non-interactively. No blocking prompts.",
     run() {
-      const hits = liveGrep(/readline|createInterface|process\.stdin|readFileSync\(0/, { excludeTests: true });
-      return hits.length ? FAILS(hits.join(", "), "a live script can block on stdin, so a UI cannot drive it")
-        : HOLDS("no readline, stdin read or fd-0 read on any live path");
+      /* NARROWED, after this row produced a false positive that two other lanes had to measure to
+       * refute. The old pattern failed on any textual `readFileSync(0`, which cannot tell
+       * "blocks on stdin whether or not you asked" from "reads a pipe BECAUSE the caller passed
+       * --stdin". The second is how a UI feeds a script; flagging it inverts the requirement.
+       * Measured: `node new-archetype.js --json < /dev/null` returns a JSON refusal at exit 2
+       * immediately -- R-LANG-14 satisfied, not violated.
+       *
+       * So a read of fd 0 must be OPT-IN: gated on an explicit flag, on its own line. An
+       * ungated fd-0 read, or any readline/createInterface, is still a violation -- those have no
+       * non-interactive form at all. This trades a little precision for the right direction of
+       * error: it can miss a read gated by a flag check several lines away, and it no longer fails
+       * a script for offering a pipe. */
+      const interactive = liveGrep(/readline|createInterface/, { excludeTests: true });
+      const fd0 = liveGrep(/readFileSync\(\s*0\b|process\.stdin/, { excludeTests: true })
+        .filter((h) => {
+          const [rel, ln] = h.split(":");
+          const line = (read(rel).text || "").split("\n")[+ln - 1] || "";
+          return !/(has|argv|includes|indexOf|flags?)\s*[.(]?.*--/.test(line);   // ungated
+        });
+      const bad = [...interactive, ...fd0];
+      return bad.length ? FAILS(bad.join(", "), "a live script can block on stdin, so a UI cannot drive it")
+        : HOLDS(`no readline/createInterface, and every fd-0 read is gated on an explicit flag`,
+          "tracked files only -- an uncommitted script is not evidence (see liveGrep)");
     } },
 
   { id: "R-ART-4-runtime", req: "A fresh mine MUST publish stamped artifacts, not stamp them afterwards.",
