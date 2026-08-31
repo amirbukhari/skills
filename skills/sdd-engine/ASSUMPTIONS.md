@@ -748,3 +748,81 @@ top-level declarations and class members are structure, not review units. That d
 because a second definition of "statement" is the §8B drift shape with the metric as the consumer.
 **Non-vacuity proven both ways:** no dictionary → 100% residual; the synthetic corpus with its mined
 dictionary → 7.7% (4 of 52), byte-identity 4/4.
+
+---
+
+## 2026-08-31 — the sdd-run manifest was wrong in four places; measured, not asserted
+
+**Decided:** ran every cheap step end to end and corrected the manifest against what the scripts
+actually do, rather than shipping the descriptions I had written from their headers.
+
+**Why this matters more than an ordinary doc fix:** the manifest is what a UI renders **as the
+pipeline**. A wrong `reads` there does not stay a wrong string — it becomes a wrong arrow in a
+diagram Amir wires next week.
+
+**The one that matters:**
+
+> `measure` does **not** read `.en` files from disk.
+
+It walks `<SOURCE>/**/*.ts` and renders/compiles in memory. I had it reading
+`<CORPUS>/sen/files/**/*.en`. Caught by running it: it reported byte-identity **1037/1037** on a
+corpus with **zero** `.en` files on disk. The consequence is structural — `measure` does **not**
+depend on `render` having run, so a UI must not draw it downstream of `render`. That is recorded
+as a `note` on the step rather than silently corrected, because the wrong mental model is the
+natural one.
+
+The other three: `measure:uncollapsed` writes nothing unless handed `-- --json <path>` (claimed
+an unconditional write); `render` also writes `.cache/spec-derived/en-index.json`; `name` also
+walks `<SOURCE>/**/*.ts`.
+
+**Timings are now measurements.** I had flagged `name` and `measure` cheap. Measured: 22.4s and
+45.6s. Both now `expensive`, and each step actually run carries `measuredMs` with the date and
+corpus size. `mine` keeps sdd-engine-5f's 3.6s, attributed to them rather than restated as mine.
+
+**Verified by running it:** roots 693ms, stamp:check 720ms, register 720ms, clean 24ms, name
+22430ms, measure 45622ms — every one `kind: "run"`, `ok: true`, exit 0. `test:unit` 20/20.
+
+**Commit:** `240eda9`
+
+---
+
+## 2026-08-31 — the `register` step carries a coverage warning, not just an exit code
+
+**Decided:** wrapped `verify-register.js` as a step, and attached a `coverageWarning` field
+stating that MANUAL is not a pass and that a row absent from the runner is not a row that holds.
+
+**Why:** the exit code is honest about what it checks and silent about what it does not. The
+runner mechanizes **13 rows of a ~100-row register** — currently 9 hold, 0 fail, 4 manual. A UI
+that renders "0 fail" as a green pipeline badge would be making a claim about the register that
+nobody has verified. The coverage fraction has to travel with the exit code or the exit code
+misleads.
+
+Adopted verbatim from sdd-engine-5f, who wrote the runner and flagged the trap when handing the
+step over. Recorded as their caveat, not a conclusion I reached.
+
+**Not decided by me:** whether those ~87 unmechanized rows should be mechanized, and in what
+order. That is register work in another lane.
+
+**Commit:** `240eda9`
+
+---
+
+## 2026-08-31 — `-o` is not enough on a shared working tree
+
+**Decided:** every commit now goes `git status` immediately before, `git commit -o -- <paths>`,
+and `git show --stat` immediately after.
+
+**Why:** three separate sweeps happened today across two sessions. `git add` + `git commit` swept
+another lane's staged work into `b20aae3`. Then `-o` alone was still not enough — sdd-engine-5f's
+`37af0ed` swept my kind of mistake in the opposite direction, because `-o` protects against your
+own `git add` being too broad and against unstaged work, but **not** against a path another
+session stages in the window between your check and your commit. I hit the same window: peer
+`prd/` files appeared staged between my `git diff --cached` and my `git add`.
+
+`-o` narrowed it; only the after-check catches it. `git show --stat` is how the remaining case
+gets found, and it is cheap.
+
+**Verified by running it:** `240eda9` shows exactly the two intended files; the peer's staged
+paths were still staged and uncommitted afterwards.
+
+**Commit:** this practice, not a code change.
