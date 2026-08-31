@@ -1,0 +1,22 @@
+ALSO CARRIES ANOTHER LANE'S THREE ENTRIES (shared working tree, unstaged sweep).
+
+This commit's message describes three entries. The commit contains six. These
+three are another lane's and are NOT described by the message above:
+
+  - the pipeline could not report failure, so the wrapper's promise was false
+  - the scoreboard shipped the answer it was supposed to compute
+  - did NOT register an 'english' artifact kind, though it was asked for
+
+Nothing was lost; they are committed and pushed. Read them as that lane's work,
+not this one's.
+
+CORRECTS AN EARLIER CLAIM IN ASSUMPTIONS.md. The entry 'commits name their files;
+never a bare git commit' says '-o' protects you from sweeping *unstaged* work.
+That is WRONG for a file another session is editing concurrently: 'git commit -o
+-- <path>' commits that path's WORKING TREE content, staged or not. So -o
+protects against sweeping *other paths*, and gives no protection at all within a
+path two lanes both append to.
+
+The only thing that actually works for a shared append-only file is to diff the
+file immediately before committing and compare it to what you appended -- not
+'git status', which shows only that it changed, not by whose hand.
