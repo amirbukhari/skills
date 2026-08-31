@@ -206,6 +206,14 @@ the reader then saw one opaque reference instead of the file's structure. After 
 
 The replacement for tier-1 grammars is **per-site productions in `spanProse`** (§5C), which run on the byte-exact path and cannot desynchronize from it.
 
+⛔ **The statement-idiom layer is SUPERSEDED (2026-08-31).** `build-statement-idioms.js` was never
+invoked by `repo-dsl mine`, so `catalog/statement-idioms.json` froze at its last manual run and
+pressing Mine could not move the count the panel displayed (drift incident 6 — the "616"). It is not
+merely uninvoked: `engine/enfile.js` and `engine/enlzw.js` contain **zero** references to
+statement-idioms, so nothing on the `.en` compile path has ever read it; its only consumers were two
+LLM naming overlays and the panel. Archived with its overlays. **The panel must stop displaying that
+count**, because no action a user can take will change it.
+
 **The fold (universal invariant).** At every tier a construct is only replaced by a higher-tier form when the higher-tier form refills to the **exact source span**. Segment lists tile `[0, len)` exactly (`checkTiling`), each segment reproduces its own bytes, so `reconstruct === source` by construction. This is what makes byte-identity a property of the *design*, not of any particular file.
 
 **On-disk layout.**
@@ -553,13 +561,13 @@ Every threshold the implementation depends on, with its literal value and source
 
 ### 8A. SOURCE-PROTECTED artifacts (never wipable-derived)
 
-The composition capability was nearly lost by being treated as deletable derived output. The following are **SOURCE-PROTECTED**: they are the mined vocabulary the English source *depends on to compile and to compose*, and must **never** be classified as regenerable-cache, gitignored-away, or deleted in any cleanup — even though a mine can rebuild them, deleting them without a full re-mine breaks `.en → .ts`:
+**All SOURCE-PROTECTED artifacts live in the CORPUS tree, never in the engine tree (§8B).** The composition capability was nearly lost by being treated as deletable derived output. The following are **SOURCE-PROTECTED**: they are the mined vocabulary the English source *depends on to compile and to compose*, and must **never** be classified as regenerable-cache, gitignored-away, or deleted in any cleanup — even though a mine can rebuild them, deleting them without a full re-mine breaks `.en → .ts`:
 
-- **`catalog/generators-lzw.json`** — the recursive LZW word dictionary; the ONLY generator
+- **`<corpus>/spec/catalog/generators-lzw.json`** — the recursive LZW word dictionary; the ONLY generator
   vocabulary the live `.en` compiles through (§4A). It supersedes `catalog/generators.json`, which
   belonged to the deleted flat path and is no longer read by anything.
-- **`catalog/mined-library.json`** (the compose-layer composites — `compositeGenerators`, `builtFromComposites`, `maxHierarchyDepth 9`) — the **composition graph** (§4A, §5B). This is the artifact that was nearly lost; protect it explicitly.
-- **`catalog/word-names.json`** — the NAMES of the dictionary's leaf words, keyed by content hash
+- **`<corpus>/spec/catalog/mined-library.json`** (the compose-layer composites — `compositeGenerators`, `builtFromComposites`, `maxHierarchyDepth 9`) — the **composition graph** (§4A, §5B). This is the artifact that was nearly lost; protect it explicitly.
+- **`<corpus>/spec/catalog/word-names.json`** — the NAMES of the dictionary's leaf words, keyed by content hash
   of each canonical skeleton (§2.2). Hand-authored and *not* reproducible by a re-mine: the mine
   rebuilds the words, never their names. It also carries the `orphans` ledger, which is the only
   record of names authored for skeletons that have since drifted — deleting it destroys work that
@@ -568,7 +576,105 @@ The composition capability was nearly lost by being treated as deletable derived
 
 Only `.calc` IR, coverage/index reports, and naming worksheets are wipable-derived (§5 on-disk layout). A cleanup that cannot tell these apart must **stop and ask**, never delete a catalog.
 
-### 8B. CORPUS PINNING — every artifact names the tree it was mined from
+### 8B. THE ARTIFACT CONTRACT — location, header, and enforcement (2026-08-31)
+
+> This section was previously documentation, so it was not a contract. It is now **executable**:
+> `engine/artifact-contract.js` is the single resolver and validator, and
+> `engine/artifact-location.test.js` fails the build if any rule below stops holding.
+
+#### The location rule
+
+**The engine tree is ENGINE CODE + PRD ONLY.** It is generic, corpus-agnostic and publishable, and
+its remote is PUBLIC. It holds no bytes derived from anyone's corpus. Every artifact resolves from
+the corpus root the engine was pointed at — `AC.pathFor(kind, corpusRoot)` — and lives with the
+corpus:
+
+| home | path | for |
+|---|---|---|
+| `tracked` | `<corpus>/spec/catalog/` | SOURCE-PROTECTED (§8A): expensive or hand-authored, must survive a cleanup |
+| `cache` | `<corpus>/.cache/spec-derived/` | purely derived, regenerable by one command |
+
+`spec/catalog/` rather than `catalog/` is deliberate: the corpus `.gitignore` ignores root
+`catalog/*`, so a SOURCE-PROTECTED artifact placed there would be **silently untracked** — which is
+precisely how one gets lost.
+
+**Why this section exists.** The engine tree was holding, in a public repo:
+`generators-lzw.json` with **5,754 of 8,922 leaf skeletons (64.5%) carrying non-keyword Hydra
+identifiers — 143,891 B of verbatim function and property names** (holes generalize *arguments*,
+never the callee or property name), and `corpus-coverage.json` with **1,037 real corpus file paths
+plus literal source lines**. Verified never pushed: `origin` held only `main` and one `claude/*`
+branch at `80a953b`; `git ls-tree -r origin/main | grep -c repo-dsl` = 0; every introducing commit
+failed `merge-base --is-ancestor origin/main`.
+
+#### The header — every artifact carries one
+
+```
+schema           "sdd-repo-dsl/<kind>/<n>"   versioned identity; bump n on ANY shape change
+artifactVersion  <n>                          split out so a consumer can range-check
+corpus           <absolute path>              corpus-pinned kinds only
+generated        <ISO date>
+fingerprint      sha256(canonical body without header)[0:16]
+```
+
+Current strings — **authoritative, for cross-repo consumers that cannot import the validator**:
+
+| kind | schema | home | file | consumer must read |
+|---|---|---|---|---|
+| generators-lzw | `sdd-repo-dsl/generators-lzw/1` | tracked | `generators-lzw.json` | `wide`, `narrow`, `gap` |
+| mined-library | `sdd-repo-dsl/mined-library/1` | tracked | `mined-library.json` | `leaves`, `composites` |
+| word-names | `sdd-repo-dsl/word-names/1` | tracked | `word-names.json` | `names`, `orphans` |
+| corpus-coverage | `sdd-repo-dsl/corpus-coverage/1` | cache | `corpus-coverage.json` | `rollup`, `files` |
+| gate | `sdd-repo-dsl/gate/1` | cache | `gate.json` | `pass`, `thresholds` |
+
+`word-names` entries are **v1** `{sym, en, sites, named}`, keyed by `sha256(sym)[0:16]` axis-prefixed.
+The **v0** shape `{name, hint, tier}` is retired and its producers are archived.
+
+#### The enforcement rule — refuse loudly, never fall back silently
+
+A consumer that cannot verify what it is reading **REFUSES**, naming what it expected and what it
+got. `catch { return null }` is the bug class, not the safety net: it converts *"your vocabulary is
+missing"* into *"your corpus contains no patterns"*, which reads as a measurement rather than a
+failure. Validation is the DEFAULT path — `AC.load` is the only read helper, so a new consumer must
+go out of its way to be unsafe. A genuinely-correct fallback is passed explicitly (`{optional:true}`)
+and returns a **reason**, never a bare null.
+
+Two silent fallbacks were removed when this landed: `loadIndex`'s `catch { idx._lzw = null }`, which
+disabled the entire generator layer without a word, and `word-names.load`'s `catch { return {} }`,
+which is drift incident 5's silent half.
+
+#### The composite id contract (settled — do not guess again)
+
+Compose-layer **composites carry NO `id` field.** They identify by `name` (`g_<len>_<6hex>`) plus
+`entryId`; only `leaves` carry `id` (`p_<8hex>`). Any consumer keying a composite on `.id` is wrong
+by construction and gets `undefined` for all 1,063 of them. Use `AC.idOf(record)`, which returns
+`.id` for leaves and `.name` for composites. The id spaces are **disjoint with zero overlap**:
+`word-names` keys are `w:`/`n:<16hex>` over the LZW dictionary, compose-layer leaves are `p_<8hex>`.
+**Names key the LZW dictionary; the panel surfaces key the compose layer** — so a naming UI must read
+the LZW dictionary directly, not the compose library.
+
+#### The six incidents this rule exists to prevent (2026-08-31, one day)
+
+1. base64 payload vs the `lzw1` decoder.
+2. miner SKIP set vs renderer SKIP set — 696 of 937 un-collapsed bodies.
+3. `mined-library.v1.json` published pre-switch, read against the current corpus.
+4. `word-names.json` written to `catalog/`, read from `projectDir/`.
+5. `word-names.json` v0 vs v1 — **the `schema` field existed and nothing checked it.**
+6. the panel's idiom count describing the compose layer while the `.en` compiles through the LZW
+   dictionary.
+
+Every one: producer changed, consumer kept reading, nothing failed, a human spotted a wrong number.
+
+#### The guard
+
+`engine/artifact-location.test.js` (5 assertions, mutation-checked three ways): no artifact resolves
+inside the engine tree; each lands in the home its protection level demands; no corpus-derived file
+sits on disk in the engine tree; **no source line names a corpus artifact relative to `__dirname`**;
+every artifact is contract-valid at its corpus location. On its first run it found 20 unrepointed
+call sites that had been missed by reading.
+
+---
+
+### 8B-legacy. CORPUS PINNING — every artifact names the tree it was mined from
 
 An operator read `depth 4` off the SDD panel for days while the live corpus carried depth 9. Nothing
 was capped and nothing was stale: the panel was faithfully rendering **another corpus's artifact**,
