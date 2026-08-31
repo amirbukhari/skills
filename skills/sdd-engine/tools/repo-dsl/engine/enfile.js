@@ -748,8 +748,12 @@ function genLabel(start, end, source, stmts) {
  * spanProse clause, so a partially-named span still reads, and a span with no named leaf at all
  * falls back to today's genLabel unchanged.
  *
- * DISPLAY ONLY. compileChunk finds the payload with lastIndexOf(PAY_OPEN) and decodes only that;
- * it never reads this text. A wrong name is wrong prose, never wrong bytes. */
+ * NO LONGER DISPLAY ONLY — see deriveGloss/compileChunk below. This comment used to end "compileChunk
+ * finds the payload with lastIndexOf(PAY_OPEN) and decodes only that; it never reads this text. A
+ * wrong name is wrong prose, never wrong bytes." That was true, and it made a hand-edit to the
+ * English a NO-OP, which contradicts PRD §5D.0 statement 4 (Amir mines, hand-edits the .en, and it
+ * goes back into the codebase). R-REND-6 is now inverted: the sentence is authoritative and the
+ * payload is a derived index. The first cut of that is DERIVE-AND-CHECK (PRD §5E.8 mechanic 5). */
 const WN = require("./word-names");
 /* Corpus-rooted (PRD §8B): names are corpus data and live with the corpus, never in the engine tree. */
 const NAMES = WN.load(AC.pathFor("word-names"));
@@ -918,7 +922,41 @@ function renderFileEn(source, index) {
 }
 
 /* ------------------------------ COMPILE (.en -> .ts) ------------------------------ */
-function compileChunk(chunk, index) {
+/* DERIVE-AND-CHECK — the first cut of sentence-authority (PRD R-REND-6, §5E.5, §5E.8 mechanic 5).
+ *
+ * WHY. The compiler used to locate the payload with lastIndexOf and ignore every other byte in the
+ * chunk, so hand-editing the English changed nothing: the edit compiled the OLD code and looked
+ * like it had worked. That is the worst of the three options — worse than refusing, and worse than
+ * honouring the edit. Amir's lifecycle (§5D.0 statement 4) requires the .en to be editable, and an
+ * edit that silently does nothing is not an editable artifact.
+ *
+ * WHAT THIS DOES, AND WHAT IT DOES NOT. It makes a hand-edit DETECTED, not yet EFFECTIVE. The gloss
+ * is re-derived from the payload and compared to the gloss that is written; a mismatch throws and
+ * names the clause. Making the edit change the output needs the grammar parser (§5E.3.2), which is
+ * the larger job; this closes the silent-no-op hole first.
+ *
+ * WHY DERIVE THE GLOSS RATHER THAN PARSE IT. The obvious cheap check — "every `backticked` token in
+ * the gloss must be one of the payload's hole fills" — was MEASURED on the fixture and is wrong:
+ * 32/40 spans pass, and all 8 failures are the same benign shape, a gloss saying `this.rows` where
+ * the hole holds `rows` and `this.` came from the template. A check that fires on 20% of correct
+ * spans is worse than no check. Deriving instead has NO false positives by construction: the
+ * renderer produced the written gloss by calling these same two functions on these same bytes, so
+ * agreement is guaranteed unless a human changed something.
+ *
+ * COST. One extra parse per generator span at compile time, and it needs the catalog (already
+ * required for compileSpan). Off unless asked for, because the .en -> .ts round-trip is on the hot
+ * path of every test; `SDD_DERIVE_CHECK=1` or `{deriveCheck:true}` turns it on. It is ON by default
+ * in the round-trip tests, which is where a drifted gloss must not slip through. */
+function deriveGloss(payload, compiled, cat) {
+  const s = { payload, start: 0, end: compiled.length, stmts: null };
+  try { return namedLabel(s, compiled, cat, NAMES.names) || genLabel(0, compiled.length, compiled, null); }
+  catch (_) { return null; }   /* a gloss we cannot derive is not evidence of an edit */
+}
+
+const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK === "1";
+
+function compileChunk(chunk, index, opts) {
+  const deriveCheck = (opts && opts.deriveCheck !== undefined) ? opts.deriveCheck : DERIVE_CHECK;
   if (chunk[0] === GEN) { // multi-line generator: refill catalog template with per-site holes
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
@@ -928,12 +966,26 @@ function compileChunk(chunk, index) {
     // and it names a stale base64 payload specifically so the fix is obvious.
     const obj = PAY.decode(chunk.slice(a + 1, b));
     if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
-    return EL.compileSpan(obj, index._lzw);
+    const compiled = EL.compileSpan(obj, index._lzw);
+    if (deriveCheck) {
+      const written = chunk.slice(1, a).trim();
+      const derived = deriveGloss(obj, compiled, index._lzw);
+      if (derived !== null && derived !== written) {
+        throw new Error(
+          "enfile: SENTENCE AND PAYLOAD DISAGREE (R-REND-6 — the sentence is authoritative)\n" +
+          "  written:  " + written + "\n" +
+          "  derived:  " + derived + "\n" +
+          "  The English in this clause is not what its payload compiles to. Either the prose was\n" +
+          "  hand-edited (the payload has not caught up — re-render, or wait for grammar parsing to\n" +
+          "  make the edit effective) or the payload is stale. It is NOT compiled silently.");
+      }
+    }
+    return compiled;
   }
   if (DATA_PREFIX.test(chunk)) return DATA.compileData(chunk);
   return cnl.compileStatement(chunk, index);
 }
-function compileFileEn(en, index) {
+function compileFileEn(en, index, opts) {
   index = index || cnl.loadWordsIndex([]);
   let out = "", i = 0;
   while (i < en.length) {
@@ -942,10 +994,10 @@ function compileFileEn(en, index) {
     out += en.slice(i, open);
     const close = en.indexOf(CLOSE, open + 1);
     if (close < 0) throw new Error("enfile: unbalanced « (no matching »)");
-    out += compileChunk(en.slice(open + 1, close), index);
+    out += compileChunk(en.slice(open + 1, close), index, opts);
     i = close + 1;
   }
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES };
+module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES };

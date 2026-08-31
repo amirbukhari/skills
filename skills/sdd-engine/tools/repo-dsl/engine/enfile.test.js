@@ -14,7 +14,13 @@ const CORPUS = CR.corpusRoot();   // WRITE root
 const SRC = CR.sourceRoot();       // READ root: the .ts tree
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
-const rt = (src, index) => compileFileEn(renderFileEn(src, index).en, index);
+/* deriveCheck ON everywhere in this file. R-REND-6 makes the sentence authoritative, so a gloss
+ * that has drifted from its payload must not slip through the round-trip test — this is the place
+ * it would slip. The check has no false positives by construction (the renderer wrote the gloss with
+ * the same functions the check re-derives it with), so turning it on here costs a parse per span
+ * and buys the guarantee. */
+const CHK = { deriveCheck: true };
+const rt = (src, index) => compileFileEn(renderFileEn(src, index).en, index, CHK);
 const idx = loadIndex(CORPUS);
 
 /* 1. a data-leaf decorator arg renders English and recompiles byte-exact */
@@ -22,7 +28,7 @@ ok("decorator object arg -> «an object with …», byte-identical", () => {
   const src = "@Column({ name: 'account_id', type: 'int', nullable: true })\naccountId: number;\n";
   const { en } = renderFileEn(src, idx);
   assert.ok(en.includes("«an object with name = `'account_id'`"), en);
-  assert.equal(compileFileEn(en, idx), src);
+  assert.equal(compileFileEn(en, idx, CHK), src);
 });
 
 /* 2. a logic statement with no data leaf renders via the cnl grammar */
@@ -30,7 +36,7 @@ ok("pure-logic statement -> «Let `x` be …», byte-identical", () => {
   const src = "const total = count === 0 ? 'none' : 'some';\n";
   const { en } = renderFileEn(src, idx);
   assert.ok(/«[^»]/.test(en), "expected an English span: " + en);
-  assert.equal(compileFileEn(en, idx), src);
+  assert.equal(compileFileEn(en, idx, CHK), src);
 });
 
 /* 3. mixed file: imports (verbatim) + data (English) + logic (English) all round-trip */
@@ -45,14 +51,14 @@ ok("mixed file round-trips byte-exact and keeps imports verbatim", () => {
   const { en, stats } = renderFileEn(src, idx);
   assert.ok(en.startsWith("import { X } from './x';"), "imports stay verbatim");
   assert.ok(stats.dataSpans >= 2, "object + array + template should be English");
-  assert.equal(compileFileEn(en, idx), src);
+  assert.equal(compileFileEn(en, idx, CHK), src);
 });
 
 /* 4. a file with nothing renderable stays fully verbatim and still round-trips */
 ok("non-renderable file is identity", () => {
   const src = "export type T = { a: number };\nexport interface I extends T {}\n";
   const { en } = renderFileEn(src, idx);
-  assert.equal(compileFileEn(en, idx), src);
+  assert.equal(compileFileEn(en, idx, CHK), src);
 });
 
 /* 5. « / » never leak into the compiled output */
@@ -74,7 +80,7 @@ ok("corpus: all persisted sen/files/**.en compile BYTE-IDENTICAL to their .ts", 
     const srcPath = path.join(SRC, rel);
     let source; try { source = fs.readFileSync(srcPath, "utf8"); } catch (_) { continue; }
     const en = fs.readFileSync(enPath, "utf8");
-    if (compileFileEn(en, idx) !== source) bad.push(rel);
+    if (compileFileEn(en, idx, CHK) !== source) bad.push(rel);
     checked++;
   }
   assert.equal(bad.length, 0, `NOT byte-identical: ${bad.slice(0, 5).join(", ")} (${bad.length} total)`);
@@ -82,3 +88,52 @@ ok("corpus: all persisted sen/files/**.en compile BYTE-IDENTICAL to their .ts", 
 });
 
 console.log(`\nenfile.test: ${pass} passed`);
+
+/* ---------------------------------------------------------------------------
+ * R-REND-6 — the sentence is authoritative. MUTATION-CHECKED (§10.3): a guard that
+ * cannot be shown to FIRE is not a guard.
+ *
+ * Scope note, and it is a real finding: the PER-STATEMENT CNL path already reads its
+ * own prose — editing `x` in «Let `x` be …» changes the compiled output today. The
+ * silent-no-op defect was specific to GENERATOR spans («▶ gloss ⟪payload⟫»), where
+ * compileChunk located the payload with lastIndexOf and ignored every other byte. So
+ * the edit below is made INSIDE a generator gloss, not just anywhere in the .en.
+ *
+ *   1. a clean .en compiles byte-identical with the check on (no false positive);
+ *   2. with the check OFF, the edit is SILENTLY IGNORED and the compiler emits the
+ *      un-edited code — the defect, pinned so it cannot be quietly reintroduced;
+ *   3. with the check ON, that same edit THROWS and names both sides.
+ * -------------------------------------------------------------------------*/
+{
+  const idx = loadIndex();
+  const enDir = path.join(CR.senDir(), "files");
+  const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".en")) o.push(p); } return o; };
+  const ens = fs.existsSync(enDir) ? walk(enDir) : [];
+  let done = false;
+  for (const enPath of ens) {
+    const rel = path.relative(enDir, enPath).replace(/\.en$/, "");
+    let source; try { source = fs.readFileSync(path.join(SRC, rel), "utf8"); } catch (_) { continue; }
+    const en = fs.readFileSync(enPath, "utf8");
+    const span = en.match(/\u00ab\u25b6([\s\S]*?)\u27ea/);        // « ▶ gloss ⟪
+    if (!span) continue;
+    const tok = span[1].match(/`([A-Za-z_$][\w$]*)`/);
+    if (!tok) continue;
+
+    assert.equal(compileFileEn(en, idx, CHK), source, "clean .en round-trips with deriveCheck on");
+
+    const editedGloss = span[0].replace("`" + tok[1] + "`", "`" + tok[1] + "Renamed`");
+    const edited = en.replace(span[0], editedGloss);
+    assert.notEqual(edited, en, "the hand-edit applied inside the generator gloss");
+
+    assert.equal(compileFileEn(edited, idx, { deriveCheck: false }), source,
+      "WITHOUT the check a hand-edit to a generator gloss is silently ignored (this is the defect)");
+
+    assert.throws(() => compileFileEn(edited, idx, CHK), /SENTENCE AND PAYLOAD DISAGREE/,
+      "WITH the check the same hand-edit is refused, not silently compiled");
+
+    console.log("  ok  R-REND-6: a hand-edit to a generator gloss is refused, not silently ignored");
+    done = true;
+    break;
+  }
+  if (!done) console.log("  --  R-REND-6 check skipped: no rendered corpus with a quoted generator gloss");
+}

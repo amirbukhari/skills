@@ -350,6 +350,41 @@ index. R-REND-6 is rewritten. What that costs, concretely:
 4. **R-PAY-1's dialect survives unchanged.** Nothing about the encoding is wrong; what changes is
    which artifact is the source and which is the cache.
 
+### 5.3 Derive-and-check — SHIPPED 2026-08-31
+
+**What it does:** re-derives the gloss from the payload — by calling the same `namedLabel` /
+`genLabel` the renderer used, on the bytes `compileSpan` produces — and **throws** if it differs from
+the gloss written in the file, naming both sides.
+
+**What it deliberately does NOT do:** make the edit *effective*. A hand-edit is now **detected**, not
+honoured. Honouring it needs the §3.2 grammar parser, which is the larger job. What this closes is
+the **silent no-op**, which was the worst of the three behaviours — worse than refusing, and worse
+than obeying.
+
+**Why derive the gloss instead of parsing it.** The cheap check — *"every backticked token in the
+gloss must be one of the payload's hole fills"* — was **measured on the fixture and is wrong**: 32/40
+spans pass, and all 8 failures are the same benign shape, a gloss saying `` `this.rows` `` where the
+hole holds `rows` and `this.` came from the template. A check that fires on 20% of correct spans is
+worse than no check. Deriving has **no false positives by construction**: the renderer wrote the
+gloss with the same two functions the check re-derives it with.
+
+**A finding that narrows R-REND-6.** The **per-statement CNL path already reads its own prose** —
+editing `` `x` `` in `«Let `x` be …»` changes the compiled output today. The silent no-op was
+specific to **generator spans**, where `compileChunk` located the payload with `lastIndexOf` and
+ignored every other byte. R-REND-6's defect was narrower than the requirement's wording implied.
+
+**Measured, both directions (§10.3 mutation discipline):**
+
+| | result |
+|---|---|
+| real corpus, check ON | **1,037/1,037 byte-identical, zero false positives** |
+| hand-edit a generator gloss, check **OFF** | compiles **the un-edited code** and looks like it worked — the defect, now pinned by an assertion |
+| same edit, check **ON** | throws `SENTENCE AND PAYLOAD DISAGREE`, printing written vs derived |
+
+Off by default outside the tests (`SDD_DERIVE_CHECK=1` / `{deriveCheck:true}`) because it costs one
+parse per generator span on the round-trip hot path; **on** in `enfile.test.js`, which is where a
+drifted gloss would otherwise slip through.
+
 **What is still open here is mechanics only** (§Q-3): whether the payload stays in the `.en` at all
 once it is derivable, or moves to a sidecar cache. Keeping it in the `.en` costs bytes and buys a
 self-contained artifact; moving it out makes the `.en` pure English and adds a file that can go
@@ -440,7 +475,7 @@ told otherwise.
 | **2** | Does the derived payload stay inside the `.en` or move to a sidecar cache? | **Stay in the `.en`** (§5). A sidecar reintroduces the §8B drift class. |
 | **3** | Is AT-ARCH-1 a gate or a report, at first? | **Gate.** A mining-parameter change that shifts an archetype file's `.en` should fail the build. Real cost, correct default. |
 | **4** | Is the archetype vocabulary hand-declared, or does the miner propose new archetypes? | **Hand-declared** (§3.4), with mined *fills*. Proposal can come later; it is not on the critical path. |
-| **5** | How far does `compileChunk` move toward full sentence parsing in the first cut? | **Derive-and-check first** (§5.2): keep the existing payload read, add derivation from the sentence, throw on disagreement. It delivers hand-edit safety without a rewrite. |
+| **5** | ~~How far does `compileChunk` move toward full sentence parsing in the first cut?~~ | **DONE 2026-08-31 — derive-and-check shipped.** See §5.3 below for what it does, what it deliberately does not, and the measurement. Cut 2 (making the edit *effective*) is still open and needs §3.2's grammar parser. |
 
 **Resolved, no longer open:** THE LIFT amendment (§6, statements 6–7); whether the sentence or the
 payload is authoritative (§5, statement 4); whether §5C and archetype composition are one system

@@ -1527,3 +1527,34 @@ unchanged (20:36 and 21:09, both before this work).
   and `enfile.js`'s NAMES loader all name the kind — and the standing instruction is that these
   failures *"stay failing/blocked until the requirement itself is revisited."* The requirement has
   not been revisited. This needs Amir, not me.
+
+## Derive-and-check: detect the hand-edit, do not yet honour it
+
+**Decided:** `compileChunk` re-derives a generator span's gloss from its payload and **throws** on
+disagreement, rather than either (a) continuing to ignore the prose or (b) making the prose
+authoritative for real. **Why not (a):** R-REND-6 now says the sentence is authoritative, and the old
+behaviour compiled the *un-edited* code while looking like the edit worked — worse than refusing.
+**Why not (b) yet:** honouring an edit needs the §5E.3.2 grammar parser; substituting hole fills from
+backticked tokens would have been a guess.
+
+**The judgment call I nearly got wrong.** My first design was the cheap check — *every backticked
+token in the gloss must be one of the payload's hole fills*. **Measured before building on it: 32/40
+spans pass**, and all 8 failures are one benign shape, a gloss saying `` `this.rows` `` where the
+hole holds `rows` and `this.` came from the template. A check that fires on 20% of correct spans is
+worse than no check. Deriving the gloss instead has **no false positives by construction** — the
+renderer wrote it with the same two functions the check re-derives it with. **Measuring the cheap
+idea first is what stopped it.**
+
+**Default OFF outside tests** (`SDD_DERIVE_CHECK=1` / `{deriveCheck:true}`), because it costs one
+parse per generator span on the round-trip hot path; **ON** in `enfile.test.js`, where a drifted
+gloss would otherwise slip through. If the cost turns out not to matter on a real timing run, it
+should become unconditional — logged so that is a decision someone makes, not an oversight.
+
+**Narrowing found on the way:** the **per-statement CNL path already reads its own prose** — editing
+`` `x` `` in ``«Let `x` be …»`` changes the output today. The silent no-op was specific to generator
+spans. R-REND-6's defect was narrower than its wording implied, and the PRD now says so.
+
+**Proven both directions (§10.3):** real corpus with the check on, **1,037/1,037 byte-identical,
+zero false positives**; with the check off a gloss hand-edit compiles the un-edited code (asserted,
+so the defect cannot be quietly reintroduced); with it on the same edit throws and prints written vs
+derived.
