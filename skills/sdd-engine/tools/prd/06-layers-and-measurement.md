@@ -62,8 +62,10 @@ structurally compressing — repeated structure becomes a single recursive word 
 the *reading* shrinks. Those are different quantities and only the second one is the goal.
 
 *Measured 2026-08-31, over the 1,037-file enfile-layer walk, with the flat path deleted:* the `.en`
-is **19% larger** than the `.ts` (4,830,829 B against 4,058,328 B) **and 63.5% of body statements
-left the reader's view** (17,029 of 26,824, §7.3). The size gap was never the flat path; attributing
+is **19% larger** than the `.ts` (4,830,829 B against 4,058,328 B) **and 50.2% of body statements
+left the reader's view** (17,029 of 33,918, §7.3). *(That ratio first published as 63.5%, against a
+denominator that counted only function bodies while the folder also folds top-level and non-function
+statements; §7.3 records the correction and the invariant that now makes it fail loudly.)* The size gap was never the flat path; attributing
 it there was a guess that measurement refuted. Byte size is reported. Review surface is the gate.
 
 ---

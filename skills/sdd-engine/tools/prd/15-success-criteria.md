@@ -66,12 +66,26 @@ second engineer can reproduce, not a judgement.
 
 **Frozen definitions.**
 
-- **Total statements `S`** — the sum of function/method body statements over the enfile-layer walk
-  (§4), as counted by `fnStmtCount` in `operations.js`. The fixed denominator.
+- **Total statements `S`** — the statements over the enfile-layer walk (§4) that the folder can
+  actually fold: **the direct children of every `Block` or `SourceFile`**, counted by
+  `countBodyStatements` in `engine/enfile.js`. **Amended 2026-08-31.** This definition used to name
+  `fnStmtCount` in `operations.js`, which counts only statements inside *function and method*
+  bodies. **That was the wrong universe, and it made the metric flattering — twice.** The folder also
+  collapses statements at file top level and inside non-function blocks, so the numerator counted
+  spans the denominator did not. On the real corpus `fnStmtCount` gave **S = 17,852** against
+  `statementsCollapsed = 22,760` — a fold of more statements than existed, which clamped the
+  residual to a perfect 0, and that 0 was *published*. A second attempt (a wider `fnStmtCount` walk,
+  S = 22,916) fixed the inequality but still reported **895 restated against 156 unfolded**, an
+  impossibility. **The rule this settles: the denominator must be the SAME WALK as the numerator.**
+  With it, `collapsed 22,760 + unfolded 11,158 = 33,918 = S` exactly, and `write-en-files.js` now
+  *throws* rather than publish parts that do not sum to `S` (R-MEAS-2; and R-MECH-8 — a number that
+  cannot fail is not a measurement).
 - **Statement-collapse ratio** = `netStatementReduction ÷ S`, where
   `netStatementReduction = statementsCollapsed − calls`. It is the fraction of body statements
-  removed from the reader's view by being folded into a generator call. **Measured 2026-08-31:
-  17,029 ÷ 26,824 = 63.5%.**
+  removed from the reader's view by being folded into a generator call. **Measured 2026-08-31
+  against the corrected denominator: 17,029 ÷ 33,918 = 50.2%.** *(The 63.5% published earlier the
+  same day is retired: same numerator, the too-small `fnStmtCount` denominator. The corrected
+  number is lower, and it is the real one.)*
 - **REVIEW SURFACE** = `calls + (S − statementsCollapsed)` = `S − netStatementReduction`. **This is
   the one definition; §5D.4's per-file residual is a component of it, not a rival.** Both are emitted
   by one producer (`en-index.json → reviewSurface`, and `perFile[].reviewSurface` per file), so there
@@ -107,8 +121,8 @@ second engineer can reproduce, not a judgement.
 |---|---|
 | **Files with un-collapsed repeated structure** | **→ 0**: every recurring-up-to-renaming body is promoted, or provably non-refillable. |
 | **Composition depth on the live `.en` path** (`generators.maxDepth`) | **≥ 2 and rising** — the live compile must expand generators that call generators (§5B). Depth 1 means the flat degenerate path (§2.4). |
-| **REVIEW SURFACE** = `calls + (S − statementsCollapsed)` — the things a reader must still read | **→ falling, toward the vocabulary size.** The **headline** metric. **Measured 2026-08-31: 9,795, from S = 26,824 — 63.5% left the reader's view.** Per-file view: `perFile[].reviewSurface`. |
-| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | **NOT A GATE. Reported only.** *This row used to read "Must turn positive and rise" and then "should turn positive and rise"; both are retired — a rise here with review surface flat is **not progress** (see below).* **Measured 2026-08-31: −19%** (`.en` 4,830,829 B vs `.ts` 4,058,328 B) **while 63.5% of statements left the reader's view.** More bytes, far less to read. |
+| **REVIEW SURFACE** = `calls + (S − statementsCollapsed)` — the things a reader must still read | **→ falling, toward the vocabulary size.** The **headline** metric. **Measured 2026-08-31: 16,889, from S = 33,918 — 50.2% left the reader's view** (5,731 generator calls + 11,158 unfolded, of which 895 restated 1:1 and 10,263 verbatim). Per-file view: `perFile[].reviewSurface`. |
+| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | **NOT A GATE. Reported only.** *This row used to read "Must turn positive and rise" and then "should turn positive and rise"; both are retired — a rise here with review surface flat is **not progress** (see below).* **Measured 2026-08-31: −19%** (`.en` 4,830,829 B vs `.ts` 4,058,328 B) **while 50.2% of statements left the reader's view.** More bytes, far less to read. |
 | **Statement-collapse** | Rising, with byte-identity held. |
 
 **Explicitly not a metric: English-%.** It is a by-product; a rise from paraphrasing unique code is a

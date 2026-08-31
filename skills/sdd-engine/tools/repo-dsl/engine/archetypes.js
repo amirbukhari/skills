@@ -208,8 +208,17 @@ function parseRelationArgs(mem) {
       out.joinDecorator = n;
       out.join = true;
       if (ts.isCallExpression(e)) {
-        const obj = e.arguments.find((x) => ts.isObjectLiteralExpression(x));
-        if (obj) for (const pr of obj.properties) {
+        /* TypeORM accepts BOTH @JoinColumn({...}) and @JoinColumn([{...}]), and this repo's own
+         * forward generator (engine/generate.js renderRelation) emits the ARRAY form. Reading only
+         * the object form meant a generated entity re-mined without its join name — caught by
+         * running AT-ARCH-1 end to end on the §5D.1 reference case, which is the whole point of
+         * that acceptance test. Both forms now. */
+        const objs = [];
+        for (const arg of e.arguments) {
+          if (ts.isObjectLiteralExpression(arg)) objs.push(arg);
+          else if (ts.isArrayLiteralExpression(arg)) for (const el of arg.elements) if (ts.isObjectLiteralExpression(el)) objs.push(el);
+        }
+        for (const obj of objs) for (const pr of obj.properties) {
           if (ts.isPropertyAssignment(pr) && pr.name && ["name", "referencedColumnName"].includes(pr.name.getText()))
             out[pr.name.getText() === "name" ? "join" : "referencedColumnName"] = pr.initializer.getText().replace(/^['"]|['"]$/g, "");
         }

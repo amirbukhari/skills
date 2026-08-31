@@ -83,7 +83,6 @@ function unescapeVerbatim(s) {
   return out;
 }
 
-
 /* load the mined multi-line generator catalog (regenerable; absent -> layer disabled) */
 /* best-effort coined-word index so cnl can render coined phrases too (empty is fine) */
 function loadIndex(corpusRoot) {
@@ -836,9 +835,27 @@ function namedLabel(s, source, cat, names) {
  * statements a human must still read AS CODE. Amir, 2026-08-31: "its not about compression, its
  * about less of a review surface." So the renderer has to publish the denominator it already has
  * the AST for.
- *   bodyStatements  every statement that is a direct child of a FUNCTION-LIKE body. That is the
- *                   reader's unit: top-level declarations and class members are structure, the
- *                   statements inside them are the code someone reviews line by line.
+ *   bodyStatements  THE FOLDER'S OWN UNIVERSE: every statement that is a direct child of a Block
+ *                   or of the SourceFile — which is exactly what `enlzw.genSpans` collects when it
+ *                   looks for runs to fold (`if ((ts.isBlock(n) || ts.isSourceFile(n)) && n.statements.length)`).
+ *
+ *                   TWO WRONG DENOMINATORS PRECEDED THIS, both flattering, both caught by
+ *                   measurement rather than by reading:
+ *                     1. direct children of FUNCTION-LIKE blocks only -> S = 17,852 while collapsed
+ *                        was 22,760. Collapsed EXCEEDED the denominator, so residual clamped at 0
+ *                        and the metric published a perfect score. (s12 caught this as R-MEAS-2.)
+ *                     2. §7.3's frozen `operations.fnStmtCount` over function bodies -> S = 22,916,
+ *                        which fixed the inequality but left `restated` (895) larger than
+ *                        `unfolded` (156) — impossible, and the tell that numerator and denominator
+ *                        were still counting different things. fnStmtCount recurses into if/loop/try
+ *                        bodies but never sees SourceFile-level statements, and the folder folds
+ *                        those too.
+ *
+ *                   THE RULE THIS SETTLES: the denominator must be the SAME WALK as the numerator.
+ *                   A metric whose two halves come from different traversals cannot be checked by
+ *                   an inequality, which is why both errors published rather than failing.
+ *                   NOTE FOR §7.3: this is NOT `fnStmtCount`, so PRD §7.3's frozen `S` needs
+ *                   amending to match — flagged in ASSUMPTIONS.md, not changed silently.
  *   collapsed       statements folded into a MULTI-STATEMENT generator word. The reader reviews
  *                   the word once, not these statements — this is the only category that actually
  *                   removes review work.
@@ -862,10 +879,8 @@ function namedLabel(s, source, cat, names) {
  * consumer. One definition, published beside the spans it is derived from. */
 function countBodyStatements(sf) {
   let n = 0;
-  const isFnLike = (nd) => ts.isFunctionDeclaration(nd) || ts.isFunctionExpression(nd) || ts.isArrowFunction(nd)
-    || ts.isMethodDeclaration(nd) || ts.isConstructorDeclaration(nd) || ts.isGetAccessor(nd) || ts.isSetAccessor(nd);
   const walk = (nd) => {
-    if (isFnLike(nd) && nd.body && ts.isBlock(nd.body)) n += nd.body.statements.length;
+    if ((ts.isBlock(nd) || ts.isSourceFile(nd)) && nd.statements.length) n += nd.statements.length;
     ts.forEachChild(nd, walk);
   };
   walk(sf);

@@ -1913,3 +1913,105 @@ answer by luck. `verify-register.js:677` already includes `readFileSync\(0`; min
 **Not fixed, and deliberately.** `verify-register.js` belongs to the register lane, and
 `new-archetype.js` is another lane's uncommitted file. Both measurements handed to `sdd-engine-5f`
 (owner of the checker) and `sdd-engine-e2` (who reported the row).
+
+---
+
+## 2026-08-31 · s7 · The review-surface denominator was wrong twice, and both times it flattered
+
+**Decision:** `S` (the review-surface denominator) is now **the direct children of every `Block` or
+`SourceFile`** — the folder's own universe — counted by `countBodyStatements` in `engine/enfile.js`.
+PRD §7.3's frozen definition, which named `fnStmtCount` in `operations.js`, is **amended** rather
+than quietly re-pointed.
+
+**Why, and what I got wrong.** `fnStmtCount` counts statements inside *function and method* bodies
+only. The folder also collapses statements at file top level and inside non-function blocks, so the
+numerator was counting spans the denominator never included.
+
+- First measurement: `S = 17,852` against `statementsCollapsed = 22,760` — a fold of **more
+  statements than existed**. The residual clamped to a perfect 0, and I **published that 0**.
+- Second attempt (a wider `fnStmtCount` walk, `S = 22,916`) fixed the inequality but reported
+  **895 restated against 156 unfolded**, which is impossible.
+- Corrected: `collapsed 22,760 + unfolded 11,158 = 33,918 = S`, exactly.
+
+Both wrong numbers were **flattering**, and neither failed — they were published. That is the
+R-MECH-8 shape (a number no mine can move) arriving through a different door. `write-en-files.js`
+now **throws** if the parts do not sum to `S`, if restated exceeds unfolded, or if collapsed exceeds
+`S`. The rule this settles, written into §7.3: **the denominator must be the same walk as the
+numerator.**
+
+**Consequence, stated plainly:** the headline ratio drops from the **63.5%** published earlier the
+same day to **50.2%** (review surface 16,889 of `S` 33,918). The lower number is the real one. Every
+citation of 63.5% across the PRD is corrected, each with the retirement noted in place rather than
+silently overwritten.
+
+**Not done, flagged:** s12's handoff derived `S = 26,824` from `fnStmtCount` in good faith. That
+figure is superseded by this correction, not by any error on their part.
+
+---
+
+## 2026-08-31 · s7 · Two spelling conventions in the entity sentence grammar
+
+**Decision:** in `engine/entity-sentence.js`, a **column** name is *spoken* (`account id` →
+`accountId`, `@Column({ name: 'account_id' })`), while a **join column** is *verbatim*
+(`(join account_id)`).
+
+**Why:** both were read off Amir's own reference sentence (§5D.1) rather than invented — it uses
+exactly this mix. The reason it is also *right*: a column name is prose about a field, and a join
+column is a database identifier the reader must be able to match against a schema by eye. Speaking
+it would break that match. The round trip failed on `(join account id)` before this rule existed,
+which is how it was found.
+
+**Assumption I am making, correctable:** that this generalises beyond the one reference sentence —
+i.e. that every db-identifier-shaped fill stays verbatim and every human-facing name is spoken. One
+sentence is thin evidence for a rule. If a second reference sentence disagrees, this is the line to
+revisit.
+
+---
+
+## 2026-08-31 · s7 · A real defect byte-identity could never have caught
+
+**Found:** `@JoinColumn({ name: 'account_id' })` was **dropped entirely** by the entity extractor —
+only the *first* decorator on a member was read, so the join name existed nowhere in the slots and a
+re-mine could not reproduce its own sentence. A second form, `@JoinColumn([{ ... }])` — the array
+form the repo's own emitter produces — was also unparsed, leaving `join === true`.
+
+**Why it matters beyond the fix:** **byte-identity stayed green through both**, because member bytes
+re-emit verbatim from their span. The gate we lean on hardest is structurally blind to a slot that
+is missing but not *needed* for re-emission. Only the sentence round trip could see it. That is an
+argument for AT-ARCH-1 being a gate (§5E.8 mechanic 3), not a report.
+
+**Fix:** `parseRelationArgs` in `engine/archetypes.js` reads **every** decorator on a member and
+handles both the object and array argument forms. Pinned by R-ARCH-18.
+
+---
+
+## 2026-08-31 · s7 · I rejected my own first derive-check after measuring it
+
+**Decision:** the `compileChunk` derive-and-check re-derives the *gloss* and compares; it does not
+use the cheaper rule I wrote first ("every backticked token must be a hole fill").
+
+**Why:** I measured the cheap rule before shipping it — 32/40 spans passed, and all 8 failures were
+the same benign shape (`this.rows` against a hole named `rows`). **A check that fires on 20% of
+correct spans is worse than no check**, because it trains its reader to ignore it. The replacement
+has no false positives by construction. Recording this because the instinct to ship the cheap
+version was real, and the only thing that stopped it was measuring first.
+
+---
+
+## 2026-08-31 · s7 · The forward command refuses rather than warns
+
+**Decision:** `new-archetype.js` runs AT-ARCH-1 on **every invocation** and **writes nothing** if the
+generated `.ts` does not re-mine to the sentence that authored it (exit 2).
+
+**Why:** the alternative — write now, discover at the next mine — puts a file in the corpus that the
+mine will silently disagree with. That is exactly the drift class §8B exists to stop, one level up.
+A refusal is loud, local, and costs the author one message; the drift costs whoever finds it later.
+
+**Judgment call inside it:** the `.en` is written **before** the `.ts`, so a crash between the two
+writes leaves the English and never an orphan `.ts`. The ordering is not cosmetic and should not be
+"tidied" into a single atomic write without preserving that property.
+
+**Interface assumption (Amir is away; correct me if wrong):** the standing "scripts must be callable
+from a UI" requirement is read as *no interactive prompts, structured stdin, exactly one JSON
+document on stdout, prose to stderr, meaningful exit codes*. `new-archetype.js` follows that shape,
+and it is the shape I will apply to every remaining pipeline script.

@@ -188,9 +188,9 @@ render was needed — `write-en-files.js --dry-run --out <tmp>`, no corpus write
 | composites / composition edges | 112,423 / 224,846 |
 | English coverage (bytes) | 82% |
 | statements collapsed / calls / net reduction | 22,760 / 5,731 / **17,029** |
-| `S` (body statements, `fnStmtCount` over the same walk) | **26,824** across 8,794 bodies |
-| **statement-collapse ratio** | **63.5%** |
-| **review surface** | **9,795** things to read (5,731 calls + 4,064 unfolded) |
+| `S` (statements the folder can fold: direct children of every `Block`/`SourceFile`) | **33,918** |
+| **statement-collapse ratio** | **50.2%** |
+| **review surface** | **16,889** things to read (5,731 calls + 11,158 unfolded: 895 restated, 10,263 verbatim) |
 | byte compression | **−19%** (`.en` 4,830,829 B vs `.ts` 4,058,328 B) |
 
 **R-COMP-7's `≥ 2` clears by 30×.** And the answer to the question Q-8 was really asking — the gap
@@ -202,8 +202,11 @@ to 62 but **3,249 of 5,731 spans are still at depth 1**. Most spans are shallow 
 dictionary is deep. That is not a failure of the mechanism — it is exactly the residual §5D.4 names,
 and it is where one-word-per-file has to make its gains.
 
-**19% more bytes, 63.5% less to read.** Amir's reframe (§5D.0 statement 8) measured rather than
-asserted.
+**19% more bytes, 50.2% less to read.** Amir's reframe (§5D.0 statement 8) measured rather than
+asserted. *(Published first as 63.5%; that used `fnStmtCount` as the denominator, which counts only
+function-body statements while the folder also folds top-level and non-function ones. §7.3 carries
+the corrected definition and the sum-to-`S` invariant that now throws instead of publishing a
+flattering number.)*
 
 ## Q-9 — Naming-stage mechanics · CLARIFY · this lane · §5D.2
 

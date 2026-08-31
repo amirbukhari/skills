@@ -186,6 +186,23 @@ console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   ($
 console.log(`  generator spans ............... ${genSpans}   all recursive (no flat producer exists)`);
 if (genFlatFallback) console.log(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
 console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
+/* THE INVARIANT THAT SHOULD HAVE EXISTED FIRST (R-MECH-8 discipline). Two wrong denominators
+ * shipped before this line did, and both PUBLISHED rather than failing: one made collapsed exceed
+ * S so residual clamped to a perfect 0, the other left `restated` larger than `unfolded`. Both are
+ * caught by arithmetic the producer can do on itself. A metric whose parts do not add up is not a
+ * measurement, and it must refuse to be printed. */
+{
+  const r = manifest.reviewSurface;
+  const parts = r.collapsedStatements + r.residualStatements;
+  if (parts !== r.bodyStatements)
+    throw new Error(`review surface is incoherent: collapsed ${r.collapsedStatements} + residual ${r.residualStatements} = ${parts}, but S = ${r.bodyStatements}. ` +
+      `Numerator and denominator are counting different things — see engine/enfile.js countBodyStatements.`);
+  if (r.restatedStatements > r.residualStatements)
+    throw new Error(`review surface is incoherent: restated ${r.restatedStatements} exceeds unfolded ${r.residualStatements}. ` +
+      `A restated statement is by definition one of the unfolded ones.`);
+  if (r.collapsedStatements > r.bodyStatements)
+    throw new Error(`review surface is incoherent: collapsed ${r.collapsedStatements} exceeds S ${r.bodyStatements}.`);
+}
 const rs = manifest.reviewSurface;
 console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurface} things to read, from S=${rs.bodyStatements} statements  (${rs.collapseRatioPct}% left the reader's view)`);
 console.log(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);

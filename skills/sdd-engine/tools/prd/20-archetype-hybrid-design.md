@@ -2,8 +2,10 @@
 
 *[index](README.md) · **DIRECTION SETTLED, MECHANICS IN DESIGN.** The direction is Amir's eight
 verbatim statements in §5D.0 and is not up for debate; this file is how they get built. Nothing here
-is built **yet**. What remains genuinely open is mechanics only — §8, five items, each with a
-recommendation this lane will build against unless redirected.*
+is built **yet** — **correction 2026-08-31: two of the five are now built** (mechanic 5,
+derive-and-check, §5.3; mechanic 1, the `.en`-first forward command, §3.6). What remains genuinely
+open is mechanics only — §8, **three** items, each with a recommendation this lane will build
+against unless redirected.*
 
 **Non-negotiable design targets, from §5D.0:**
 
@@ -255,6 +257,37 @@ AT-ARCH-1 an identity the pipeline *maintains* rather than a coincidence it hope
 §1's thesis that the English is the source. Emitting `.ts` first and hoping the render finds its way
 back to the same clause is the version that fails.
 
+**SHIPPED 2026-08-31.** `new-archetype.js` is that command, over `engine/entity-sentence.js` — a
+bidirectional grammar with a `parse` and a `render` that are inverses:
+
+```
+Entity   -> "«Name» is an entity stored in «table»." [Columns] [Relations]
+Column   -> "an auto-generated id" | "a required «name» («type»)" | "an optional «name» («type»)"
+Relation -> " It belongs to a «Target» (join «col»)." | " It has many «Target»."
+```
+
+Three things about it are load-bearing, not incidental:
+
+1. **AT-ARCH-1 runs on every invocation, and a failure REFUSES the write.** The command emits
+   nothing until it has put its own output back through the mine and got its own sentence back,
+   byte for byte. The alternative — write now, discover at the next mine — is the drift class §8B
+   exists to stop, one level up. Exit 2, reason in `error`, no file touched.
+2. **Zero model calls** (R-MECH-4), matching §5D.1's panel: nothing about the deterministic pass
+   asks a model anything.
+3. **The interface is non-interactive by construction** — `--sentence` / `--sentence-file` /
+   `--stdin` in, one JSON document on stdout under `--json` (prose to stderr), `--dry-run` to
+   verify without writing. No prompts, so a UI can drive it unchanged.
+
+**Two conventions the grammar fixes**, both read off Amir's own reference sentence rather than
+invented: a **column** name is *spoken* (`account id` → `accountId`, `@Column({ name: 'account_id' })`),
+while a **join column** is *verbatim* (`(join account_id)`). A column name is prose about a field; a
+join column is a database identifier the reader must be able to match against a schema by eye.
+
+`engine/entity-sentence.test.js` pins the loop on the PaymentPlan reference sentence in both
+directions plus the **fixpoint turn** — a renderer that normalises can match once by luck and drift
+on the next turn, so turn two is asserted identical too — and it proves each refusal actually fires
+(§10.3).
+
 ---
 
 ## 4. Sanity-check against the real case — the PaymentPlan sentence, clause by clause
@@ -471,7 +504,7 @@ told otherwise.
 
 | # | open mechanic | recommendation |
 |---|---|---|
-| **1** | Does the archetype command emit `.en` first or `.ts` first? | **`.en` first** (§3.6). It makes AT-ARCH-1 an identity the pipeline maintains rather than a coincidence. |
+| **1** | ~~Does the archetype command emit `.en` first or `.ts` first?~~ | **DONE 2026-08-31 — `.en` first, shipped.** `new-archetype.js` + `engine/entity-sentence.js`; AT-ARCH-1 is checked on every invocation, not in a test only, and a file that cannot be re-mined to its own sentence is **refused, not written**. See §3.6. |
 | **2** | Does the derived payload stay inside the `.en` or move to a sidecar cache? | **Stay in the `.en`** (§5). A sidecar reintroduces the §8B drift class. |
 | **3** | Is AT-ARCH-1 a gate or a report, at first? | **Gate.** A mining-parameter change that shifts an archetype file's `.en` should fail the build. Real cost, correct default. |
 | **4** | Is the archetype vocabulary hand-declared, or does the miner propose new archetypes? | **Hand-declared** (§3.4), with mined *fills*. Proposal can come later; it is not on the critical path. |
@@ -484,7 +517,8 @@ payload is authoritative (§5, statement 4); whether §5C and archetype composit
 ## 9. Requirements this pass adds
 
 Added to §R as part of this pass (R-ARCH-15, R-ARCH-16, R-LANG-12..14 and the R-MINE-7 amendment are
-**already written into the register**); R-ARCH-9..14 and R-ARCH-17 land when the mechanics above settle:
+**already written into the register**; **R-ARCH-13 and R-ARCH-14 landed 2026-08-31 with mechanic 1**).
+R-ARCH-9..12 and R-ARCH-17 land when the remaining mechanics settle:
 
 - **R-ARCH-9** — an archetype **MUST** be a dictionary entry, not a layer above the dictionary.
 - **R-ARCH-10** — archetype and slot ids **MUST** be content-addressed, never mining-order indices.
