@@ -300,6 +300,23 @@ which is worse. **Injectivity is therefore a gate, not a style rule**, and the c
 is: for every pair of productions on an axis, assert their compiled outputs differ. Proposed as
 R-ARCH-17.
 
+**MEASURED against the real extractor, 2026-08-31.** §4 above was written from the sentence alone;
+it has now been checked against `extractEntity`'s actual output on the compiled PaymentPlan. Both
+predictions held, one was sharper than expected:
+
+- **(a) alternatives are real, not hypothetical.** `columns[0]` (the auto-generated id) comes back as
+  `decorator: "PrimaryGeneratedColumn"` with **no `parsed.type` at all**, while `columns[2]` carries
+  `type: "decimal", nullable: "false"`. Two shapes, one nonterminal — a single `memberId` per slot
+  could not have expressed it.
+- **(b) the implied `@OneToMany` is NOT invisible to the miner**, which is better news than §4b
+  assumed. It is extracted as `relations[1]` with `kind: "OneToMany", target: "Installment"`, so the
+  backward map has a real slot to attribute it to and the 2-relation count matches the sentence's two
+  relation clauses 1:1. Injectivity is still required — two productions emitting the same decorator
+  would still be ambiguous — but the reference case does not violate it.
+- **The gap was somewhere else, and it was worse.** The `@JoinColumn({ name: "account_id" })` fill
+  was **dropped entirely** (§7 prerequisite 1). The sentence names it; the slots did not hold it.
+  Fixed and pinned.
+
 **One residual honesty note.** *"a required account id (int)"* → property name. `account id` with a
 space must map to `accountId`, and `account_id` in the join clause must map to the same column. That
 canonicalization is a **function the grammar owns**, and it must be **injective too** (`account id`,
@@ -372,9 +389,35 @@ not an excuse.
 
 ## 7. Prerequisites — things that must be true before any of this is built
 
-1. **R-ARCH-6 — `extractEntity` is broken and must be fixed first.** It returns `className`, `table`
-   and per-column `.name` as `undefined`, storing them as `slots.className`, `slots.table` and column
-   `.prop`. §3.2's named binding reads exactly those fields.
+1. **~~R-ARCH-6 — `extractEntity` is broken~~ — MEASURED FALSE, and one real defect found instead
+   (2026-08-31).** Run against the §5D.1 reference case, `extractEntity` returns `conforms: true`,
+   `byteIdentical: true`, `className: "PaymentPlan"`, `table: "payment_plans"`, **5 columns and 2
+   relations** — exactly the panel's own *"entity PaymentPlan, 5 cols, 2 rels"*. The requirement
+   described a reader using top-level keys instead of `result.slots`, which its own Check line
+   admitted. **This prerequisite is cleared.**
+
+   **But the run surfaced a genuine defect that byte-identity cannot see.** A relation slot carried
+   only the *first* relation decorator, so for
+
+   ```
+   @ManyToOne(() => BillingAccount)
+   @JoinColumn({ name: "account_id" })
+   account!: BillingAccount;
+   ```
+
+   the join column name `account_id` was **dropped entirely** — no field held it. The reference
+   sentence is *"It belongs to a BillingAccount (join account_id)"*, so **re-mining a compiled entity
+   could not reproduce its own sentence**: the fill did not exist. Byte-identity stayed green the
+   whole time, because the member's bytes are re-emitted verbatim from the span — **the loss is in
+   the slots, not in the text.**
+
+   **This is AT-ARCH-1's first real catch, before AT-ARCH-1 was even built.** It is the exact failure
+   class §2 argued idempotence-under-re-mine would find and byte-identity would not, and it was
+   sitting in the extractor the whole time. Fixed by `parseRelationArgs` (named `kind`, `target`,
+   `inverse`, `join`, reading **every** decorator on the member) and pinned by a regression block in
+   `engine/archetypes.test.js` with **one assertion per clause of the reference sentence**, so a
+   dropped fill fails by name instead of surfacing later as an unexplained `.en` diff. Proposed as
+   **R-ARCH-18**.
 2. **R-PAY-6 must be closed, or AT-ARCH-1 fails on day one** — not as a subtle regression but
    immediately, because every re-mine renumbers the ids the payload cites. §3.2's content-addressed
    ids are the fix; adopting them for archetypes does not fix it for ordinary words, which is the

@@ -166,6 +166,72 @@ function parseColumnArgs(dec) {
   }
   return out;
 }
+/* parseRelationArgs — the relation counterpart of parseColumnArgs, and it exists because of a
+ * defect BYTE-IDENTITY CANNOT SEE.
+ *
+ * A relation slot used to carry only `{ prop, decorator, args, span }`, where `args` was the raw
+ * text of the FIRST relation decorator. So for
+ *
+ *     @ManyToOne(() => BillingAccount)
+ *     @JoinColumn({ name: "account_id" })
+ *     account!: BillingAccount;
+ *
+ * the join column name `account_id` was DROPPED ENTIRELY — nothing in the extracted slots held it.
+ * The PRD's own reference sentence (§5D.1) is *"It belongs to a BillingAccount (join account_id)"*,
+ * so re-mining a compiled entity could not reproduce its own sentence: the fill for `join` did not
+ * exist. Byte-identity stayed green throughout, because the member's bytes are re-emitted verbatim
+ * from the span — the loss is in the SLOTS, not in the text. This is exactly the failure class
+ * AT-ARCH-1 (idempotence under re-mine, PRD §5E.2) was proposed to catch and byte-identity was
+ * never going to.
+ *
+ * Every decorator on the member is now read, not just the first, and the fields the sentence needs
+ * are named rather than left inside a raw string:
+ *   kind      the relation decorator (ManyToOne / OneToMany / ...) — picks the sentence alternative
+ *   target    the related entity, from the `() => X` thunk — the sentence's noun
+ *   inverse   the inverse-side accessor, when a second arg gives one
+ *   join      the JoinColumn/JoinTable name — the fill that used to vanish
+ * `raw` keeps the full decorator text so nothing is lost if a shape appears that this misses. */
+function parseRelationArgs(mem) {
+  const decs = decoratorsOf(mem);
+  const out = { raw: decs.map((d) => d.getText()).join("\n") };
+  const thunkTarget = (arg) => {
+    if (!arg) return null;
+    if (ts.isArrowFunction(arg) && arg.body && !ts.isBlock(arg.body)) return arg.body.getText();
+    return null;
+  };
+  for (const d of decs) {
+    const n = decName(d), e = d.expression;
+    if (!RELATION_DECS.has(n)) continue;
+    if (n === "JoinColumn" || n === "JoinTable") {
+      /* @JoinColumn() with no args is legal and means "derive the name" — recorded as `true` so a
+       * consumer can tell "absent" (no join at all) from "present, name implied". */
+      out.joinDecorator = n;
+      out.join = true;
+      if (ts.isCallExpression(e)) {
+        const obj = e.arguments.find((x) => ts.isObjectLiteralExpression(x));
+        if (obj) for (const pr of obj.properties) {
+          if (ts.isPropertyAssignment(pr) && pr.name && ["name", "referencedColumnName"].includes(pr.name.getText()))
+            out[pr.name.getText() === "name" ? "join" : "referencedColumnName"] = pr.initializer.getText().replace(/^['"]|['"]$/g, "");
+        }
+      }
+      continue;
+    }
+    out.kind = n;
+    if (ts.isCallExpression(e)) {
+      const t = thunkTarget(e.arguments[0]);
+      if (t) out.target = t;
+      const inv = thunkTarget(e.arguments[1]);
+      if (inv) out.inverse = inv;
+      const obj = e.arguments.find((x) => ts.isObjectLiteralExpression(x));
+      if (obj) for (const pr of obj.properties) {
+        if (ts.isPropertyAssignment(pr) && pr.name && ["cascade", "eager", "nullable", "onDelete"].includes(pr.name.getText()))
+          out[pr.name.getText()] = pr.initializer.getText().replace(/^['"]|['"]$/g, "");
+      }
+    }
+  }
+  return out;
+}
+
 function extractEntity(src, fileName = "x.ts") {
   const sf = parse(src, fileName);
   const entityClasses = sf.statements.filter((st) => ts.isClassDeclaration(st) && decoratorsOf(st).some((d) => decName(d) === "Entity"));
@@ -193,7 +259,14 @@ function extractEntity(src, fileName = "x.ts") {
       }
       const propName = mem.name ? mem.name.getText() : "?";
       if (kind === "column") { const cd = decoratorsOf(mem).find((d) => COLUMN_DECS.has(decName(d))); slots.columns.push({ prop: propName, decorator: decName(cd), parsed: parseColumnArgs(cd), span: [ma, mb] }); }
-      else if (kind === "relation") { const rd = decoratorsOf(mem).find((d) => RELATION_DECS.has(decName(d))); slots.relations.push({ prop: propName, decorator: decName(rd), args: rd.expression.getText(), span: [ma, mb] }); }
+      else if (kind === "relation") {
+        const rd = decoratorsOf(mem).find((d) => RELATION_DECS.has(decName(d)));
+        /* `decorator` and `args` are kept verbatim: engine/generate.js and the arch.json fixtures
+         * already read them, and changing a field two consumers read is the drift shape §8B is
+         * about. `parsed` is additive. */
+        slots.relations.push({ prop: propName, decorator: decName(rd), args: rd.expression.getText(),
+          parsed: parseRelationArgs(mem), span: [ma, mb] });
+      }
       else slots.otherMembers.push({ prop: propName, kind: ts.SyntaxKind[mem.kind], span: [ma, mb] });
       out.push({ a: ma, b: mb, type: kind });
       cur = mb;

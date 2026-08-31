@@ -1193,3 +1193,32 @@ is the case where a silent override actually costs something later.
 override path itself (`MIN_COUNT=2` → `overridden:true, effective:2`).
 
 **Commit:** no code change in this lane.
+
+## R-ARCH-6 was a misreading; the real defect was elsewhere and worse
+
+**Decided:** rewrote R-ARCH-6 rather than "fixing" `extractEntity`. Run against the §5D.1 reference
+case it returns `conforms: true`, `byteIdentical: true`, `className: "PaymentPlan"`,
+`table: "payment_plans"`, 5 columns, 2 relations — exactly the panel's own *"entity PaymentPlan,
+5 cols, 2 rels"*. The requirement described a **reader using top-level keys** instead of
+`result.slots`, which its own Check line admitted (*"read the stored keys, not the returned ones"*).
+Same class as R-COMP-4: a requirement written from a misread, then cited as a blocker.
+
+**The judgment call:** I did NOT restructure the extractor's return shape to match the requirement.
+`result.slots` is what `generate.js`, `sdd.test.js` and the whole test suite read, and it is the
+shape §5E.3.2's named binding wants. Changing a field two consumers read to satisfy a stale note is
+the drift shape §8B exists to stop.
+
+**What the run actually found — and byte-identity could not see it.** A relation slot carried only
+the FIRST relation decorator, so `@JoinColumn({ name: "account_id" })` sitting under
+`@ManyToOne(() => BillingAccount)` was **dropped entirely**. The reference sentence is *"It belongs
+to a BillingAccount (join account_id)"*, so re-mining a compiled entity could not reproduce its own
+sentence — the fill did not exist. Byte-identity stayed green the whole time because the member's
+bytes are re-emitted verbatim from the span: **the loss is in the slots, not in the text.**
+
+**This is AT-ARCH-1's first real catch, before AT-ARCH-1 exists.** Exactly the failure class §5E.2
+argued idempotence-under-re-mine would find and byte-identity would not. Fixed by
+`parseRelationArgs` (named `kind`/`target`/`inverse`/`join`, reading every decorator on the member;
+a bare `@JoinTable()` yields `join === true` so "implied name" is distinguishable from "no join"),
+pinned by a regression block with **one assertion per clause of the reference sentence**. Additive
+only — `decorator` and `args` are untouched because two consumers read them. 56 assertions pass in
+`archetypes.test.js`; `generate.test.js` 35 and `sdd.test.js` 24 still pass.

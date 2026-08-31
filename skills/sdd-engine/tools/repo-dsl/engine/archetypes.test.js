@@ -40,6 +40,77 @@ export class BillingAccount {
   eq(r.slots.relations[0].decorator, "ManyToOne", "entity: relation decorator kind");
 }
 
+/* ---- ENTITY: the PRD §5D.1 REFERENCE CASE — every fill the sentence needs must be extractable.
+ * This is the regression guard for a defect byte-identity could not see: the join column name was
+ * dropped from the relation slot, so re-mining a compiled entity could not reproduce the sentence
+ * *"It belongs to a BillingAccount (join account_id)"* while byte-identity stayed green. The
+ * assertions below are one per CLAUSE of the reference sentence, so a future change that silently
+ * drops a fill fails here by name rather than showing up as an unexplained .en diff. ---- */
+{
+  const src = `import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+
+@Entity('payment_plans')
+export class PaymentPlan {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column({ type: 'int', nullable: false })
+  accountId!: number;
+
+  @Column({ type: 'decimal', nullable: false })
+  amount!: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  note?: string;
+
+  @Column({ type: 'enum', enum: EPaymentPlanStatus, nullable: false })
+  status!: EPaymentPlanStatus;
+
+  @ManyToOne(() => BillingAccount)
+  @JoinColumn({ name: 'account_id' })
+  account!: BillingAccount;
+
+  @OneToMany(() => Installment, (i) => i.paymentPlan)
+  installments!: Installment[];
+}
+`;
+  const r = extractEntity(src, "PaymentPlan.ts");
+  ok(r.byteIdentical, "ref case: reconstructs byte-identical");
+  ok(r.conforms, "ref case: conforms");
+  // "PaymentPlan is an entity stored in payment_plans."
+  eq(r.slots.className, "PaymentPlan", "ref: className fill");
+  eq(r.slots.table, "payment_plans", "ref: table fill");
+  // the panel's own report: "entity PaymentPlan, 5 cols, 2 rels"
+  eq(r.counts.columns, 5, "ref: 5 column slots");
+  eq(r.counts.relations, 2, "ref: 2 relation slots");
+  // "an auto-generated id" — the alternative that carries NO type and NO nullability
+  eq(r.slots.columns[0].decorator, "PrimaryGeneratedColumn", "ref: auto-generated id alternative");
+  ok(r.slots.columns[0].parsed.type === undefined, "ref: auto-generated id carries no type fill");
+  // "a required amount (decimal)" / "an optional note (varchar)"
+  eq(r.slots.columns[2].parsed.type, "decimal", "ref: amount type fill");
+  eq(r.slots.columns[2].parsed.nullable, "false", "ref: amount is required");
+  eq(r.slots.columns[3].parsed.nullable, "true", "ref: note is optional");
+  // "a required status (enum EPaymentPlanStatus)"
+  eq(r.slots.columns[4].parsed.enum, "EPaymentPlanStatus", "ref: status enum fill");
+  // "It belongs to a BillingAccount (join account_id)." — the fill that used to be DROPPED
+  eq(r.slots.relations[0].parsed.kind, "ManyToOne", "ref: belongs-to alternative");
+  eq(r.slots.relations[0].parsed.target, "BillingAccount", "ref: belongs-to target fill");
+  eq(r.slots.relations[0].parsed.join, "account_id", "ref: JOIN COLUMN fill (the dropped one)");
+  // "It has many Installments."
+  eq(r.slots.relations[1].parsed.kind, "OneToMany", "ref: has-many alternative");
+  eq(r.slots.relations[1].parsed.target, "Installment", "ref: has-many target fill");
+  // a bare @JoinTable() means "present, name implied" — distinguishable from no join at all
+  const mm = extractEntity(`import { Entity, ManyToMany, JoinTable } from 'typeorm';
+@Entity('t') export class T {
+  @ManyToMany(() => Tag)
+  @JoinTable()
+  tags!: Tag[];
+}
+`, "T.ts");
+  eq(mm.slots.relations[0].parsed.join, true, "implied join name is `true`, not absent");
+  ok(mm.slots.relations[0].parsed.joinDecorator === "JoinTable", "JoinTable is named as the join decorator");
+}
+
 /* ---- ENTITY: non-conforming when a helper fn sits alongside the entity ---- */
 {
   const src = `import { Entity, Column } from 'typeorm';
