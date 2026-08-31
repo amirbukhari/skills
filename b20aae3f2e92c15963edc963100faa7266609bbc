@@ -1,0 +1,26 @@
+HISTORY-HYGIENE NOTE (added after the fact; content is correct, title is not).
+
+This commit's title describes only the README. It actually carries FOUR
+unrelated changesets that were sitting staged in the index when `git add
+README.md && git commit` ran:
+
+  1. skills/sdd-engine/README.md          — the new front door (what the title says)
+  2. removal of four skill folders        — mcp-builder, subagent-driven-development,
+                                            systematic-debugging, verification-before-completion.
+                                            Amir asked for these; s7 did the git rm. Legitimate.
+  3. tools/repo-dsl/PRD.md -> tools/PRD.md   — the PRD relocation (another lane's work)
+  4. 10 archive/ moves + edits to archive/README.md and engine/SDD.md
+                                            — retiring the dead pipelines (another lane's work)
+
+Nothing wrong was published and no content is in question. The defect is
+purely that one commit does four things under a title naming one of them,
+so `git log --oneline` and `git log --diff-filter=D -- skills/mcp-builder`
+both give a misleading answer.
+
+NOT FIXED BY REWRITE, deliberately: `git commit --amend` only reaches HEAD,
+and this commit is six back with three of the intervening commits belonging
+to lanes that were still live. Rebasing to correct a commit message was not
+worth rewriting another lane's work mid-flight. This note is the record instead.
+
+Cause: `git add <one file>` commits the WHOLE index, not that file. The index
+already held another lane's staged work. CLAUDE.md section 7 now carries the rule.
