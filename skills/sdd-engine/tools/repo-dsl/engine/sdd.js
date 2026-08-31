@@ -17,6 +17,9 @@ const cp = require("child_process");
 const G = require("./generate.js");
 const P = require("./prose.js");
 const A = require("./archetypes.js");
+/* Only for LAYOUT.sen -- the folder name, spelled once (R-CFG-6). This module takes projectDir as
+ * a parameter and resolves no root; requiring the resolver costs nothing at import time. */
+const CR = require("./corpus-root");
 const Au = require("./author.js");
 
 /* ----------------------------------------------------------------- generate */
@@ -55,11 +58,11 @@ function author({ englishText, out, typecheck, tmpRoot } = {}) {
 
 /* ------------------------------------------------------------------- render */
 function render({ projectDir, rel } = {}) {
-  const archPath = path.join(projectDir, "sen", "archetypes", rel + ".arch.json");
+  const archPath = path.join(projectDir, CR.LAYOUT.sen, "archetypes", rel + ".arch.json");
   if (!fs.existsSync(archPath)) throw new Error(`no archetype record at ${archPath} — run \`sdd mine ${projectDir}\` first`);
   const arch = JSON.parse(fs.readFileSync(archPath, "utf8"));
   let bodies = [];
-  const skelPath = path.join(projectDir, "sen", "skeletons", rel + ".skel.json");
+  const skelPath = path.join(projectDir, CR.LAYOUT.sen, "skeletons", rel + ".skel.json");
   if (fs.existsSync(skelPath)) bodies = JSON.parse(fs.readFileSync(skelPath, "utf8")).bodies || [];
   const src = fs.readFileSync(path.join(projectDir, rel), "utf8");
   return { rel, archetype: arch.archetype, prose: P.renderProse(arch, { bodies, src }) };

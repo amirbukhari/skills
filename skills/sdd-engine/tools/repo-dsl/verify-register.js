@@ -69,7 +69,7 @@ function constValue(rel, name) {
   const f = read(rel);
   if (!f.ok) return { ok: false, got: null, why: f.why };
   const envRe = new RegExp(`${name}\\s*=\\s*\\+?\\(\\s*process\\.env\\.${name}\\s*\\|\\|\\s*([^)]+?)\\s*\\)`);
-  const litRe = new RegExp(`(?:^|[;,\\s])${name}\\s*=\\s*([0-9]+)\\b`);
+  const litRe = new RegExp(`(?:^|[;,\\s])${name}\\s*=\\s*([0-9]+(?:\\.[0-9]+)?)`);
   const m = f.text.match(envRe) || f.text.match(litRe);
   if (!m) return { ok: false, got: null, why: `${name} not defined in ${rel}` };
   const line = f.text.slice(0, m.index).split("\n").length;
@@ -111,6 +111,20 @@ function liveGrep(re, opts = {}) {
     }
   })(HERE);
   return hits;
+}
+
+
+/* The mined dictionary, loaded at most once and only if a row needs it. It is ~42 MB, so no row
+ * touches it unless it is asked for, and an absent dictionary is MANUAL rather than a failure. */
+let _lzw;
+function lzw() {
+  if (_lzw !== undefined) return _lzw;
+  try {
+    const AC = require("./engine/artifact-contract");
+    const p = AC.pathFor("generators-lzw");
+    if (!fs.existsSync(p)) return (_lzw = { absent: true, where: p });
+    return (_lzw = { ok: true, j: JSON.parse(fs.readFileSync(p, "utf8")), where: p });
+  } catch (e) { return (_lzw = { err: e.message.split("\n")[0] }); }
 }
 
 /* ---------- the rows. Each `run()` returns {verdict, got, why} -- HOLDS | FAILS | MANUAL. ---------- */
@@ -229,6 +243,200 @@ const ROWS = [
       return HOLDS(`declared${perTest ? ", per-test prerequisites" : ", one shared gate"}`,
         perTest ? undefined : "a shared gate reports the wrong cause for tests that do not need the missing artifact");
     } },
+
+  { id: "R-MECH-2", req: "Every non-leaf dictionary entry MUST be an existing entry plus exactly one symbol.",
+    run() {
+      const d = lzw();
+      if (d.absent) return MANUAL(`no dictionary at ${d.where}`, "npm run mine");
+      if (d.err) return FAILS(null, d.err);
+      let checked = 0, leaves = 0; const bad = [];
+      for (const axis of ["narrow", "wide"]) {
+        const w = d.j[axis] && d.j[axis].words;
+        if (!w) { bad.push(`${axis}: no words table`); continue; }
+        /* LEAVES ARE NOT NON-LEAVES. An entry with no `m` and `d === 0` carries `sym` and IS a
+         * base symbol -- 5684 of them on the narrow axis, matching the mine's own leaf count. The
+         * requirement is about non-leaf entries; counting leaves as violations was this check's
+         * first bug and reported "m is not a pair" for ids 0, 1, 2. */
+        for (const [id, e] of Object.entries(w)) {
+          if (!e.m && e.d === 0) { leaves++; continue; }
+          checked++;
+          if (!Array.isArray(e.m) || e.m.length !== 2) { bad.push(`${axis}/${id}: m is not a pair`); }
+          else if (!(String(e.m[0]) in w) && !(d.j[axis].leaf && String(e.m[0]) in d.j[axis].leaf)) {
+            bad.push(`${axis}/${id}: m[0]=${e.m[0]} resolves to no entry`);
+          }
+          if (bad.length > 3) break;
+        }
+        if (bad.length > 3) break;
+      }
+      return bad.length ? FAILS(bad.slice(0, 3).join("; "), `${checked} entries checked`)
+        : HOLDS(`${checked} non-leaf entries are (existing entry + one symbol); ${leaves} leaves skipped`);
+    } },
+
+  { id: "R-MECH-3", req: "The dictionary MUST be a DAG: no entry may transitively reference itself.",
+    run() {
+      const d = lzw();
+      if (d.absent) return MANUAL(`no dictionary at ${d.where}`, "npm run mine");
+      if (d.err) return FAILS(null, d.err);
+      /* Depth strictly decreasing along m[0] is acyclic BY CONSTRUCTION -- a cycle would require a
+       * non-decreasing step. Cheaper and stronger than walking every chain. */
+      let checked = 0, maxD = 0; const bad = [];
+      for (const axis of ["narrow", "wide"]) {
+        const w = d.j[axis] && d.j[axis].words; if (!w) continue;
+        for (const [id, e] of Object.entries(w)) {
+          checked++;
+          if (!Number.isFinite(e.d)) { bad.push(`${axis}/${id}: depth not finite`); }
+          else {
+            maxD = Math.max(maxD, e.d);
+            const par = w[String(e.m && e.m[0])];
+            if (par && Number.isFinite(par.d) && par.d >= e.d) bad.push(`${axis}/${id}: depth ${e.d} <= parent ${par.d}`);
+          }
+          if (bad.length > 3) break;
+        }
+        if (bad.length > 3) break;
+      }
+      return bad.length ? FAILS(bad.slice(0, 3).join("; "), "a non-decreasing depth step admits a cycle")
+        : HOLDS(`${checked} entries acyclic, maxDepth ${maxD}`, "depth strictly decreases along m[0]");
+    } },
+
+  { id: "R-PAY-3", req: "Sentinel safety MUST be structural: an encoded payload provably contains none of « » ⟪ ⟫ ▶ ⟨.",
+    run() {
+      const f = read("engine/payload.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const SENT = ["«", "»", "⟪", "⟫", "▶", "⟨"];
+      /* Match to the LAST `]` of the table, not the first: ESCAPES is an array of PAIRS, so a
+       * non-greedy `]`-terminated match stops inside `[ESC, "0"]` and sees almost nothing. That
+       * was this check's first bug -- it reported all six sentinels missing from a table that
+       * contains all eight. */
+      const tbl = f.text.match(/const ESCAPES\s*=\s*\[([\s\S]*?)\n\s*\];/);
+      const re = f.text.match(/NEEDS_ESC\s*=\s*\/\[([^\]]+)\]/);
+      if (!tbl) return FAILS(null, "no ESCAPES table found");
+      if (!re) return FAILS(null, "no NEEDS_ESC character class found");
+      const missTbl = SENT.filter((c) => !tbl[1].includes(c));
+      const missRe = SENT.filter((c) => !re[1].includes(c));
+      if (missTbl.length || missRe.length)
+        return FAILS(`table:${missTbl.join("") || "-"} regex:${missRe.join("") || "-"}`,
+                     "a sentinel that is not escaped can appear in a payload and break the span scan");
+      return HOLDS(`all 6 sentinels escaped, in both the table and NEEDS_ESC`,
+        "structural, not an assumption about corpus contents");
+    } },
+
+  { id: "R-PAY-4", req: "decode() MUST be fail-closed: wrong tag, bad axis, missing id or unknown escape all throw.",
+    run() {
+      const f = read("engine/payload.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const throws = (f.text.match(/throw /g) || []).length;
+      const silent = /catch\s*(\([^)]*\))?\s*\{\s*return (null|undefined|"")/.test(f.text);
+      if (silent) return FAILS("a catch returns null/undefined", "fail-closed means throw, not a bare null");
+      return throws >= 4 ? HOLDS(`${throws} throw sites, no silent catch`)
+        : FAILS(`only ${throws} throw sites`, "expected a throw per named failure mode");
+    } },
+
+  { id: "R-ART-4", req: "Every artifact MUST carry the header; AC.stamp is the only publisher.",
+    run() {
+      /* Checked as the landmine it actually is (CLAUDE.md §8): a HAND-WRITTEN header is how
+       * generators-lzw.json was born without a fingerprint and failed 5 tests. So: no live file
+       * outside the contract may author a header key itself. Runtime stamping of a fresh mine is
+       * a separate question and is MANUAL below. */
+      const hits = liveGrep(/"(fingerprint|artifactVersion)"\s*:/, { excludeTests: true })
+        .filter((h) => !/^engine[\/\\]artifact-contract\.js/.test(h));
+      return hits.length ? FAILS(hits.join(", "), "a hand-authored header bypasses AC.stamp")
+        : HOLDS("no hand-authored header outside engine/artifact-contract.js");
+    } },
+
+  { id: "R-ART-7", req: "Validation MUST be the default read path; artifact-contract exports no unvalidated read.",
+    run() {
+      const f = read("engine/artifact-contract.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const m = f.text.match(/module\.exports\s*=\s*\{([^}]*)\}/);
+      if (!m) return FAILS(null, "no module.exports object found");
+      const names = m[1].split(",").map((x) => x.trim()).filter(Boolean);
+      const unsafe = names.filter((n) => /^(read|readRaw|readJson|loadRaw|unsafeLoad|parse)$/.test(n));
+      if (unsafe.length) return FAILS(unsafe.join(", "), "an unvalidated read helper is exported");
+      if (!names.includes("load")) return FAILS(names.join(", "), "no `load` export -- there is no validated read path");
+      return HOLDS(`exports ${names.length}; \`load\` present, no raw read`,
+        "a new consumer must go out of its way to be unsafe");
+    } },
+
+  { id: "R-ART-8", req: "Composites identify by name + entryId, not id; consumers MUST use AC.idOf(record).",
+    run() {
+      let AC;
+      try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      return typeof AC.idOf === "function" ? HOLDS("AC.idOf is exported and callable",
+        "keying a composite on .id yields undefined for every one of them")
+        : FAILS(typeof AC.idOf, "AC.idOf is not available, so consumers cannot comply");
+    } },
+
+  { id: "R-CFG-6", req: "`sen` MUST be spelled in exactly one place (LAYOUT.sen), never as a path literal.",
+    run() {
+      /* Only real PATH CONSTRUCTION counts. A "<CORPUS>/sen/..." string in a manifest or a doc
+       * comment is display text, not a second spelling, and flagging it is how a guard starts
+       * crying wolf. Tests are exempt: they assert the layout on purpose. */
+      const hits = liveGrep(/path\.join\([^)]*["']sen["']/, { excludeTests: true })
+        .filter((h) => !/^engine[\/\\]corpus-root\.js/.test(h));
+      return hits.length
+        ? FAILS(hits.join(", "), "a second spelling of `sen` outside LAYOUT.sen; use CR.senDir()")
+        : HOLDS("only the resolver spells `sen` in a path join");
+    } },
+
+  { id: "R-CFG-7", req: "Wiping sen/ MUST require --wipe-sen AND --go, neither a default.",
+    run() {
+      const f = read("sdd-clean.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const go = /GO\s*=\s*argv\.includes\("--go"\)/.test(f.text);
+      const wipe = /WIPE_SEN\s*=\s*argv\.includes\("--wipe-sen"\)/.test(f.text);
+      const defaulted = /(GO|WIPE_SEN)\s*=\s*(true|!)/.test(f.text);
+      if (defaulted) return FAILS("a gate has a truthy default", "a wipe flag must never default on");
+      return go && wipe ? HOLDS("both --wipe-sen and --go read from argv, neither defaulted")
+        : FAILS(`--go:${go} --wipe-sen:${wipe}`, "a required gate is missing");
+    } },
+
+  { id: "R-CFG-10", req: "The wipe MUST NOT touch <CORPUS>/catalog/, the legacy STEP-4 tree.",
+    run() {
+      const f = read("sdd-clean.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const m = f.text.match(/PROTECTED\s*=\s*new Set\(\[([\s\S]*?)\]\)/);
+      if (!m) return FAILS(null, "no PROTECTED name list found");
+      return /["']catalog["']/.test(m[1])
+        ? HOLDS("`catalog` is in PROTECTED", "protection is a name in the list, not a coincidence of the walk")
+        : FAILS(m[1].replace(/\s+/g, " ").slice(0, 80), "legacy catalog/ is not protected from the wipe");
+    } },
+
+  { id: "R-CFG-11", req: "A tool that deletes a tree MUST NOT live inside that tree.",
+    run() {
+      if (!exists("sdd-clean.js")) return FAILS(null, "sdd-clean.js is not in the engine tree");
+      let root;
+      try { root = require("./engine/corpus-root").corpusRoot(); }
+      catch (e) { return FAILS(null, `root unresolvable: ${e.message.split("\n")[0]}`); }
+      const inCorpus = fs.existsSync(path.join(root, "sdd-clean.js"));
+      return inCorpus ? FAILS(`a copy exists at ${path.join(root, "sdd-clean.js")}`,
+        "it was lost once with the tree it existed to clean")
+        : HOLDS("the cleaner lives in the engine, not in the corpus");
+    } },
+
+  { id: "R-MEAS-3", req: "Placeholder density MUST be a STRICT comparison: holes / N < 0.5.",
+    run() {
+      const f = read("engine/uncollapsed-density.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const frac = constValue("engine/uncollapsed-density.js", "MAX_HOLE_FRAC");
+      const strict = /<\s*MAX_HOLE_FRAC/.test(f.text);
+      const loose = /<=\s*MAX_HOLE_FRAC/.test(f.text);
+      if (loose) return FAILS("<= MAX_HOLE_FRAC", "exactly one half is NOT enough; the comparison must be strict");
+      if (!strict) return FAILS(null, "no comparison against MAX_HOLE_FRAC found");
+      const got = frac.ok ? frac.got : "?";
+      return got === "0.5" ? HOLDS(`strict < MAX_HOLE_FRAC = 0.5`)
+        : FAILS(`MAX_HOLE_FRAC = ${got}`, "expected 0.5");
+    } },
+
+  { id: "R-LANG-14", req: "Every pipeline script MUST be callable non-interactively. No blocking prompts.",
+    run() {
+      const hits = liveGrep(/readline|createInterface|process\.stdin|readFileSync\(0/, { excludeTests: true });
+      return hits.length ? FAILS(hits.join(", "), "a live script can block on stdin, so a UI cannot drive it")
+        : HOLDS("no readline, stdin read or fd-0 read on any live path");
+    } },
+
+  { id: "R-ART-4-runtime", req: "A fresh mine MUST publish stamped artifacts, not stamp them afterwards.",
+    run: () => MANUAL("static analysis cannot see what a mine writes; pipeline B publishes mined-library and corpus-coverage unstamped and relies on a later stamp-artifacts.js run",
+                      "npm run mine && node repo-dsl.js mine <corpus> && npm run stamp:check") },
 
   { id: "R-REND-1", req: "compileFileEn(renderFileEn(src)) === src MUST hold for every file, always.",
     run: () => MANUAL("the floor; decided only by a full-corpus round-trip",
