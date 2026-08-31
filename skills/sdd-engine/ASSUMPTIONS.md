@@ -2214,3 +2214,21 @@ been fixed by another lane — it now reads *"every artifact PRESENT on disk is 
 earlier when I declined to register an `english` kind. **The registry can take new members now**,
 and `english` for §7.0 gates 2 and 3 is unblocked — though it should wait on the §7.3 denominator
 decision, since what it would publish is the number under dispute.
+
+---
+
+## 2026-08-31 · s7 · A commit-message collision, recorded so the git history is not misleading
+
+**What happened:** commit `bc2d98a` ("register import-resolution…") carries **another lane's message
+over my staged files**. Their commit ran while my index held ten staged files of mine (the R-MECH-4
+work and the six false-on-disk PRD corrections), so those changes landed under a message that does
+not describe them. **The content is intact and verified in `HEAD`**; only the attribution is wrong.
+
+**Why this is in the audit log rather than fixed:** rewriting a pushed commit needs Amir's explicit
+word, and the cost of the mistake is a misleading message, not a lost change. The changes it really
+carries are the two ASSUMPTIONS entries directly above this one.
+
+**The practice this argues for, for every lane:** stage and commit in one motion. A populated index
+left sitting between `git add` and `git commit` is shared mutable state on this repo, and tonight it
+was written to by someone else mid-flight. That is the same shape as the `git add -A` incident
+earlier today, from the other side.
