@@ -114,6 +114,11 @@ node sdd-run.js <step> [-- <argv...>]  run one step; everything after `--` goes 
 
 Or through npm: `npm run steps`, `npm run status`, `npm run sdd-run -- <step>`.
 
+The `register` step wraps `verify-register.js` (owned by another lane). Its `coverageWarning`
+field exists because the exit code alone is misleading: **MANUAL is not a pass, and a row absent
+from the runner is not a row that holds.** It mechanizes 13 rows of a ~100-row register. A UI
+must show the mechanized fraction beside the result.
+
 **The stdout contract:** stdout carries **exactly one JSON document** and nothing else. Child
 prose is relayed to stderr, so a UI parses stdout with no heuristic and streams stderr as the
 live log. Exit code is the child's, unchanged; `2` means sdd-run itself refused. Every envelope
@@ -129,6 +134,13 @@ artifact kinds it actually loads — and a step that cannot run yet reports `kin
 with the missing kind by name, not a blanket "the corpus is not mined". `run-tests.js` already
 made and removed the all-or-nothing version of this gate; its comment records that one absent
 artifact skipped all six corpus tests and misreported four of them. Do not reintroduce it.
+
+**The manifest is measured, not asserted.** Every step was run end to end on 2026-08-31 and the
+`reads`/`writes`/timing claims corrected against what the scripts actually do. Four were wrong on
+the first pass — the most consequential being `measure`, which does **not** read `.en` files from
+disk: it walks `<SOURCE>/**/*.ts` and renders in memory, so it does not depend on `render` having
+run and reports `1037/1037` on a corpus with zero `.en` on disk. A UI must not draw `measure`
+downstream of `render`. Steps carry `measuredMs` where a real run produced a number.
 
 **Destructive steps refuse by default.** `clean:sen` needs `--allow-destructive`, and
 `sdd-clean.js` still independently requires `--go` before it deletes anything. This wrapper must
