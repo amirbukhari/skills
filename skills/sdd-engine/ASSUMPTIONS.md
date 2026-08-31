@@ -2232,3 +2232,64 @@ carries are the two ASSUMPTIONS entries directly above this one.
 left sitting between `git add` and `git commit` is shared mutable state on this repo, and tonight it
 was written to by someone else mid-flight. That is the same shape as the `git add -A` incident
 earlier today, from the other side.
+
+## 2026-08-31 — CORRECTION: "the register is at 2 fails" was true of the checker, not of the codebase
+
+**Decided:** the second failing row, `R-LANG-14` (`new-archetype.js:52`), is a **FALSE POSITIVE**. I
+did **not** change `new-archetype.js`, and the instruction to give it a non-interactive path was
+based on a premise that does not hold: **it already has three, and it does not block.**
+
+**Verified by running it:** `timeout 5 node new-archetype.js --json < /dev/null` → exits **2**
+immediately with `"no input — pass --sentence <text>, --sentence-file <path>, or --stdin"`. JSON on
+stdout, prose on stderr, distinct exit code, no hang. `readSentence()` reads fd 0 **only** when the
+caller passes `--stdin` — an opt-in, the same affordance `cat f | tool` has, which is the opposite of
+a blocking prompt. `verify-register.js:677` fails the row on a textual match for `readFileSync\(0`,
+which cannot distinguish "blocks on stdin" from "reads piped input the caller asked for". Reached
+independently by sdd-engine-5a (ccf9175); we measured the same thing separately before either acted.
+
+**The sharper half, and it is 5a's point, not mine:** `liveGrep` walks the **WORKING TREE**, and
+`new-archetype.js` is **untracked**. So a register row flipped red because another lane has an
+unsaved file on disk. My "2 fails, not 1" was an accurate reading of the checker and an **inaccurate
+statement about the codebase** — that verdict is not reproducible from any commit. **Any register
+count I report is a reading of one working tree at one moment**, and with four lanes live that is a
+weaker claim than it sounds. The earlier consolidated status (31/1/3) carries the same caveat.
+
+**Not fixed by me:** `verify-register.js` is another lane's file and is currently dirty. The row is
+theirs to narrow (gating, or an exclusion for untracked files). Flagged, not touched.
+
+**Swept for the real defect anyway, since that was the actual question:** the whole live tree has
+**exactly one** hit of the R-LANG-14 pattern outside tests and archive — `new-archetype.js:52`,
+gated. So the row's *substance* holds: every live script is callable non-interactively.
+
+## 2026-08-31 — wrote a test that could not fail, measured that, and deleted it
+
+**Decided:** replaced a behavioural non-blocking assertion with one that actually discriminates, and
+recorded the dead version in the test's own header rather than quietly dropping it.
+
+**What went wrong:** my first version spawned each cheap step with `stdio: ["ignore", ...]` and
+asserted it did not time out. That maps fd 0 to `/dev/null`, so a read returns **EOF immediately and
+nothing can block** — a deliberately blocking probe (bare `fs.readFileSync(0)`, no gate) exited **0**
+under it. The assertion passed for every step *including the blocker*: a test that cannot fail, which
+is the exact class that produced the `sdd-clean inside()` no-op and the round-trip gate that never
+ran. It was green on first write, which is why I mutation-tested it, which is the only reason it was
+caught.
+
+**What discriminates:** an **open stdin pipe that is never written** — a UI that spawns with a pipe
+and forgets to close it. Under `sleep 15 | node <script>` the blocker produces no output and a
+well-behaved script produces its own.
+
+**A second wrong reading on the way, worth recording:** I first judged that harness by the pipeline's
+**exit code**, and `sdd-run roots` "failed" it — because `timeout` kills the whole pipeline, so both
+the blocker and the healthy script exit 124. The exit code measures `sleep`, not node. **The
+discriminator is whether the CHILD produced output.** I nearly reported a good script as blocking.
+
+**Verified it can fail:** injecting an ungated `fs.readFileSync(0)` into `sdd-run.js`'s roots path
+fires the assertion with the right message; restored and re-confirmed clean.
+
+**Scope call:** one step, not all, and skipped where POSIX `timeout`/`sleep` are absent. It costs ~6s,
+and a unit tier that takes a minute stops being run — which is its own way of having no test.
+
+**Also found by writing it:** the `test` step re-enters the suite that contains this file, so it is
+excluded by name with the reason in the code. It had reported as a blocking read, which it is not.
+
+**Commit:** see below.

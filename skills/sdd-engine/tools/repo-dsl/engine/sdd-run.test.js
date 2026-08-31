@@ -196,4 +196,40 @@ ok("a step declaring requiresArgv REFUSES with a reason, not a stack trace, when
   }
 });
 
+/* R-LANG-14 BEHAVIOURALLY, not by grep. The register checks this row with a text search for
+ * /readline|createInterface|process\.stdin|readFileSync\(0/ over the live tree. That is the right
+ * first net, but it cannot see whether a read is GATED: as of 2026-08-31 its only live hit is
+ * new-archetype.js:52, `if (has("--stdin")) return fs.readFileSync(0, "utf8")` — an opt-in a UI
+ * never passes, the same affordance `cat f | tool` has, which is the opposite of a blocking prompt.
+ *
+ * WHY THE OBVIOUS VERSION OF THIS TEST IS WORTHLESS, measured rather than reasoned. Spawning with
+ * `stdio: ["ignore", ...]` maps fd 0 to /dev/null, so a read returns EOF immediately and NOTHING
+ * blocks — a deliberately blocking probe script (bare `fs.readFileSync(0)`, no gate) exited 0 under
+ * it. That assertion passed for every step including the blocker: a test that cannot fail, which
+ * this project has already been bitten by twice (the sdd-clean `inside()` no-op, the round-trip
+ * gate that never ran). It was written, proven vacuous, and deleted rather than shipped green.
+ *
+ * WHAT ACTUALLY DISCRIMINATES is an OPEN stdin pipe that is never written — a UI that spawns with a
+ * pipe and forgets to close it, which is the realistic failure. Under `sleep 15 | node <script>`
+ * the blocker produces no output and a well-behaved script produces its own. Note the pipeline's
+ * exit code is useless here: `timeout` kills the whole pipeline, so both cases exit 124 — the
+ * discriminator is whether the CHILD produced output, not what the shell returned. That mistake
+ * cost a wrong reading before this was measured properly.
+ *
+ * Scoped to ONE step and skipped where the POSIX tools are absent: it costs ~6s of wall clock,
+ * and a unit tier that takes a minute stops being run. */
+ok("a step does not block on an open stdin pipe a UI forgot to close", () => {
+  const sh = spawnSync("sh", ["-c", "command -v timeout >/dev/null && command -v sleep >/dev/null"]);
+  if (sh.status !== 0) { console.log("      (skipped: needs POSIX timeout+sleep)"); return; }
+  const out = path.join(require("os").tmpdir(), `sdd-run-stdin-probe-${process.pid}.txt`);
+  try {
+    spawnSync("sh", ["-c", `sleep 15 | ${JSON.stringify(process.execPath)} ${JSON.stringify(RUN)} roots > ${JSON.stringify(out)} 2>/dev/null`],
+      { cwd: R, timeout: 12000 });
+    const produced = fs.existsSync(out) && fs.statSync(out).size > 0;
+    assert.ok(produced,
+      "`sdd-run roots` produced no output with stdin held open — it is waiting on input a UI will never send");
+  } finally { try { fs.unlinkSync(out); } catch { /* probe file, best effort */ } }
+});
+
+
 console.log(`\n${pass} assertions passed`);
