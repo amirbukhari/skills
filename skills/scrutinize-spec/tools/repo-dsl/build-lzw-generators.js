@@ -42,9 +42,18 @@ const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "co
 //   2 -> filesUsing 916, net 11,180, dict 1.50 MB, .en 4,598,270 B, 0 whole-file words
 //   1 -> filesUsing 929, net 15,388, dict 11.56 MB, .en 4,830,829 B, 74 whole-file words
 // It is an ECONOMIC dial, not a correctness one: every span is byte-gated at emission regardless.
-// NOTE: at MIN_COUNT=1 the binding constraint becomes MAXWIN, not recurrence — maxDepth pins at 15
-// (= MAXWIN-1) and a file collapses to one word only if its eligible run is <= 16 statements.
-const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 16);
+// NOTE: at MIN_COUNT=1 the binding constraint becomes MAXWIN, not recurrence.
+//
+// MAXWIN = longest window the miner will enumerate, in statements. Arbitrary bound, not a
+// correctness gate. Swept at MIN_COUNT=1 / MIN_SKEL=8, byte-identity 1037/1037 at every value:
+//   16 -> maxDepth 15 (pinned at MAXWIN-1), calls 4850, net 15,388, dict 11.02 MB, .en 4,830,829
+//   32 -> maxDepth 31 (still pinned),       calls 4789, net 15,448, dict 12.35 MB, .en 4,829,397
+//   64 -> maxDepth 57 (NOT pinned - ceiling found), calls 4782, net 15,455, dict 12.58 MB,
+//         .en 4,829,217   <- the default; longest stream in the corpus is 60 statements
+//  128 -> byte-for-byte identical to 64. Saturated; higher values are wasted work.
+// Mine wall-clock was 1-2s at every value, so cost was never the constraint.
+// WHOLE-FILE WORDS DID NOT MOVE: 74/1037 at every value. MAXWIN was never what blocked them.
+const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 64);
 
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 function blocks(sf) { const out = []; const visit = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) { if (n.statements.length) out.push([...n.statements]); } ts.forEachChild(n, visit); }; visit(sf); return out; }
