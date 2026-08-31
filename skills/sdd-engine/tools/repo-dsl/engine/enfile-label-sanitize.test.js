@@ -53,4 +53,22 @@ const r = EN.renderFileEn(src, index);
 const back = EN.compileFileEn(r.en, index);
 ok(back === src, "file with a sentinel-laden throw round-trips byte-identical (.en -> .ts === source)");
 
+/* 4. the MECHANISM, not just the outcome. Assertion 3 passed for two years' worth of corpus purely
+ * because no .ts contained a sentinel; it went red the moment a fixture did. So assert the property
+ * that makes it hold BY CONSTRUCTION: an escaped verbatim region emits no raw OPEN/CLOSE, and the
+ * codec is a true round-trip over input that is adversarial about the escape marker itself. */
+const nasty = "a«b»c⟡d⟡0e«»⟡«";
+ok(EN.unescapeVerbatim(EN.escapeVerbatim(nasty)) === nasty,
+   "escapeVerbatim/unescapeVerbatim round-trips text laden with sentinels AND the escape marker");
+ok(!/[«»]/.test(EN.escapeVerbatim(nasty)),
+   "escaped verbatim text contains no raw « or », so the span scanner cannot mis-open on it");
+ok(EN.escapeVerbatim("plain code") === "plain code",
+   "text with no sentinel is returned unchanged (no .en byte moves on the real corpus)");
+
+/* 5. FAIL-CLOSED, matching PAY.decode. A hand-edited .en with a stray ⟡ is a question for the
+ * author; guessing at it is how wrong bytes ship. */
+let threw = null;
+try { EN.compileFileEn("code ⟡Z more", index); } catch (e) { threw = e.message; }
+ok(threw && /unknown escape/.test(threw), `compileFileEn refuses an unrecognised escape (${threw || "NO THROW"})`);
+
 console.log(`\nPASS ${passed} assertions — labels are sentinel-safe and round-trip holds.`);

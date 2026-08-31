@@ -33,6 +33,57 @@ const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list
 const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator span: «▶ gloss ⟪lzw1 payload⟫»
 const MAXWIN = 8;
 
+/* VERBATIM SENTINEL SAFETY — the other half of payload.js's guarantee.
+ *
+ * payload.js escapes every sentinel out of hole text, so a PAYLOAD provably contains none. Its
+ * header says why, and says the corpus containing no sentinel today "is luck, and luck is what the
+ * dialect work just finished removing". That reasoning was never applied to the OTHER text in a
+ * .en: the verbatim source between spans, which renderFileEn copies through byte-for-byte.
+ *
+ * So a `throw new Error("bad « » input")` in the source emitted a raw « into the .en, and
+ * compileFileEn -- which finds a span with a bare indexOf(OPEN) over the whole file -- read it as
+ * a chunk opener and COMPILED THE STRING LITERAL AWAY. Measured before the fix: `bad « » ⟪ ⟫ ▶`
+ * came back as `bad  ⟪ ⟫ ▶`. Not a throw; wrong bytes, silently, through the gate that exists to
+ * make wrong bytes impossible.
+ *
+ * The fix is the same shape as the payload's, for the same reason: safety BY CONSTRUCTION rather
+ * than by what the corpus happens to hold. Every verbatim region is escaped on the way out and
+ * unescaped on the way back, so no verbatim region can emit a raw OPEN or CLOSE.
+ *
+ * ONLY three characters need it. Verbatim text lies OUTSIDE every chunk, so the only characters
+ * that can change how it parses are the scanner's OPEN and CLOSE and the escape marker itself.
+ * ⟪ ⟫ ▶ are chunk-INTERNAL and mean nothing out here; escaping them would be noise that made the
+ * artifact worse to read for no gain. The escape marker is shared with payload.js deliberately --
+ * one escape character in the dialect, not two.
+ *
+ * COST ON THE CORPUS: zero. All 1037 SOURCE .ts files were scanned for « » ⟪ ⟫ ▶ ⟨ ⟩ ⟡ and none
+ * contains any, so no .en byte and no fingerprint moves. This closes a latent hole; it does not
+ * re-render the corpus.
+ *
+ * FAIL-CLOSED, like PAY.decode: an unrecognised escape throws rather than being passed through.
+ * A hand-edited .en with a stray ⟡ is a question for the author, not something to guess at. */
+const V_ESC = "⟡";
+const V_ENC = new Map([[V_ESC, V_ESC + "0"], [OPEN, V_ESC + "5"], [CLOSE, V_ESC + "6"]]);
+const V_DEC = new Map([["0", V_ESC], ["5", OPEN], ["6", CLOSE]]);
+const V_NEEDS = /[⟡«»]/g;
+
+function escapeVerbatim(s) { return s.replace(V_NEEDS, (ch) => V_ENC.get(ch)); }
+
+function unescapeVerbatim(s) {
+  if (s.indexOf(V_ESC) < 0) return s;          // the corpus-wide case; no scan, no allocation
+  let out = "", i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch !== V_ESC) { out += ch; i++; continue; }
+    const lit = V_DEC.get(s[i + 1]);
+    if (lit === undefined)
+      throw new Error(`enfile: unknown escape ${JSON.stringify(V_ESC + (s[i + 1] || ""))} in verbatim text`);
+    out += lit; i += 2;
+  }
+  return out;
+}
+
+
 /* load the mined multi-line generator catalog (regenerable; absent -> layer disabled) */
 /* best-effort coined-word index so cnl can render coined phrases too (empty is fine) */
 function loadIndex(corpusRoot) {
@@ -890,7 +941,7 @@ function renderFileEn(source, index) {
   let recN = 0, flatN = 0, maxDepth = 0; const depthHist = {};
   for (const sp of spans) {
     if (sp.start < pos) continue; // safety: never overlap
-    out += source.slice(pos, sp.start) + OPEN + sp.en + CLOSE;
+    out += escapeVerbatim(source.slice(pos, sp.start)) + OPEN + sp.en + CLOSE;
     pos = sp.end; englishBytes += sp.end - sp.start;
     if (sp.kind === "stmt") { stmtN++; continue; }
     if (sp.kind !== "gen") { dataN++; continue; }
@@ -898,7 +949,7 @@ function renderFileEn(source, index) {
     if (sp.tier === "flat") flatN++; else recN++;
     const d = sp.depth || 0; depthHist[d] = (depthHist[d] || 0) + 1; if (d > maxDepth) maxDepth = d;
   }
-  out += source.slice(pos);
+  out += escapeVerbatim(source.slice(pos));
   const bodyStmts = countBodyStatements(sf);
   return { en: out, stats: {
     totalBytes: source.length, englishBytes,
@@ -990,8 +1041,8 @@ function compileFileEn(en, index, opts) {
   let out = "", i = 0;
   while (i < en.length) {
     const open = en.indexOf(OPEN, i);
-    if (open < 0) { out += en.slice(i); break; }
-    out += en.slice(i, open);
+    if (open < 0) { out += unescapeVerbatim(en.slice(i)); break; }
+    out += unescapeVerbatim(en.slice(i, open));
     const close = en.indexOf(CLOSE, open + 1);
     if (close < 0) throw new Error("enfile: unbalanced « (no matching »)");
     out += compileChunk(en.slice(open + 1, close), index, opts);
@@ -1000,4 +1051,4 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES };
+module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };

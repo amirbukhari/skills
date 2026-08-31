@@ -588,9 +588,26 @@ const ROWS = [
        * headline figure lands on the most flattering value it can take: residual 0, reviewSurface
        * exactly equal to `calls`. Meanwhile filesFullyCovered, which IS computed per file, disagrees.
        *
-       * The fix belongs in write-en-files.js (sum the per-file residuals, and do not clamp a
-       * quantity that cannot legitimately go negative) -- that file is another lane's tonight, so
-       * this row states the defect and fails on it rather than reaching in. */
+       * THE CAUSE, measured by sdd-engine-5a over all 1037 files after this row went red, and it is
+       * not the double-counted nesting I had guessed: the two figures range over DIFFERENT
+       * POPULATIONS. enfile.js countBodyStatements counts only statements that are DIRECT CHILDREN
+       * of a function-like body, while the generator layer folds statements anywhere in the file,
+       * top level included. packages/hydra-internal/src/index.ts is the clean case -- 0 statements
+       * in any function body, 9 collapsed. No clamp could ever have reconciled that.
+       *
+       * WHICH MEANS THE NARROW FIX IS NOT ENOUGH. Summing per-file residuals instead of clamping a
+       * difference of sums yields residual 1,932 and reviewSurface 7,663, but leaves
+       * collapseRatioPct still dividing 22,760 by 17,852 -- it removes the clamp that HID the
+       * residual without making the ratio possible. Counting deeper does not fix it either: under
+       * "any depth inside a function body" (S=33,100) 583 files still violate. Only "every
+       * statement at any depth, in or out of a function" is coherent (S=33,918, 0 violations,
+       * residual 11,158, reviewSurface 16,889) -- and that takes the headline from 95.4% to 50.2%.
+       *
+       * SO THIS ROW STAYS RED ON PURPOSE. §7.3 calls the definition FROZEN and the PRD calls it the
+       * number the whole engine exists to move; choosing the denominator is Amir's call, not a
+       * late-night one, and it is with him. A red row is the correct interim state -- it is the only
+       * thing standing between a flattering number and a reader who believes it. Do not "fix" this
+       * by adjusting the clamp; that produces a different wrong number and clears the row. */
       const i = enIndex();
       if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
       if (i.err) return FAILS(null, i.err);
