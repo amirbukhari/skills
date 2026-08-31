@@ -1,0 +1,19 @@
+ALSO CARRIES ANOTHER LANE'S WORK (shared-index sweep, not a mistake in the diff).
+
+This commit's message describes the prd/ content pass. The commit additionally
+contains, swept from the shared index between another session staging and this
+one committing:
+
+  tools/repo-dsl/verify-register.js            (new, 281 lines)
+  tools/prd/11-requirements-register.md        R-MINE-1..4 check-cite corrections
+  tools/prd/12-constants.md                    the same corrections in the §8 table
+
+Those three are described by aae0d96, which followed immediately after and could
+only carry README.md and package.json because the rest had already landed here.
+Read aae0d96's message for the reasoning behind them; read this diff for the
+bytes. Nothing was lost and nothing needs re-applying.
+
+Same class of event as b20aae3, and handled the same way: a note, not a history
+rewrite. Both lanes used 'git commit -o -- <paths>'; the sweep happened in the
+window between the other lane's 'git add' and this commit, which -o cannot close
+for paths already in the index.
