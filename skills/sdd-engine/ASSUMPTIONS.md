@@ -1222,3 +1222,37 @@ a bare `@JoinTable()` yields `join === true` so "implied name" is distinguishabl
 pinned by a regression block with **one assertion per clause of the reference sentence**. Additive
 only — `decorator` and `args` are untouched because two consumers read them. 56 assertions pass in
 `archetypes.test.js`; `generate.test.js` 35 and `sdd.test.js` 24 still pass.
+
+---
+
+## 2026-08-31 — CORRECTION: `git commit -o` does NOT protect a shared file. Supersedes the entry above.
+
+**This supersedes "commits name their files; never a bare `git commit`", which stated something
+false.** That entry said `-o` protects you from sweeping *unstaged* work. It does not.
+
+**What is actually true:** `git commit -o -- <path>` commits that path's **working-tree** content,
+staged or not. So `-o` protects you from sweeping **other paths** — and gives you **no protection at
+all inside a path two lanes are both editing**. Every claim in this file about `-o` being sufficient
+should be read with that limit.
+
+**How it was measured, not reasoned:** `25a5ac8` was committed with an explicit `-o` pathspec on
+`ASSUMPTIONS.md` alone, with a message describing three entries. `git show --stat` reported **155
+insertions** where roughly 90 had been written, and `git show HEAD -- <file> | grep '^+## '` showed
+six headings: three mine, three another lane's unstaged append inside the same file. Nothing was
+lost; a note on `25a5ac8` names which three are not its message's.
+
+**The procedure that actually works**, for any file several lanes append to tonight:
+
+1. `git status` is **not** sufficient. It tells you the file changed, not by whose hand.
+2. Immediately **before** committing, diff the file and confirm the added hunks are only yours —
+   for this file's format, `git diff -- <file> | grep '^+## '` is enough.
+3. Immediately **after** committing, `git show --stat`. An insertion count larger than what you
+   wrote is the tell, and it is the only reason all three of today's sweeps were recoverable.
+4. When you find you swept someone's work: **note it, never rewrite pushed history.** Three
+   occurrences today (`b20aae3`, `37af0ed`, `25a5ac8`), three git notes, no rebases.
+
+**Why this entry exists rather than an edit to the wrong one:** same rule as `CLAUDE.md` §9 — a
+stale copy of the old claim elsewhere must not be able to re-derive it silently. The wrong sentence
+stays visible, with this correction attached.
+
+**Commit:** notes on `b20aae3`, `37af0ed`, `25a5ac8`; this entry in the commit below.
