@@ -7,6 +7,7 @@
 // real reader) and structurally (no word may carry the legacy long names), on both the freshly
 // built graph and the on-disk catalog.
 const fs = require("fs");
+const AC = require("./artifact-contract");
 const path = require("path");
 const W = require("./wordlzw");
 const EL = require("./enlzw");
@@ -56,7 +57,7 @@ const expectedLeaves = W.expandSymbols(prom.words[deepest.id], { words: prom.wor
 ok(expanded === expectedLeaves.join(W.GAP), "enlzw.expandKey reconstructs the writer's leaf-symbol key from the canonical fields");
 
 /* ---- on-disk artifact: the shipped catalog must use the same canonical vocabulary ---- */
-const catPath = path.join(__dirname, "..", "catalog", "generators-lzw.json");
+const catPath = AC.pathFor("generators-lzw");
 if (fs.existsSync(catPath)) {
   const cat = JSON.parse(fs.readFileSync(catPath, "utf8"));
   for (const axisName of ["narrow", "wide"]) {

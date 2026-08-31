@@ -23,6 +23,7 @@
  */
 const fs = require("fs");
 const crypto = require("crypto");
+const AC = require("./artifact-contract");
 
 const HASH_LEN = 16;
 
@@ -45,11 +46,14 @@ function leavesOf(axis, id, out) {
   return out;
 }
 
+/* Contract-checked (PRD §8B). ABSENT is a state — names are optional, and an unnamed corpus is
+ * the honest default — so a missing file returns empty AND SAYS SO on stderr. PRESENT-BUT-WRONG is
+ * a bug and throws: incident 5 was exactly a v0-shaped file read as v1, returning null for all 48
+ * names while reporting nothing. */
 function load(p) {
-  try {
-    const j = JSON.parse(fs.readFileSync(p, "utf8"));
-    return { names: j.names || {}, orphans: j.orphans || {} };
-  } catch (_) { return { names: {}, orphans: {} }; }
+  const r = AC.load("word-names", p, { optional: true });
+  if (!r.ok) { console.error("[word-names] " + r.reason); return { names: {}, orphans: {} }; }
+  return { names: r.value.names || {}, orphans: r.value.orphans || {} };
 }
 
 /* Compose one span's sentence from its members' names. Returns null when NO member is named, so

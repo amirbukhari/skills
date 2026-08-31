@@ -27,11 +27,12 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { ts, parse, skeletonize, idFor, slotsAreTyped } = require("./lib/skeleton");
 
 function parseArgs(argv) {
-  const a = { corpus: null, minCount: 2, out: path.join(__dirname, "catalog", "patterns.json") };
+  const a = { corpus: null, minCount: 2, out: path.join(AC.corpusRoot(), "spec", "catalog", "patterns.json") };
   const rest = argv.slice(2);
   for (let i = 0; i < rest.length; i++) {
     const t = rest[i];

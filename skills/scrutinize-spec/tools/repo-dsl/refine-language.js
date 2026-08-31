@@ -33,6 +33,7 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const sdd = require("../sdd-lib");
@@ -43,8 +44,8 @@ const { LEAVES, COMPOSITES } = require("./generators");
 const dsl = require("./dsl");
 const { expand } = require("./expander");
 
-const CATALOG = path.join(__dirname, "catalog");
-const RESULTS = path.join(__dirname, "results");
+const CATALOG = path.join(AC.corpusRoot(), "spec", "catalog");
+const RESULTS = path.join(AC.corpusRoot(), ".cache", "spec-derived");
 const V1 = path.join(CATALOG, "mined-library.json");
 const V2 = path.join(CATALOG, "mined-library.v2.json");
 const V3 = path.join(CATALOG, "mined-library.v3.json");

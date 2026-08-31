@@ -21,6 +21,7 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const crypto = require("crypto");
 const dsl = require("./dsl");
@@ -116,10 +117,10 @@ function main() {
   }
 
   for (const f of ["mined-library.v4.json", "mined-library.v3.json", "mined-library.v2.json"]) {
-    const s = path.join(__dirname, "catalog", f);
+    const s = path.join(AC.corpusRoot(), "spec", "catalog", f);
     if (fs.existsSync(s)) fs.copyFileSync(s, path.join(catDir, f));
   }
-  const cov = JSON.parse(fs.readFileSync(path.join(__dirname, "results", "corpus-coverage.json"), "utf8"));
+  const cov = JSON.parse(fs.readFileSync(AC.pathFor("corpus-coverage"), "utf8"));
 
   const coverage = {
     schema: "sdd-selfhost-package/1",

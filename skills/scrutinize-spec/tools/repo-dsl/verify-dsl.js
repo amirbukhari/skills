@@ -15,6 +15,7 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { printTree, parseText } = require("./dsl");
 const { expand } = require("./expander");
@@ -68,8 +69,8 @@ function main() {
     report.push({ target: c.ir, irRoundTrips, codeRoundTrips, calcFilePresent: calcParsed !== null, calcMatches, ok });
   }
 
-  fs.mkdirSync(path.join(__dirname, "results"), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, "results", "dsl-roundtrip.json"),
+  fs.mkdirSync(path.join(AC.corpusRoot(), ".cache", "spec-derived"), { recursive: true });
+  fs.writeFileSync(path.join(AC.corpusRoot(), ".cache", "spec-derived", "dsl-roundtrip.json"),
     JSON.stringify({ schema: "sdd-repo-dsl/dsl-roundtrip/1", allOk, cases: report }, null, 2) + "\n");
 
   console.log("=== DSL surface round-trip (IR <-> DSL, lossless) ===\n");

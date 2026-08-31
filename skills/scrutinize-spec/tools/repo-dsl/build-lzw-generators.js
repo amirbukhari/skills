@@ -15,12 +15,13 @@
  */
 const fs = require("fs");
 const path = require("path");
+const AC = require("./engine/artifact-contract");
 const ts = require("typescript");
 const G = require("./engine/generators");
 const W = require("./engine/wordlzw");
 
 const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const OUT = path.join(__dirname, "catalog", "generators-lzw.json"); // SKILLS REPO, not corpus
+const OUT = AC.pathFor("generators-lzw", CORPUS); // CORPUS tree — the engine tree holds no corpus data (PRD §8B)
 // MUST match write-en-files.js SKIP exactly. When it did not (this set excluded "tests"), the
 // dictionary was mined over 956 files but applied to 1037, so every recurring body in a test file
 // had no word by construction — 696 of 937 un-collapsed bodies traced to that one mismatch.

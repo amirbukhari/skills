@@ -51,7 +51,7 @@ const IDIOM_PHRASE = {
 // shapes that never appear as function-body fills; see the report's reach measurement.)
 (function mergeNamedIdioms() {
   const roots = [process.env.REPO_DSL_CATALOG,
-    require("path").join("/home/amir/Documents/Rentsync/delonix/hydra-source", "catalog", "english-idioms.json")];
+    require("path").join(require("./artifact-contract").corpusRoot(), "catalog", "english-idioms.json")];
   for (const p of roots) {
     if (!p) continue;
     try {

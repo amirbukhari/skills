@@ -4,11 +4,12 @@
  * collapse and the ACTUAL emitted composition depth (maxDepth>=2 => the live path composes).
  * Read-only over the corpus. */
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enlzw");
 const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
-const CAT = path.join(__dirname, "catalog", "generators-lzw.json");
+const CAT = AC.pathFor("generators-lzw");
 const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 

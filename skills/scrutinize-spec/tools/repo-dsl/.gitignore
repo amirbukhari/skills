@@ -1,1 +1,16 @@
 node_modules/
+
+# --- PRD §8B LOCATION RULE: the engine tree holds ENGINE CODE + PRD ONLY. ------------------
+# Every corpus-derived artifact resolves from the corpus root (engine/artifact-contract.js
+# pathFor) and lives WITH the corpus: SOURCE-PROTECTED ones tracked in <corpus>/spec/catalog/,
+# purely derived ones in the corpus's gitignored <corpus>/.cache/spec-derived/.
+# This repo has a PUBLIC remote. A stray run must not be able to re-add corpus bytes here;
+# engine/artifact-location.test.js fails if the engine ever writes one of these paths.
+catalog/
+results/
+.cache/
+*.en
+*.calc
+en-index.json
+archetype-index.json
+files-index.json

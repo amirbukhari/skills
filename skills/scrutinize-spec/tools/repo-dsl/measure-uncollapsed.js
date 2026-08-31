@@ -32,6 +32,7 @@
  */
 const fs = require("fs"), path = require("path"), ts = require("typescript");
 const G = require("./engine/generators");
+const AC = require("./engine/artifact-contract");
 const EL = require("./engine/enlzw");
 const W = require("./engine/wordlzw");
 
@@ -40,7 +41,7 @@ const MIN_COUNT = 2;
 const SKIP = new Set(["node_modules", ".git", ".worktrees", "dist", "build", "coverage", "spec", "catalog", ".cache", "demo", "coined-demo"]);
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 
-const cat = EL.loadLzw(path.join(__dirname, "catalog", "generators-lzw.json"));
+const cat = EL.loadLzw(AC.pathFor("generators-lzw"));
 const files = walk(CORPUS).sort();
 
 /* ---- body extraction: the §7 unit of measurement is the function/method body ---- */

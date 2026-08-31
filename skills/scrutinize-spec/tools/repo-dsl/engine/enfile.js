@@ -20,6 +20,7 @@
  */
 const fs = require("fs");
 const path = require("path");
+const AC = require("./artifact-contract");
 const ts = require("typescript");
 const cnl = require("./cnl");
 const DATA = require("./data-english");
@@ -37,7 +38,7 @@ const MAXWIN = 8;
 function loadIndex(corpusRoot) {
   // small load-bearing coined-word catalog; older large snapshots (word-library.json,
   // mined-library.json) yield the SAME index (verified byte-identical .en) and are derived.
-  const tryFiles = ["catalog/coined-words.json", "catalog/mined-library.json"].map((f) => path.join(corpusRoot || "", f));
+  const tryFiles = [path.join(corpusRoot || "", "catalog", "coined-words.json"), AC.pathFor("mined-library", corpusRoot)];
   let idx = null;
   for (const f of tryFiles) {
     try {
@@ -50,8 +51,17 @@ function loadIndex(corpusRoot) {
   // attach the RECURSIVE word dictionary — the PRIMARY generator layer. It lives in the skills
   // repo catalog (regenerable via build-lzw-generators.js), not the corpus. Absent -> layer
   // disabled -> no generator spans at all; bodies stay verbatim TS, byte-identity holds.
-  try { idx._lzw = EL.loadLzw(path.join(__dirname, "..", "catalog", "generators-lzw.json")); }
-  catch (_) { idx._lzw = null; }
+  /* NO SILENT FALLBACK (PRD §8B). A missing dictionary is a legitimate state (layer disabled,
+   * bodies stay verbatim, byte-identity holds); a dictionary that fails the contract is a bug and
+   * must surface. Both are reported — the previous `catch { null }` turned either one into the
+   * indistinguishable "no generator spans anywhere". */
+  const lzwPath = AC.pathFor("generators-lzw", corpusRoot);
+  if (!fs.existsSync(lzwPath)) {
+    console.error("[enfile] generator layer DISABLED: no dictionary at " + lzwPath + " (bodies render verbatim; byte-identity unaffected)");
+    idx._lzw = null;
+  } else {
+    idx._lzw = EL.loadLzw(lzwPath); // throws ArtifactContractError on drift — deliberately uncaught
+  }
   return idx;
 }
 
@@ -649,7 +659,8 @@ function genLabel(start, end, source, stmts) {
  * DISPLAY ONLY. compileChunk finds the payload with lastIndexOf(PAY_OPEN) and decodes only that;
  * it never reads this text. A wrong name is wrong prose, never wrong bytes. */
 const WN = require("./word-names");
-const NAMES = WN.load(path.join(__dirname, "..", "catalog", "word-names.json"));
+/* Corpus-rooted (PRD §8B): names are corpus data and live with the corpus, never in the engine tree. */
+const NAMES = WN.load(AC.pathFor("word-names"));
 
 function namedLabel(s, source, cat, names) {
   const clauses = WN.clausesFor(cat, s.payload, names);

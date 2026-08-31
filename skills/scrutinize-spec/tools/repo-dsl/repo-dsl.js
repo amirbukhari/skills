@@ -36,6 +36,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const AC = require("./engine/artifact-contract");
 const { mine } = require("./engine/pipeline");
 const { tokenize } = require("./engine/fanout");
 
@@ -43,8 +44,9 @@ const { tokenize } = require("./engine/fanout");
 // HYDRA_CORPUS wins, matching build-lzw-generators.js / write-en-files.js. The literal
 // below is only a developer convenience and is never trusted without an existence check.
 const DEFAULT_CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
-const RESULTS = path.join(__dirname, "results");
-const CATALOG = path.join(__dirname, "catalog");
+/* Corpus-rooted (PRD §8B) — the engine tree never receives corpus-derived output. */
+const RESULTS = path.join(AC.corpusRoot(DEFAULT_CORPUS), ".cache", "spec-derived");
+const CATALOG = path.join(AC.corpusRoot(DEFAULT_CORPUS), "spec", "catalog");
 const COVERAGE_JSON = path.join(RESULTS, "corpus-coverage.json");
 const LIBRARY_JSON = path.join(CATALOG, "mined-library.json");
 

@@ -12,6 +12,7 @@
  * §10 compliance: the oracle is real source through a round-trip, never a mined artifact. The
  * catalog is an INPUT (§10.2), not the expected value. */
 const assert = require("assert");
+const AC = require("./artifact-contract");
 const path = require("path");
 const ts = require("typescript");
 const EL = require("./enlzw");
@@ -20,7 +21,7 @@ const EN = require("./enfile");
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
 
-const lzw = EL.loadLzw(path.join(__dirname, "..", "catalog", "generators-lzw.json"));
+const lzw = EL.loadLzw(AC.pathFor("generators-lzw"));
 const sfOf = (src) => ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 
 /* Two adjacent named units with identical shape — the most merge-tempting case there is. */

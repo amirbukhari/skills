@@ -26,11 +26,12 @@
  */
 const fs = require("fs");
 const path = require("path");
+const AC = require("./engine/artifact-contract");
 const WN = require("./engine/word-names");
 
 const N = +(process.env.TOP || 250);
 const CENSUS = process.argv[2];
-const OUT = process.argv[3] || path.join(__dirname, "catalog", "word-names.json");
+const OUT = process.argv[3] || AC.pathFor("word-names");
 
 const count = (s, re) => (s.match(re) || []).length;
 const num = (n) => ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] || String(n);
@@ -120,7 +121,7 @@ for (const r of leaves.slice(0, N)) {
 
 const prev = WN.load(OUT);
 const out = { schema: "sdd-repo-dsl/word-names/1", generated: today, names, orphans: prev.orphans || {} };
-fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + "\n");
+fs.writeFileSync(OUT, JSON.stringify(AC.stamp("word-names", out), null, 1) + "\n");
 
 const tot = leaves.reduce((s, x) => s + x.sites, 0);
 console.log("considered (top by site frequency): " + N);

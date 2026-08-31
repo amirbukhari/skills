@@ -16,6 +16,7 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { ts, parse } = require("./lib/skeleton");
 
@@ -65,8 +66,8 @@ function main() {
   }
 
   const out = { schema: "sdd-repo-dsl/import-resolution/1", corpus, symbols: map };
-  fs.mkdirSync(path.join(__dirname, "catalog"), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, "catalog", "import-resolution.json"), JSON.stringify(out, null, 2) + "\n");
+  fs.mkdirSync(path.join(AC.corpusRoot(), "spec", "catalog"), { recursive: true });
+  fs.writeFileSync(path.join(AC.corpusRoot(), "spec", "catalog", "import-resolution.json"), JSON.stringify(out, null, 2) + "\n");
 
   const probe = ["ISubscriptionUsage", "ISubscriptionCost", "getVolumeCostingItems",
     "buildingBillingTypeCostCalculator", "BILLING_TYPE_ACTIVE_FEATURE",

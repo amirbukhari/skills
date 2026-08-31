@@ -23,6 +23,7 @@
  */
 
 const fs = require("fs");
+const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { expand } = require("./expander");
 const { LEAVES, COMPOSITES } = require("./generators");
@@ -70,7 +71,7 @@ function fakeParams(comp) {
 }
 
 function main() {
-  const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "catalog", "patterns.json"), "utf8"));
+  const catalog = JSON.parse(fs.readFileSync(path.join(AC.corpusRoot(), "spec", "catalog", "patterns.json"), "utf8"));
   const mined = new Set([...catalog.smallPatterns, ...(catalog.midPatterns || []), ...catalog.compositePatterns].map((p) => p.id));
 
   const results = [];
@@ -133,8 +134,8 @@ function main() {
       proseSlotPatterns: catalog.smallPatterns.filter((p) => !p.typedLeafClean).map((p) => p.id),
     },
   };
-  fs.mkdirSync(path.join(__dirname, "results"), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, "results", "coverage.json"), JSON.stringify(out, null, 2) + "\n");
+  fs.mkdirSync(path.join(AC.corpusRoot(), ".cache", "spec-derived"), { recursive: true });
+  fs.writeFileSync(path.join(AC.corpusRoot(), ".cache", "spec-derived", "coverage.json"), JSON.stringify(out, null, 2) + "\n");
 
   // Console report.
   console.log("=== SDD CODE-stage coverage (pure composition vs real committed files) ===\n");

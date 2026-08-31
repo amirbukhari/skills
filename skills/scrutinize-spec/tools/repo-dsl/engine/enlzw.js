@@ -14,12 +14,16 @@
  * Exports: loadLzw(catalogPath), genSpans(sf, source, cat), compileSpan(payload, cat).
  */
 const fs = require("fs");
+const AC = require("./artifact-contract");
 const ts = require("typescript");
 const G = require("./generators");
 const W = require("./wordlzw");
 
 function loadLzw(catalogPath) {
-  const j = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+  /* Contract-checked (PRD §8B): a dictionary whose shape we cannot verify is REFUSED, never
+   * quietly treated as an empty vocabulary — an empty vocabulary renders as "this corpus has no
+   * patterns", which reads like a measurement instead of a broken install. */
+  const j = AC.load("generators-lzw", catalogPath);
   // rebuild an expand-friendly dict wrapper per axis: words{} keyed by id, symOfId not needed
   // (leaf words carry .sym directly), so expandSymbols recurses members -> leaf .sym.
   return j;

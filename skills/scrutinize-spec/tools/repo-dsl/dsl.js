@@ -42,6 +42,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const AC = require("./engine/artifact-contract");
 const { COMPOSITES } = require("./generators");
 
 /* ------------------------- mined import resolution ------------------------ */
@@ -49,7 +50,7 @@ const { COMPOSITES } = require("./generators");
 let _resolution = null;
 function resolution() {
   if (_resolution) return _resolution;
-  const p = path.join(__dirname, "catalog", "import-resolution.json");
+  const p = path.join(AC.corpusRoot(), "spec", "catalog", "import-resolution.json");
   _resolution = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")).symbols : {};
   return _resolution;
 }

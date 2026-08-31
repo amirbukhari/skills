@@ -19,10 +19,11 @@
  */
 const fs = require("fs");
 const path = require("path");
+const AC = require("./engine/artifact-contract");
 const WN = require("./engine/word-names");
 
 const CENSUS = process.argv[2];
-const FILE = process.argv[3] || path.join(__dirname, "catalog", "word-names.json");
+const FILE = process.argv[3] || AC.pathFor("word-names");
 const NEAR = +(process.env.NEAR || 0.2); // "slightly changed" = <= 20% of tokens differ
 const APPLY = process.env.APPLY === "1";
 
@@ -79,10 +80,10 @@ console.log("RENAME QUEUE ............... " + queue.length + "  unnamed leaves i
 console.log("named ...................... " + Object.keys(names).length);
 
 if (APPLY) {
-  fs.writeFileSync(FILE, JSON.stringify({ schema: "sdd-repo-dsl/word-names/1", generated: today, names, orphans }, null, 1) + "\n");
+  fs.writeFileSync(FILE, JSON.stringify(AC.stamp("word-names", { names, orphans }, { generated: today }), null, 1) + "\n");
   console.log("\nwrote " + FILE + " (orphans moved; proposals NOT applied)");
 }
-fs.writeFileSync(path.join(__dirname, "results", "name-queue.json"), JSON.stringify({
+fs.writeFileSync(path.join(AC.corpusRoot(), ".cache", "spec-derived", "name-queue.json"), JSON.stringify({
   schema: "sdd-repo-dsl/name-queue/1", generated: today, newlyOrphaned, orphans: Object.keys(orphans).length,
   proposals, queueLength: queue.length, named: Object.keys(names).length,
   queue: queue.slice(0, 200).map((r) => ({ sites: r.sites, axis: r.axis, sym: r.sym })),
