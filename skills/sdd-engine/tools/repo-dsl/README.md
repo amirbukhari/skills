@@ -63,6 +63,28 @@ Every one carries a header — `schema`, `artifactVersion`, `corpus`, `generated
 and every consumer validates it and REFUSES on mismatch. There is no silent fallback. Publish
 through `AC.stamp`, never a hand-written header.
 
+### Worksheets are the one derived thing that stays in the engine tree
+
+`name-words-lzw.js` writes `name-words-lzw-worksheet.json` next to itself, not under
+`<CORPUS>`. That looks like a §8B location violation and is not one — it is deliberate, and
+three things say so:
+
+- the repo `.gitignore` has a section headed *"Wipable-derived per §8A (.calc IR, coverage/index
+  reports, worksheets)"* listing this file by fully-qualified path, alongside `name-worksheet.json`
+  and `name-generators.names.json`. It cannot reach the public remote.
+- `engine/artifact-location.test.js` enforces §8B in two parts — every **registered** artifact
+  resolves outside the engine tree, and no file whose **name is in the `DERIVED` set** sits here on
+  disk. The worksheet is in neither the registry nor `DERIVED`, so it is exempt by construction,
+  not by an oversight in the guard.
+- it is an authoring *input*, not a published artifact. Nothing reads it but the human filling it
+  in; the apply step is separate and never automatic.
+
+**Do not "fix" this by moving it to `<CORPUS>/.cache/spec-derived/` without asking.** A worksheet
+that a person has partly filled in is hand-authored content, and `.cache/` is defined as
+regenerable and wipable. Hand-authored names have already been lost once in this project — that is
+why `word-names.json` is SOURCE-PROTECTED. Which side of that line a half-filled worksheet belongs
+on is Amir's call, not a cleanup.
+
 **`<CORPUS>/catalog/` and `<CORPUS>/sen/catalog/` are different trees. Never merge them.** The
 first is the legacy STEP-4 tree and still load-bearing (`coined-words.json` is hand-curated); the
 second is the §8B tracked artifact home. See `../../CLAUDE.md` §5.
@@ -89,7 +111,7 @@ investigation, kept for its findings; not on any path.
 | file | kind | what it is |
 |---|---|---|
 | `build-lzw-generators.js` | **PIPELINE** 1 | mines the recursive word dictionary. `npm run mine` |
-| `name-words-lzw.js` | **PIPELINE** 2 | Tier-2 naming worksheet. `npm run name` |
+| `name-words-lzw.js` | **PIPELINE** 2 | Tier-2 naming worksheet. `npm run name`. Writes `name-words-lzw-worksheet.json` **into this directory, deliberately** — see "Worksheets" below |
 | `reconcile-names.js` | **PIPELINE** 2 | orphan ledger + re-adoption proposals after a re-mine. `npm run reconcile` |
 | `write-en-files.js` | **PIPELINE** 3 | writes `<CORPUS>/sen/files/**/*.en`, byte-gated per file. `npm run render` |
 | `measure-english.js` | **PIPELINE** 5 | THE SCOREBOARD (PRD §7.0). `npm run measure` |
