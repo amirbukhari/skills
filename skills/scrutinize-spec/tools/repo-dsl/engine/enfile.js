@@ -273,6 +273,11 @@ function spanProse(win, sf) {
     if (ts.isModuleDeclaration(st) && st.name) { actions.push("declare the module " + q(st.name.getText(sf))); continue; }
 
     /* imports/exports the naming pass did not cover (rare arities) */
+    if (ts.isExportAssignment(st)) {
+      const d = dottedText(st.expression, sf);
+      actions.push(d ? "make " + q(d) + " this module's default export" : "set this module's default export");
+      continue;
+    }
     if (ts.isImportDeclaration(st)) { const w = importGloss(st, sf); if (w) { actions.push(w); continue; } }
     if (ts.isExportDeclaration(st)) { const w = exportGloss(st, sf); if (w) { actions.push(w); continue; } }
 
@@ -311,13 +316,26 @@ function spanProse(win, sf) {
       continue;
     }
 
-    if (ts.isThrowStatement(st)) { const m = throwMessage(st); actions.push(m ? "throw “" + m + "”" : "throw an error"); continue; }
+    if (ts.isThrowStatement(st)) {
+      const m = throwMessage(st);
+      if (m) { actions.push("throw “" + m + "”"); continue; }
+      const d = dottedText(st.expression, sf);
+      if (d) { actions.push("re-throw " + q(d)); continue; }
+      const arg = ts.isNewExpression(st.expression) && st.expression.arguments && st.expression.arguments[0];
+      const ad = arg && dottedText(arg, sf);
+      actions.push(ad ? "throw an error built from " + q(ad) : "throw an error");
+      continue;
+    }
 
     if (ts.isExpressionStatement(st)) {
       const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
       /* assignment: `ctx.body = {...}` had no call, so it rendered as "run a step" */
       if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-        const lhs = dottedText(inner.left, sf);
+        let lhs = dottedText(inner.left, sf);
+        if (!lhs && ts.isElementAccessExpression(inner.left)) {
+          const base = dottedText(inner.left.expression, sf);
+          if (base) { actions.push("store a value in " + q(base)); continue; }
+        }
         if (lhs) {
           const lit = literalGloss(inner.right, sf);
           actions.push("set " + q(lhs) + (lit ? " to " + lit : ""));
@@ -328,8 +346,25 @@ function spanProse(win, sf) {
       if (callee && ts.isPropertyAccessExpression(callee) && callee.expression.getText(sf) === "console") {
         const lvl = callee.name.text, msg = throwMessage(inner);
         const noun = lvl === "error" ? "an error" : lvl === "warn" ? "a warning" : "a message";
-        actions.push(msg ? "log " + noun + " “" + msg + "”" : "log " + (lvl === "log" ? "a message" : noun));
+        if (msg) { actions.push("log " + noun + " “" + msg + "”"); continue; }
+        const a0 = inner.arguments && inner.arguments[0];
+        const keys = a0 && ts.isObjectLiteralExpression(a0)
+          ? a0.properties.map((pr) => safeMemberName(pr.name, sf)).filter(Boolean) : [];
+        if (keys.length && keys.length <= 6) { actions.push("log " + noun + " about " + P.list(keys.map(q))); continue; }
+        const ad = a0 && dottedText(a0, sf);
+        if (ad) { actions.push("log " + noun + " about " + q(ad)); continue; }
+        actions.push("log " + (lvl === "log" ? "a message" : noun));
         continue;
+      }
+      if (ts.isPostfixUnaryExpression(inner) || ts.isPrefixUnaryExpression(inner)) {
+        const d = dottedText(inner.operand, sf);
+        const up = inner.operator === ts.SyntaxKind.PlusPlusToken;
+        if (d && (up || inner.operator === ts.SyntaxKind.MinusMinusToken)) {
+          actions.push((up ? "count up " : "count down ") + q(d)); continue;
+        }
+      }
+      if (ts.isCallExpression(inner) && inner.expression.kind === ts.SyntaxKind.SuperKeyword) {
+        actions.push("call the parent constructor"); continue;
       }
       const name = firstCallName(st);
       actions.push((isAwait(st) ? "await " : "call ") + (name ? P.words(name) : "a step"));
