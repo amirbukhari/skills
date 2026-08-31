@@ -1,8 +1,21 @@
 # Proprietary Hydra source and Hydra-derived artifacts.
 # The repo-DSL engine READS the Hydra corpus from an external checkout
-# (/home/amir/Documents/Rentsync/delonix/hydra-source); nothing derived from it
-# belongs in this repo's tracked set. See the security audit on spec-driven-dev.
+# (HYDRA_CORPUS, default /home/amir/Documents/Rentsync/delonix/hydra-source);
+# nothing derived from it belongs in this repo's tracked set.
+# See the security audit on spec-driven-dev.
+
+# Verbatim Hydra source kept as behavioural oracles
 **/reference/*.ts
+**/spec/modules/**/source.ts
+
+# Mining worksheets: generated from the corpus, embed verbatim source snippets.
+# Regenerate with: node name-words-lzw.js worksheet
+name-worksheet.json
+name-words-lzw-worksheet.json
+**/name-worksheet.json
+**/name-words-lzw-worksheet.json
+
+# Per-calculator expansion results
 results/verify-expand-*.json
 **/results/verify-expand-*.json
 
