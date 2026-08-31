@@ -1256,3 +1256,77 @@ stale copy of the old claim elsewhere must not be able to re-derive it silently.
 stays visible, with this correction attached.
 
 **Commit:** notes on `b20aae3`, `37af0ed`, `25a5ac8`; this entry in the commit below.
+
+---
+
+## 2026-08-31 — centralized the walk SKIP set; exposure was zero and I said so
+
+**Decided:** extracted `engine/walk-skip.js` as the one frozen corpus walk-skip set and migrated
+11 walkers to require it.
+
+**Why:** `CLAUDE.md` §8 names the duplication as a standing landmine — it drifted once and hid 696
+of 937 un-collapsed bodies. Re-measured: grown from the 13 files recorded there to **18**, in
+three divergent shapes. The MINIMAL shape (`node_modules .git demo coined-demo`) did **not**
+exclude `sen`, `spec`, `catalog`, `.cache`, `dist`, `build` or `coverage`, so those walkers were
+free to count generated files as source.
+
+**The honest part: exposure was ZERO.** Measured twice — before, and again after another lane
+rendered 1037 `.en` into the corpus — because those trees hold `.json`/`.en` and every walker
+filters `.ts`. **No published number was wrong.** The defect was latent, and this is recorded as
+a latent defect rather than dressed up as a live one. Fixing it was still worth doing because the
+same class has already cost this project once, but the commit message says "latent", not "bug".
+
+**Verified by running it, against baselines captured before the change:** `measure-operations`,
+`measure-callgraph`, `measure-logic-english`, `measure-bespoke-composites` and `measure-english`
+all produce **byte-identical** output; byte-identity holds at 1037/1037; `test:unit` 20/20.
+
+**Commit:** `0b392fe`
+
+---
+
+## 2026-08-31 — took the guard fix that makes the guard STRONGER, not the one that quiets it
+
+**Decided:** exempted `engine/walk-skip.js` from the root-literal guard **by file name**, and
+deleted the old exemption that waved through any line matching `SKIP = new Set(`.
+
+**Why:** centralizing tripped `corpus-root.test.js`, which sdd-engine-5f diagnosed exactly — the
+exemption was LINE-scoped, and the centralized set spans several lines, so the names landed on a
+line with no `SKIP = new Set(` on it to match. Two fixes were available: make the exemption
+block-aware, or name the file. They recommended the file, and they were right for a reason worth
+recording: the old exemption blessed a **shape**, which exempted all 13 copies at once. Naming the
+file is what the centralization earned — `"sen"`/`"spec"` may now appear in exactly one place, and
+a new inline SKIP set anywhere else fires.
+
+**Verified, not assumed:** I reproduced the failure first (`engine/walk-skip.js:39`), then after
+the fix **planted a rogue inline SKIP set** in a throwaway file and confirmed the guard caught it.
+A guard that stops crying wolf by lowering its standards is worse than the wolf.
+
+The dangerous wrong move here, which sdd-engine-5f also flagged: "fixing" this by deleting the
+`"spec"` entry from the set. That would silently stop excluding a not-yet-renamed corpus. The
+guard was wrong; the entry was right.
+
+**Commit:** `0b392fe`
+
+---
+
+## 2026-08-31 — left two files out of my own commit rather than sweep a lane's work
+
+**Decided:** `test-gen-roundtrip.js` and `test-lzw-roundtrip.js` are migrated **on disk** but
+excluded from `0b392fe`. `corpus-walk.test.js` names them as pending in a comment.
+
+**Why:** the pre-commit diff showed 14+/1- and 24+/8- on those two against my one-line change —
+sdd-engine-5a had uncommitted exit-code work in the same files. `git commit -o` commits a path's
+**working-tree** content, so committing them would have taken that work into a commit whose message
+describes a SKIP refactor. That is the fourth near-miss of this kind today and the first one caught
+*before* the commit rather than after.
+
+**How it was caught, and this is the transferable part:** `git diff --numstat` on every path
+immediately before committing, checking each is the size I expect. `git status` says a file
+changed; it does not say by whose hand. A one-line refactor showing 24 insertions is the tell.
+
+**Rejected:** a bidirectional test asserting "the pending files are still pending". It reads the
+**working tree**, where they are already migrated, so it cannot distinguish disk state from commit
+state and failed immediately. Replaced with a plain comment. A brittle test that encodes a
+transient two-lane race is worse than a sentence.
+
+**Commit:** `0b392fe`
