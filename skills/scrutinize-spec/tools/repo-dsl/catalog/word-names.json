@@ -1,0 +1,349 @@
+{
+ "schema": "sdd-repo-dsl/word-names/1",
+ "generated": "2026-08-31",
+ "names": {
+  "w:c6b36e0d4eb67847": {
+   "sym": "import‹gap›{‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import one name from a module",
+   "sites": 3487,
+   "named": "2026-08-31"
+  },
+  "w:ae9eeda4a019e910": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import two names from a module",
+   "sites": 788,
+   "named": "2026-08-31"
+  },
+  "n:efb17845fca7a1fe": {
+   "sym": "test(‹args›);",
+   "en": "declare a test case",
+   "sites": 340,
+   "named": "2026-08-31"
+  },
+  "w:073ebe2d6b68d474": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import three names from a module",
+   "sites": 314,
+   "named": "2026-08-31"
+  },
+  "w:2c9919972692e193": {
+   "sym": "import‹gap›‹id›‹gap›from‹gap›‹str›;",
+   "en": "import a module's default export",
+   "sites": 215,
+   "named": "2026-08-31"
+  },
+  "n:a3744115f41e82da": {
+   "sym": "expect(‹args›)‹chain›;",
+   "en": "assert an expectation",
+   "sites": 167,
+   "named": "2026-08-31"
+  },
+  "w:64afafd432f3a48c": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import one name from a module",
+   "sites": 119,
+   "named": "2026-08-31"
+  },
+  "w:01419ba2da59d948": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import two names from a module",
+   "sites": 117,
+   "named": "2026-08-31"
+  },
+  "w:c27383f548819c88": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import four names from a module",
+   "sites": 105,
+   "named": "2026-08-31"
+  },
+  "w:c36c47d8d820067e": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import three names from a module",
+   "sites": 84,
+   "named": "2026-08-31"
+  },
+  "w:202473a43334eb90": {
+   "sym": "export‹gap›{‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "re-export one name from another module",
+   "sites": 83,
+   "named": "2026-08-31"
+  },
+  "n:331e0cbb3913678e": {
+   "sym": "‹id›.info(‹args›);",
+   "en": "log an informational message",
+   "sites": 79,
+   "named": "2026-08-31"
+  },
+  "w:b746e0ef4a096abb": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import five names from a module",
+   "sites": 75,
+   "named": "2026-08-31"
+  },
+  "w:1ff1777b69cc4004": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import four names from a module",
+   "sites": 74,
+   "named": "2026-08-31"
+  },
+  "w:8cf47c640c59c42a": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import six names from a module",
+   "sites": 72,
+   "named": "2026-08-31"
+  },
+  "w:9e0673a5b9119600": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import five names from a module",
+   "sites": 47,
+   "named": "2026-08-31"
+  },
+  "n:77f05ee54ce31333": {
+   "sym": "‹id›.body = ‹obj›;",
+   "en": "set the HTTP response body",
+   "sites": 42,
+   "named": "2026-08-31"
+  },
+  "w:b10d8b88429644f9": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import seven names from a module",
+   "sites": 35,
+   "named": "2026-08-31"
+  },
+  "w:4ad7ae1ac2dbc7ab": {
+   "sym": "export‹gap›default‹gap›‹id›.‹m›;",
+   "en": "make one of a value's members this module's default export",
+   "sites": 34,
+   "named": "2026-08-31"
+  },
+  "w:8d65e8c7deefd5a5": {
+   "sym": "export‹gap›interface‹gap›‹id›‹gap›{‹gap›‹id›:‹gap›string;‹gap›}",
+   "en": "declare an interface with one field",
+   "sites": 31,
+   "named": "2026-08-31"
+  },
+  "w:4a60b8b75e4b5209": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import eight names from a module",
+   "sites": 27,
+   "named": "2026-08-31"
+  },
+  "w:54c8dda929711eae": {
+   "sym": "export‹gap›default‹gap›‹id›;",
+   "en": "make a value this module's default export",
+   "sites": 24,
+   "named": "2026-08-31"
+  },
+  "n:0d922d7621a095e2": {
+   "sym": "beforeEach(‹args›);",
+   "en": "run setup before the tests",
+   "sites": 24,
+   "named": "2026-08-31"
+  },
+  "n:799b9e00304adb9a": {
+   "sym": "describe(‹args›);",
+   "en": "open a group of related tests",
+   "sites": 24,
+   "named": "2026-08-31"
+  },
+  "w:e1545d5e1fc054a5": {
+   "sym": "export‹gap›enum‹gap›‹id›‹gap›{‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›}",
+   "en": "declare an enumeration of two cases",
+   "sites": 20,
+   "named": "2026-08-31"
+  },
+  "w:6ee0dd24c181fe35": {
+   "sym": "import‹gap›*‹gap›as‹gap›‹id›‹gap›from‹gap›‹str›;",
+   "en": "import a whole module under one namespace",
+   "sites": 20,
+   "named": "2026-08-31"
+  },
+  "w:3ef1a2baead049b2": {
+   "sym": "if‹gap›(!‹id›)‹gap›{‹gap›return ‹obj›;‹gap›}",
+   "en": "return an error result when a required value is missing",
+   "sites": 20,
+   "named": "2026-08-31"
+  },
+  "n:9c68bd607a734a77": {
+   "sym": "‹id›.body = ‹obj› as ‹type›;",
+   "en": "set the HTTP response body to a typed payload",
+   "sites": 20,
+   "named": "2026-08-31"
+  },
+  "n:0e886b5a20ba511b": {
+   "sym": "dispatch(‹args›);",
+   "en": "dispatch an action to the store",
+   "sites": 19,
+   "named": "2026-08-31"
+  },
+  "n:d47ec38865c3eaa9": {
+   "sym": "‹id›.use(‹args›);",
+   "en": "mount a middleware on the app",
+   "sites": 18,
+   "named": "2026-08-31"
+  },
+  "w:7633323fca9735e6": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›‹gap›as‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import two names from a module, one under an alias",
+   "sites": 17,
+   "named": "2026-08-31"
+  },
+  "w:86afa002af4250ec": {
+   "sym": "type‹gap›‹id›‹gap›=‹gap›unknown;",
+   "en": "declare a placeholder type that is not yet pinned down",
+   "sites": 17,
+   "named": "2026-08-31"
+  },
+  "n:214cb9bc1896e980": {
+   "sym": "‹id›.status = ‹num›;",
+   "en": "set the HTTP status code",
+   "sites": 16,
+   "named": "2026-08-31"
+  },
+  "n:6c00e97b84e5aa6e": {
+   "sym": "‹id›.error(‹args›);",
+   "en": "log an error",
+   "sites": 16,
+   "named": "2026-08-31"
+  },
+  "w:69e3b28e90260ef4": {
+   "sym": "export‹gap›interface‹gap›‹id›‹gap›{‹gap›‹id›?:‹gap›string;‹gap›}",
+   "en": "declare an interface with one field",
+   "sites": 16,
+   "named": "2026-08-31"
+  },
+  "n:1cc5ad536ad9f55e": {
+   "sym": "checkHeap(‹args›);",
+   "en": "record a heap-usage checkpoint",
+   "sites": 15,
+   "named": "2026-08-31"
+  },
+  "w:0c6045c31ccdd4ef": {
+   "sym": "export‹gap›*‹gap›from‹gap›‹str›;",
+   "en": "re-export everything from another module",
+   "sites": 14,
+   "named": "2026-08-31"
+  },
+  "w:da51e9f88066aa5c": {
+   "sym": "import‹gap›‹id›,‹gap›{‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import a module's default export plus one name",
+   "sites": 14,
+   "named": "2026-08-31"
+  },
+  "w:23d7381e56fe1a3c": {
+   "sym": "import‹gap›{‹gap›‹id›‹gap›as‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import one name from a module, one under an alias",
+   "sites": 14,
+   "named": "2026-08-31"
+  },
+  "w:960b4a8af397556b": {
+   "sym": "export‹gap›enum‹gap›‹id›‹gap›{‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›}",
+   "en": "declare an enumeration of one case",
+   "sites": 13,
+   "named": "2026-08-31"
+  },
+  "w:c15cb4d5a8dba98f": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import nine names from a module",
+   "sites": 13,
+   "named": "2026-08-31"
+  },
+  "n:f405a1a5d61d2018": {
+   "sym": "showMessage(‹args›);",
+   "en": "show a message to the user",
+   "sites": 13,
+   "named": "2026-08-31"
+  },
+  "w:4ad2292cb6c5c2d3": {
+   "sym": "return null;",
+   "en": "return nothing",
+   "sites": 12,
+   "named": "2026-08-31"
+  },
+  "n:c2b12038cf1e4975": {
+   "sym": "it(‹args›);",
+   "en": "declare a test case",
+   "sites": 12,
+   "named": "2026-08-31"
+  },
+  "w:558f26212c4dff6f": {
+   "sym": "if‹gap›(‹id›.‹m› === ‹num›)‹gap›{‹gap›return ‹arr›;‹gap›}",
+   "en": "return an empty list when there is nothing to process",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:dabbdf16b8204c2b": {
+   "sym": "return false;",
+   "en": "return false",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:3f82c9c9f4a0be65": {
+   "sym": "if‹gap›(!‹id›)‹gap›{‹gap›return ‹str›;‹gap›}",
+   "en": "return a message when a required value is missing",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:0d3b49ffeba420f5": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import ten names from a module",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:2c4bf1bd82abcfb3": {
+   "sym": "export‹gap›interface‹gap›‹id›‹gap›{‹gap›‹id›:‹gap›string;‹gap›‹id›:‹gap›string;‹gap›}",
+   "en": "declare an interface with two fields",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:5c59a02fd8f13078": {
+   "sym": "export‹gap›interface‹gap›‹id›‹gap›{‹gap›‹id›:‹gap›string;‹gap›‹id›:‹gap›string;‹gap›‹id›:‹gap›string;‹gap›}",
+   "en": "declare an interface with three fields",
+   "sites": 10,
+   "named": "2026-08-31"
+  },
+  "w:5662c19cc3cab55b": {
+   "sym": "export‹gap›{‹gap›‹id›‹gap›as‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "re-export one name from another module under an alias",
+   "sites": 9,
+   "named": "2026-08-31"
+  },
+  "w:80e9380115523754": {
+   "sym": "if‹gap›(!‹id›.‹m›)‹gap›{‹gap›return ‹obj›;‹gap›}",
+   "en": "return an error result when a required field is missing",
+   "sites": 9,
+   "named": "2026-08-31"
+  },
+  "w:26a73563ce5769da": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›‹gap›as‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import two names from a module, one under an alias",
+   "sites": 8,
+   "named": "2026-08-31"
+  },
+  "w:b4acdaacb687999c": {
+   "sym": "import‹gap›{‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›‹id›,‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import 11 names from a module",
+   "sites": 8,
+   "named": "2026-08-31"
+  },
+  "w:37ad7175fa1acf7d": {
+   "sym": "export‹gap›enum‹gap›‹id›‹gap›{‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›}",
+   "en": "declare an enumeration of two cases",
+   "sites": 7,
+   "named": "2026-08-31"
+  },
+  "w:7a964218a18c6605": {
+   "sym": "export‹gap›enum‹gap›‹id›‹gap›{‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›‹id›‹gap›=‹gap›‹str›,‹gap›}",
+   "en": "declare an enumeration of three cases",
+   "sites": 7,
+   "named": "2026-08-31"
+  },
+  "w:73a8497e14f36aff": {
+   "sym": "import‹gap›‹id›,‹gap›{‹gap›‹id›,‹gap›‹id›‹gap›}‹gap›from‹gap›‹str›;",
+   "en": "import a module's default export plus two names",
+   "sites": 7,
+   "named": "2026-08-31"
+  }
+ },
+ "orphans": {}
+}
