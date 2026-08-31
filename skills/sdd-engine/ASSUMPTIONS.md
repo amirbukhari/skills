@@ -1038,3 +1038,158 @@ fingerprint; deleting the `reviewSurface` block is REFUSED as "same schema strin
 **Pre-existing red:** `artifact-location.test.js` still fails on `word-names` missing — Amir's wipe,
 red by decision (s12's entry A), not caused by this change; the four assertions covering the two new
 kinds pass.
+
+---
+
+## 2026-08-31 — the pipeline could not report failure, so the wrapper's promise was false
+
+**Decided:** gave four scripts real exit codes — `write-en-files.js` and `measure-english.js` exit
+**1** when byte-identity is breached, `build-lzw-generators.js` exits **1** when it parsed no files
+or promoted an empty vocabulary, and `sdd-clean.js` exits **3** when it refuses to touch `sen/`.
+Before this, all four contained **zero** `process.exit` calls and always exited 0.
+
+**Why:** measured first — there are no interactive or blocking prompts anywhere in the live tree
+(no `readline`, `createInterface`, `process.stdin`), so the UI risk was never blocking input. The
+real defect was that failure was invisible. `write-en-files.js` computed `gate.allByteIdentical`,
+printed `FAILURES: N`, and exited 0 — so PRD R-REND-1, the floor the whole project sells, could not
+fail a caller.
+
+That became load-bearing when `sdd-run.js` landed. Its contract is *"EXIT CODE = the child's exit
+code, unchanged … exitCode === 0, so a UI never has to interpret prose to know whether a step
+succeeded."* A child that cannot exit non-zero makes that promise false: `sdd-run render` would
+report `ok:true` on a byte-identity regression. **This is the missing half of that wrapper, not a
+competing mechanism** — the earlier "a wrapper, not `--json` on eleven scripts" decision stands.
+
+**Why `sdd-clean.js` exits 3 and not the 2 that was asked for:** `sdd-run.js` reserves 2 for "the
+wrapper itself refused" and passes a child's code through unchanged, so a 2 from the cleaner would
+be indistinguishable from the wrapper refusing. 0 = did what was asked · 1 = error (the hard
+refusals throw) · 3 = declined, nothing deleted. A dry run is *not* a refusal — it is what was
+asked for, so it stays 0.
+
+**Verified by running it, and mutation-checked per §10.3:**
+- `sdd-clean.js` no flags → **3**; `--wipe-sen` dry run → **0**.
+- `build-lzw-generators.js` with `SOURCE=<empty dir>` → **1**, naming the walked-zero-files reason
+  and both roots. This is PRD §8B failure mode 2 (miner and renderer walking different file sets,
+  which once hid 696 of 937 un-collapsed bodies) made loud instead of silent.
+- `write-en-files.js` unmutated → **0** (1037/1037). Mutated to force the gate false → **1** with
+  the promised message. No test hook was shipped; the mutation ran from a throwaway copy.
+- `measure-english.js` unmutated → **0**. Mutated to force `bad` → **1**.
+
+## 2026-08-31 — the scoreboard shipped the answer it was supposed to compute
+
+**Decided:** removed the frozen readings from `measure-english.js` — the header named `33.8%`,
+`40.2%`, `8.4%`, `4.5%`, `20.9%` and `39.7%` as "the ceiling", and the last printed line compared
+the live number against `ceiling 33.8% (optimistic … / 40.2%)`. The line now prints the live split
+only. The removed numbers are still named in the header comment, as a record of what was cut.
+
+**Why:** point-in-time measurements of one corpus, baked into the tool that measures it — the exact
+defect PRD §7 removed from the document (*"every number that was a point-in-time measurement has
+been removed — run the tools for current values"*). A tool carrying its own expected answer cannot
+report a regression, and on any other corpus it is simply wrong.
+
+**Verified by running it:** live output is now `reads as English 33.7% (optimistic … 40.2%)`. The
+frozen ceiling said 33.8%, so it was **already 0.1pp stale** against the corpus it was pinned to.
+
+## 2026-08-31 — did NOT register an `english` artifact kind, though it was asked for
+
+**Decided:** did not add `english.json` as a §8B artifact for gates 2 and 3, and did not add a
+`--json` stdout mode to `measure-english.js`.
+
+**Why, and this is a blocker someone should look at:** `engine/artifact-location.test.js`
+assertion (e) loops `AC.kindsOf()` and asserts `fs.existsSync(p)` for **every registered kind**.
+Registering a new kind therefore turns that guard red until someone runs the producer. Two already-
+registered kinds — `word-names` and `gate` — have no file on disk right now, so the guard is
+already failing on both. **The registry cannot take a new member until that guard distinguishes
+"registered" from "must currently exist."** Writing the artifact unregistered was the other option
+and it is the `name-queue.json` bug class (hand-written header, no fingerprint), which is precisely
+what this session flagged.
+
+**Consequence left open:** §7.0 gates 2 and 3 still have no committed artifact, so **R-MEAS-1**
+("one committed command reading one field of one committed artifact") is unsatisfied for them.
+`sdd-run.js` does not close this — it wraps prose in an envelope, it does not produce fields.
+
+**Flagged, not fixed:** a peer (`sdd-engine-e2`) measured that `measure-english.js` never reads
+`.en` from disk — it walks `<SOURCE>/**/*.ts` and renders/compiles in memory. So its `1037/1037`
+byte-identity is a statement about `compileFileEn(renderFileEn(src))`, which is exactly what
+R-REND-1 asks, but it is **not** evidence about the `.en` tree on disk. `<CORPUS>/sen/files/` does
+not exist at all today. Any register row reading the scoreboard as evidence about emitted `.en`
+files is measuring something else.
+
+---
+
+## 2026-08-31 — the render was run against the real corpus, writing 1037 `.en` into it
+
+**Decided:** ran `npm run render` over the real corpus rather than leaving R-REND-5 and R-COMP-7
+permanently MANUAL. This wrote 1037 `.en` under `<CORPUS>/sen/files/` plus
+`.cache/spec-derived/en-index.json`.
+
+**Why:** both rows were unanswerable without it, and R-COMP-7 was the open question §Q-8 —
+"unmeasured on the real corpus". A register row that can never be evaluated is indistinguishable
+from one nobody has looked at. The write is to the designated WRITE root, is the normal output of a
+documented pipeline step, and `sen/` is explicitly wipable (`sdd-clean.js --wipe-sen --go`), so it
+is reversible in one command. `SOURCE` was not touched.
+
+**Verified by running it — this is the §Q-8 measurement:** live-path `maxDepth` **62** (bar is 2),
+2482 spans deeper than depth 1 against 3249 at depth 1, `flatFallback` 0, composites 112,423,
+compositionEdges 224,846, `dictionaryMaxDepth` 63 distinct from `maxDepth`, and
+`gate.byteIdentical` 1037/1037 on the **emitted** tree. R-COMP-7 had previously cleared its bar only
+on a synthetic fixture at depth 3.
+
+**A judgement inside the check:** R-COMP-7 reports the depth **histogram**, not only the maximum,
+because one deep span clears a "≥ 2" bar by itself while still describing a flat renderer. 2482
+spans spread over depths 2–62 cannot. The number alone would have been a weaker claim wearing the
+same verdict.
+
+**Not done, deliberately:** §Q-8 and R-COMP-7's Check text in `tools/prd/` still read "unmeasured on
+the real corpus", which is now false. `tools/prd/**` is another lane's, so the measurement was
+relayed rather than written. `npm run register --id R-COMP-6,R-COMP-7` reproduces it on demand,
+which is better than freezing a number into prose.
+
+**Commit:** `328300a`
+
+---
+
+## 2026-08-31 — an in-memory round-trip score was ruled out as evidence for an on-disk row
+
+**Decided:** mechanized R-REND-5 to distinguish "render has not been run" (MANUAL, a **state**) from
+"`.en` exist somewhere other than `sen/files/`" (FAILS, a **violation**), and wrote the warning
+inline into R-REND-1's note.
+
+**Why:** another lane found that `npm run measure` reports byte-identity 1037/1037 against a corpus
+holding **zero** `.en`. Verified independently: `measure-english.js:59-62` walks `<SOURCE>/**/*.ts`
+and round-trips in memory. Worse, its own header line 3 calls itself "Two frozen metrics over **the
+emitted `.en`**" — the file's documentation asserts the thing that is not true, which is why the
+wrong mental model is the natural one.
+
+The distinction that resolves it: R-REND-1 **is** an in-memory identity
+(`compileFileEn(renderFileEn(src)) === src`), so that 1037/1037 is the *correct* evidence for it.
+R-REND-5 is a claim about bytes on disk, and the same number is worthless for it. Leaving a
+1037/1037 sitting next to a row about the `.en` tree invites the error, so the note names it.
+
+**Verified by running it:** before the render, R-REND-5 reported MANUAL with 0 `.en` and did not
+FAIL — absent is a state. After, it HOLDS with 1037, all under `sen/files/`.
+
+**Not fixed:** the false header line in `measure-english.js`. That file belongs to the lane
+currently fixing exit codes in the `measure-*` scripts, so it was flagged, not edited.
+
+**Commit:** `328300a`
+
+---
+
+## 2026-08-31 — advised keeping an overridden mining constant a warning, not a refusal
+
+**Decided:** when asked whether a run with `MIN_COUNT`/`MIN_SKEL`/`MAXWIN` overridden should be
+refused outright, recommended keeping it a warning. The decision and the code are another lane's;
+this records the reasoning given.
+
+**Why:** a refusal makes a legitimate parameter sweep impossible from a UI, and that sweep is how
+the values were settled in the first place — `build-lzw-generators.js:51` records byte-identity
+1037/1037 at every swept value. And §R binds the **default**: an overridden run is not a violation,
+it is a run the register does not describe. Suggested one addition instead — carry
+`constantsOverridden` into the artifact envelope, since a stamped artifact from a non-default mine
+is the case where a silent override actually costs something later.
+
+**Inferred from reading the code and the register**, not measured. The other lane verified the
+override path itself (`MIN_COUNT=2` → `overridden:true, effective:2`).
+
+**Commit:** no code change in this lane.
