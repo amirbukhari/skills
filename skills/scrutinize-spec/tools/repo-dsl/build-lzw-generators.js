@@ -83,7 +83,18 @@ function buildAxis(streams, axis) {
 const narrow = buildAxis(narrowStreams, "narrow");
 const wide = buildAxis(wideStreams, "wide");
 
-const catalog = { schema: "sdd-repo-dsl/generators-lzw/1", builtFrom: path.basename(CORPUS), fileCount: parsed, gap: W.GAP, narrow, wide };
+// PROVENANCE — §8A protects this artifact, which is only meaningful if the next person can
+// regenerate it rather than treat it as a mystery blob. Record the exact corpus and command.
+const catalog = {
+  schema: "sdd-repo-dsl/generators-lzw/1",
+  builtFrom: path.basename(CORPUS),
+  corpus: path.resolve(CORPUS),
+  minedAt: new Date().toISOString(),
+  regenerate: `HYDRA_CORPUS=${path.resolve(CORPUS)} node build-lzw-generators.js`,
+  tool: "build-lzw-generators.js",
+  node: process.version,
+  fileCount: parsed, gap: W.GAP, narrow, wide,
+};
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(catalog));
 

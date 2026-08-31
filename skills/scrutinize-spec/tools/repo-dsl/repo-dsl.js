@@ -39,11 +39,57 @@ const path = require("path");
 const { mine } = require("./engine/pipeline");
 const { tokenize } = require("./engine/fanout");
 
-const DEFAULT_CORPUS = "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
+// The engine mines an EXTERNAL corpus; this repo intentionally contains none (PRD §8).
+// HYDRA_CORPUS wins, matching build-lzw-generators.js / write-en-files.js. The literal
+// below is only a developer convenience and is never trusted without an existence check.
+const DEFAULT_CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/billing-system/src/rentsync-api/calculators";
 const RESULTS = path.join(__dirname, "results");
 const CATALOG = path.join(__dirname, "catalog");
 const COVERAGE_JSON = path.join(RESULTS, "corpus-coverage.json");
 const LIBRARY_JSON = path.join(CATALOG, "mined-library.json");
+
+/**
+ * Resolve the corpus directory and PROVE it exists. A missing corpus must fail loudly and
+ * name its own fix: silently proceeding against whatever catalog happens to be on disk
+ * yields confident numbers about a corpus that was never read. Never return an unverified path.
+ */
+function resolveCorpus(dir, cmd) {
+  const abs = path.resolve(dir);
+  if (!fs.existsSync(abs)) {
+    console.error(`corpus not found: ${abs}`);
+    console.error("");
+    console.error("The repo-DSL engine mines an EXTERNAL corpus. This repo deliberately contains");
+    console.error("no corpus and no Hydra source, so a checkout alone cannot mine anything.");
+    console.error("");
+    console.error("Point it at one:");
+    console.error(`  HYDRA_CORPUS=/path/to/corpus node repo-dsl.js ${cmd}`);
+    console.error(`  node repo-dsl.js ${cmd} /path/to/corpus`);
+    process.exit(2);
+  }
+  return abs;
+}
+
+/**
+ * Refuse to read a persisted artifact that was mined from a DIFFERENT corpus than the one
+ * being asked about. Same contract cmdPublish enforces in the other direction: one project's
+ * library must never be reported as another's. Cross-corpus reuse is silent and looks correct.
+ */
+function assertSameCorpus(artifactPath, artifactCorpus, corpusDir) {
+  if (!artifactCorpus) {
+    console.error(`refusing to use ${path.relative(process.cwd(), artifactPath)}: it records no corpus, so it cannot be verified against ${corpusDir}`);
+    console.error("Re-mine it:  node repo-dsl.js mine " + corpusDir);
+    process.exit(2);
+  }
+  if (path.resolve(artifactCorpus) !== path.resolve(corpusDir)) {
+    console.error(`refusing to use ${path.relative(process.cwd(), artifactPath)}: it was mined from`);
+    console.error(`  ${artifactCorpus}`);
+    console.error(`but you asked about`);
+    console.error(`  ${corpusDir}`);
+    console.error("These are different corpora; the numbers would not describe the corpus you named.");
+    console.error("Re-mine it:  node repo-dsl.js mine " + corpusDir);
+    process.exit(2);
+  }
+}
 
 function flag(args, name, def) {
   const i = args.indexOf(name);
@@ -135,7 +181,9 @@ function runMine(dir, minCount, lift) {
   fs.mkdirSync(CATALOG, { recursive: true });
   fs.writeFileSync(LIBRARY_JSON, JSON.stringify(res.library, null, 2) + "\n");
   res.publishedTo = publishLibrary(dir, res.library);
+  // Provenance so a stored report can never be mistaken for a live one (see cmdReport).
   fs.writeFileSync(COVERAGE_JSON, JSON.stringify({
+    minedAt: new Date().toISOString(), regenerate: `node repo-dsl.js mine ${dir}`,
     schema: "sdd-repo-dsl/corpus-coverage/1", corpus: dir, minCount: res.minCount,
     rollup: res.rollup, files: res.fileReports, residueSamples: res.residueSamples,
   }, null, 2) + "\n");
@@ -162,27 +210,30 @@ function printRollup(res) {
 }
 
 function cmdMine(args) {
-  const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
+  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "mine");
   const lift = parseLift(args);
   if (lift) console.log(`(lift knob: ${Object.entries(lift).filter(([, v]) => v).map(([k]) => k).join("+") || "none"})`);
   printRollup(runMine(dir, +flag(args, "--min", 2), lift));
 }
 
 /** Load the persisted mine output (for gate --no-mine): coverage rollup + library. */
-function loadPersisted() {
+function loadPersisted(corpusDir) {
   if (!fs.existsSync(COVERAGE_JSON) || !fs.existsSync(LIBRARY_JSON))
     throw new Error(`--no-mine needs a prior run: ${path.relative(process.cwd(), COVERAGE_JSON)} and ${path.relative(process.cwd(), LIBRARY_JSON)} must exist (run: repo-dsl mine)`);
   const cov = JSON.parse(fs.readFileSync(COVERAGE_JSON, "utf8"));
   const library = JSON.parse(fs.readFileSync(LIBRARY_JSON, "utf8"));
+  // A persisted result is only valid for the corpus it was mined from (§ cmdPublish contract).
+  assertSameCorpus(COVERAGE_JSON, cov.corpus, corpusDir);
+  assertSameCorpus(LIBRARY_JSON, library.corpus, corpusDir);
   return { rollup: cov.rollup, fileReports: cov.files, library, corpus: cov.corpus };
 }
 
 function cmdGate(args) {
-  const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
+  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "gate");
   const min = +flag(args, "--min", 80);        // corpus coverage threshold (%)
   const minFile = flag(args, "--min-file", null); // optional worst-file threshold (%)
   const noMine = args.includes("--no-mine");
-  const res = noMine ? loadPersisted() : runMine(dir, +flag(args, "--min-count", 2)); // LZW recurrence threshold
+  const res = noMine ? loadPersisted(dir) : runMine(dir, +flag(args, "--min-count", 2)); // LZW recurrence threshold
   const corpus = res.rollup.coveragePct;
   const worst = res.fileReports[0];
   const corpusPass = corpus >= min;
@@ -202,7 +253,7 @@ function cmdGate(args) {
 }
 
 function cmdVerify(args) {
-  const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
+  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "verify");
   const files = require("./engine/pipeline").walkDir(dir).sort();
   let ok = 0, fail = 0;
   for (const f of files) {
@@ -245,7 +296,7 @@ function cmdExplain(args) {
 
 function cmdRefineLanguage(args) {
   const { refineLanguage } = require("./refine-language");
-  const dir = args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS;
+  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "verify-expand");
   const out = refineLanguage(dir, {
     apply: args.includes("--apply"),
     only: flag(args, "--only", "naming"),
@@ -269,6 +320,18 @@ function cmdExpand(args) {
 function cmdReport() {
   if (!fs.existsSync(COVERAGE_JSON)) { console.error("no results yet — run: repo-dsl mine"); process.exit(1); }
   const j = JSON.parse(fs.readFileSync(COVERAGE_JSON, "utf8"));
+  // Numbers describe the corpus they were mined from. Say which, and whether it is still there,
+  // so a stale report can never read as a live one.
+  const c = j.corpus || "(unrecorded)";
+  const present = j.corpus && fs.existsSync(j.corpus);
+  console.log(`corpus: ${c}`);
+  if (j.minedAt) console.log(`mined:  ${j.minedAt}`);
+  if (!present) {
+    console.log("STALE:  that corpus is not present on this machine — these numbers are a stored");
+    console.log("        snapshot, not a live measurement. Re-mine before citing them:");
+    console.log(`          HYDRA_CORPUS=/path/to/corpus node repo-dsl.js mine`);
+  }
+  console.log("");
   console.log(`corpus ${j.rollup.coveragePct}% over ${j.rollup.files} files; residue chars A${j.rollup.residueChars.A} B${j.rollup.residueChars.B} C${j.rollup.residueChars.C} D${j.rollup.residueChars.D}`);
   for (const f of j.files) console.log(`  ${f.coveragePct.toString().padStart(5)}%  ${f.rel}`);
 }
