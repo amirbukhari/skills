@@ -232,7 +232,7 @@ function generatorSpans(sf, source, gens) {
           const slice = source.slice(start, end);
           if (G.refill(hit.wp.key, hit.wp.holes) === slice) { // absolute byte gate at emission
             const label = hit.g.name || hit.g.gloss; // domain phrase if the naming pass set one, else structural gloss (label only — compiler reads the payload, not this)
-            const en = GEN + " " + label + " " + PAY_OPEN + b64({ g: hit.g.id, h: hit.wp.holes }) + PAY_CLOSE;
+            const en = GEN + " " + label + " " + PAY_OPEN + b64({ d: "flat", g: hit.g.id, h: hit.wp.holes }) + PAY_CLOSE;
             spans.push({ start, end, en, kind: "gen", stmts: hit.K });
             p += hit.K; continue;
           }
@@ -334,11 +334,31 @@ function compileChunk(chunk, index) {
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
     const obj = JSON.parse(Buffer.from(chunk.slice(a + 1, b), "base64").toString("utf8"));
-    if (obj.w !== undefined) { // RECURSIVE tier: payload { a:"n"|"w", w:wordId, h:holes }
+    // DIALECT DISPATCH. Two payload dialects coexist:
+    //   flat: { d:"flat", g:generatorId, h }   -> catalog/generators.json  (fallback tier)
+    //   lzw:  { d:"lzw", a:"n"|"w", w:wordId, h } -> catalog/generators-lzw.json (primary)
+    // Until now this dispatched on which key happened to be present, so correctness rested on
+    // the two key sets staying disjoint (g vs w) — nothing enforced that. If they ever overlapped,
+    // a compiler would resolve a payload to the WRONG BYTES and still report success: silent-wrong,
+    // the one failure this project must never have. Dispatch is now explicit and fails CLOSED.
+    const dialect = obj.d !== undefined ? obj.d
+      : (obj.w !== undefined && obj.g !== undefined) ? "__ambiguous"
+      : obj.w !== undefined ? "lzw"
+      : obj.g !== undefined ? "flat"
+      : "__none";
+    if (dialect === "__ambiguous")
+      throw new Error("enfile: ambiguous generator payload — carries both flat `g` and lzw `w` keys, so its dialect cannot be determined; refusing to guess (would risk compiling to the wrong bytes)");
+    if (dialect === "__none")
+      throw new Error("enfile: generator payload names no dialect and carries neither `g` (flat) nor `w` (lzw)");
+    if (dialect !== "flat" && dialect !== "lzw")
+      throw new Error(`enfile: unknown generator payload dialect ${JSON.stringify(obj.d)} — known dialects are "flat" and "lzw". Refusing to compile rather than guess.`);
+    if (dialect === "lzw") { // RECURSIVE tier: payload { d:"lzw", a:"n"|"w", w:wordId, h:holes }
+      if (obj.w === undefined) throw new Error('enfile: payload tagged dialect "lzw" but carries no `w` word id');
       if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
       return EL.compileSpan(obj, index._lzw);
     }
-    // FLAT fallback tier: payload { g:generatorId, h:holes }
+    // FLAT fallback tier: payload { d:"flat", g:generatorId, h:holes }
+    if (obj.g === undefined) throw new Error('enfile: payload tagged dialect "flat" but carries no `g` generator id');
     const gens = index && index._generators;
     const rec = gens && gens.byId && gens.byId.get(obj.g);
     if (!rec) throw new Error("enfile: unknown generator id " + obj.g);

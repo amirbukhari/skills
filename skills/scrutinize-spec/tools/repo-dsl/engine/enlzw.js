@@ -103,7 +103,7 @@ function genSpans(sf, source, cat) {
             const wp = G.windowParts(win, sf, wide);
             if (wp && wp.fill === source.slice(start, end)) {
               cands.push({ start, end, weight: w.len - 1, stmts: w.len, wide, depth: cat[axis].words[w.id].d,
-                payload: { a: wide ? "w" : "n", w: w.id, h: wp.holes } });
+                payload: { d: "lzw", a: wide ? "w" : "n", w: w.id, h: wp.holes } });
             }
           }
         };
