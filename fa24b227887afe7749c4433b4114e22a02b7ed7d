@@ -1,0 +1,26 @@
+ALSO CARRIES SIX ROWS THIS MESSAGE DOES NOT DESCRIBE (shared working tree, unstaged sweep).
+
+The verify-register.js portion of this commit is two different pieces of work.
+The message describes the R-MEAS-2 rewrite. The commit also contains six new
+mechanized rows, written by the sdd-engine session working on the requirements
+register, which were uncommitted in the shared working tree when this landed:
+
+  R-CFG-1  exactly two roots; ROOTS frozen; `sen` only as LAYOUT.sen
+  R-CFG-2  the roots move independently, checked in both directions
+  R-CFG-3  precedence flag > env > .env > default, EXERCISED; sole env reader
+  R-CFG-4  a set-but-missing root refuses loudly — run in a real child process
+  R-PIN-1  stamp refuses an unpinned publish; provenance is on the artifact
+  R-PIN-4  unstamped is refused BY DEFAULT; allowUnstamped only when opted into
+
+Nothing was lost: all six are present on HEAD and all six report HOLDS. Read
+them as register-mechanization work, not as part of settling R-MEAS-2.
+
+Register after this commit: 41 mechanized rows, 38 hold, 0 fail, 3 manual.
+
+NO COMPLAINT ABOUT THE R-MEAS-2 REWRITE ITSELF, which is correct and better
+than what it replaced. The "two definitions of S" half of the old row was half
+wrong: fnStmtCount has one live consumer (measure-operations.js:84) where it
+sizes a single clustered function body, so it never was a rival corpus
+denominator — §7.3 had simply named the wrong function as S. The replacement
+keeps the teeth and adds two the original lacked (S must be exported; nothing
+may divide by the per-function count).
