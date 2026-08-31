@@ -1,20 +1,31 @@
-# Hydra-derived artifacts must never enter this repo.
-# The repo-DSL engine READS the proprietary corpus from an external checkout
-# (HYDRA_CORPUS); everything it mines is regenerable there and belongs there.
-# These rules are guards: re-running `node repo-dsl.js mine` recreates this
-# output locally, and it must not be committed back.
-skills/scrutinize-spec/tools/repo-dsl/catalog/
-skills/scrutinize-spec/tools/repo-dsl/results/
+# ── Hydra SOURCE must never enter this repo ──────────────────────────────
+# The engine READS the proprietary corpus from an external checkout
+# (HYDRA_CORPUS). Verbatim source, and artifacts that embed it, stay out.
+skills/scrutinize-spec/examples/hydra-*/
+**/reference/*.ts
+**/spec/modules/**/source.ts
+# These embed verbatim Hydra import paths (@llws/hydra-shared, @src/rentsync-api):
+skills/scrutinize-spec/tools/repo-dsl/catalog/patterns.json
+skills/scrutinize-spec/tools/repo-dsl/catalog/import-resolution.json
 skills/scrutinize-spec/tools/repo-dsl/compositions/
+
+# ── PRD §8A SOURCE-PROTECTED — must NOT be gitignored-away ───────────────
+# §8A: the mined vocabulary "must never be classified as regenerable-cache,
+# gitignored-away, or deleted in any cleanup". These are abstracted token
+# shapes (‹id›/‹fn› holes), NOT Hydra source, and are tracked deliberately:
+#   catalog/mined-library.json, catalog/mined-library.v2.json,
+#   catalog/generators-lzw.json, and catalog/generators.json,
+#   catalog/english-idioms.json, word-library.json if they land here.
+# No rule below may exclude them.
+
+# ── Wipable-derived per §8A (.calc IR, coverage/index reports, worksheets) ─
 skills/scrutinize-spec/tools/repo-dsl/surface/
+skills/scrutinize-spec/tools/repo-dsl/results/
 skills/scrutinize-spec/tools/repo-dsl/name-worksheet.json
 skills/scrutinize-spec/tools/repo-dsl/name-words-lzw-worksheet.json
 skills/scrutinize-spec/tools/repo-dsl/name-generators.names.json
-**/results/verify-expand-*.json
-skills/scrutinize-spec/examples/hydra-*/
+**/.cache/
 
-# Browser-scrape dumps (unaudited page content, multi-MB)
+# ── Misc ─────────────────────────────────────────────────────────────────
 .playwright-mcp/
-
-# Dependencies
 node_modules/
