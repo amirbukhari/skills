@@ -142,6 +142,18 @@ disk: it walks `<SOURCE>/**/*.ts` and renders in memory, so it does not depend o
 run and reports `1037/1037` on a corpus with zero `.en` on disk. A UI must not draw `measure`
 downstream of `render`. Steps carry `measuredMs` where a real run produced a number.
 
+**Every run records the mining constants.** `MIN_COUNT`, `MIN_SKEL` and `MAXWIN` are
+env-overridable at `build-lzw-generators.js`, and §R binds their **defaults** — so a run with
+`MIN_COUNT=2` exported satisfies the code and violates the register with nothing on screen to say
+so. The envelope carries `miningConstants` and `constantsOverridden`, `--status` reports them, and
+an override prints a warning to stderr saying the run does not satisfy the register even at exit 0.
+
+The defaults are **parsed out of the declaring file, never restated here** — a second copy of a
+constant is exactly the drift that rotted three §R cites (they pointed at `engine/compose.js` and
+`engine/enlzw.js`, neither of which defines these). If the declaration changes shape, this reports
+`unknown` rather than a stale number. Verified: a reshaped `Number(process.env.X ?? 1)` yields
+`defaultKnown: false`, not `1`.
+
 **Destructive steps refuse by default.** `clean:sen` needs `--allow-destructive`, and
 `sdd-clean.js` still independently requires `--go` before it deletes anything. This wrapper must
 not become a one-click way to delete the English tree.

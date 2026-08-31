@@ -194,6 +194,38 @@ function missingFor(step, arts) {
       path: arts[k] ? arts[k].path : null }));
 }
 
+/* ── MINING CONSTANTS — reported, never copied ────────────────────────────────────────────────
+ * MIN_COUNT / MIN_SKEL / MAXWIN are env-overridable at build-lzw-generators.js. §R binds their
+ * DEFAULTS, so a run with MIN_COUNT=2 exported satisfies the code and violates the register with
+ * nothing on screen to say so — a mine is then attributed to a constant nobody chose. The run
+ * record is the right place to catch that, so the envelope always carries them.
+ *
+ * The defaults are PARSED OUT of the declaring file, never restated here. A second copy of a
+ * constant is the drift this engine exists to eliminate, and three §R cites had already rotted
+ * pointing at files that do not define these (engine/compose.js, engine/enlzw.js). If the
+ * declaration changes shape, this reports `unknown` rather than a stale number — absent beats
+ * confidently wrong. */
+const CONST_DECL = path.join(HERE, "build-lzw-generators.js");
+function miningConstants() {
+  let src = null;
+  try { src = fs.readFileSync(CONST_DECL, "utf8"); } catch { /* reported below */ }
+  const out = {};
+  for (const name of ["MIN_COUNT", "MIN_SKEL", "MAXWIN"]) {
+    const m = src && src.match(new RegExp("process\\.env\\." + name + "\\s*\\|\\|\\s*([0-9]+)"));
+    const dflt = m ? Number(m[1]) : null;
+    const set = Object.prototype.hasOwnProperty.call(process.env, name) ? process.env[name] : null;
+    out[name] = {
+      declaredIn: path.relative(HERE, CONST_DECL),
+      default: dflt,
+      defaultKnown: dflt !== null,
+      envValue: set,
+      overridden: set !== null && (dflt === null || Number(set) !== dflt),
+      effective: set !== null ? Number(set) : dflt,
+    };
+  }
+  return out;
+}
+
 function emit(obj) { process.stdout.write(JSON.stringify(obj, null, 2) + "\n"); }
 
 /* ── CLI ──────────────────────────────────────────────────────────────────────────────────── */
@@ -242,7 +274,7 @@ if (has("--status")) {
   const artifacts = artifactState();
   const payload = { schema: SCHEMA, kind: "status", generated: new Date().toISOString(),
     roots, sen: roots.corpus && roots.corpus.root ? path.join(roots.corpus.root, CR.LAYOUT.sen) : null,
-    artifacts };
+    artifacts, miningConstants: miningConstants() };
   if (wantsHuman) {
     for (const [n, r] of Object.entries(roots)) {
       process.stdout.write(`  ${n.toUpperCase().padEnd(7)} ${r.refused ? "REFUSED — " + r.why : r.root}\n` +
@@ -252,6 +284,9 @@ if (has("--status")) {
       process.stdout.write(`    ${k.padEnd(17)} ${a.present ? (a.valid ? "ok" : "PRESENT but INVALID: " + a.why) : "ABSENT"}\n`);
     }
     process.stdout.write(`\n  (readiness is per-step — see the \`needs\` field in --list)\n`);
+    for (const [k, c] of Object.entries(payload.miningConstants)) {
+      if (c.overridden) process.stdout.write(`  OVERRIDDEN  ${k}=${c.envValue} (default ${c.default}) — §R binds the default\n`);
+    }
   } else emit(payload);
   process.exit(Object.values(roots).some((r) => r.refused) ? 2 : 0);
 }
@@ -281,6 +316,8 @@ if (refused.length) {
   process.exit(2);
 }
 
+const consts = miningConstants();
+const overridden = Object.entries(consts).filter(([, c]) => c.overridden).map(([k, c]) => `${k}=${c.envValue} (default ${c.default})`);
 const before = artifactState();
 const missing = missingFor(step, before);
 if (missing.length) {
@@ -312,11 +349,14 @@ const envelope = {
   signal: r.signal || null,
   stdout: r.stdout || "", stderr: r.stderr || "",
   roots,
+  miningConstants: consts,
+  constantsOverridden: overridden,
   artifactsBefore: before,
   artifactsAfter: artifactState(),
 };
 if (r.error) envelope.spawnError = r.error.message;
 
+if (overridden.length) process.stderr.write(`\n  WARNING: mining constants overridden in the environment: ${overridden.join(", ")}\n  §R binds the DEFAULTS. This run does not satisfy the register even if it exits 0.\n`);
 if (wantsHuman) process.stderr.write(`\n${envelope.ok ? "OK" : "FAILED"} — ${id} in ${durationMs}ms (exit ${exitCode})\n`);
 else emit(envelope);
 process.exit(exitCode);
