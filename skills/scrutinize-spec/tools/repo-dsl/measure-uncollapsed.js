@@ -5,10 +5,20 @@
  *
  * §7 defines "un-collapsed repeated structure" as a function/method body that
  *   (a) has a WIDE-axis canonical key recurring across the corpus with freq >= minCount (2),
+ *  (a2) has placeholder density BELOW 1/2 -- of the N per-statement parts of that key, the number
+ *       equal to the hole symbol must satisfy holes/N < 0.5,
  *   (b) is NOT covered by a generator span in that file's .en, and
  *   (c) is NOT claimed by an archetype slot.
  * The metric is the COUNT OF FILES containing >= 1 such body; membership is a pure function of the
  * canonical keys and the .en, so two engineers get the same answer.
+ *
+ * WHY (a2) EXISTS -- near-miss, 2026-08-31. The classifier originally had only (a), (b), (c). A body
+ * whose every statement generalizes to a hole keys as "·<GAP>·", so ALL such bodies collide with each
+ * other and every one of them scores freq >= 2. Two unrelated functions were being counted as
+ * "repeated structure" on the strength of sharing no content whatsoever. That inflated the metric
+ * ~3x: 126 files reported, 38 real. The number was about to be steered by, and it would have sent
+ * someone hunting 102 files of nothing. Placeholder density is the decidable discriminator: a key
+ * that is at least half holes carries too little evidence to assert recurrence.
  *
  * This script also answers the question the metric alone cannot: WHY is each unclaimed body
  * unclaimed? §5A admits a site only when fillOf(template, boundHoles) equals its original bytes,
@@ -47,14 +57,18 @@ function bodies(sf) {
   return out;
 }
 
-/* WIDE-axis canonical key for a whole body (per-statement keys joined; non-foldable -> hole). */
-function wideKey(body, sf) {
+/* WIDE-axis canonical key PARTS for a whole body (per statement; non-foldable -> hole). */
+const { HOLE, MAX_HOLE_FRAC, holeFraction, passesDensity } = require("./engine/uncollapsed-density");
+function keyParts(body, sf) {
   return [...body.statements].map((st) => {
-    if (!G.isFoldable(st)) return "·";
+    if (!G.isFoldable(st)) return HOLE;
     const p = G.generalStmtParts(st, sf, true);
-    return p ? G.keyOf(p) : "·";
-  }).join(W.GAP);
+    return p ? G.keyOf(p) : HOLE;
+  });
 }
+const wideKey = (body, sf) => keyParts(body, sf).join(W.GAP);
+
+let excludedByDensity = 0, excludedAllHole = 0;
 
 /* ---- pass 1: corpus-wide WIDE-key frequency ---- */
 const freq = new Map();
@@ -62,7 +76,7 @@ const parsed = [];
 for (const f of files) {
   let src; try { src = fs.readFileSync(f, "utf8"); } catch { continue; }
   const sf = ts.createSourceFile(path.basename(f), src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const bs = bodies(sf).map((b) => ({ b, key: wideKey(b, sf), start: b.getStart(sf), end: b.getEnd() }));
+  const bs = bodies(sf).map((b) => { const kp = keyParts(b, sf); return { b, kp, key: kp.join(W.GAP), start: b.getStart(sf), end: b.getEnd() }; });
   for (const x of bs) if (x.b.statements.length >= 2) freq.set(x.key, (freq.get(x.key) || 0) + 1);
   parsed.push({ f, src, sf, bs });
 }
@@ -80,6 +94,11 @@ for (const { f, src, sf, bs } of parsed) {
     if (x.b.statements.length < 2) continue;
     if ((freq.get(x.key) || 0) < MIN_COUNT) continue;   // not repeated -> not in scope
     if (covered(x.start, x.end)) continue;              // already collapsed
+    if (!passesDensity(x.kp)) {                         // §7(a2): key too sparse to assert recurrence
+      excludedByDensity++;                              // counted AFTER (b) so it is comparable to the metric
+      if (holeFraction(x.kp) === 1) excludedAllHole++;
+      continue;
+    }
     // ---- why not? replay §5A admission over this body's runs ----
     let sawWord = false, sawByteExact = false;
     const stmts = [...x.b.statements];
@@ -115,9 +134,11 @@ for (const { f, src, sf, bs } of parsed) {
 }
 
 const out = {
-  schema: "sdd-repo-dsl/uncollapsed/1", corpus: CORPUS, measuredAt: new Date().toISOString(),
+  schema: "sdd-repo-dsl/uncollapsed/2", corpus: CORPUS, measuredAt: new Date().toISOString(),
   minCount: MIN_COUNT, totalFiles: parsed.length,
   filesWithUncollapsedRepeatedStructure: filesWith, bodiesUnclaimed, buckets: bucket,
+  maxHoleFraction: MAX_HOLE_FRAC,
+  excludedByPlaceholderDensity: excludedByDensity, excludedAllPlaceholder: excludedAllHole,
   note: "archetype-claim exclusion (§7c) is a no-op: the live path loads no archetype catalog, so no body is archetype-claimed.",
   worstFiles: perFile.sort((a, b) => b.bodies - a.bodies).slice(0, 15).map((x) => ({ rel: x.rel, bodies: x.bodies })),
 };
@@ -127,6 +148,7 @@ console.log(`corpus ${CORPUS}`);
 console.log(`files ......................... ${out.totalFiles}`);
 console.log(`FILES with un-collapsed repeated structure (§7 metric) ... ${filesWith}`);
 console.log(`bodies unclaimed .............. ${bodiesUnclaimed}`);
+console.log(`bodies excluded by §7(a2) density (holes/N >= ${MAX_HOLE_FRAC}) ... ${excludedByDensity}  (of which all-placeholder: ${excludedAllHole})`);
 console.log(`  MINER       (no word mined, len>=2) ....... ${bucket.MINER}`);
 console.log(`  GATE        (word exists, no byte-exact fill) ${bucket.GATE}`);
 console.log(`  ARBITRATION (byte-exact lost scheduling) ... ${bucket.ARBITRATION}`);

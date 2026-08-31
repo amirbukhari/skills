@@ -66,7 +66,7 @@ The `.ts` is rendered to an editable `.en` by swapping **only verified spans** i
 Live corpus manifest (`hydra-source/spec/en-index.json`, s1 run 2026-08-30; values move as s1 iterates — the metric *definitions* in §7 are what stay fixed):
 - **1037 / 1037 files round-trip byte-identical** (`.en → .ts`). This is the gate, and it passes for the whole corpus.
 - **English-of-bytes: 32.5%** (denominator = enfile-layer 3.40 MB) — split **3,920 logic-statement spans + 7,562 data spans**, plus the generator layer below. **1037 `.en` files** are written to `spec/files/<rel>.en`; the derived `.calc` IR is relocated to a gitignored `.cache/`.
-- **Middle-tier generator layer (now partially wired):** `generators` block = **2,305 generator calls collapsing 5,623 statements**, for a **net statement reduction of 3,318** (`statementsCollapsed − calls`), across **715 / 1037 files**. This is the additive layer of §6 landing — it is no longer hypothetical.
+- **Middle-tier generator layer (now partially wired):** `generators` block = **4,362 generator calls collapsing 11,282 statements**, for a **net statement reduction of 6,920** (`statementsCollapsed − calls`), across **715 / 1037 files**. This is the additive layer of §6 landing — it is no longer hypothetical.
 
 ### The middle-tier gap (now closing, not closed)
 Layers A and B hold their byte gate; the open work is the **middle tier: multi-statement function/method bodies that recur *up to renaming***. It was the last un-mined tier; it is now partially captured (the 5,623 collapsed statements above) and the front is to finish it.
@@ -224,15 +224,32 @@ The metrics are **real lossless compression AND statement/readability collapse**
 **Frozen definitions.**
 - **Total statements `S`** = the sum of function/method body statements over the enfile-layer walk (§4), as counted by `fnStmtCount` in `operations.js`. This is the fixed denominator.
 - **`statement-collapse ratio` = `generators.netStatementReduction ÷ S`**, where `netStatementReduction = statementsCollapsed − calls` (both fields of `en-index.json → generators`). It is the fraction of all body statements removed from the reader's view by being folded into a generator call. Today: `netStatementReduction = 3,318`.
-- **`un-collapsed repeated structure`** is decidable and frozen to one classifier: a function/method body is *un-collapsed repeated structure* iff (a) its **WIDE-axis canonical key** (`measure-middle-tier.js` WIDE canon) recurs across the corpus with frequency **≥ `minCount` (2)**, (b) it is **not** covered by a generator span in that file's `.en`, and (c) it is **not** claimed by an archetype slot. The metric is the **count of files containing ≥ 1 such body**; `→ 0` means every recurring-up-to-renaming body has been promoted or is provably non-refillable. Membership is a pure function of the two canonical keys and the `.en` — two engineers get the same answer.
+- **`un-collapsed repeated structure`** is decidable and frozen to one classifier: a function/method body is *un-collapsed repeated structure* iff (a) its **WIDE-axis canonical key** (`measure-middle-tier.js` WIDE canon) recurs across the corpus with frequency **≥ `minCount` (2)**, **(a2)** its key has **placeholder density below ½** — of the *N* per-statement parts of that key, the number equal to the hole symbol `·` must satisfy **`holes / N < 0.5`** (exactly one half is **not** enough; the comparison is strict), (b) it is **not** covered by a generator span in that file's `.en`, and (c) it is **not** claimed by an archetype slot. The metric is the **count of files containing ≥ 1 such body**; `→ 0` means every recurring-up-to-renaming body has been promoted or is provably non-refillable. Membership is a pure function of the two canonical keys and the `.en` — two engineers get the same answer.
+
+**Current reading (2026-08-31, `node write-en-files.js` + `node measure-uncollapsed.js`, real run against the pinned corpus):**
+
+| | |
+|---|---|
+| byte-identity | **1037 / 1037** |
+| `filesUsing` | **715 / 1037** |
+| `netStatementReduction` | **6,920** |
+| `maxCompositionDepth` | **14** |
+| `flatFallback` | **0** (0.0%) |
+| `englishBytesPct` | **44.9** |
+| files with un-collapsed repeated structure (§7 incl. (a2)) | **38** |
+
 
 | Metric | Formula / source field | Today | Milestone target |
 |---|---|---|---|
 | **Byte-identity** | `en-index.json → gate.byteIdentical` | **1037 / 1037** | **1037 / 1037** (the floor — never regresses) |
-| **Statement-collapse ratio** | `generators.netStatementReduction ÷ S` | net reduction **6,920** (`calls 4,362`, `statementsCollapsed 11,282`, `filesUsing 715/1037`) — target met | **netStatementReduction ≥ 4,500 and filesUsing ≥ 750 / 1037**, byte-identity held at 1037/1037 |
-| **Files with un-collapsed repeated structure** | `node measure-uncollapsed.js` — implements this classifier exactly | **126 files / 179 bodies** (all MINER-limited; 0 gate, 0 arbitration) | **0** |
+| **Statement-collapse ratio** | `generators.netStatementReduction ÷ S` | net reduction **6,920** (`calls 4,362`, `statementsCollapsed 11,282`, `filesUsing 715/1037`, `maxCompositionDepth 14`, `flatFallback 0`) — target met | **netStatementReduction ≥ 4,500 and filesUsing ≥ 715 / 1037**, byte-identity held at 1037/1037 (~~filesUsing ≥ 750~~ **superseded 2026-08-31** — see the ceiling note below) |
+| **Files with un-collapsed repeated structure** | `node measure-uncollapsed.js` — implements this classifier exactly | **38 files / 46 bodies** (all MINER-limited; 0 gate, 0 arbitration). Corrected by §7(a2); the pre-(a2) reading was 126 files / 179 bodies. A further **133 bodies** are excluded by density, 24 of them all-placeholder. | **0** |
 | **Composition depth (live `.en` path)** | `en-index.json → generators.maxDepth` (longest generator-calls-generator chain the live compile actually expands, §5B) | **14 — target met (§4A)** | **≥ 2**, rising toward the compose-layer's depth 9 |
 | **Real (lossless) compression ratio** | `1 − (.en bytes ÷ .ts bytes)` over the enfile-layer walk — LZW makes this positive without breaking byte-identity (§2.1) | **−27% (`.en` 4.32 MB > `.ts` 3.40 MB — inflation from the flat path, §4A)** | **positive and rising** — `.en` smaller than `.ts`, growing with dictionary depth |
+
+> **NEAR-MISS — why (a2) exists (2026-08-31).** The classifier shipped with only (a), (b), (c). A body whose every statement fails to generalize keys as `·<GAP>·`, so **all** such bodies collide with each other and **every one of them scores `freq ≥ 2`**. Two functions sharing no content whatsoever were being counted as repeated structure. The metric read **126 files / 179 bodies**; the truth was **38 files / 46 bodies** — an inflation of roughly **3×**, and it would have sent someone hunting 102 files of nothing. The number was already being steered by when the error was caught. Placeholder density is the decidable discriminator: a key that is at least half holes carries too little evidence to assert recurrence. Frozen in `engine/uncollapsed-density.js`, guarded by `engine/uncollapsed-density.test.js` (mutation-checked: removing the condition turns 4 cases red, including the real-source one).
+
+> **SUPERSEDED TARGET — `filesUsing ≥ 750` (set in this document; retired 2026-08-31).** The measured ceiling at the current readability bar is **753**: 715 files use a generator today, and only **38 files** hold a genuinely repeated, genuinely unclaimed body (§7 as corrected by (a2)). The target was therefore set one to two files under a wall nobody had measured. Worse, **none of those 38 are reachable by legitimate miner work**: 15 need `MIN_SKEL` dropped below 8 (measured curve 12→649, 8→715, 6→719, 4→732, byte-identity holding throughout, but promoting near-trivial two-statement words), and 23 recur only at whole-body silhouette while sharing no recurring adjacent statement pair anywhere in the corpus — reaching them means widening the canon until more of each statement is a hole. Both routes are *punch more holes until things match*, which is the flat anti-unification defect §4A exists to kill, and both trade readability for a number. **Decision: leave the miner alone.** §3 already rules that genuinely one-off code stays verbatim and is counted as residue; these 38 files are that residue. The replacement target is `filesUsing ≥ 715` — held, not chased. The history is kept here rather than deleted because *why* a target moved is the part worth having.
 
 **Explicitly not a metric:** English-% (a by-product — a rise from paraphrasing unique code would be a regression in disguise). **Byte size IS a metric now (corrected):** real lossless compression via recursive word reuse is a goal, not forbidden — the earlier "not a target / capped ~4.5%" framing applied only to the flat path (§3, §4A). Byte-identity is the floor and never regresses; the progress signals are *real compression turning positive*, *composition depth ≥ 2*, *statement-collapse up*, and *files-with-un-collapsed-repeated-structure → 0*.
 
@@ -248,7 +265,7 @@ Every threshold the implementation depends on, with its literal value and source
 | `MIN_WORD_CHARS` (ignore trivial punctuation tokens as words) | **4** | `engine/compose.js` `MIN_WORD_CHARS` |
 | Gate corpus-coverage threshold | **≥ 20%** (the run of record; the `--min` flag default in code is 80) | `results/gate.json → thresholds.corpus`; `repo-dsl gate --min` |
 | Gate worst-file threshold | **disabled (null)** — no per-file floor is enforced | `results/gate.json → thresholds.perFile` = `null`; `repo-dsl gate --min-file` unset |
-| Statement-collapse milestone target | **netStatementReduction ≥ 4,500; filesUsing ≥ 750 / 1037** | §7 (this document) |
+| Statement-collapse milestone target | **netStatementReduction ≥ 4,500; filesUsing ≥ 715 / 1037** (~~≥ 750~~ superseded 2026-08-31; measured ceiling 753) | §7 (this document) |
 | Byte-identity target | **1037 / 1037** | §7 |
 | Enfile-layer walk SKIP set | `node_modules, .git, .worktrees, dist, build, coverage, spec, catalog, .cache, demo, coined-demo` | `write-en-files.js` `SKIP` |
 | Corpus root | `/home/amir/Documents/Rentsync/delonix/hydra-source` | `write-en-files.js`, `measure-middle-tier.js` `CORPUS` |
@@ -313,7 +330,7 @@ Load-bearing premises this PRD relies on but has not independently verified — 
 3. ~~**The corpus is a single fixed local tree.**~~ **SUPERSEDED by §8B (2026-08-30) — this assumption is false.** Two corpora exist (`hydra-source` and the calculators tree), and the depth-4 incident was the direct consequence: with more than one corpus in play and no stamp pinning an artifact to its tree, a consumer had no way to tell whose numbers it was rendering. Corpus pinning is now a **rule** (§8B), not an assumption. What survives of the original: every path and byte total in §8/§7 is still relative to the §8 corpus root with the §8 SKIP set, and the metrics are still not portable to another tree without re-deriving `S` and the two byte totals.
 4. **`S` (total body statements) is stable enough to be a denominator.** It is recomputed by `fnStmtCount` on each `write-en-files.js` run; a large refactor of the corpus would move it, so the statement-collapse ratio is only comparable between runs over the same corpus revision.
 
-**Open question (highest-leverage):** the milestone target in §7 (`netStatementReduction ≥ 4,500`, `filesUsing ≥ 750`) is a first-cut number set in this document — it should be confirmed against a measured ceiling (how many of the WIDE-axis candidates actually refill byte-exact) before it is treated as the definition of "done" for the phase.
+**~~Open question (highest-leverage)~~ — RESOLVED 2026-08-31.** The milestone target in §7 (`netStatementReduction ≥ 4,500`, `filesUsing ≥ 750`) was a first-cut number set in this document, and the instinct that it needed confirming against a measured ceiling was correct. It has now been measured: the ceiling is **753**, so `≥ 750` sat one to two files under a wall, and every remaining file is reachable only by degrading readability. The target is superseded by `filesUsing ≥ 715` — see the ceiling note in §7. `netStatementReduction ≥ 4,500` stands and is met at **6,920**.
 
 ---
 
