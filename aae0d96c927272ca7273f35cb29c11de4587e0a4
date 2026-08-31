@@ -1,0 +1,6 @@
+SCOPE NOTE. This message describes five files; the commit contains two.
+
+verify-register.js and the two prd/ cite corrections had already been swept into
+37af0ed (see its note) moments earlier, so only README.md and package.json
+remained to commit here. The reasoning in this message applies to all five and is
+the record for them.
