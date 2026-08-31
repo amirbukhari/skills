@@ -28,8 +28,12 @@ const os = require("os");
 const { spawnSync } = require("child_process");
 const lib = require("./sdd-lib");
 
-const SCORE_JS = path.join(lib.SKILL_ROOT, "scripts", "score.js");
-const RUBRIC_MD = path.join(lib.SKILL_ROOT, "references", "rubric.md");
+// The scrutinize gate lives in the SIBLING skill, not in this one. The engine was
+// extracted out of scrutinize-spec (2026-08-31); this is the one remaining
+// engine -> scrutinizer dependency, and it is one-directional by design.
+const SCRUTINIZE_ROOT = path.resolve(lib.SKILL_ROOT, "..", "scrutinize-spec");
+const SCORE_JS = path.join(SCRUTINIZE_ROOT, "scripts", "score.js");
+const RUBRIC_MD = path.join(SCRUTINIZE_ROOT, "references", "rubric.md");
 
 const ANALYSIS_SCHEMA_HINT = `Output ONLY a JSON object with EXACTLY these keys (no prose, no fences):
 {

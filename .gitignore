@@ -5,9 +5,9 @@ skills/scrutinize-spec/examples/hydra-*/
 **/reference/*.ts
 **/spec/modules/**/source.ts
 # These embed verbatim Hydra import paths (@llws/hydra-shared, @src/rentsync-api):
-skills/scrutinize-spec/tools/repo-dsl/catalog/patterns.json
-skills/scrutinize-spec/tools/repo-dsl/catalog/import-resolution.json
-skills/scrutinize-spec/tools/repo-dsl/compositions/
+skills/sdd-engine/tools/repo-dsl/catalog/patterns.json
+skills/sdd-engine/tools/repo-dsl/catalog/import-resolution.json
+skills/sdd-engine/tools/repo-dsl/compositions/
 
 # ── PRD §8A SOURCE-PROTECTED — must NOT be gitignored-away ───────────────
 # §8A: the mined vocabulary "must never be classified as regenerable-cache,
@@ -19,11 +19,11 @@ skills/scrutinize-spec/tools/repo-dsl/compositions/
 # No rule below may exclude them.
 
 # ── Wipable-derived per §8A (.calc IR, coverage/index reports, worksheets) ─
-skills/scrutinize-spec/tools/repo-dsl/surface/
-skills/scrutinize-spec/tools/repo-dsl/results/
-skills/scrutinize-spec/tools/repo-dsl/name-worksheet.json
-skills/scrutinize-spec/tools/repo-dsl/name-words-lzw-worksheet.json
-skills/scrutinize-spec/tools/repo-dsl/name-generators.names.json
+skills/sdd-engine/tools/repo-dsl/surface/
+skills/sdd-engine/tools/repo-dsl/results/
+skills/sdd-engine/tools/repo-dsl/name-worksheet.json
+skills/sdd-engine/tools/repo-dsl/name-words-lzw-worksheet.json
+skills/sdd-engine/tools/repo-dsl/name-generators.names.json
 **/.cache/
 
 # ── Misc ─────────────────────────────────────────────────────────────────

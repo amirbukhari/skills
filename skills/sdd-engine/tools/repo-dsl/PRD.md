@@ -1,7 +1,7 @@
 # PRD — English-as-Source (the repo-DSL engine)
 
-**Status:** in progress · grounded in the code under `scrutinize-spec/tools/repo-dsl/` as of 2026-08-30
-**Home:** this file lives at `scrutinize-spec/tools/repo-dsl/PRD.md` — beside the engine and `README.md` it describes, not at the repo root (the root is a multi-skill monorepo; this feature is one tool inside it).
+**Status:** in progress · grounded in the code under `sdd-engine/tools/repo-dsl/` as of 2026-08-30
+**Home:** this file lives at `sdd-engine/tools/repo-dsl/PRD.md` (moved out of `scrutinize-spec/` on 2026-08-31 when the engine became its own skill) — beside the engine and `README.md` it describes, not at the repo root (the root is a multi-skill monorepo; this feature is one tool inside it).
 **Scope note:** written READ-ONLY while another session (s1) is actively editing the engine. Numbers below are read from committed catalog/result files and the live corpus manifest; where a result file is a stale snapshot it is flagged as such.
 
 ---
