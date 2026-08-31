@@ -640,3 +640,97 @@ descriptive. `sdd-run.js` reflects what the scripts do today; if the kind is ret
 entry and the `reconcile` step's `needs` are a one-line change each.
 
 **Commit:** `ac55d48` (no change to naming behaviour)
+
+---
+
+## 2026-08-31 — the §R register was made partly executable rather than fully audited
+
+**Decided:** built `verify-register.js` covering **13 of ~100** rows and shipped it at that
+coverage, instead of auditing all 100 by hand or waiting until every row was mechanized.
+
+**Why:** §R defines a Check as "how a second engineer decides whether it holds", and nothing ran
+them, so the register could rot while reading as authoritative — and had. 13 mechanized rows that
+re-run on demand beat 100 hand-verified rows that are stale the next day. The coverage number is
+printed on every run precisely so partial coverage cannot be mistaken for full coverage, and a row
+absent from the runner is stated to be one nobody has mechanized — not one that holds.
+
+**The harder call inside it:** rows needing a mine, a round-trip or judgement report `MANUAL` with
+the command that would decide them, and `MANUAL` is loudly **not a pass**. The tempting alternative
+— counting un-evaluable rows as holding — is the `catch { return null }` bug class this engine
+exists to eliminate, in a new costume.
+
+**Verified by running it:** 9 hold, 0 fail, 4 manual. Exit 0/1/2 and the `--json`, `--id` and
+refusal paths all exercised. The FAIL path is proven by its own first run, not by a contrived test.
+
+**Commit:** `37af0ed` (swept, see its git note), described by `aae0d96`
+
+---
+
+## 2026-08-31 — four rotted §R check cites were corrected, and the values left alone
+
+**Decided:** rewrote the **Check** column for R-MINE-1..4 in `prd/11` and the matching rows in
+`prd/12`, and changed **no constant**. Marked R-MINE-4 RETIRED rather than deleting the row.
+
+**Why:** the values (1, 8, 64) were right; the pointers had rotted, which is worse. A wrong value
+fails loudly; a wrong pointer sends the next reader to a retired file that answers a different
+question confidently. R-MINE-1 cited `engine/compose.js`, retired to `archive/engine/compose.js`
+where `MIN_COUNT = 2` — so verifying that row at the cited location reads 2 and wrongly fails a
+requirement that holds. Deleting R-MINE-4 outright was rejected: a freed id gets silently reused.
+
+**Also recorded, and not resolved:** all three are `process.env`-overridable, so "MUST be 1" binds
+the **default**. A run with `MIN_COUNT=2` in the environment satisfies the code and violates the
+requirement silently. Whether that override should exist is left open rather than answered here.
+
+**Verified by running it:** `grep -rn` over the live tree and `archive/` for each constant. The
+values were read off `build-lzw-generators.js:59`, not inferred from the prose they contradicted.
+
+**Commit:** `37af0ed` (swept, see its git note), described by `aae0d96`
+
+---
+
+## 2026-08-31 — the register verifier's own false positives were exempted, not tolerated
+
+**Decided:** added exactly two exemptions to its grep — comment lines, and the verifier's own file
+— and resolved `HASH_LEN` instead of pattern-matching the digit `16`.
+
+**Why:** its first run reported four FAILS and **all four were false**: `guard-idiom.js:2` is a
+comment reading "analyze the fetch(G1) / assert(G2) guard idiom"; `artifact-contract.js:50` is a
+comment documenting the root precedence chain; two rows matched the verifier's own regex literals;
+and R-LANG-2 wanted a literal `16` where `word-names.js:33` truncates with `.slice(0, HASH_LEN)`.
+The comment exemption is the same rule `engine/corpus-root.test.js:142` already applies, for the
+reason it gives — and `:168` there says plainly that exempting is "what keeps this guard from crying
+wolf". A guard that cries wolf gets ignored, then removed.
+
+**Each of the four was read on disk before being exempted.** That is the whole difference between an
+exemption and a suppression, and it is why the rule in the file says to widen them only with a
+measurement.
+
+**Verified by running it:** 4 fails → 0 fails, with no check weakened; every row still reports the
+evidence it decided on.
+
+**Commit:** `37af0ed` (swept, see its git note), described by `aae0d96`
+
+---
+
+## 2026-08-31 — two commits documented with `git notes` instead of being rewritten
+
+**Decided:** left `37af0ed` and `aae0d96` exactly as they are and attached notes explaining that
+the first carries three files its message does not mention, and the second describes five files
+while containing two.
+
+**Why:** the shared index swept this lane's staged `verify-register.js` and two `prd/` edits into
+another lane's commit, in the window between their `git add` and their commit — which `-o` cannot
+close for paths already staged. Nothing was lost; only the attribution was wrong. A rewrite of
+pushed history to fix a message is a bad trade, and this repo already set the convention when
+`b20aae3` was corrected the same way.
+
+**Worth knowing for anyone working here:** both lanes were already using `git commit -o -- <paths>`
+and it still happened. `-o` protects you from sweeping *unstaged* work and from *your own* `git add`
+being too broad; it does not protect you from a path another session staged before you committed.
+The only real defence is to check `git status` immediately before committing and to read
+`git show --stat` immediately after — which is how this was caught.
+
+**Verified by running it:** `git show HEAD:...verify-register.js | wc -l` → 281, and the corrected
+cites are present in `HEAD`, so the content is on origin and needs no re-applying.
+
+**Commit:** notes on `37af0ed` and `aae0d96`, pushed as `refs/notes/commits`
