@@ -527,6 +527,97 @@ const ROWS = [
         : HOLDS("the cleaner lives in the engine, not in the corpus");
     } },
 
+  { id: "R-MEAS-1", req: "Every metric MUST be computed by one committed command reading one field of one committed artifact. No metric is computed by eye; \"done\" MUST be a number a second engineer can reproduce.",
+    run() {
+      /* The row that governs every other number in this file, so it is checked against the thing
+       * that would actually break it: a HEADLINE FIGURE WITH NO FIELD BEHIND IT. Each metric the
+       * project quotes must resolve to a numeric field of the contract-valid manifest, reachable by
+       * `npm run render`. A figure that lives only in prose is "computed by eye" by definition.
+       *
+       * It also RECOMPUTES the two derived figures. A field that exists but disagrees with its own
+       * inputs is worse than a missing one: it reproduces perfectly and is wrong.
+       *
+       * WHAT THIS ROW DOES NOT ESTABLISH -- and no row in §R currently does. Reproducibility is not
+       * independence. `netStatementReduction` (17029) and every span/collapse figure beside it trace
+       * to ONE function, enlzw.genSpans: test-lzw-roundtrip.js:32 calls `EN.genSpans` directly, and
+       * enfile.js:839 calls the same `EL.genSpans`, which is what test-gen-roundtrip.js reports via
+       * `stats.genSpans`. So the two round-trip gates print the same collapse number twice. As
+       * BYTE-IDENTITY gates they are independent -- different compile paths, compileFileEn vs the
+       * test's own span scan + compileSpan -- and R-REND-1 leans on that legitimately. As COLLAPSE
+       * measurements they are one implementation. Quoting both as corroboration is the error this
+       * comment exists to prevent; the fix is a §R row of its own, which is s7's to write. */
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}; every headline metric is unsourced`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const at = (p) => p.split(".").reduce((o, k) => (o == null ? o : o[k]), i.j);
+      const METRICS = [
+        "gate.totalFiles", "gate.byteIdentical", "englishBytesPct",
+        "reviewSurface.reviewSurface", "reviewSurface.bodyStatements", "reviewSurface.collapsedStatements",
+        "generators.calls", "generators.statementsCollapsed", "generators.netStatementReduction",
+        "generators.filesUsing", "generators.recursive", "generators.flatFallback",
+        "generators.maxDepth", "generators.composites", "generators.compositionEdges",
+        "generators.dictionaryMaxDepth", "stmtSpans", "dataSpans",
+      ];
+      const missing = METRICS.filter((m) => typeof at(m) !== "number");
+      if (missing.length)
+        return FAILS(missing.join(", "), "a quoted figure with no artifact field behind it is computed by eye");
+      const g = i.j.generators;
+      const net = g.statementsCollapsed - g.calls;
+      if (g.netStatementReduction !== net)
+        return FAILS(`netStatementReduction ${g.netStatementReduction} != ${g.statementsCollapsed} - ${g.calls} = ${net}`,
+                     "the field disagrees with its own inputs -- reproducible and wrong");
+      if (g.recursive + g.flatFallback !== g.calls)
+        return FAILS(`recursive ${g.recursive} + flatFallback ${g.flatFallback} != calls ${g.calls}`,
+                     "the span accounting does not close");
+      return HOLDS(`${METRICS.length} metrics, each one numeric field of the stamped manifest; ` +
+        `net ${g.netStatementReduction} = ${g.statementsCollapsed} - ${g.calls} recomputed`,
+        "reproducible is not independent -- the collapse figures all come from enlzw.genSpans (see comment)");
+    } },
+
+  { id: "R-MEAS-2", req: "Every English-coverage and statement-collapse ratio MUST use the enfile-layer total as its denominator; a compose-layer figure MUST be labelled as such, and the two MUST NEVER be mixed inside one ratio.",
+    run() {
+      /* Checked as an ACCOUNTING IDENTITY on the headline metric, because that is where the two
+       * layers actually meet. `collapsedStatements` counts statements folded into generator spans;
+       * `bodyStatements` is the enfile-layer population those statements are drawn FROM. If
+       * collapsed is a subset of body, then corpus-wide collapsed <= body. Necessarily.
+       *
+       * It is not, and the consequence is not cosmetic. write-en-files.js:143,148 compute the
+       * corpus residual as `Math.max(0, SUM(body) - SUM(collapsed))` -- a clamped DIFFERENCE OF
+       * SUMS, not a sum of per-file residuals. Files whose collapsed exceeds their own body silently
+       * pay off the genuine residual of other files, and the clamp absorbs whatever is left, so the
+       * headline figure lands on the most flattering value it can take: residual 0, reviewSurface
+       * exactly equal to `calls`. Meanwhile filesFullyCovered, which IS computed per file, disagrees.
+       *
+       * The fix belongs in write-en-files.js (sum the per-file residuals, and do not clamp a
+       * quantity that cannot legitimately go negative) -- that file is another lane's tonight, so
+       * this row states the defect and fails on it rather than reaching in. */
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface, g = i.j.generators;
+      if (!rs || !g) return FAILS(null, "no reviewSurface/generators block to check the identity against");
+      const { bodyStatements: body, collapsedStatements: coll, residualStatements: resid, filesFullyCovered: full } = rs;
+      const total = i.j.gate && i.j.gate.totalFiles;
+      const worst = (rs.worstFiles || []).slice(0, 3)
+        .map((f) => `${f.residualStatements} of S=${f.bodyStatements}`).join(", ") || "none listed";
+      if ([body, coll, resid].some((n) => typeof n !== "number"))
+        return FAILS(JSON.stringify(rs).slice(0, 120), "the identity's terms are not all reported");
+      if (coll > body)
+        return FAILS(`collapsedStatements ${coll} > bodyStatements ${body} (excess ${coll - body})`,
+          `collapsed cannot exceed the population it is drawn from, so the two are not one denominator; ` +
+          `residual is published as ${resid} even though the manifest's own worstFiles lists per-file ` +
+          `residuals (worst: ${worst}), and only ${full} of ${total} files are fully covered; ` +
+          `collapseRatioPct ${rs.collapseRatioPct}% divides a numerator counting more statements ` +
+          `than the denominator holds`);
+      if (resid !== body - coll)
+        return FAILS(`residualStatements ${resid} != ${body} - ${coll}`, "the clamp is masking a negative residual");
+      if (rs.reviewSurface !== g.calls + resid)
+        return FAILS(`reviewSurface ${rs.reviewSurface} != calls ${g.calls} + residual ${resid}`,
+                     "the frozen §7.3 definition does not reproduce");
+      return HOLDS(`collapsed ${coll} <= body ${body}; residual ${resid} unclamped; ` +
+        `reviewSurface ${rs.reviewSurface} = calls ${g.calls} + residual ${resid}`);
+    } },
+
   { id: "R-MEAS-3", req: "Placeholder density MUST be a STRICT comparison: holes / N < 0.5.",
     run() {
       const f = read("engine/uncollapsed-density.js");
