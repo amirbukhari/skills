@@ -33,15 +33,6 @@ const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator 
 const MAXWIN = 8;
 
 /* load the mined multi-line generator catalog (regenerable; absent -> layer disabled) */
-function loadGenerators(corpusRoot) {
-  const byKey = new Map(), byId = new Map();
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(corpusRoot || "", "catalog", "generators.json"), "utf8"));
-    for (const g of j.generators || []) { byKey.set(g.key, g); byId.set(g.id, g); }
-  } catch (_) { /* layer disabled */ }
-  return { byKey, byId };
-}
-
 /* best-effort coined-word index so cnl can render coined phrases too (empty is fine) */
 function loadIndex(corpusRoot) {
   // small load-bearing coined-word catalog; older large snapshots (word-library.json,
@@ -56,10 +47,9 @@ function loadIndex(corpusRoot) {
     } catch (_) { /* fall through */ }
   }
   idx = idx || cnl.loadWordsIndex([]);
-  idx._generators = loadGenerators(corpusRoot); // attach the FLAT generator layer (fallback only)
   // attach the RECURSIVE word dictionary — the PRIMARY generator layer. It lives in the skills
   // repo catalog (regenerable via build-lzw-generators.js), not the corpus. Absent -> layer
-  // disabled and rendering falls back entirely to the flat layer.
+  // disabled -> no generator spans at all; bodies stay verbatim TS, byte-identity holds.
   try { idx._lzw = EL.loadLzw(path.join(__dirname, "..", "catalog", "generators-lzw.json")); }
   catch (_) { idx._lzw = null; }
   return idx;
@@ -189,62 +179,6 @@ function genLabel(start, end, source, stmts) {
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
  * Narrow-preferred (longest narrow match at a position), widened generators only claim a
  * position narrow leaves fully verbatim. Emits a span ONLY if refill === exact source slice. */
-function generatorSpans(sf, source, gens) {
-  const spans = [];
-  if (!gens || !gens.byKey || !gens.byKey.size) return spans;
-  const blocks = [];
-  const collect = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) if (n.statements.length) blocks.push([...n.statements]); ts.forEachChild(n, collect); };
-  collect(sf);
-  for (const stmts of blocks) {
-    let i = 0;
-    while (i < stmts.length) {
-      if (!isSimpleForGen(stmts[i])) { i++; continue; }
-      let j = i; while (j < stmts.length && isSimpleForGen(stmts[j])) j++;
-      const run = stmts.slice(i, j);
-      // precompute per-statement parts (narrow + wide) and inter-statement gaps ONCE
-      const nc = run.map((st) => G.generalStmtParts(st, sf, false));
-      const wc = run.map((st) => G.generalStmtParts(st, sf, true));
-      const gaps = run.map((st, k) => k < run.length - 1 ? sf.text.slice(st.getEnd(), run[k + 1].getStart(sf)) : "");
-      let p = 0;
-      while (p < run.length) {
-        let hit = null;
-        const maxK = Math.min(MAXWIN, run.length - p);
-        // meaning-aware boundary (SAME constraint as the recursive path, EL.isUnit): a flat window
-        // must not straddle >=2 unit definitions either — otherwise a merge rejected on the
-        // recursive path silently reappears here as a flat-fallback merge and the fix only LOOKS
-        // complete. Applied in the K-search so the longest ADMISSIBLE window still wins.
-        const straddlesUnits = (K) => run.slice(p, p + K).filter(EL.isUnit).length >= 2;
-        // longest NARROW match first
-        for (let K = maxK; K >= 2 && !hit; K--) {
-          if (straddlesUnits(K)) continue;
-          const wp = G.windowFromCache(nc, gaps, p, K);
-          if (wp && gens.byKey.has(wp.key)) hit = { K, wp, g: gens.byKey.get(wp.key) };
-        }
-        // else longest WIDE match (additive: only where narrow found nothing here)
-        if (!hit) for (let K = maxK; K >= 2 && !hit; K--) {
-          if (straddlesUnits(K)) continue;
-          const wp = G.windowFromCache(wc, gaps, p, K);
-          if (wp && gens.byKey.has(wp.key) && gens.byKey.get(wp.key).level === "opw") hit = { K, wp, g: gens.byKey.get(wp.key) };
-        }
-        if (hit) {
-          const win = run.slice(p, p + hit.K);
-          const start = win[0].getStart(sf), end = win[hit.K - 1].getEnd();
-          const slice = source.slice(start, end);
-          if (G.refill(hit.wp.key, hit.wp.holes) === slice) { // absolute byte gate at emission
-            const label = hit.g.name || hit.g.gloss; // domain phrase if the naming pass set one, else structural gloss (label only — compiler reads the payload, not this)
-            const en = GEN + " " + label + " " + PAY_OPEN + b64({ d: "flat", g: hit.g.id, h: hit.wp.holes }) + PAY_CLOSE;
-            spans.push({ start, end, en, kind: "gen", stmts: hit.K });
-            p += hit.K; continue;
-          }
-        }
-        p += 1;
-      }
-      i = j; // advance past this run (critical: without this the run reprocesses forever)
-    }
-  }
-  return spans;
-}
-
 function renderFileEn(source, index) {
   index = index || cnl.loadWordsIndex([]);
   const sf = ts.createSourceFile("f.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -260,12 +194,6 @@ function renderFileEn(source, index) {
     start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,
     en: GEN + " " + genLabel(s.start, s.end, source, s.stmts) + " " + PAY_OPEN + b64(s.payload) + PAY_CLOSE,
   }));
-  const overlapsRec = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
-  const flatSpans = generatorSpans(sf, source, index._generators);
-  for (const f of flatSpans) {
-    if (overlapsRec(f.start, f.end)) continue; // recursive dictionary already owns these bytes
-    f.tier = "flat"; f.depth = 1; genSpans.push(f); // genuine fallback: verbatim tiling, no composition
-  }
   for (const g of genSpans) spans.push(g);
   const inGen = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
 
@@ -334,35 +262,16 @@ function compileChunk(chunk, index) {
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
     const obj = JSON.parse(Buffer.from(chunk.slice(a + 1, b), "base64").toString("utf8"));
-    // DIALECT DISPATCH. Two payload dialects coexist:
-    //   flat: { d:"flat", g:generatorId, h }   -> catalog/generators.json  (fallback tier)
-    //   lzw:  { d:"lzw", a:"n"|"w", w:wordId, h } -> catalog/generators-lzw.json (primary)
-    // Until now this dispatched on which key happened to be present, so correctness rested on
-    // the two key sets staying disjoint (g vs w) — nothing enforced that. If they ever overlapped,
-    // a compiler would resolve a payload to the WRONG BYTES and still report success: silent-wrong,
-    // the one failure this project must never have. Dispatch is now explicit and fails CLOSED.
-    const dialect = obj.d !== undefined ? obj.d
-      : (obj.w !== undefined && obj.g !== undefined) ? "__ambiguous"
-      : obj.w !== undefined ? "lzw"
-      : obj.g !== undefined ? "flat"
-      : "__none";
-    if (dialect === "__ambiguous")
-      throw new Error("enfile: ambiguous generator payload — carries both flat `g` and lzw `w` keys, so its dialect cannot be determined; refusing to guess (would risk compiling to the wrong bytes)");
-    if (dialect === "__none")
-      throw new Error("enfile: generator payload names no dialect and carries neither `g` (flat) nor `w` (lzw)");
-    if (dialect !== "flat" && dialect !== "lzw")
-      throw new Error(`enfile: unknown generator payload dialect ${JSON.stringify(obj.d)} — known dialects are "flat" and "lzw". Refusing to compile rather than guess.`);
-    if (dialect === "lzw") { // RECURSIVE tier: payload { d:"lzw", a:"n"|"w", w:wordId, h:holes }
-      if (obj.w === undefined) throw new Error('enfile: payload tagged dialect "lzw" but carries no `w` word id');
-      if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
-      return EL.compileSpan(obj, index._lzw);
-    }
-    // FLAT fallback tier: payload { d:"flat", g:generatorId, h:holes }
-    if (obj.g === undefined) throw new Error('enfile: payload tagged dialect "flat" but carries no `g` generator id');
-    const gens = index && index._generators;
-    const rec = gens && gens.byId && gens.byId.get(obj.g);
-    if (!rec) throw new Error("enfile: unknown generator id " + obj.g);
-    return G.refill(rec.key, obj.h);
+    // ONE DIALECT. The flat anti-unification path is deleted (PRD §4A defect); the recursive
+    // LZW dictionary is the only generator layer, so a payload is either lzw or it is not ours.
+    // Never guess at a payload — that is how wrong bytes ship.
+    if (obj.d !== undefined && obj.d !== "lzw")
+      throw new Error(`enfile: unknown generator payload dialect ${JSON.stringify(obj.d)} — the only dialect is "lzw" (the flat dialect was removed). Re-render: node write-en-files.js`);
+    if (obj.g !== undefined)
+      throw new Error("enfile: this .en carries a FLAT generator payload (`g`), a dialect that no longer exists; re-render it: node write-en-files.js");
+    if (obj.w === undefined) throw new Error("enfile: generator payload carries no `w` word id");
+    if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
+    return EL.compileSpan(obj, index._lzw);
   }
   if (DATA_PREFIX.test(chunk)) return DATA.compileData(chunk);
   return cnl.compileStatement(chunk, index);
@@ -382,10 +291,4 @@ function compileFileEn(en, index) {
   return out;
 }
 
-/* gen-covered SOURCE ranges for a file (for collapse/residual measurement) */
-function genRanges(source, index) {
-  const sf = ts.createSourceFile("f.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  return generatorSpans(sf, source, index && index._generators).map((s) => [s.start, s.end]);
-}
-
-module.exports = { renderFileEn, compileFileEn, loadIndex, genRanges, genLabel, spanProse, sanitizeLabel };
+module.exports = { renderFileEn, compileFileEn, loadIndex, genLabel, spanProse, sanitizeLabel };

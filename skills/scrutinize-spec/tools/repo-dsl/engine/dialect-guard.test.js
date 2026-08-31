@@ -1,11 +1,13 @@
 "use strict";
 /* Guard test for the PAYLOAD DIALECT dispatch (engine/enfile.js compileChunk).
  *
- * Why this exists: two payload dialects coexist in a .en — flat `{g,h}` (catalog/generators.json)
- * and lzw `{d:"lzw",a,w,h}` (catalog/generators-lzw.json). Dispatch used to read whichever key was
- * present, so correctness rested on the two key sets staying disjoint (g vs w) by accident. An
- * overlap would let a compiler resolve a payload to the WRONG BYTES and still report success —
- * silent-wrong. These cases pin the fail-closed behaviour so the accident cannot come back.
+ * Why this exists: there is now exactly ONE dialect, lzw `{d:"lzw",a,w,h}`. The flat dialect
+ * `{g,h}` was deleted with the flat path. Dispatch previously read whichever key happened to be
+ * present, so correctness rested on the two key sets staying disjoint (g vs w) by accident — an
+ * overlap would have resolved a payload to the WRONG BYTES while reporting success. With one
+ * dialect that hazard is gone by construction; these cases pin the fail-closed behaviour so a
+ * stale .en is refused loudly instead of being guessed at, and so a second dialect cannot be
+ * reintroduced silently.
  *
  * §10 compliance: case 4 asserts correctness against REAL SOURCE via round-trip, never against a
  * mined artifact. Cases 1-3 assert the guard's own error messages, which is the guard's contract. */
@@ -23,24 +25,26 @@ const span = (obj) => "«" + GEN + " gloss " + OPEN +
 const idx = loadIndex(CORPUS);
 const throwsWith = (obj, re) => assert.throws(() => compileFileEn(span(obj), idx), re);
 
-/* 1. AMBIGUOUS: both dialect keys present. Must refuse, not pick one. */
-ok("payload carrying both `g` and `w` is refused as ambiguous", () => {
-  throwsWith({ g: "op_1", w: 7, h: [] }, /ambiguous generator payload/);
+/* 1. A FLAT payload must be REFUSED, not silently resolved. This is the whole point: the flat
+ *    dialect is deleted, and a stale .en carrying `g` must fail closed with a migration message
+ *    rather than resolve against some other catalog and produce the wrong bytes. */
+ok("a stale FLAT payload (`g`) is refused with a re-render instruction", () => {
+  throwsWith({ g: "op_1", h: [] }, /FLAT generator payload .* no longer exists/);
 });
 
-/* 2. UNKNOWN dialect tag. Must refuse rather than fall through to a key-shape guess. */
+/* 2. UNKNOWN dialect tag is a hard error rather than a fall-through guess. */
 ok("unknown dialect tag is a hard error", () => {
   throwsWith({ d: "wat", w: 7, h: [] }, /unknown generator payload dialect/);
 });
 
-/* 3. NEITHER key and no tag. */
-ok("payload naming no dialect and carrying no id is a hard error", () => {
-  throwsWith({ h: [] }, /names no dialect/);
+/* 3. A payload with no word id cannot be compiled. */
+ok("payload carrying no `w` word id is a hard error", () => {
+  throwsWith({ h: [] }, /carries no `w` word id/);
 });
 
-/* 4. A tag must agree with its own payload shape. */
-ok('dialect "lzw" without a `w` id is a hard error', () => {
-  throwsWith({ d: "lzw", h: [] }, /tagged dialect "lzw" but carries no `w`/);
+/* 4. The tag and the shape must agree: tagged lzw but carrying a flat id is still refused. */
+ok("a payload tagged lzw but carrying a flat `g` id is refused", () => {
+  throwsWith({ d: "lzw", g: "op_1", h: [] }, /FLAT generator payload/);
 });
 
 /* 5. REAL-SOURCE ORACLE (§10.1): tagging the payload must not disturb byte-identity. */
@@ -49,4 +53,4 @@ ok("round-trip over real source stays byte-identical with dialect tags live", ()
   assert.strictEqual(compileFileEn(renderFileEn(src, idx).en, idx), src);
 });
 
-console.log(`\nPASS ${pass} assertions — dialect dispatch fails closed; byte-identity held.`);
+console.log(`\nPASS ${pass} assertions — single-dialect dispatch fails closed; byte-identity held.`);
