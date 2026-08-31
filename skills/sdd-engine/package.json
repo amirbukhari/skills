@@ -2,7 +2,7 @@
   "name": "sdd-engine",
   "version": "0.1.0",
   "private": true,
-  "description": "SDD engine skill root. The code lives in tools/repo-dsl; these scripts delegate there so the whole thing is runnable from the skill root. Roots (SOURCE, CORPUS) are set in ./.env \u2014 see tools/PRD.md \u00a71B and ./CLAUDE.md.",
+  "description": "SDD engine skill root. The code lives in tools/repo-dsl; these scripts delegate there so the whole thing is runnable from the skill root. Roots (SOURCE, CORPUS) are set in ./.env — see tools/PRD.md §1B and ./CLAUDE.md.",
   "scripts": {
     "test": "npm --prefix tools/repo-dsl test",
     "test:unit": "npm --prefix tools/repo-dsl run test:unit",
@@ -10,6 +10,9 @@
     "test:slow": "npm --prefix tools/repo-dsl run test:slow",
     "test:all": "npm --prefix tools/repo-dsl run test:all",
     "roots": "npm --prefix tools/repo-dsl run roots",
+    "steps": "npm --prefix tools/repo-dsl run steps",
+    "status": "npm --prefix tools/repo-dsl run status",
+    "sdd-run": "npm --prefix tools/repo-dsl run sdd-run --",
     "mine": "npm --prefix tools/repo-dsl run mine",
     "name": "npm --prefix tools/repo-dsl run name",
     "render": "npm --prefix tools/repo-dsl run render",

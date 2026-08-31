@@ -101,6 +101,43 @@ To rebuild the live dictionary you run **`build-lzw-generators.js`**, not `repo-
 number sourced from B or C describes a different vocabulary from the one your `.en` compiles
 through, and will not move when you press Mine.
 
+## Driving the pipeline from a UI — `sdd-run.js`
+
+Amir is wiring these steps into a UI. `sdd-run.js` is the machine-callable front end that makes
+that possible **without modifying a single pipeline script**.
+
+```
+node sdd-run.js --list                 the step manifest — what a UI renders as the pipeline
+node sdd-run.js --status               resolved roots + which artifacts exist right now
+node sdd-run.js <step> [-- <argv...>]  run one step; everything after `--` goes to the script
+```
+
+Or through npm: `npm run steps`, `npm run status`, `npm run sdd-run -- <step>`.
+
+**The stdout contract:** stdout carries **exactly one JSON document** and nothing else. Child
+prose is relayed to stderr, so a UI parses stdout with no heuristic and streams stderr as the
+live log. Exit code is the child's, unchanged; `2` means sdd-run itself refused. Every envelope
+carries `ok`, so a UI never interprets prose to learn whether a step succeeded.
+
+**Why a wrapper and not `--json` on eleven scripts.** Only `measure-uncollapsed.js` speaks JSON
+today. Adding an output mode to each of the others means editing every one, including the
+byte-identity path, where a change is a regression risk for no functional gain. Delete
+`sdd-run.js` and nothing else changes behaviour.
+
+**Readiness is per-step, and a block names the artifact.** Each step declares `needs` — the §8B
+artifact kinds it actually loads — and a step that cannot run yet reports `kind: "not-ready"`
+with the missing kind by name, not a blanket "the corpus is not mined". `run-tests.js` already
+made and removed the all-or-nothing version of this gate; its comment records that one absent
+artifact skipped all six corpus tests and misreported four of them. Do not reintroduce it.
+
+**Destructive steps refuse by default.** `clean:sen` needs `--allow-destructive`, and
+`sdd-clean.js` still independently requires `--go` before it deletes anything. This wrapper must
+not become a one-click way to delete the English tree.
+
+`sdd-run.js` writes nothing and resolves roots and artifact state only through
+`engine/corpus-root.js` and `engine/artifact-contract.js`, so it cannot drift from what the real
+tools resolve.
+
 ## Every file in this directory
 
 Forty-odd scripts sit flat in this folder and only eleven are reachable from an npm script. This

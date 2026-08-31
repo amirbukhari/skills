@@ -62,6 +62,13 @@ produce them.
 | `npm run gate` | the measurement gate |
 | `npm run clean` | dry-run: names what a wipe *would* delete, deletes nothing |
 | `npm run clean:sen` | still a dry-run. Deleting `sen/` also requires `--go`, typed by hand |
+| `npm run steps` | the step manifest as JSON — what a UI renders as the pipeline |
+| `npm run status` | resolved roots + artifact state as JSON |
+| `npm run sdd-run -- <step>` | run one step and get a structured JSON result envelope |
+
+The last three are the machine-callable front end (`tools/repo-dsl/sdd-run.js`): stdout is
+exactly one JSON document, child prose goes to stderr, and the exit code is the step's own.
+They exist so the pipeline can be driven from a UI without screen-scraping.
 
 > **Never run the full suite casually.** `test:all` and `test:slow` have OOM-killed on shared
 > machines. Run the module you changed: `node tools/repo-dsl/engine/<module>.test.js`.
