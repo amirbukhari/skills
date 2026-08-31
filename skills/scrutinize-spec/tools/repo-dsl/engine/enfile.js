@@ -322,12 +322,53 @@ const CMP = { [ts.SyntaxKind.EqualsEqualsEqualsToken]: "is", [ts.SyntaxKind.Equa
   [ts.SyntaxKind.ExclamationEqualsEqualsToken]: "is not", [ts.SyntaxKind.ExclamationEqualsToken]: "is not",
   [ts.SyntaxKind.LessThanToken]: "is under", [ts.SyntaxKind.GreaterThanToken]: "is over",
   [ts.SyntaxKind.LessThanEqualsToken]: "is at most", [ts.SyntaxKind.GreaterThanEqualsToken]: "is at least" };
-function condGloss(n, sf) {
+/* `cache[keyStr]` — an element access is two real names, and naming both beats "the result".
+ * Only when BOTH sides are quotable; an index that is itself an expression stays code. */
+function elemAccess(n, sf) {
+  if (!n || !ts.isElementAccessExpression(n)) return null;
+  const obj = dottedText(n.expression, sf);
+  const arg = n.argumentExpression;
+  const idx = arg && (dottedText(arg, sf) ? q(dottedText(arg, sf)) : literalGloss(arg, sf));
+  return obj && idx ? q(obj) + " at " + idx : null;
+}
+
+/* `[...a, ...b]` / `[x, y]` — say which lists are being joined, by name. */
+function arrayGloss(n, sf) {
+  if (!n || !ts.isArrayLiteralExpression(n) || !n.elements.length) return null;
+  const names = [];
+  for (const el of n.elements) {
+    const t = ts.isSpreadElement(el) ? dottedText(el.expression, sf) : dottedText(el, sf);
+    if (!t) return null;
+    names.push(t);
+  }
+  if (names.length > 4) return null;
+  const spread = n.elements.some(ts.isSpreadElement);
+  return names.length === 1 ? (spread ? "a copy of " + q(names[0]) : "a list holding " + q(names[0]))
+    : P.list(names.map(q)) + (spread ? " joined together" : " as a list");
+}
+
+/* `{ a, b, c }` — name the fields, which is what the reader is looking for. */
+function recordGloss(n, sf) {
+  if (!n || !ts.isObjectLiteralExpression(n) || !n.properties.length) return null;
+  const keys = [];
+  for (const pr of n.properties) {
+    if (ts.isSpreadAssignment(pr)) { const t = dottedText(pr.expression, sf); if (!t) return null; keys.push("everything in " + q(t)); continue; }
+    const nm = pr.name && safeMemberName(pr.name, sf);
+    if (!nm) return null;
+    keys.push(q(nm));
+  }
+  if (keys.length > 5) return "a record with " + keys.length + " fields";
+  return "a record of " + P.list(keys);
+}
+
+function condGloss(n, sf, strict) {
   if (!n) return null;
-  if (ts.isParenthesizedExpression(n)) return condGloss(n.expression, sf);
+  if (ts.isParenthesizedExpression(n)) return condGloss(n.expression, sf, strict);
   if (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.ExclamationToken) {
     const d = dottedText(n.operand, sf);
-    return d ? q(d) + " is missing" : null;
+    if (d) return q(d) + " is missing";
+    const inner = condGloss(n.operand, sf);
+    if (inner) return inner.replace(/ passes /, " fails ").replace(/ is set$/, " is missing").replace(/ holds$/, " does not hold");
   }
   /* `typeof x === 'number'` is a type test, and saying so is more informative than either
    * operand alone. 86 conditions were falling through to "branch on a condition" on this shape. */
@@ -346,20 +387,44 @@ function condGloss(n, sf) {
   }
   const d = dottedText(n, sf);
   if (d) return q(d) + " is set";
+  const ea = elemAccess(n, sf);
+  if (ea) return ea + " is set";
   if (ts.isBinaryExpression(n)) {
     const op = CMP[n.operatorToken.kind];
     if (!op) {
       if (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
         || n.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
-        const l = condGloss(n.left, sf), r = condGloss(n.right, sf);
-        if (l && r) return l + (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? " and " : " or ") + r;
+        /* Compose only from SPECIFIC glosses. If an operand would itself need the last resort,
+         * fall through so the fallback runs ONCE over the whole condition and names every value
+         * it reads — rather than "the test on `a` passes and the test on `a` and `b` passes and
+         * ...", which is the same sentence stuttered per operand. */
+        const join = n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ? " and " : " or ";
+        const l = condGloss(n.left, sf, true), r = condGloss(n.right, sf, true);
+        if (l && r) return l + join + r;
+        if (!strict) {
+          /* one fallback naming every value the whole condition reads, if there is one ... */
+          const all = inputsOf(n, sf);
+          if (all.length) return "the test on " + P.list(all.map(q)) + " passes";
+          /* ... and only if there is not, the stuttered join, which still beats saying nothing. */
+          const l2 = condGloss(n.left, sf), r2 = condGloss(n.right, sf);
+          if (l2 && r2) return l2 + join + r2;
+        }
       }
       return null;
     }
     const lhs = dottedText(n.left, sf);
     const rhs = dottedText(n.right, sf) ? q(dottedText(n.right, sf)) : literalGloss(n.right, sf);
-    return lhs && rhs ? q(lhs) + " " + op + " " + rhs : null;
+    if (lhs && rhs) return q(lhs) + " " + op + " " + rhs;
   }
+  /* LAST RESORT, and counted as one. We cannot say what the arithmetic MEANS without guessing, but
+   * naming the values the test READS is true and site-specific. It is deliberately weaker than the
+   * glosses above; the report counts it separately rather than letting it hide in the total.
+   * (It was briefly removed on a measurement that said it fired zero times — the counting regex was
+   * anchored and this clause usually appears EMBEDDED in a larger sentence, "stop early when ...".
+   * It fires 24 times. The lesson is the measurement, not the clause.) */
+  if (strict) return null;
+  const ins = inputsOf(n, sf);
+  if (ins.length) return "the test on " + P.list(ins.map(q)) + " passes";
   return null;
 }
 
@@ -476,6 +541,8 @@ function spanProse(win, sf) {
         const bd = dottedText(bare, sf);
         if (bd) { actions.push("return " + q(bd)); continue; }
         if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
+        const bl = literalGloss(bare, sf);
+        if (bl) { actions.push("return " + bl); continue; }
         const bc = firstCallName(bare);
         if (bc) { actions.push("return " + P.words(bc)); continue; }
       }
@@ -484,6 +551,12 @@ function spanProse(win, sf) {
       if (lit) { actions.push("return " + lit); continue; }
       const dotted = dottedText(e, sf);
       if (dotted) { actions.push("return " + q(dotted)); continue; }
+      const ag = arrayGloss(e, sf);
+      if (ag) { actions.push("return " + ag); continue; }
+      const rg = recordGloss(e, sf);
+      if (rg) { actions.push("return " + rg); continue; }
+      const eg = elemAccess(e, sf);
+      if (eg) { actions.push("return " + eg); continue; }
       const c = firstCallName(st);
       if (c) { actions.push("return " + P.words(c)); continue; }
       /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we
@@ -505,7 +578,9 @@ function spanProse(win, sf) {
         const parts = inputsOf(e, sf);
         if (parts.length) { actions.push("return a value worked out from " + P.list(parts.map(q))); continue; }
       }
-      actions.push("return the result");
+      /* LAST RESORT, as for conditions: name the values the returned expression reads. */
+      const rin = inputsOf(e, sf);
+      actions.push(rin.length ? "return a value worked out from " + P.list(rin.map(q)) : "return the result");
       continue;
     }
 
@@ -516,12 +591,24 @@ function spanProse(win, sf) {
       if (d) { actions.push("re-throw " + q(d)); continue; }
       const arg = ts.isNewExpression(st.expression) && st.expression.arguments && st.expression.arguments[0];
       const ad = arg && dottedText(arg, sf);
-      actions.push(ad ? "throw an error built from " + q(ad) : "throw an error");
+      if (ad) { actions.push("throw an error built from " + q(ad)); continue; }
+      const tin = inputsOf(st.expression, sf);
+      actions.push(tin.length ? "throw an error reporting " + P.list(tin.map(q)) : "throw an error");
       continue;
     }
 
     if (ts.isExpressionStatement(st)) {
       const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
+      if (ts.isDeleteExpression(inner)) {
+        const t = dottedText(inner.expression, sf) || (elemAccess(inner.expression, sf) && null);
+        const ea = elemAccess(inner.expression, sf);
+        if (t) { actions.push("remove " + q(t)); continue; }
+        if (ea) { actions.push("remove " + ea); continue; }
+      }
+      if (ts.isCallExpression(inner) && ts.isElementAccessExpression(inner.expression)) {
+        const ea = elemAccess(inner.expression, sf);
+        if (ea) { actions.push("call " + ea); continue; }
+      }
       /* assignment: `ctx.body = {...}` had no call, so it rendered as "run a step" */
       if (ts.isBinaryExpression(inner) && (inner.operatorToken.kind === ts.SyntaxKind.PlusEqualsToken || inner.operatorToken.kind === ts.SyntaxKind.MinusEqualsToken)) {
         const t = dottedText(inner.left, sf);
