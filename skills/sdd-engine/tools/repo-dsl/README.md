@@ -193,8 +193,8 @@ investigation, kept for its findings; not on any path.
 | `build-archetypes.js` | pipeline **C** | the archetype tier. Deliberately NOT wired in (PRD §5 tier 1) |
 | `package-hydra-source.js` | pipeline **C** | deterministic packager for the billing-system corpus |
 | `selfhost-package.js` | pipeline **C** | zero-LLM self-hosting package |
-| `test-gen-roundtrip.js` | **TEST** (slow) | render every corpus `.ts` to `.en` and compile back; assert byte-identical. Minutes |
-| `test-lzw-roundtrip.js` | **TEST** (slow) | the same gate through the recursive word dictionary. Minutes |
+| `test-gen-roundtrip.js` | **TEST** (slow) | render every corpus `.ts` to `.en` and compile back; assert byte-identical. ~24s, ~850MB peak |
+| `test-lzw-roundtrip.js` | **TEST** (slow) | the same gate through the recursive word dictionary. ~22s, ~840MB peak |
 | `verify-dsl.js` | **TEST** | proves the surface layer is lossless |
 | `verify-expand.js` | **TEST** | the per-module gate |
 | `measure-bespoke-composites.js` | measurement | STEP 1 of the coverage push (MEASURE ONLY) |
@@ -231,7 +231,7 @@ Three tiers, declared in `run-tests.js`, not guessed from how a test fails:
 npm test              # UNIT (+ CORPUS when the artifacts exist). Green on a fresh clone.
 npm run test:unit     # UNIT only — needs nothing but the source
 npm run test:corpus   # needs mined artifacts under <CORPUS>/sen/catalog/
-npm run test:slow     # the full-corpus round-trips. Minutes each.
+npm run test:slow     # the full-corpus round-trips. ~24s each, measured 2026-08-31.
 npm run test:all      # everything
 ```
 

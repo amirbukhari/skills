@@ -1330,3 +1330,80 @@ state and failed immediately. Replaced with a plain comment. A brittle test that
 transient two-lane race is worse than a sentence.
 
 **Commit:** `0b392fe`
+
+---
+
+## 2026-08-31 — `test-lzw-roundtrip.js` had never run since 16:03, and nothing noticed
+
+**Found by running it, not by reading it.** The file died at module load with
+`ReferenceError: Cannot access 'CR' before initialization` — line 11 called `CR.sourceRoot()`
+while `const CR = require("./engine/corpus-root")` sat at line 18. `node --check` passes; it is a
+TDZ failure, not a parse error, so every static check was green. `git blame` puts both lines in
+**66ddae3 "feat(sdd-engine): two roots — SOURCE to read, CORPUS to write"**, today at 16:03.
+
+**Why nobody noticed:** the file is cited as a gate in four places — `README.md:197`, `SKILL.md`,
+`run-tests.js` `SLOW_TIER`, and `verify-register.js:459`, which points a §R row at
+`npm run test:slow (test-lzw-roundtrip.js, minutes)`. A register row's evidence was a script that
+could not start.
+
+**Decided:** hoisted the `require` and renamed the variable `CORPUS` → `SRC`. It holds
+`sourceRoot()`, the READ tree — it was carrying the *write* root's name. That is the §9
+"delonix is the corpus" bug class, and it is what made the ordering error easy to write.
+
+**Verified by running it:** 1037 files, **1037 byte-identical, 0 failures**, in 22.3s / 839MB peak.
+Max emitted composition depth **62**, histogram spread to 62 with 3,249 of 5,731 spans at depth 1 —
+which independently reproduces the §Q-8 numbers I had measured by ad-hoc render, now from the
+dedicated test.
+
+## 2026-08-31 — two more scripts that computed a verdict and exited 0
+
+**Decided:** gated `test-gen-roundtrip.js`, `test-lzw-roundtrip.js` (exit **1** on any
+byte-identity failure) and `coin-word.js` (exit **1** if either demo round-trip is not byte-exact).
+All three had **zero** `process.exit` calls and printed their verdict as prose.
+
+The two round-trip files are named `test-*`, listed in `run-tests.js` `SLOW_TIER`, cited by
+`README.md` and `SKILL.md` as *the* byte-identity gate, and pointed at by `verify-register.js`.
+They counted `bad`, printed `FAILURES: N`, and exited 0. PRD R-REND-1 calls byte-identity *"the
+floor and it never regresses"*; a floor that reports 0 while broken is not a floor. Same defect and
+same fix as commit 391bb25.
+
+**Mutation-checked per §10.3** — each forced red, each exited **1** with the message it promises,
+each restored green. `coin-word.js` is a demo, not a §7.0 gate; it was gated anyway because the
+failure mode is identical.
+
+**One false green caught and redone:** the first mutation run executed the mutant from the
+scratchpad directory, which broke its `./engine/...` requires — so exit 1 came from the module
+loader, not from the gate. Re-run in place, both fired correctly. A mutation check that passes for
+the wrong reason is worse than none.
+
+## 2026-08-31 — the two round-trip gates are NOT two independent measurements
+
+**Flagged, not changed.** `test-gen-roundtrip.js` and `test-lzw-roundtrip.js` print **identical**
+generator statistics — 958 files, 5,731 calls, 22,760 collapsed, 17,029 net. That is not
+corroboration. `engine/enfile.js:839` is the reason:
+
+```js
+const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
+```
+
+`EL` is `enlzw`. It is the **only** source of `genSpans` in the file renderer, so
+`stats.genSpans` / `genStmtsCollapsed` are enlzw's numbers verbatim. The two tests do exercise
+**different compile paths** — `compileFileEn` versus the test's own span scan plus `compileSpan` —
+so as *byte-identity* gates they are genuinely independent. As *collapse* measurements they are one
+number printed twice.
+
+**What needs to happen:** anyone citing the review-surface figure (17,029 net / 63.5%) should know
+it rests on a single implementation, not on two agreeing ones. Whether that matters is a §R call,
+not mine to make.
+
+## 2026-08-31 — "Minutes each" was wrong by an order of magnitude
+
+**Decided:** corrected `tools/repo-dsl/README.md:196,197,234` from "Minutes" to the measured
+**~24s each, ~850MB peak**, dated. Measured with `/usr/bin/time -v`: gen 23.8s / 850,340kB, lzw
+22.3s / 839,168kB.
+
+**Left alone deliberately:** `CLAUDE.md:199` ("never run the full test suite here — it has
+OOM-killed") and its description of these two as "the expensive full-corpus ones". Running them
+**one at a time** costs 24s and 0.85GB; running the whole suite concurrently is a different
+question and this measurement says nothing about it. Weakening a safety rule on evidence that does
+not address it is how the rule stops being obeyed.

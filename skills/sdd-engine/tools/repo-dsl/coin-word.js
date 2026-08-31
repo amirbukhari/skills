@@ -157,3 +157,12 @@ const summary = {
 fs.writeFileSync(path.join(OUT, "coin-demo-report.json"), JSON.stringify(summary, null, 1));
 log(`\nwrote ${rel(path.join(OUT, "coin-demo-report.json"))}`);
 log(`\nSUMMARY: coined ${summary.coined.length} word(s); tsc ${summary.tsc}; named ${coverageDelta} corpus sites; round-trip ${summary.roundTrip.statementByteIdentical && summary.roundTrip.expressionByteExact ? "byte-clean" : "CHECK"}.`);
+
+/* ---------- EXIT CODE — a demo that demonstrates failure must say so ----------
+ * Both round-trips above print "YES ✓" or "NO ✗" and nothing read the answer: this file
+ * exited 0 either way. It is a demo, not a §7.0 gate, but the failure mode is identical to
+ * the one fixed in 391bb25 — a computed verdict rendered as prose and dropped. */
+if (!(emitted === reAuthored) || !exRT) {
+  console.error(`\nCOIN ROUND-TRIP FAILED — statement byte-identical: ${emitted === reAuthored}; expression byte-exact: ${exRT}.`);
+  process.exit(1);
+}

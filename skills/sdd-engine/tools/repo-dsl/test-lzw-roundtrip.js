@@ -8,16 +8,19 @@ const AC = require("./engine/artifact-contract");
 const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enlzw");
-const CORPUS = CR.sourceRoot();
+const CR = require("./engine/corpus-root");
+/* SRC, not the old name: this is `sourceRoot()`, the READ tree of .ts. It carried the
+ * write-root name AND was declared above its own `require`, so the file died at load
+ * with a TDZ ReferenceError and had never run since. Both halves are fixed here. */
+const SRC = CR.sourceRoot();
 const CAT = AC.pathFor("generators-lzw");
-const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "sen", "spec", "catalog", ".cache", "demo", "coined-demo"]);
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 
 const OPEN = "«", CLOSE = "»", GEN = "▶", PO = "⟪", PC = "⟫";
 const PAY = require("./engine/payload"); // payloads are `lzw1` text, not base64(JSON)
-const CR = require("./engine/corpus-root");
 const cat = EN.loadLzw(CAT);
-const files = walk(CORPUS);
+const files = walk(SRC);
 
 let ok = 0, bad = 0, badList = [];
 let calls = 0, collapsed = 0, filesWithGen = 0, maxDepthEmitted = 0;
@@ -26,7 +29,7 @@ const top = [];
 for (const abs of files) {
   let src; try { src = fs.readFileSync(abs, "utf8"); } catch { continue; }
   const sf = ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  let spans; try { spans = EN.genSpans(sf, src, cat); } catch (e) { bad++; badList.push([path.relative(CORPUS, abs), "RENDER-EXC:" + e.message]); continue; }
+  let spans; try { spans = EN.genSpans(sf, src, cat); } catch (e) { bad++; badList.push([path.relative(SRC, abs), "RENDER-EXC:" + e.message]); continue; }
   spans.sort((a, b) => a.start - b.start);
   // build .en (swap spans), then compile back
   let en = "", pos = 0, fileCollapsed = 0;
@@ -53,10 +56,10 @@ for (const abs of files) {
       i = c + 1;
     }
   } catch (e) { compileErr = e.message; }
-  if (compileErr) { bad++; badList.push([path.relative(CORPUS, abs), "COMPILE-EXC:" + compileErr]); continue; }
-  if (out !== src) { bad++; badList.push([path.relative(CORPUS, abs), "BYTE-MISMATCH"]); continue; }
+  if (compileErr) { bad++; badList.push([path.relative(SRC, abs), "COMPILE-EXC:" + compileErr]); continue; }
+  if (out !== src) { bad++; badList.push([path.relative(SRC, abs), "BYTE-MISMATCH"]); continue; }
   ok++;
-  if (spans.length) { filesWithGen++; calls += spans.length; collapsed += fileCollapsed; top.push({ f: path.relative(CORPUS, abs), calls: spans.length, collapsed: fileCollapsed }); }
+  if (spans.length) { filesWithGen++; calls += spans.length; collapsed += fileCollapsed; top.push({ f: path.relative(SRC, abs), calls: spans.length, collapsed: fileCollapsed }); }
 }
 console.log("=== LZW recursive-dictionary round-trip ===");
 console.log("files:", files.length, " byte-identical:", ok, " FAILURES:", bad);
@@ -68,3 +71,16 @@ console.log("emitted-depth histogram:", JSON.stringify(depthHist));
 if (bad) { console.log("\n-- failures (first 15) --"); for (const [f, w] of badList.slice(0, 15)) console.log("  ", w, f); }
 console.log("\n-- top 10 files by statements collapsed --");
 for (const t of top.sort((a, b) => b.collapsed - a.collapsed).slice(0, 10)) console.log(`   ${t.collapsed} stmts -> ${t.calls} calls   ${t.f}`);
+
+/* ---------- EXIT CODE — a test that cannot fail is not a test ----------
+ * This script is named `test-*`, is listed in run-tests.js SLOW_TIER, is cited by README.md and
+ * SKILL.md as the byte-identity gate, and is what verify-register.js points a §R row at. It
+ * counted `bad`, printed "FAILURES: N" as prose, and then exited 0 — so every caller above it
+ * read success. PRD R-REND-1 calls byte-identity "the floor and it never regresses"; a floor
+ * that reports 0 while broken is not a floor. Same defect, and the same fix, as the four
+ * scripts in commit 391bb25. */
+if (bad) {
+  console.error(`\nBYTE-IDENTITY FLOOR BREACHED — ${ok}/${files.length} files round-trip; ${bad} failed.`);
+  console.error(`  PRD R-REND-1: this is the floor and it never regresses. Refusing to report success.`);
+  process.exit(1);
+}
