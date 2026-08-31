@@ -2391,3 +2391,35 @@ back EMPTY, which I first read as "my edits vanished" rather than "someone alrea
 An empty numstat on a file you just edited means someone else committed your work, not that you lost it.
 
 **Commit:** note on fa24b22
+
+## 2026-08-31 — CORRECTION: the clamps were not removed, only made inert
+
+**What I reported:** that after the denominator change "the clamp is gone, and the producer refuses to
+publish an incoherent surface at all rather than clamping it into a flattering one."
+
+**What is actually true:** the first half is wrong. `write-en-files.js` still carries
+`Math.max(0, …)` at lines **142, 143 and 148** — `verbatimStatements`, `residualStatements` and
+`reviewSurface`. What was ADDED is the three throws at 198–204. Both are present. Caught by
+sdd-engine-5a, who checked the file instead of taking my summary, and verified here the same way.
+
+**Why it is nonetheless safe, stated precisely so nobody relaxes it later:** the throws read
+`manifest.reviewSurface`, i.e. the ALREADY-CLAMPED values. A clamp only fires when
+`bodyStmts - collapsedStmts < 0`, which means `collapsed > body`; then `residual` becomes 0, so
+`parts = collapsed + 0 = collapsed ≠ body`, and the identity check at :198 throws (the third check at
+:204 catches the same case directly). So any clamping necessarily breaks the identity that is now
+asserted. The clamps are **provably inert**, not merely unused — but they are still in the file.
+
+**Left in place deliberately.** Inert code guarded by an assertion is not worth a mid-flight edit
+tonight, and `write-en-files.js` has had three lanes in it today. Agreed with 5a on this.
+
+**The failure mode in my own reporting:** I verified the throws exist and then described the clamps as
+gone, which is an inference I never checked — one `grep -n "Math.max(0"` would have settled it. This is
+the same shape as the half-finding I corrected an hour earlier: the parts I ran held up, the part I
+inferred did not. Reporting "X was added" as "not-X was removed" is a specific, repeatable error and
+it is worth naming as such.
+
+**Also corrected:** I told my user "the producer refuses instead of flattering". Accurate about the
+outcome, wrong about the mechanism — it refuses BECAUSE the clamped value breaks the identity, not
+because the clamping was taken out.
+
+**Commit:** this entry; no code change.
