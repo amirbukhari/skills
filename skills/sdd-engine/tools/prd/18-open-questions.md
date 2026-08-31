@@ -12,22 +12,31 @@ must settle so the register stops being ambiguous.
 
 ---
 
-## Q-1 — Direction of truth: does English ever become authoritative? · BLOCKING · Amir
+## Q-1 — ~~Direction of truth: does English ever become authoritative?~~ **ANSWERED 2026-08-31 by Amir. YES — the sentence is authoritative.**
 
-**The question.** §1's thesis is that the `.en` is the source and the `.ts` is derived. **What is
-built is the opposite.** Whether the project actually flips — and when — is not decided and has
-never been scheduled.
+**Answered, not deduced.** Amir's §5D.0 statement 4 settles it: mine the codebase to get the `.en`,
+**hand-edit the `.en`**, and it goes back into the codebase — *"neither direction is the derived
+one"*. Statement 7 gives the reason it must be so: *"so that it can be editable."*
 
-Stated in full in **§1B.5**, which is the only place it lives. In short: the original direction may
-have wanted English as the authoritative source with TypeScript derived from it. **That is not
-decided and not built.** Two roots (`SOURCE`/`CORPUS`) is the design that ships.
+A hand-edit to the English **must** change the compiled TypeScript. That is the definition of
+authoritative, and it is now a requirement (**R-REND-6, rewritten**; §10 "The sentence is
+authoritative"; mechanics in §5E.5).
 
-**What closing it requires:** Amir's decision on direction, plus **R-PAY-6** closed first (word ids
-renumber on every re-mine, so a flip would let one re-mine silently invalidate every `.en`), plus a
-human having actually authored a `.en` and reviewed the compiled `.ts` as a diff.
+**What this question used to say, kept visible:** *"§1's thesis is that the `.en` is the source and
+the `.ts` is derived. What is built is the opposite. Whether the project actually flips — and when —
+is not decided and has never been scheduled."* The **whether** is now decided. The **when** is a
+build sequence, not an open question.
 
-**Downstream of it, and therefore also open:** when `sen/`'s wipe gate must harden from *"explicit
-flag"* to *"refuse"* (§1B.3 says "at the flip"; the flip has no defined trigger).
+**Still true, and now blockers rather than unknowns:**
+
+- **R-PAY-6 must close first.** Word ids renumber on every re-mine, so authoritative English on top
+  of mining-order ids lets one re-mine silently invalidate every `.en`. §5E.3.2's content-addressed
+  ids are the fix.
+- **`compileChunk` must derive the payload from the sentence** rather than only reading it (§5E.5,
+  open mechanic 5).
+- **A human must actually author a `.en` and review the compiled `.ts` as a diff.** Unchanged.
+- **`sen/`'s wipe gate hardens from *"explicit flag"* to *"refuse"*** at the flip (§1B.3). The flip
+  now has a direction; the trigger is when `compileChunk` reads sentences.
 
 ## Q-2 — ~~Is the LZW core front DONE?~~ **CLOSED 2026-08-31 by measurement. The LZW path is live.**
 
@@ -75,26 +84,28 @@ the magnitude.**
 
 **What is still open, and it is narrower than Q-2 was — see Q-8.**
 
-## Q-3 — The archetype/word hybrid: how does a slot bind to a word? · DESIGN · Amir + a design pass
+## Q-3 — Archetype mechanics · **DIRECTION SETTLED; four of five unknowns RESOLVED by design** · §5E
 
-**Direction is SETTLED** (Amir: *"it needs to be a pattern/words archetype hybrid"*) and the
-requirements are R-ARCH-1..8. **The mechanics are not designed.** Five specific unknowns, stated in
-§5D and repeated here so they are visible from the open-questions list:
+**Direction is Amir's, in eight verbatim statements (§5D.0), and is not open.** The design pass this
+question asked for is written: **`20-archetype-hybrid-design.md` (§5E)**. Status of the five original
+unknowns:
 
-1. **How a slot binds to a word** — does an archetype slot reference a dictionary word id directly,
-   or declare a hole type the word layer fills at render time?
-2. **Whether an archetype is itself a dictionary entry** — the top of the same recursive hierarchy
-   (the natural reading of §2 P4, where tier *is* dictionary depth), or a separate template layer
-   above it? Different failure modes.
-3. **Who wins a contested span** — the concrete arbitration order between archetype slots and mined
-   words, beyond "it must be deterministic" (R-ARCH-5).
-4. **Whether hand-authored grammars survive at all**, or the archetype reduces to a slot *skeleton*
-   with every fill mined.
-5. **What replaces per-site productions** — `spanProse`'s productions (§5C) currently carry the
-   readability tier-1 grammars would have; how the two divide the work is undecided.
+| # | the unknown | status |
+|---|---|---|
+| 1 | **How a slot binds to a word** | **RESOLVED** (§5E.3.2). Not a word-id reference — a **nonterminal reference spelled grammatically**, bound by **name**, with ordered **alternatives** and grammar repetition for variadics. Forced by statement 3 and by the PaymentPlan case (§5E.4). |
+| 2 | **Whether an archetype is itself a dictionary entry** | **RESOLVED: yes** (§5E.3.1). Forced by AT-ARCH-1, not chosen for elegance. |
+| 3 | **Who wins a contested span** | **RESOLVED** (§5E.3.3) — it falls out of R-WIDE-8's widest-claim rule; no new arbitration. |
+| 4 | **Whether hand-authored grammars survive** | **RESOLVED** (§5E.3.4) — the archetype's own declaration is hand-authored and **seeded**; every fill is mined. |
+| 5 | **What replaces per-site productions** | **RESOLVED: nothing** (§5E.3.5). They were never a separate layer — a **name is a nonterminal's spelling, a production is its expansion**. §5C and archetype composition are ONE grammar. Statement 3 requires this. |
 
-**What closing it requires:** write the design, get it confirmed, then build. **No wiring should be
-built on a guess.**
+**What is still open is mechanics only — five items with recommendations, in §5E.8:** `.en`-first vs
+`.ts`-first emission; payload in the `.en` vs a sidecar; AT-ARCH-1 as gate vs report; archetype
+proposal by the miner; how far `compileChunk` moves toward full sentence parsing in the first cut.
+
+**Blocked on, and these are real:** R-ARCH-6 (`extractEntity` returns `undefined` for `className`,
+`table` and column names), R-PAY-6 (id renumbering), and the **residual** (§5D.4) — the statements no
+word accounts for, which is what stands between the dictionary's measured depth 62 and one word per
+file.
 
 ## Q-4 — Does the legacy `<CORPUS>/catalog/` tree survive? · CLARIFY · Amir
 
@@ -160,3 +171,21 @@ whole-repo leverage would show up or fail to.
 `generators.maxDepth`, `.dictionaryMaxDepth` and `.depthHistogram` from `en-index.json`. That is a
 full mine — tens of minutes — so it is **Amir's call when to spend it**, not something to kick off
 unasked. Nothing else is blocked on it: the requirements stand either way.
+
+
+## Q-9 — Naming-stage mechanics · CLARIFY · this lane · §5D.2
+
+**Direction settled** by statement 5: naming is an **LLM step, triggered, but a script in the repo**,
+and it **applies** names rather than emitting a worksheet (R-LANG-12, R-LANG-13). What is not settled
+is the mechanics, and the current code is on the far side of the change:
+
+- `name-words-lzw.js` today is *"deterministic; zero model calls"* and emits a **worksheet only** —
+  its header states *"a generated name Amir did not choose is worse than no name at all"* and
+  *"the naming itself is Amir's pass."* That stance is superseded (§5D.3 note 3). The file needs an
+  apply path and a model call, both gated.
+- **Open:** where the model call lives (a `namer` module with the prompt in-repo, versus shelling to
+  a CLI), how a proposed name is gated *before* it is written (byte-identity + coverage invariance
+  are re-runs; injectivity is new), and whether the worksheet survives as a **dry-run mode** of the
+  same script. **Recommendation: yes** — `--dry-run` writes the worksheet, the default applies.
+- **Not open:** that stage 1 stays at zero model calls, and that the LLM touches names and grammar
+  surface only (R-MECH-4, R-LANG-11).

@@ -44,8 +44,9 @@ Engine source comments cite section labels directly — `artifact-contract.js` a
 | `§7`, `§7A` success criteria, payload encoding | [`15-success-criteria.md`](prd/15-success-criteria.md) |
 | `§10`, `§10.3` test integrity | [`16-test-integrity.md`](prd/16-test-integrity.md) |
 | `§9` load-bearing assumptions | [`17-load-bearing-assumptions.md`](prd/17-load-bearing-assumptions.md) |
-| `§Q`, `Q-1`…`Q-7` open questions | [`18-open-questions.md`](prd/18-open-questions.md) |
+| `§Q`, `Q-1`…`Q-9` open questions | [`18-open-questions.md`](prd/18-open-questions.md) |
 | `§6` open technical fronts | [`19-open-technical-fronts.md`](prd/19-open-technical-fronts.md) |
+| `§5E`, `AT-ARCH-1` the archetype/grammar design | [`20-archetype-hybrid-design.md`](prd/20-archetype-hybrid-design.md) |
 
 **`§1A` resolves to nothing, on purpose.** The three-root proposal (`EN_ROOT` / `TS_ROOT` /
 `BUILD_ROOT`) was **cut**, not moved — Amir, 2026-08-31: *"The PRD still has a TON of stale data in

@@ -92,13 +92,42 @@ second engineer can reproduce, not a judgement.
 |---|---|
 | **Files with un-collapsed repeated structure** | **→ 0**: every recurring-up-to-renaming body is promoted, or provably non-refillable. |
 | **Composition depth on the live `.en` path** (`generators.maxDepth`) | **≥ 2 and rising** — the live compile must expand generators that call generators (§5B). Depth 1 means the flat degenerate path (§2.4). |
-| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | **Must turn positive and rise.** The `.en` must become smaller than the `.ts`, by recursive word reuse — never by paraphrase. |
+| **REVIEW SURFACE** — statements a human must read as **code**, per file (the residual, §5D.4) | **→ 0.** This is the headline metric. See below. |
+| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | Should turn positive and rise, by recursive word reuse — never by paraphrase. **A mechanism, not the goal.** |
 | **Statement-collapse** | Rising, with byte-identity held. |
 
 **Explicitly not a metric: English-%.** It is a by-product; a rise from paraphrasing unique code is a
-regression in disguise. **Byte size IS a metric:** real lossless compression through recursive word
-reuse is a goal, not a forbidden one. The earlier "compression is capped, not a target" framing
-applied only to the flat anti-unification path and does not hold for LZW.
+regression in disguise.
+
+### Review surface is the metric — SETTLED, 2026-08-31
+
+**Amir, 2026-08-31, verbatim:**
+
+> *"its not about compression, its about less of a review surface. I need to be able to review less
+> code because im reviewing deterministic code generators which are made of preexisting patterns from
+> my code base."*
+
+**This reorders the table above, and it corrects this section.** It used to say *"Byte size IS a
+metric… real lossless compression through recursive word reuse is a goal"*. Compression is the
+**mechanism**; the **goal** is that a human reviews less. The two come apart, and when they do the
+review-surface number wins:
+
+- A change that improves `1 − .en ÷ .ts` while leaving the same number of statements to be read as
+  code is **not progress**.
+- A change that leaves compression flat but factors 40 residual statements into an existing word
+  **is** progress — that is 40 lines a human no longer reads.
+- Prose that makes a word's sentence longer but lets a reviewer skip its body is a **win**, even
+  though it costs bytes. This is why the byte-size framing had to go: it scored that as a loss.
+
+**Why less review is safe, in Amir's own reasoning:** what he reviews is *"deterministic code
+generators which are made of preexisting patterns from my code base."* The generator is
+deterministic, so reading it once settles every site it produces; and it is built from patterns
+already reviewed in production, so its parts carry their own history. Review effort therefore scales
+with the **vocabulary**, not with the corpus — which is the whole return on the mechanism.
+
+**How it is measured:** per §5D.4 move 3, **unclaimed statements per file** — the statements no word
+accounts for. Those are exactly the lines still read as code. Reported per file and as a corpus
+total, beside byte-identity, never in place of it.
 
 ---
 

@@ -43,7 +43,243 @@ an audience.
 
 ---
 
-## 5D. The ARCHETYPE LAYER — a pattern/words hybrid (REQUIRED, mechanics still to be designed)
+## 5D. The ARCHETYPE LAYER — a pattern/words hybrid (REQUIRED; **direction SETTLED**, mechanics being designed)
+
+> **STATUS, 2026-08-31.** Everything in §5D.0 is **settled direction**, not a design input to be
+> weighed. **Amir, verbatim:** *"put all that shit I just said into the PRD. its the final truth so
+> far. get rid of shit that doesnt agree with that because its old shit."* Where earlier PRD text
+> disagreed it has been **rewritten or cut**, not left standing beside the new position — see the
+> superseded-text ledger in §5D.3. What remains open is **HOW**, not whether (§Q-3, §Q-9).
+
+### 5D.0 Amir's direction, verbatim — the eight statements the design must satisfy
+
+Recorded in his own words, because every reframe in this project has cost a rework. The design pass
+these produced is **§5E**; what is still open after them is **§Q-3** (archetype mechanics) and
+**§Q-9** (naming-stage mechanics).
+
+**(1) The hybrid, 2026-08-31:**
+
+> *"I do think the archetype stuff needs to stay though and it needs to be a pattern/words archetype
+> hybrid."*
+
+**(2) Archetypes are FORWARD/GENERATIVE, and re-mining must reproduce the identical `.en`,
+2026-08-31:**
+
+> *"the architecture layer is supposed to be things like, this is the high level pattern like
+> entities, this is what you call to make a new entity in that pattern, and it makes it and gets
+> translated/built into the source codebase. then if I mine the codebase again I should see no change
+> to the .en file because it backwards builds the .en file back into exactly what was written
+> anyways"*
+
+An archetype is a **constructor you invoke to author new code**, not only a shape the miner
+recognizes. And the acceptance criterion is **idempotence under re-mine** — the re-mined `.en` must
+be byte-identical to the `.en` that was authored — which is strictly stronger than byte-identity of
+the `.ts`. Formalized as **AT-ARCH-1** in §5E.
+
+**(3) Composition IS grammar — sentences calling sentences, 2026-08-31:**
+
+> *"then we need to make sure we are using grammar and words to form sentences that can be patterns
+> that generate code. its supposed to be code generators that call code generators but its
+> sentences"*
+
+The generator-calls-generator mechanism (§4A, §5B) is **not** opaque symbolic references with English
+as a cosmetic gloss. **A generator's call to another generator is a sentence invoking a sentence** —
+*"an Entity **has columns** […]"*, where *"has columns"* invokes the column-sentence generator.
+Consequence, and it is a large one: **§5C's grammar/production layer and the archetype/word
+composition mechanism are the SAME system**, not two layers that coexist. §5E.3.5 states how.
+
+**(4) The full lifecycle runs in BOTH directions, 2026-08-31.** Mine the codebase **first** to
+generate the `.en`; hand-edit the `.en`; it goes back into the codebase. **And the reverse must also
+hold** — edit the codebase directly, re-mine, and get the `.en` back matching. Neither direction is
+the derived one.
+
+**(6) ONE WORD PER FILE, read in English — a hard target, 2026-08-31:**
+
+> *"and it needs to be in english. I can read english faster than I can read code. with the LZW
+> pattern you can turn the whole codebase into 1 word, each file can become 1 word. dont tell me that
+> you cant do this."*
+
+**Settled requirement, not an open question.** Stated as a design target in §5D.4 and as R-ARCH-15 /
+R-REND-8. It **supersedes R-MINE-7 (THE LIFT)** as that rule was written; see §5D.4.
+
+**(7) The file word IS its parts — the editability nuance, 2026-08-31:**
+
+> *"the thing is that what you should do is make it so that each file isnt actually its word. its the
+> words that make up that word. so that it can be editable."*
+
+**This is a correction to any reading of statement 6 as opacity.** "One word per file" is a claim
+about **compositional structure**, not about collapsing to a black box. Stated in §5D.4.
+
+**(8) The success metric is REVIEW SURFACE, not compression, 2026-08-31:**
+
+> *"its not about compression, its about less of a review surface. I need to be able to review less
+> code because im reviewing deterministic code generators which are made of preexisting patterns from
+> my code base."*
+
+Compression is the **mechanism**; the **goal** is that a human reviews less. Carried into §7 —
+see `15-success-criteria.md`, "Review surface is the metric".
+
+**(5) TWO pipeline stages — a deterministic mine, then an LLM-assisted naming step that is still a
+script, 2026-08-31:**
+
+> *"the deterministic words that get generated wont be human readable, neither will be the grammar I
+> would assume, so that would be an LLM step that we trigger, but it should be a script in the
+> codebase still. then what comes out of the LZW pattern code generators calling code generators are
+> .en files that can be written and read like english and it knows the whole domain of the code base
+> because each pattern/code generator is word made up of other words."*
+
+This settles something the PRD previously had backwards, and §5D.2 states it as a pipeline.
+
+### 5D.2 The two stages — DETERMINISTIC MINE, then SCRIPTED LLM NAMING
+
+The pipeline has exactly **two kinds of step**, and the boundary between them is a hard line:
+
+| | **Stage 1 — the mine** | **Stage 2 — the naming** |
+|---|---|---|
+| what it does | pattern discovery, LZW dictionary construction, generators referencing generators, hole extraction | turns raw discovered patterns into readable English **words and grammar** |
+| model calls | **ZERO** (R-MECH-4, §3 P1) — non-negotiable | **an LLM, deliberately** |
+| reproducible | bit-for-bit, from the corpus alone | no — the model's output is an input to the corpus from then on |
+| invoked how | `npm run mine` | **a script in the codebase** (`npm run name`), triggered on purpose — **never ad hoc, never by hand in a chat** |
+| output | `generators-lzw.json` — correct and unreadable | `word-names.json` — the same dictionary, now sayable |
+| what gates it | byte-exact refill of every hole | byte-identity + coverage invariance + grammar injectivity (§5E.4) |
+
+Three consequences, all of them requirements:
+
+1. **The raw dictionary is expected to be unreadable, and that is not a defect.** `g_412_a1b2c3` is
+   a correct word with no name yet. The PRD must not treat unreadable mined output as a mining
+   failure — it is stage 1 finishing its actual job.
+2. **The naming step is a first-class pipeline stage with a script, not a human worksheet.** It
+   *runs*; it does not merely *propose* and wait. What replaces the human as the consumer is the
+   **gate**, not a review queue: a name that changes one output byte, lowers coverage, or breaks
+   grammar injectivity is rejected mechanically. (The one place a proposal queue survives is
+   **orphan re-adoption** — see §5D.3 note 3.)
+3. **The LLM's blast radius stays exactly where §3 P2 put it: names and grammar surface only.**
+   Nothing correctness-relevant comes from a model — not a hole, not a span boundary, not a
+   dictionary entry, not a compile. R-LANG-11 is unchanged by this and is reinforced by it.
+
+**Why the `.en` is readable at all** — Amir's last clause is the mechanism, and it is worth stating
+plainly: *"it knows the whole domain of the code base because each pattern/code generator is word
+made up of other words."* Readability is **compositional**. Naming a word does not require describing
+everything it covers, because its parts are already named — so stage 2's cost is per *word*, not per
+*site*, and a name at depth 5 inherits the domain vocabulary of everything beneath it.
+
+### 5D.4 ONE WORD PER FILE — a statement about STRUCTURE, not about opacity
+
+**The target, stated without hedging.** A file collapses to **one top-level word** — its archetype,
+which per §5E.3.1 is itself a dictionary entry at the top of the recursive dictionary. What a human
+reviews is **English**, not code and not `«g_412_a1b2c3»`.
+
+**And the top word is not a sealed reference. It IS its recursive definition.** Per statement 7:
+*"each file isnt actually its word. its the words that make up that word. so that it can be
+editable."* This is the LZW mechanism read literally — *every new dictionary entry is an existing
+entry plus one symbol* — so a word does not **summarize** its parts, it **equals** them. Three
+consequences, and they are the design:
+
+1. **The `.en` file's content for a file IS the expanded composition** — word made of words made of
+   words, down to leaves. Drill-down is not an optional viewer convenience bolted onto an opaque
+   token; **nothing was hidden in the first place**, so there is nothing to unhide.
+2. **It is short to READ** because repeated substructure appears **once, as a reference**, and every
+   further occurrence cites it. That is where the review-surface reduction comes from (statement 8)
+   — not from eliding anything.
+3. **It is editable AT ANY LEVEL**, which is the whole reason for the constraint. A human can edit
+   the file's top sentence, or a sub-word's sentence, or a leaf's hole fill, and each is a real edit
+   to real content. **A sealed top-level symbol would make the hand-edit half of the lifecycle
+   (statement 4) impossible**, which is exactly the failure Amir is heading off.
+
+So the honest phrasing of the target is: **the file is one word in the sense that one word's
+definition accounts for all of it** — totality — not in the sense that the reader is handed one
+token.
+
+**This supersedes THE LIFT (R-MINE-7).** That rule said *"the renderer MUST refuse any word that
+covers an entire run. A file is never one word."* Its stated purpose was that a reader must not get
+*"one opaque reference instead of the file's structure"* — and the operative word was always
+**opaque**. Statement 7 satisfies that purpose *directly*: the whole-file word's structure is its
+content. **Amended form:** the renderer **MUST** refuse a whole-run word that renders as an
+**unexpanded opaque reference**, and **MUST** render one whose recursive definition is present and
+editable. An anonymous mined token still may not swallow a file.
+
+**Two of the three mechanisms already exist. Named precisely, with what remains:**
+
+| what the target needs | status |
+|---|---|
+| a dictionary deep enough to reach file scope | **exists, measured.** §Q-2 measured recursive depth **62** on the real corpus — deep collapse is not hypothetical. |
+| the nested composition, machine-readable | **exists.** `repo-dsl/explain.js` already walks a composition into its generator tree, large composite → mid → leaf, and emits *"stable, documented machine JSON"* — the structure statement 7 requires is already produced; it needs to reach the `.en` and a UI, not to be invented. |
+| **a single entry that accounts for the whole file** | **the real gap** (below). |
+
+**The genuine obstacle, named precisely: THE RESIDUAL.** LZW builds an entry for a run only where
+that run *recurs*. A file's statements that appear nowhere else produce no entry, so nothing accounts
+for those positions. Depth 62 proves the dictionary goes deep; it does not by itself produce one
+entry per file. **How to clear it — three moves, none speculative:**
+
+1. **Seed the archetype as an entry with a variadic tail (§5E.3.4).** A file word does not have to be
+   *discovered*; `Entity` is declared, and the miner binds a file to it. Totality then depends on
+   recognizing the archetype, not on the run recurring.
+2. **Make the residual explicit rather than fatal.** Where statements fall outside every slot, the
+   top word's definition includes them **as themselves**, and the gloss says so in English —
+   *"…and 4 statements not yet part of any pattern"* — under §7.0's honesty rule (R-LANG-10). The
+   file is still accounted for by one word; the word admits what it has not yet factored, which is
+   what makes the number shrinkable instead of hidden.
+3. **Report residual as the metric that closes the gap.** *Unclaimed statements per file* becomes the
+   number the mine is tuned against, replacing "% collapsed" — because the target is **totality per
+   file**, not an aggregate percentage. It is also the honest measure of **review surface**
+   (statement 8): unclaimed statements are exactly the lines a human still has to read as code.
+
+**What it does NOT require:** a model call (stage 1 stays deterministic, §5D.2), a hand-authored
+grammar per file, or abandoning byte-identity — the one word's holes carry the file's exact bytes,
+and byte-exact refill gates it exactly as it gates every other word.
+
+### 5D.1 The canonical worked case — the `Author → Compile` panel
+
+An existing panel already does this for the Entity pattern: *"Describe an entity in plain English →
+TypeScript"*, labelled **"no model call; nothing is written to the corpus"** until Compile is pressed.
+It is the reference case every archetype design is checked against. The input sentence, verbatim:
+
+> *"PaymentPlan is an entity stored in payment_plans. It has an auto-generated id, a required account
+> id (int), a required amount (decimal), an optional note (varchar), and a required status (enum
+> EPaymentPlanStatus). It belongs to a BillingAccount (join account_id). It has many Installments."*
+
+It compiles deterministically to typechecked TypeScript — an `@Entity('payment_plans')` class with
+`@PrimaryGeneratedColumn`, one `@Column` per field, `@ManyToOne` + `@JoinColumn` for the belongs-to,
+and an implied `@OneToMany` for the has-many — and the output panel reports *"Typechecks, valid
+TypeScript, entity PaymentPlan, 5 cols, 2 rels"*.
+
+**What this example pins down that prose could not:** the slot inventory (name, table, columns with
+type and required/optional, relations with two distinct forms), that a column has **alternative**
+shapes (`an auto-generated id` carries no type or nullability), that the compiler may emit a
+decorator the sentence does not literally name (the implied `@OneToMany`), and that the whole thing
+is **deterministic with zero model calls** (R-MECH-4). §5E.4 checks the proposed grammar against it
+clause by clause.
+
+### 5D.3 Superseded text — what was cut, and what it used to say
+
+Kept visible on purpose: the repo's rule is *"this used to say X, that was wrong"*, not a silent
+rewrite. Each of these disagreed with §5D.0 and has been changed to agree with it.
+
+1. **"Names are cosmetic BY CONSTRUCTION"** (§10, R-REND-6) — *used to say* the compiler recovers a
+   payload by `lastIndexOf(PAY_OPEN/PAY_CLOSE)` and **never reads the label region**, so a wrong name
+   yields wrong prose and byte-identical output, and this was celebrated as a structural guarantee.
+   **That is incompatible with statement 4.** If the compiler ignores the prose, then Amir editing
+   the English by hand changes nothing and the hand-edit half of the lifecycle does not exist. The
+   sentence is **authoritative**; the payload is a derived index. Rewritten in §10 and in R-REND-6;
+   the mechanics are §5E.5's sentence-authority section.
+2. **"Archetypes are deliberately unwired"** — superseded earlier the same day by statement 2; an
+   archetype is a constructor you invoke.
+3. **"A generated name Amir did not choose is worse than no name at all"** (`name-words-lzw.js`
+   header, and R-LANG-7's never-apply-automatically rule) — *used to say* the naming pass emits a
+   **worksheet only** and the apply step is Amir's hand-authoring. **Statement 5 overrides this for
+   naming**: the step is a script that names. The narrower claim it was really protecting —
+   that an **orphaned** name must not silently re-attach to a skeleton it merely *resembles* — is
+   preserved, because that is a drift bug rather than a naming policy (§10).
+5. **"A file is never one word" (R-MINE-7, THE LIFT)** — *used to say* the renderer must refuse any
+   whole-run word outright. Superseded by statements 6 and 7; amended to refuse an **opaque**
+   whole-run word while requiring a compositional one (§5D.4).
+6. **"The metric is real lossless compression"** (§2, §7) — compression is the mechanism, not the
+   goal; superseded by statement 8. Rewritten in `15-success-criteria.md`.
+4. **"content-hashed, cosmetic by construction"** as the description of the skeleton-name layer
+   (§2) — the content-hashed half is right and load-bearing (R-LANG-2; it is what makes ids survive
+   a re-mine). The **cosmetic** half is cut per note 1.
+
+---
 
 **Amir, 2026-08-31, verbatim:** *"I do think the archetype stuff needs to stay though and it needs to
 be a pattern/words archetype hybrid."*

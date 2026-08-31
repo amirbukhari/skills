@@ -60,12 +60,49 @@ Names outlive the words they were written for, so the naming catalog is append-a
 > asserting a meaning no consumer verified — and the failure is silent by construction, because a
 > wrong name renders as confident prose. The proposal step exists so a human is the consumer.
 
-## Names are cosmetic by CONSTRUCTION, not by test
+## The SENTENCE is authoritative — rewritten 2026-08-31
 
-`compileChunk` recovers a payload with `chunk.lastIndexOf(PAY_OPEN)` / `chunk.lastIndexOf(PAY_CLOSE)`
-and **never reads the label region at all**. A wrong name therefore yields wrong prose and
-**byte-identical output**. This is a structural property of the compiler, not a property maintained
-by a test — the test would be the weaker guarantee (§10).
+**This section used to say the opposite, and the old text is worth stating so the change is legible:**
+
+> *"Names are cosmetic by CONSTRUCTION, not by test. `compileChunk` recovers a payload with
+> `chunk.lastIndexOf(PAY_OPEN)` / `chunk.lastIndexOf(PAY_CLOSE)` and never reads the label region at
+> all. A wrong name therefore yields wrong prose and byte-identical output. This is a structural
+> property of the compiler, not a property maintained by a test — the test would be the weaker
+> guarantee."*
+
+That was a real guarantee, and it is still an accurate description of `compileChunk` today. **It is
+also incompatible with the lifecycle Amir requires** (§5D.0 statement 4): he mines the codebase to
+get the `.en`, **hand-edits the `.en`**, and it goes back into the codebase. If the compiler never
+reads the label region, then editing the English changes nothing and the hand-edit half of the
+lifecycle does not exist — the `.en` would be a read-only report with an editable-looking surface.
+The old rule made prose safe by making it inert.
+
+**The rule now:**
+
+1. **A hand-edit to a clause's English MUST change the compiled TypeScript.** The sentence is the
+   source; that is what §1 has claimed all along.
+2. **The payload is a DERIVED INDEX, not the source of truth.** It stays — it is what makes compiling
+   fast and unambiguous — but it is a cache of what the sentence says, regenerable from it.
+3. **Sentence and payload disagreeing is an ERROR, loudly.** Not a tie the payload wins. This is the
+   §8B contract discipline applied one level in: a consumer that cannot verify what it is reading
+   refuses. The specific check is that re-deriving the payload from the sentence reproduces it.
+4. **What the old rule was really protecting is kept by other means.** Its worry was that a wrong
+   name silently produces confident wrong prose. Under sentence-authority a wrong name is no longer
+   silent: it changes the compiled output, so **byte-identity catches it** — a stronger guard than
+   inertness, because it fails loudly instead of not mattering.
+
+**Mechanics are §5E.5**, and the mechanics are genuinely open (§Q-3): making the compiler parse
+sentences through the grammar rather than `lastIndexOf` a payload is a real change to `compileChunk`.
+The **direction** is not open.
+
+## The one place a proposal queue survives — ORPHAN RE-ADOPTION
+
+§5D.2 makes naming a script that *names*, not a worksheet that waits. That override is about
+**naming**. It does not touch the narrower rule above it: a name whose skeleton no longer exists goes
+to `orphans` and **re-adoption is proposed, never applied automatically** (R-LANG-7). Re-adoption is
+not naming — it is a name silently re-attaching to a skeleton that merely *resembles* the one it was
+written for, which is the producer/consumer drift bug in a new costume, and no gate catches it
+because the output is byte-identical either way. That queue stays.
 
 ## The hole taxonomy — a per-site predicate, not a per-type policy
 

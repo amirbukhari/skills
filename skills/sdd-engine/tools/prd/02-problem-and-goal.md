@@ -12,7 +12,7 @@ We have a large real TypeScript corpus. (Two layer-specific byte totals exist an
 
 **Two things the compressor does not settle, and §5C does.** A dictionary makes a file *short*; it
 does not make it *read*. Two layers turn a word into a sentence — **skeleton names** (word-level,
-content-hashed, cosmetic by construction) and **per-site productions** (statement-level, reading the
+content-hashed, and **authoritative** — a hand-edit to a name changes the code, §5D.3 note 1) and **per-site productions** (statement-level, reading the
 real AST). The measured finding is that productions are the larger and cheaper half: ~14 statement
 kinds out-reach the whole nameable-word queue, because a name caps at the skeleton share of corpus bytes and a production
 can quote the site. See §5C for the design and §7.0 for the scoreboard.
@@ -21,6 +21,6 @@ can quote the site. See §5C for the design and §7.0 for the scoreboard.
 the file" is **already true for every file in the corpus** (§4B). Everything now in flight is a question about
 how the `.en` *reads*.
 
-So "English source" here is not translation and not documentation. It is a *lossless compressor's dictionary made readable*: LZW factors the repo into a recursive word dictionary; the English re-emits each file as a short word stream; and a byte-exact gate guarantees the derived code is the exact bytes we started from. LZW is **lossless *and* compressing** — real compression under byte-exactness is exactly what the mechanism delivers. The metric that matters is **real (lossless) compression via recursive word reuse plus statement-collapse**, not how much prose we produce.
+So "English source" here is not translation and not documentation. It is a *lossless compressor's dictionary made readable*: LZW factors the repo into a recursive word dictionary; the English re-emits each file as a short word stream; and a byte-exact gate guarantees the derived code is the exact bytes we started from. LZW is **lossless *and* compressing** — real compression under byte-exactness is exactly what the mechanism delivers. But compression is the **mechanism, not the goal**. **Amir, 2026-08-31, verbatim:** *"its not about compression, its about less of a review surface. I need to be able to review less code because im reviewing deterministic code generators which are made of preexisting patterns from my code base."* The metric that matters is therefore **review surface — statements a human must still read as code** (§7, "Review surface is the metric"); recursive word reuse and statement-collapse are how it falls. *This paragraph used to name lossless compression itself as the metric; that was the mechanism wearing the goal's clothes.*
 
 ---

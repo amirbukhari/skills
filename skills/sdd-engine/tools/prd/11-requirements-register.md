@@ -12,6 +12,18 @@ is an OPEN question (§Q), and it is listed there.
 whether it holds — a command, an assertion, or a named test file. A check reading *"not yet
 mechanized"* is an admission, not an excuse: the requirement stands and the check is missing work.
 
+**Some of it now runs.** `npm run register` (`tools/repo-dsl/verify-register.js`) evaluates the rows
+decidable by reading the tree — a constant's value, a symbol's presence, an artifact's contract
+validity — and prints `HOLDS` / `FAILS` / `MANUAL` per row. `npm run register:json` emits the same
+result as one JSON object for a caller. Exit 0 = all mechanized rows hold, 1 = at least one fails,
+2 = the runner could not proceed.
+
+Three things it deliberately does **not** do. It never counts a row it cannot evaluate as holding —
+those are `MANUAL`, with the command that would decide them, and **`MANUAL` is not a pass**. It
+never runs a mine or a round-trip as a side effect. And a row absent from the runner is not a row
+that holds; it is one nobody has mechanized yet. As of 2026-08-31: 13 rows mechanized of ~100,
+reporting **9 hold, 0 fail, 4 manual**.
+
 **ID scheme.** `R-<AREA>-<n>`, stable. Areas: MECH (core mechanism) · MINE (mining parameters) ·
 REND (rendering/compiling) · COMP (composition) · WIDE (middle tier) · ARCH (archetype hybrid) ·
 LANG (language, names, productions) · PAY (payload) · ART (artifact contract) · PIN (corpus pinning)
@@ -34,17 +46,25 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 
 ## R-MINE — mining parameters
 
-**All SETTLED. Do not re-open without new measurement.** Values and their source of truth are in §8.
+**Values are SETTLED. Do not re-open without new measurement.** Values and their source of truth
+are in §8.
+
+**The CHECKS were not settled, and three of the four pointed at the wrong file — corrected
+2026-08-31.** `MIN_COUNT`, `MAXWIN` and `MIN_SKEL` all live on one line,
+`build-lzw-generators.js:59`. The measured values are unchanged (1, 8, 64); only the pointers moved.
+This is the more dangerous kind of rot: a wrong value fails loudly, while a wrong pointer sends the
+next reader to a retired file that answers a different question confidently. Verified by `grep -rn`
+over the live tree and `archive/`, not by reading the prose.
 
 | ID | Requirement | Check | Why (§) |
 |---|---|---|---|
-| R-MINE-1 | `MIN_COUNT` **MUST** be 1 — a word need not recur. | `engine/compose.js MIN_COUNT === 1`. | §4B |
-| R-MINE-2 | `MAXWIN` is 64, a **ceiling and not a tuned value**; it binds only `maxDepth`. | `engine/enlzw.js`. | §4B, §Q-6 |
-| R-MINE-3 | `MIN_SKEL` **MUST** stay 8. | `engine/enlzw.js`. | §4B |
-| R-MINE-4 | `MIN_WORD_CHARS` is 4 — trivial punctuation tokens are not words. | `engine/compose.js`. | §8 |
+| R-MINE-1 | `MIN_COUNT` **MUST** be 1 — a word need not recur. | `build-lzw-generators.js:59` — `+(process.env.MIN_COUNT \|\| 1)`. **Cite corrected 2026-08-31**: this said `engine/compose.js`, which is retired to `archive/engine/compose.js:22` and defines `MIN_COUNT = 2`, so verifying at the old location read 2 and wrongly failed the row. The default is 1 and **HOLDS**; note it is env-overridable, so this binds the default, not every run. | §4B |
+| R-MINE-2 | `MAXWIN` is 64, a **ceiling and not a tuned value**; it binds only `maxDepth`. | `build-lzw-generators.js:59` — `+(process.env.MAXWIN \|\| 64)`. **Cite corrected 2026-08-31**: `engine/enlzw.js` does not define `MAXWIN` at all; the only other definition in the tree is `archive/engine/patterns.js:69`, where it is **5**, belonging to the retired window miner. **HOLDS.** | §4B, §Q-6 |
+| R-MINE-3 | `MIN_SKEL` **MUST** stay 8. | `build-lzw-generators.js:59` — `+(process.env.MIN_SKEL \|\| 8)`. **Cite corrected 2026-08-31**: `engine/enlzw.js` does not define it. **HOLDS.** | §4B |
+| R-MINE-4 | `MIN_WORD_CHARS` is 4 — trivial punctuation tokens are not words. | **RETIRED 2026-08-31, not verifiable and not a live requirement.** The constant belonged to the flat composer, which R-MECH-7 records as having no live producer at all. Its only remaining definition is `archive/engine/compose.js:23`, and nothing live reads it. Kept as a row rather than deleted so the id is not silently reused. | §8 |
 | R-MINE-5 | Imports and declarations **MUST** be foldable, gated identically to any other statement. | `isFoldable` admits them. | §4B |
 | R-MINE-6 | The canonicalizer **MUST** roll a non-refillable sub-expression back to an opaque hole, and **MUST NOT** fail the whole skeleton. | A skeleton containing one bad sub-expression still promotes, with that span as a hole. | §4B |
-| R-MINE-7 | **THE LIFT** — the renderer **MUST** refuse any word that covers an entire run. A file is never one word. | No `.en` renders as a single opaque span. | §4B |
+| R-MINE-7 | **THE LIFT, amended 2026-08-31 (§5D.4).** The renderer **MUST** refuse a whole-run word that is **unnamed or unexpandable**. *It used to say "a file is never one word" — superseded by Amir's statement 6; a **named, drillable** file word is now the target (R-ARCH-15).* | No `.en` renders as a single **opaque** span; a whole-run word carries a name and an `explain` tree. | §4B, §5D.4 |
 | R-MINE-8 | No span **MUST** straddle two or more units. A word means one thing. | Unit-boundary test (`engine/unit-boundary.test.js`). | §4B (Amir's call) |
 | R-MINE-9 | Holes **MUST** stay verbatim TypeScript. | The hole taxonomy in §5C; no hole interior is paraphrased. | §4B, §5C |
 | R-MINE-10 | Every un-collapsed body **MUST** be attributed **MINER**, **GATE** or **ARBITRATION**. A bare count is not actionable. | `measure-uncollapsed.js` emits the three-way split. | §4A |
@@ -58,7 +78,7 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 | R-REND-3 | Selected segments **MUST** tile `[0, len)` exactly, and no two selected spans may overlap. | `checkTiling`. | §5 the fold, §5A |
 | R-REND-4 | A readability improvement that loses one byte of identity **MUST** be treated as a regression, not a trade. | Gate 1 is unconditional. | §7.0 |
 | R-REND-5 | The `.en` **MUST** be written to `<CORPUS>/sen/files/<rel>.en`; derived `.calc` IR **MUST** go to a gitignored `.cache/`. | §5 on-disk layout; `engine/artifact-location.test.js`. | §5, §8B |
-| R-REND-6 | The compiler **MUST NOT** read a span's label region when recovering a payload — names are cosmetic **by construction**, not by test. | `compileChunk` locates the payload by `lastIndexOf(PAY_OPEN/PAY_CLOSE)` only. | §5C, §10 |
+| R-REND-6 | **REWRITTEN 2026-08-31 (§5D.3 note 1).** The **sentence is authoritative**: a hand-edit to a clause's English **MUST** change the compiled TypeScript. The payload is a **derived index**, not the source of truth. *It used to say the compiler MUST NOT read the label region — "names are cosmetic by construction". That made Amir's hand-edit lifecycle (§5D.0 statement 4) a no-op, so it is cut.* | Edit a clause's prose → recompile → the `.ts` changes accordingly; payload and sentence disagreeing is an **error**, not a tie broken by the payload. | §5C, §10, §5E.5 |
 | R-REND-7 | Measurement **MUST** run over the whole corpus with a published SKIP set; showcase or demo trees **MUST** be excluded, and per-module results **MUST** include failures. | `write-en-files.js SKIP`; §8 lists the set. | §3 |
 | R-REND-8 | A body that is not named **MUST** read as an honest placeholder (e.g. "custom logic (N statements)") and **MUST NOT** be given invented prose. | The `prose.js` honesty rule. | §5 the loop, §5C |
 
@@ -99,6 +119,8 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 | ID | Requirement | Check | Why (§) |
 |---|---|---|---|
 | R-ARCH-1 | The archetype layer and the LZW word layer **MUST** work together as **one** mechanism, neither subordinate: the word layer supplies the vocabulary, the archetype layer supplies the file-level shape. | The hybrid design, once written. | §5D |
+| R-ARCH-15 | A file **MUST** be accounted for by **one top-level word**, whose rendered form **IS** its recursive definition — words made of words down to leaves — and which is **editable at every level**. An opaque whole-file token is forbidden. | Per file: one top word; `explain` yields its full tree; a hand-edit at any depth changes the compiled `.ts`. | §5D.4 |
+| R-ARCH-16 | **Review surface** — statements a human must read as **code** (the per-file residual) — **MUST** be reported per file and as a corpus total, beside byte-identity, and is the **headline** success metric. Compression is a mechanism and **MUST NOT** be reported as the goal. | The manifest carries `residualStatements` per file. | §5D.4, §7 |
 | R-ARCH-2 | An archetype's slots **MUST** be filled by **mined words**, not by hand-authored sub-grammars, wherever the miner already succeeds. | Slot fills resolve to dictionary entries. | §5D |
 | R-ARCH-3 | Everything an archetype emits **MUST** pass the **same** byte-exact gate as any other span, with **no silent fallback**: a slot that cannot refill exactly leaves its span as verbatim TypeScript, loudly. | One producer, one gate. | §5D constraint 1 |
 | R-ARCH-4 | Archetype correctness **MUST** be measured by refilling slots from the dictionary and comparing to original bytes. A `byteIdentical: 100%` derived from `checkTiling` — which re-slices and rejoins the source — **MUST NOT** be cited as a generation check; it is a tautology. | A real generation check, not `rebuilt = segs.map(s => src.slice(s.a,s.b)).join("")`. | §5D constraint 2 |
@@ -111,7 +133,7 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 
 | ID | Requirement | Check | Why (§) |
 |---|---|---|---|
-| R-LANG-1 | A rendered clause **MUST** be produced by exactly two layers — skeleton **names** (one per mined word) and per-site **productions** (one per statement kind) — and it must be knowable which layer owns a site. | §5C's two-layer table. | §5C |
+| R-LANG-1 | A rendered clause **MUST** be produced by one **grammar**: a name is a nonterminal's **spelling**, a production is its **expansion** (§5E.3.5). Both layers persist as artifacts; it **MUST** be knowable which owns a site. | §5C's table, read as spelling + expansion of one nonterminal. | §5C, §5E.3.5 |
 | R-LANG-2 | A name's key **MUST** be `sha256(canonical skeleton)[0:16]`, axis-prefixed — **never** the word's dictionary id, which is an artifact of mining order. | `engine/word-names.js`. | §5C, §8 |
 | R-LANG-3 | Mining-parameter changes **MUST** orphan nothing; a canonicalizer change **MUST** orphan exactly the skeletons it altered. | Retune `MAXWIN`/`MIN_COUNT`/`MIN_SKEL` → zero orphans. | §5C |
 | R-LANG-4 | A leaf **MUST** be named only where `spanProse` has nothing site-specific to say. A static name where a production could quote the real identifier and callee is a **regression**. | The admission rule, decidable per site. | §5C |
@@ -121,7 +143,10 @@ LANG (language, names, productions) · PAY (payload) · ART (artifact contract) 
 | R-LANG-8 | Rename-queue length **MUST** be reported beside byte-identity, as information — **never minimised** as a target. | §7.0 gate 4. | §5C, §7.0 |
 | R-LANG-9 | Whether a hole is **word-like** (quoted verbatim into the clause) or **code-bearing** (left as code) **MUST** be a per-site predicate on the hole's contents evaluated at render time — **never** a policy attached to the hole's type. | The English-completeness scanner is the mechanical form of the predicate. | §5C, §7.0 gate 3 |
 | R-LANG-10 | When a production cannot say something **true** about a site it **MUST** emit the vacuous clause and that site **MUST** be counted. A vacuous clause is retired by saying something true — **never** by rewording the placeholder to escape the frozen list. | §7.0 gate 2 + the frozen list. | §5C |
-| R-LANG-11 | An LLM **MAY** propose **names only**, and every rename **MUST** be gated on byte-identity plus coverage invariance. Nothing correctness-relevant may come from a model. | `refine-language.js` rejects a rename that changes one output byte or lowers coverage. | §2 P2 |
+| R-LANG-11 | An LLM **MAY** produce **names and grammar surface only**, and every rename **MUST** be gated on byte-identity plus coverage invariance. Nothing correctness-relevant may come from a model. | `refine-language.js` rejects a rename that changes one output byte or lowers coverage. | §2 P2, §5D.2 |
+| R-LANG-12 | The pipeline **MUST** have exactly two kinds of step: a **deterministic mine** (zero model calls) and a **scripted LLM naming stage**. The naming stage **MUST** be an invocable script in this repo — never ad hoc, never a chat transcript. | `npm run name` runs it end to end; `npm run mine` makes zero model calls. | §5D.2 |
+| R-LANG-13 | The naming stage **MUST APPLY** names, gated mechanically (byte-identity + coverage invariance + grammar injectivity) — **not** emit a worksheet and wait for a human. *It used to be worksheet-only; superseded by §5D.0 statement 5.* Orphan **re-adoption** remains a proposal (R-LANG-7). | `name` writes `word-names.json`; the gate is the consumer. | §5D.2, §10 |
+| R-LANG-14 | Every pipeline script **MUST** be callable non-interactively with structured output (JSON on stdout or a stamped artifact) so a UI can drive it unchanged. No blocking prompts. | Each `npm run` target runs headless in CI-shaped invocation. | §5D.2 |
 
 ## R-PAY — payload encoding
 
