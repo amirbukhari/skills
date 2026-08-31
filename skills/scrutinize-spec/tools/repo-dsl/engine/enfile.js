@@ -29,7 +29,7 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
-const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator span: «▶ gloss ⟪base64(payload)⟫»
+const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator span: «▶ gloss ⟪lzw1 payload⟫»
 const MAXWIN = 8;
 
 /* load the mined multi-line generator catalog (regenerable; absent -> layer disabled) */
@@ -68,7 +68,9 @@ function hasRenderableData(node, sf) {
 
 /* ------------------------------ RENDER (.ts -> .en) ------------------------------ */
 const isSimpleForGen = (st) => G.isFoldable(st); // foldable = simple + control-flow (v2)
-function b64(obj) { return Buffer.from(JSON.stringify(obj), "utf8").toString("base64"); }
+/* Payloads are readable text, not base64(JSON) — see engine/payload.js for why and for the
+ * structural sentinel guarantee that makes plain text safe between the « » scanner sentinels. */
+const PAY = require("./payload");
 
 /* MANDATORY: a label is display-only, but it is embedded between the scanner sentinels, so it must
  * never contain any of them — «»⟪⟫ would corrupt renderFileEn's span scan / compileChunk's payload
@@ -192,7 +194,7 @@ function renderFileEn(source, index) {
   const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
   const genSpans = recSpans.map((s) => ({
     start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,
-    en: GEN + " " + genLabel(s.start, s.end, source, s.stmts) + " " + PAY_OPEN + b64(s.payload) + PAY_CLOSE,
+    en: GEN + " " + genLabel(s.start, s.end, source, s.stmts) + " " + PAY_OPEN + PAY.encode(s.payload) + PAY_CLOSE,
   }));
   for (const g of genSpans) spans.push(g);
   const inGen = (s, e) => genSpans.some((g) => s < g.end && e > g.start);
@@ -261,15 +263,11 @@ function compileChunk(chunk, index) {
   if (chunk[0] === GEN) { // multi-line generator: refill catalog template with per-site holes
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
-    const obj = JSON.parse(Buffer.from(chunk.slice(a + 1, b), "base64").toString("utf8"));
-    // ONE DIALECT. The flat anti-unification path is deleted (PRD §4A defect); the recursive
-    // LZW dictionary is the only generator layer, so a payload is either lzw or it is not ours.
-    // Never guess at a payload — that is how wrong bytes ship.
-    if (obj.d !== undefined && obj.d !== "lzw")
-      throw new Error(`enfile: unknown generator payload dialect ${JSON.stringify(obj.d)} — the only dialect is "lzw" (the flat dialect was removed). Re-render: node write-en-files.js`);
-    if (obj.g !== undefined)
-      throw new Error("enfile: this .en carries a FLAT generator payload (`g`), a dialect that no longer exists; re-render it: node write-en-files.js");
-    if (obj.w === undefined) throw new Error("enfile: generator payload carries no `w` word id");
+    // ONE DIALECT, ONE ENCODING. The flat anti-unification path is deleted (PRD §4A defect) and
+    // base64(JSON) is retired, so a payload is either `lzw1` text or it is not ours. decode()
+    // is fail-closed: it throws on anything it does not fully understand rather than guessing,
+    // and it names a stale base64 payload specifically so the fix is obvious.
+    const obj = PAY.decode(chunk.slice(a + 1, b));
     if (!index || !index._lzw) throw new Error("enfile: recursive generator span but no lzw catalog loaded");
     return EL.compileSpan(obj, index._lzw);
   }

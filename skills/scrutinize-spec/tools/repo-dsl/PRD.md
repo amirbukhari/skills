@@ -217,7 +217,7 @@ Realizes principle §2.4 and closes the §4A gap. This is a **first-class, load-
 
 ## 7. Success metrics
 
-The metrics are **real lossless compression AND statement/readability collapse** — not prose length. Under the intended LZW mechanism (§2.1) byte-size compression is a legitimate goal, not a forbidden one; the flat-path "capped ~4.5%" framing is corrected and retired (§3, §4A). Today the `.en` is *larger* than the `.ts` (a flat-path symptom), so the compression metric currently reads negative and must cross zero. Every metric below is computed by one committed command and reads one field, so "done" is a number, not a judgement.
+The metrics are **real lossless compression AND statement/readability collapse** — not prose length. Under the intended LZW mechanism (§2.1) byte-size compression is a legitimate goal, not a forbidden one; the flat-path "capped ~4.5%" framing is corrected and retired (§3, §4A). Today the `.en` is still *larger* than the `.ts`, so the compression metric reads negative and must cross zero — but the attribution has been **corrected**: this was blamed on the flat path, and the flat path is deleted. The inflation was the **payload encoding** (base64(JSON)), now fixed in §7A; what remains is gloss prose and span structure, which are deliberate. Every metric below is computed by one committed command and reads one field, so "done" is a number, not a judgement.
 
 **The one measurement command.** `node write-en-files.js` regenerates `en-index.json` (it lives in the gitignored `hydra-source/.cache/spec-derived/`; `--dry-run --out <dir>` measures without writing to the corpus). All three metrics read that file. (`node measure-uncollapsed.js` implements the frozen classifier below and buckets each gap as MINER / GATE / ARBITRATION per §5A. `measure-middle-tier.js` is referenced elsewhere in this document but does not exist in the tree.) No metric is computed by eye.
 
@@ -236,6 +236,9 @@ The metrics are **real lossless compression AND statement/readability collapse**
 | `maxCompositionDepth` | **14** |
 | `flatFallback` | **0** (0.0%) |
 | `englishBytesPct` | **44.9** |
+| `.ts` bytes | **4,058,328** |
+| `.en` bytes | **4,598,270** (compression **−13.3%**; was 5,306,753 / −30.8% under base64) |
+| payload bytes | **1,536,665** = 33.4% of `.en`, of which **1,371,044 is readable hole text** (the code's own identifiers and literals) and **165,621 is span structure** = **3.6% of `.en` opaque** (was 42.3%) |
 | files with un-collapsed repeated structure (§7 incl. (a2)) | **38** |
 
 
@@ -245,11 +248,48 @@ The metrics are **real lossless compression AND statement/readability collapse**
 | **Statement-collapse ratio** | `generators.netStatementReduction ÷ S` | net reduction **6,920** (`calls 4,362`, `statementsCollapsed 11,282`, `filesUsing 715/1037`, `maxCompositionDepth 14`, `flatFallback 0`) — target met | **netStatementReduction ≥ 4,500 and filesUsing ≥ 715 / 1037**, byte-identity held at 1037/1037 (~~filesUsing ≥ 750~~ **superseded 2026-08-31** — see the ceiling note below) |
 | **Files with un-collapsed repeated structure** | `node measure-uncollapsed.js` — implements this classifier exactly | **38 files / 46 bodies** (all MINER-limited; 0 gate, 0 arbitration). Corrected by §7(a2); the pre-(a2) reading was 126 files / 179 bodies. A further **133 bodies** are excluded by density, 24 of them all-placeholder. | **0** |
 | **Composition depth (live `.en` path)** | `en-index.json → generators.maxDepth` (longest generator-calls-generator chain the live compile actually expands, §5B) | **14 — target met (§4A)** | **≥ 2**, rising toward the compose-layer's depth 9 |
-| **Real (lossless) compression ratio** | `1 − (.en bytes ÷ .ts bytes)` over the enfile-layer walk — LZW makes this positive without breaking byte-identity (§2.1) | **−27% (`.en` 4.32 MB > `.ts` 3.40 MB — inflation from the flat path, §4A)** | **positive and rising** — `.en` smaller than `.ts`, growing with dictionary depth |
+| **Real (lossless) compression ratio** | `1 − (.en bytes ÷ .ts bytes)` over the enfile-layer walk — LZW makes this positive without breaking byte-identity (§2.1) | **−13.3%** (`.en` 4,598,270 B > `.ts` 4,058,328 B). Was **−30.8%** before the `lzw1` payload encoding (§7A); the residual is gloss prose (334,343 B) plus 165,621 B of span structure, neither of which the `.ts` carries. | **positive and rising** — `.en` smaller than `.ts`, growing with dictionary depth |
 
 > **NEAR-MISS — why (a2) exists (2026-08-31).** The classifier shipped with only (a), (b), (c). A body whose every statement fails to generalize keys as `·<GAP>·`, so **all** such bodies collide with each other and **every one of them scores `freq ≥ 2`**. Two functions sharing no content whatsoever were being counted as repeated structure. The metric read **126 files / 179 bodies**; the truth was **38 files / 46 bodies** — an inflation of roughly **3×**, and it would have sent someone hunting 102 files of nothing. The number was already being steered by when the error was caught. Placeholder density is the decidable discriminator: a key that is at least half holes carries too little evidence to assert recurrence. Frozen in `engine/uncollapsed-density.js`, guarded by `engine/uncollapsed-density.test.js` (mutation-checked: removing the condition turns 4 cases red, including the real-source one).
 
 > **SUPERSEDED TARGET — `filesUsing ≥ 750` (set in this document; retired 2026-08-31).** The measured ceiling at the current readability bar is **753**: 715 files use a generator today, and only **38 files** hold a genuinely repeated, genuinely unclaimed body (§7 as corrected by (a2)). The target was therefore set one to two files under a wall nobody had measured. Worse, **none of those 38 are reachable by legitimate miner work**: 15 need `MIN_SKEL` dropped below 8 (measured curve 12→649, 8→715, 6→719, 4→732, byte-identity holding throughout, but promoting near-trivial two-statement words), and 23 recur only at whole-body silhouette while sharing no recurring adjacent statement pair anywhere in the corpus — reaching them means widening the canon until more of each statement is a hole. Both routes are *punch more holes until things match*, which is the flat anti-unification defect §4A exists to kill, and both trade readability for a number. **Decision: leave the miner alone.** §3 already rules that genuinely one-off code stays verbatim and is counted as residue; these 38 files are that residue. The replacement target is `filesUsing ≥ 715` — held, not chased. The history is kept here rather than deleted because *why* a target moved is the part worth having.
+
+### 7A. Payload encoding — why the `.en` grew as reuse improved (fixed 2026-08-31)
+
+**The symptom.** Between two runs reuse improved on every axis — `filesUsing` 638→715, `netStatementReduction` 4,468→6,920, `maxDepth` 10→14, `flatFallback` 0 — and the `.en` got **381 KB BIGGER** (4,925,805 → 5,306,753), compression falling −21.4% → −30.8%. Every additional collapse made the source *worse*. That is backwards for a compressor, and it contradicted §1 and §3 directly.
+
+**The cause was the payload encoding, and the real defect was not the bytes.** Payloads were `base64(JSON)`. Measured over the corpus:
+
+| component | bytes | % of `.en` |
+|---|---|---|
+| base64 4/3 expansion | 565,670 | 10.7% — carries **zero** information |
+| JSON scaffolding | 308,434 | 5.8% |
+| hole text (**real source**: identifiers, literals) | 1,371,044 | 25.8% |
+
+The third row is the point. **Hole text is the code's own text**, and base64 was turning a quarter of "the canonical human artifact" (§1) into an opaque blob — 42.3% of the `.en` was payload a reader cannot read. It also scaled the wrong way: each newly mined word appended ~515 B of blob, so **improving the miner actively degraded the artifact Amir is meant to read and edit.** Negative compression was the *symptom*; opacity was the *defect*.
+
+**The fix.** One encoding, `lzw1`, plain UTF-8 text (`engine/payload.js`):
+
+```
+lzw1 <axis><wordId>⟨hole⟨hole...
+```
+
+Holes are introduced by `⟨` and run to the next `⟨` or the payload end. There is no closing bracket — `⟨` is 3 bytes in UTF-8 and the corpus holds 40,667 holes, so a closer nobody needs costs 122 KB of the artifact.
+
+**Sentinel safety is structural, not incidental.** The `.en` scanner locates spans by searching for `«` `»`, which is sound only if no payload can contain one. base64 gave that for free; plain text does not. Escaping (`⟡0`–`⟡7`) provides it **by construction**, so an encoded payload provably contains none of `« » ⟪ ⟫ ▶ ⟨`. This is deliberately *not* an assumption about what TypeScript source happens to contain — no sentinel appears in the corpus today, but that is luck, and luck is the hazard §4A's dialect work just finished removing. `decode()` is fail-closed: wrong tag, bad axis, missing id, or unknown escape all throw, and a stale base64 payload is named specifically so the fix is obvious.
+
+**Result** (real run, byte-identity **1037/1037** held throughout):
+
+| | before | after |
+|---|---|---|
+| `.en` bytes | 5,306,753 | **4,598,270** (−708,483) |
+| compression | −30.8% | **−13.3%** |
+| payload as % of `.en` | 42.3% | 33.4% |
+| **opaque** % of `.en` | **42.3%** | **3.6%** |
+
+The last row is the one that matters: payload is still a third of the file, but 89% of it is now readable source text rather than base64. Guarded by `engine/dialect-guard.test.js`, mutation-checked per §10.3 (disabling escaping, passing through unknown escapes, and accepting stale base64 each turn their own case red; source restored byte-identical).
+
+**Rejected on readability grounds:** hole dedup via a shared fill table would save a further 280,455 B (5.9%), and parameter hoisting more. Both replace visible source text with an indirection a reader must resolve by hand. Per §3 and Amir's standing instruction that compression is the strategy and not the point, they are **not** taken. The remaining negative compression is honest: the `.en` carries gloss prose and span structure the `.ts` does not.
 
 **Explicitly not a metric:** English-% (a by-product — a rise from paraphrasing unique code would be a regression in disguise). **Byte size IS a metric now (corrected):** real lossless compression via recursive word reuse is a goal, not forbidden — the earlier "not a target / capped ~4.5%" framing applied only to the flat path (§3, §4A). Byte-identity is the floor and never regresses; the progress signals are *real compression turning positive*, *composition depth ≥ 2*, *statement-collapse up*, and *files-with-un-collapsed-repeated-structure → 0*.
 

@@ -13,7 +13,7 @@ const SKIP = new Set(["node_modules", ".git", "dist", "build", "coverage", "spec
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 
 const OPEN = "«", CLOSE = "»", GEN = "▶", PO = "⟪", PC = "⟫";
-const b64 = (o) => Buffer.from(JSON.stringify(o), "utf8").toString("base64");
+const PAY = require("./engine/payload"); // payloads are `lzw1` text, not base64(JSON)
 const cat = EN.loadLzw(CAT);
 const files = walk(CORPUS);
 
@@ -30,7 +30,7 @@ for (const abs of files) {
   let en = "", pos = 0, fileCollapsed = 0;
   for (const sp of spans) {
     if (sp.start < pos) continue;
-    en += src.slice(pos, sp.start) + OPEN + GEN + " " + PO + b64(sp.payload) + PC + CLOSE;
+    en += src.slice(pos, sp.start) + OPEN + GEN + " " + PO + PAY.encode(sp.payload) + PC + CLOSE;
     pos = sp.end; fileCollapsed += sp.stmts;
     if (sp.depth > maxDepthEmitted) maxDepthEmitted = sp.depth;
     depthHist[sp.depth] = (depthHist[sp.depth] || 0) + 1;
@@ -46,7 +46,7 @@ for (const abs of files) {
       const c = en.indexOf(CLOSE, o + 1);
       const chunk = en.slice(o + 1, c);
       const a = chunk.lastIndexOf(PO), bb = chunk.lastIndexOf(PC);
-      const payload = JSON.parse(Buffer.from(chunk.slice(a + 1, bb), "base64").toString("utf8"));
+      const payload = PAY.decode(chunk.slice(a + 1, bb));
       out += EN.compileSpan(payload, cat);
       i = c + 1;
     }

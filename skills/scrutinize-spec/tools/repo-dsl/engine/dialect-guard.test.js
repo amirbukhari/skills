@@ -1,56 +1,81 @@
 "use strict";
-/* Guard test for the PAYLOAD DIALECT dispatch (engine/enfile.js compileChunk).
+/* Guard test for the PAYLOAD DIALECT + ENCODING (engine/enfile.js compileChunk, engine/payload.js).
  *
- * Why this exists: there is now exactly ONE dialect, lzw `{d:"lzw",a,w,h}`. The flat dialect
- * `{g,h}` was deleted with the flat path. Dispatch previously read whichever key happened to be
- * present, so correctness rested on the two key sets staying disjoint (g vs w) by accident — an
- * overlap would have resolved a payload to the WRONG BYTES while reporting success. With one
- * dialect that hazard is gone by construction; these cases pin the fail-closed behaviour so a
- * stale .en is refused loudly instead of being guessed at, and so a second dialect cannot be
- * reintroduced silently.
+ * Why this exists. There is exactly ONE dialect, lzw, in exactly ONE encoding, `lzw1` text. The flat
+ * dialect `{g,h}` was deleted with the flat path; base64(JSON) was retired because it expanded the
+ * payload 4/3 and turned a quarter of the canonical human artifact (§1) into an opaque blob.
+ * Dispatch once rested on key sets staying disjoint (g vs w) BY ACCIDENT — an overlap would have
+ * resolved a payload to the WRONG BYTES while reporting success. Both hazards are now closed by
+ * construction, and these cases pin that: anything not understood is refused loudly, never guessed.
  *
- * §10 compliance: case 4 asserts correctness against REAL SOURCE via round-trip, never against a
- * mined artifact. Cases 1-3 assert the guard's own error messages, which is the guard's contract. */
+ * The sentinel case is the load-bearing one. The .en scanner locates spans by searching for « »,
+ * which is only sound if no payload can contain one. base64 gave that for free; plain text does not,
+ * so escaping provides it BY CONSTRUCTION. That must be a proven property, not an observation that
+ * TypeScript source "doesn't usually" contain ⟪ — luck is what the dialect work removed.
+ *
+ * §10: the real-source cases assert against actual bytes via round-trip, never a mined artifact. */
 const assert = require("assert");
-const path = require("path");
 const { renderFileEn, compileFileEn, loadIndex } = require("./enfile");
+const PAY = require("./payload");
 
 const CORPUS = process.env.HYDRA_CORPUS || "/home/amir/Documents/Rentsync/delonix/hydra-source";
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
 
-const GEN = "▶", OPEN = "⟪", CLOSE = "⟫";
-const span = (obj) => "«" + GEN + " gloss " + OPEN +
-  Buffer.from(JSON.stringify(obj), "utf8").toString("base64") + CLOSE + "»";
+const GEN = "▶", P_OPEN = "⟪", P_CLOSE = "⟫";
+const span = (payloadText) => "«" + GEN + " gloss " + P_OPEN + payloadText + P_CLOSE + "»";
 const idx = loadIndex(CORPUS);
-const throwsWith = (obj, re) => assert.throws(() => compileFileEn(span(obj), idx), re);
+const refuses = (payloadText, re) => assert.throws(() => compileFileEn(span(payloadText), idx), re);
+const b64 = (o) => Buffer.from(JSON.stringify(o), "utf8").toString("base64");
 
-/* 1. A FLAT payload must be REFUSED, not silently resolved. This is the whole point: the flat
- *    dialect is deleted, and a stale .en carrying `g` must fail closed with a migration message
- *    rather than resolve against some other catalog and produce the wrong bytes. */
-ok("a stale FLAT payload (`g`) is refused with a re-render instruction", () => {
-  throwsWith({ g: "op_1", h: [] }, /FLAT generator payload .* no longer exists/);
+/* 1. A stale base64 payload — flat OR lzw — must be REFUSED with a migration instruction, not
+ *    decoded on a best guess. Every .en rendered before this change carries one. */
+ok("a stale base64 payload is refused and names the fix", () => {
+  refuses(b64({ d: "lzw", a: "n", w: 7, h: [] }), /base64 generator payload.*re-render it: node write-en-files\.js/s);
+  refuses(b64({ g: "op_1", h: [] }), /base64 generator payload.*re-render it: node write-en-files\.js/s);
 });
 
-/* 2. UNKNOWN dialect tag is a hard error rather than a fall-through guess. */
-ok("unknown dialect tag is a hard error", () => {
-  throwsWith({ d: "wat", w: 7, h: [] }, /unknown generator payload dialect/);
+/* 2. Anything that is not the one encoding is a hard error, not a fall-through. */
+ok("an unknown payload dialect is a hard error", () => {
+  refuses("lzw2 n7", /unknown payload dialect — expected a "lzw1 " prefix/);
+  refuses("{\"d\":\"lzw\"}", /unknown payload dialect/);
 });
 
-/* 3. A payload with no word id cannot be compiled. */
-ok("payload carrying no `w` word id is a hard error", () => {
-  throwsWith({ h: [] }, /carries no `w` word id/);
+/* 3-4. The header must be complete. A missing id or a bad axis cannot be defaulted: either would
+ *      silently select the WRONG dictionary word and emit wrong bytes while reporting success. */
+ok("a payload carrying no word id is a hard error", () => refuses("lzw1 n", /carries no word id/));
+ok("a payload with an unknown axis is a hard error", () => {
+  refuses("lzw1 x7", /axis must be "n" or "w"/);
 });
 
-/* 4. The tag and the shape must agree: tagged lzw but carrying a flat id is still refused. */
-ok("a payload tagged lzw but carrying a flat `g` id is refused", () => {
-  throwsWith({ d: "lzw", g: "op_1", h: [] }, /FLAT generator payload/);
+/* 5. An unknown escape is refused rather than passed through as literal text — passing it through
+ *    would corrupt the hole and produce wrong bytes that still round-trip-looked fine. */
+ok("an unknown escape sequence is refused", () => {
+  refuses("lzw1 n7⟨abc⟡9def", /unknown escape/);
 });
 
-/* 5. REAL-SOURCE ORACLE (§10.1): tagging the payload must not disturb byte-identity. */
-ok("round-trip over real source stays byte-identical with dialect tags live", () => {
+/* 6. STRUCTURAL SENTINEL SAFETY. Encoding any hole content, including every sentinel itself, must
+ *    produce a payload containing none of the scanner sentinels. This is the property that lets
+ *    plain text live between « » at all. */
+ok("an encoded payload provably contains no scanner sentinel", () => {
+  const nasty = "«»⟪⟫▶⟨⟩⟡ mixed ⟡⟡ with ⟫⟫ text\nand newlines «";
+  const text = PAY.encode({ d: "lzw", a: "w", w: 42, h: [nasty, "", nasty + nasty] });
+  assert.ok(!/[«»⟪⟫▶]/.test(text), `encoded payload leaked a scanner sentinel: ${text}`);
+  assert.deepStrictEqual(PAY.decode(text).h, [nasty, "", nasty + nasty], "escaping must be exactly reversible");
+});
+
+/* 7. Hole boundaries survive content that looks like a boundary. */
+ok("holes round-trip when their text mimics the delimiter", () => {
+  for (const h of [[], [""], ["a"], ["a", ""], ["", "x"], ["⟨", "⟨⟨"], ["a\nb", "c"]]) {
+    const t = PAY.encode({ d: "lzw", a: "n", w: 1, h });
+    assert.deepStrictEqual(PAY.decode(t).h, h, `round-trip failed for ${JSON.stringify(h)} -> ${t}`);
+  }
+});
+
+/* 8. REAL-SOURCE ORACLE (§10.1): the encoding change must not disturb byte-identity. */
+ok("round-trip over real source stays byte-identical under the lzw1 encoding", () => {
   const src = "@Column({ name: 'account_id', type: 'int', nullable: true })\naccountId: number;\n";
   assert.strictEqual(compileFileEn(renderFileEn(src, idx).en, idx), src);
 });
 
-console.log(`\nPASS ${pass} assertions — single-dialect dispatch fails closed; byte-identity held.`);
+console.log(`\nPASS ${pass} assertions — one dialect, one encoding, fails closed; byte-identity held.`);
