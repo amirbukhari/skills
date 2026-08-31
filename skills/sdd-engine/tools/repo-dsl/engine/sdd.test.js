@@ -64,8 +64,11 @@ export class Widget {
   // persist an arch.json the way `mine` would, so `render` has a tier to read
   const arch = S.checkFile({ projectDir: proj, rel: "src/entities/Widget.ts", src: entSrc });
   const full = require("./archetypes.js").EXTRACTORS.Entity(entSrc, "Widget.ts");
-  fs.mkdirSync(path.join(proj, "spec/archetypes/src/entities"), { recursive: true });
-  fs.writeFileSync(path.join(proj, "spec/archetypes/src/entities/Widget.ts.arch.json"), JSON.stringify({ rel: "src/entities/Widget.ts", archetype: "Entity", conforms: full.conforms, byteIdentical: full.byteIdentical, table: full.slots.table, slots: full.slots, counts: full.counts }));
+  // `sen/`, not `spec/` — sdd.js:58 reads <projectDir>/sen/archetypes and build-archetypes.js:135
+  // writes CR.senDir()/archetypes. This fixture said spec/ and was missed by the rename sweep, so
+  // render() found no tier and the test failed on a path, not on behaviour.
+  fs.mkdirSync(path.join(proj, "sen/archetypes/src/entities"), { recursive: true });
+  fs.writeFileSync(path.join(proj, "sen/archetypes/src/entities/Widget.ts.arch.json"), JSON.stringify({ rel: "src/entities/Widget.ts", archetype: "Entity", conforms: full.conforms, byteIdentical: full.byteIdentical, table: full.slots.table, slots: full.slots, counts: full.counts }));
 
   /* ---------- render ---------- */
   {

@@ -20,11 +20,20 @@
  * Tiering is BY DECLARATION here, not by guessing from an error message, so a test cannot quietly
  * change tier by changing how it fails.
  *
- *   node run-tests.js              # UNIT (+ CORPUS when the artifacts exist)
- *   node run-tests.js --unit       # UNIT only
- *   node run-tests.js --corpus     # CORPUS only
- *   node run-tests.js --slow       # SLOW only
- *   node run-tests.js --all        # everything, round-trips included
+ *   node run-tests.js                    # UNIT (+ CORPUS when the artifacts exist)
+ *   node run-tests.js --tier=unit        # UNIT only
+ *   node run-tests.js --tier=corpus      # CORPUS only
+ *   node run-tests.js --tier=slow        # SLOW only
+ *   node run-tests.js --tier=all         # everything, round-trips included
+ *
+ * WHY `--tier=<name>` AND NOT A BARE `--<name>`. The tier used to be a bare flag, and
+ * `--corpus` collided head-on with corpus-root.js's `--corpus <path>` ROOT flag: this
+ * process resolves roots itself (corpusReady, below), so its own argv was parsed by the
+ * resolver, which saw `--corpus` with no path after it and REFUSED. `npm run test:corpus`
+ * could therefore never run a single test -- it reported "0 passed, 0 failed, 6 skipped"
+ * with "the corpus at null is not mined", which reads as a measurement of the corpus and
+ * was in fact a measurement of the flag. One namespace per meaning; a bare tier flag is
+ * now refused by name rather than silently reinterpreted as a root.
  */
 const fs = require("fs");
 const path = require("path");
@@ -33,7 +42,28 @@ const CR = require("./engine/corpus-root");
 
 const HERE = __dirname;
 const argv = process.argv.slice(2);
-const only = (t) => argv.includes(`--${t}`);
+const TIERS = ["unit", "corpus", "slow", "all"];
+
+/* A bare `--corpus` reaches the ROOT resolver, not the tier switch (see the header). Refuse it
+ * by name instead of letting it be reinterpreted: a wrong flag must read as a wrong flag. */
+for (const a of argv) {
+  const bare = TIERS.find((t) => a === `--${t}`);
+  if (bare) {
+    console.error(`run-tests.js REFUSED: \`--${bare}\` is not a tier flag.\n` +
+      `  tiers are selected with --tier=${bare}\n` +
+      `  a bare --corpus is corpus-root.js's ROOT flag and expects a path after it, so it` +
+      ` would be parsed as a root here, not as a tier.`);
+    process.exit(2);
+  }
+}
+const asked = argv.filter((a) => a.startsWith("--tier=")).map((a) => a.slice("--tier=".length));
+for (const t of asked) {
+  if (!TIERS.includes(t)) {
+    console.error(`run-tests.js REFUSED: unknown tier \`${t}\`. known tiers: ${TIERS.join(", ")}`);
+    process.exit(2);
+  }
+}
+const only = (t) => asked.includes(t);
 const ALL = only("all");
 const runUnit = ALL || only("unit") || (!only("corpus") && !only("slow"));
 const runCorpus = ALL || only("corpus") || (!only("unit") && !only("slow"));
