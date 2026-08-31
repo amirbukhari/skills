@@ -233,6 +233,42 @@ The composition capability was nearly lost by being treated as deletable derived
 
 Only `.calc` IR, coverage/index reports, and naming worksheets are wipable-derived (§5 on-disk layout). A cleanup that cannot tell these apart must **stop and ask**, never delete a catalog.
 
+### 8B. CORPUS PINNING — every artifact names the tree it was mined from
+
+An operator read `depth 4` off the SDD panel for days while the live corpus carried depth 9. Nothing
+was capped and nothing was stale: the panel was faithfully rendering **another corpus's artifact**,
+because the reader picked the highest-versioned `mined-library*.json` in a shared catalog and no
+artifact said which tree it described. A correct, fresh mine already existed and was *shadowed* by a
+higher-numbered file from a different project. The reporting layer cannot be trusted while a number
+can arrive without provenance, so the following are **non-negotiable** and **supersede §9 assumption 3**
+(“the corpus is a single fixed local tree”), which is now false — two corpora exist.
+
+1. **Every generated artifact carries a corpus stamp.** `schema`, `version`, and `corpus` (the
+   absolute root it was mined from) are written on the artifact itself, not inferred from its path or
+   filename. A filename is not provenance — two corpora produce identically-named files.
+2. **One publisher, and it refuses a mismatch.** Artifacts are written by a single publisher
+   (`repo-dsl.js` → `publishLibrary`), which refuses to publish a library whose declared `corpus` is
+   not the tree it is being published into, and writes the artifact **beside the corpus it describes**
+   rather than into a shared catalog. Putting the artifact with its corpus is what makes the wrong-repo
+   substitution structurally impossible rather than merely unlikely.
+3. **A consumer refuses a non-matching artifact — it never falls back.** Resolution matches the
+   selected corpus against the artifact's `corpus`. On no match the consumer returns an honest miss
+   naming *what it looked for and where it looked*, and renders nothing. Serving another corpus's
+   numbers is forbidden: a number without provenance is indistinguishable from a right one once it
+   reaches a screen, which is precisely how this stayed invisible.
+4. **An absent stamp is UNKNOWN, not WRONG.** An unstamped artifact is not condemned — it is
+   unusable *for reporting*, and must be published through rule 2 to become usable. It is never
+   silently adopted as the selection's answer.
+5. **Version shadowing is explicit: highest `vN` wins, unversioned sorts lowest.** Among
+   `mined-library(.v<N>)?.json` in one directory the greatest `N` is selected. **Version rank never
+   overrides rule 3:** filter by corpus first, then take the highest `N` among the matches. Rank
+   applied before provenance is the exact mechanism that shadowed a correct mine with a stale one.
+6. **An artifact declares only what it carries.** The publisher asserts `counts.maxHierarchyDepth`
+   equals the maximum `hierarchyDepth` actually present on the composites, and refuses to write when
+   they disagree or when depth cannot be verified at all. **Silent under-reporting is banned**: a build
+   that cannot walk the whole tree fails loudly or marks itself `complete: false` — it never emits a
+   smaller plausible number for the panel to render as truth.
+
 ---
 
 ## 9. Assumptions & open questions
@@ -240,8 +276,37 @@ Only `.calc` IR, coverage/index reports, and naming worksheets are wipable-deriv
 Load-bearing premises this PRD relies on but has not independently verified — surfaced so they are visible rather than silent.
 
 1. **The ~2,804 figure is a candidate count, not a verified-collapse count.** `measure-middle-tier.js` reports WIDE-axis *cluster candidates*; only sites whose `fillOf` passes the byte-exact gate become real generator spans. The two numbers differ by construction and are not comparable — the authoritative landed figure is `en-index.json → generators` (currently 5,623 statements collapsed via 2,305 calls). Any claim about "how much is left" must come from the frozen classifier in §7, not from the candidate count.
-2. **s1's live manifest is the current baseline; `results/gate.json` and the generator counts inside it are a stale snapshot.** This PRD's numbers (32.5% English, 5,623 collapsed, 2866/1063 generators) are read from the live `spec/en-index.json` and freshly-mined `catalog/mined-library.json` (s1 run 2026-08-30 09:29). `gate.json` still shows an older mine (173 leaf / 33 composite, 30.5%) and must be refreshed before it is cited (§6 front 4). Live values continue to move while s1 iterates; the §7 *definitions* are what stay fixed.
-3. **The corpus is a single fixed local tree.** Every path and byte total assumes the corpus at the §8 root with the §8 SKIP set. The metrics are not portable to another repo without re-deriving `S` and the two byte totals.
+2. **s1's live manifest is the current baseline; `results/gate.json` and the generator counts inside it are a stale snapshot.** This PRD's numbers (32.5% English, 5,623 collapsed, 2866/1063 generators) are read from the live `spec/en-index.json` and freshly-mined `catalog/mined-library.json` (s1 run 2026-08-30 09:29). `gate.json` still shows an older mine (173 leaf / 33 composite, 30.5%) and must be refreshed before it is cited (§6 front 4). **This risk MATERIALISED (2026-08-30).** Those exact calculators-corpus figures — 33 composite, 173 leaf, `maxHierarchyDepth 4` — reached the SDD panel and were read by an operator as the live corpus's vocabulary while the real mine stood at 1063/2866/depth 9. Documenting an artifact as stale does not stop it being served: nothing downstream reads this register. The structural fix is §8B; a note in an assumptions list is not a control. Live values continue to move while s1 iterates; the §7 *definitions* are what stay fixed.
+3. ~~**The corpus is a single fixed local tree.**~~ **SUPERSEDED by §8B (2026-08-30) — this assumption is false.** Two corpora exist (`hydra-source` and the calculators tree), and the depth-4 incident was the direct consequence: with more than one corpus in play and no stamp pinning an artifact to its tree, a consumer had no way to tell whose numbers it was rendering. Corpus pinning is now a **rule** (§8B), not an assumption. What survives of the original: every path and byte total in §8/§7 is still relative to the §8 corpus root with the §8 SKIP set, and the metrics are still not portable to another tree without re-deriving `S` and the two byte totals.
 4. **`S` (total body statements) is stable enough to be a denominator.** It is recomputed by `fnStmtCount` on each `write-en-files.js` run; a large refactor of the corpus would move it, so the statement-collapse ratio is only comparable between runs over the same corpus revision.
 
 **Open question (highest-leverage):** the milestone target in §7 (`netStatementReduction ≥ 4,500`, `filesUsing ≥ 750`) is a first-cut number set in this document — it should be confirmed against a measured ceiling (how many of the WIDE-axis candidates actually refill byte-exact) before it is treated as the definition of "done" for the phase.
+
+---
+
+## 10. Test integrity — what a test is allowed to assert against
+
+`enfile.test.js` and `enfile-label-sanitize.test.js` asserted against **committed mined data** —
+artifacts the engine itself had produced. A test that compares the engine's output to the engine's
+own earlier output cannot fail for the reason it claims to check: it proves only that the engine
+still agrees with itself. Both passed continuously, proved nothing, and revealed it only when the
+data they leaned on was deleted and they went red for a reason unrelated to correctness. The
+byte-exact gate (§2.3) is the whole guarantee this project sells; a self-confirming test of it is
+worse than no test, because it reports confidence that was never earned.
+
+1. **Correctness asserts against real source, through a round-trip.** The oracle is the corpus
+   itself: `compileFileEn(renderFileEn(src)) === src` over actual files on disk. A test of engine
+   correctness must never take a mined artifact as its expected value.
+2. **A mined artifact may be an INPUT, never the ORACLE.** Feeding a catalog into a test is fine —
+   grading the engine against a catalog the engine wrote is not.
+3. **Every guard is mutation-checked at authoring time.** Disable the assertion, confirm the test
+   goes red *with the message it promises*, restore, confirm green. State that it was done in the
+   merge request. An unmutated guard is a guess about whether it guards anything.
+4. **Pinning an inventory is legitimate; pinning an answer is not.** A drift guard (§“prefer a drift
+   guard to a frozen value”) pins the *current inventory* so each addition becomes a decision someone
+   makes. That is not self-confirmation, because a failure is a decision point and the pin is updated
+   in the same commit with a stated reason — unlike a mined artifact silently reused as truth.
+5. **Sample deterministically rather than skipping.** Where a full-corpus assertion is too slow for
+   the loop, take a fixed, evenly-spread sample so the test is cheap, reproducible, and still asserts
+   against real source — the full-corpus run stays the build's own gate. A test that skips is honest;
+   a test that narrows its oracle to make itself pass is not.
