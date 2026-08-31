@@ -139,6 +139,25 @@ function enIndex() {
   } catch (e) { return (_idx = { err: e.message.split("\n")[0] }); }
 }
 
+/* Every rendered .en on disk, read at most once and only if a row asks. */
+let _en;
+function enFiles() {
+  if (_en !== undefined) return _en;
+  try {
+    const CR2 = require("./engine/corpus-root");
+    const home = path.join(CR2.senDir(), "files");
+    if (!fs.existsSync(home)) return (_en = { absent: true, where: home });
+    const out = [];
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const q = path.join(d, e.name);
+        if (e.isDirectory()) walk(q); else if (q.endsWith(".en")) out.push(q);
+      }
+    })(home);
+    return (_en = { ok: true, files: out, home });
+  } catch (e) { return (_en = { err: e.message.split("\n")[0] }); }
+}
+
 /* ---------- the rows. Each `run()` returns {verdict, got, why} -- HOLDS | FAILS | MANUAL. ---------- */
 
 const HOLDS = (got, why) => ({ verdict: "HOLDS", got, why });
@@ -308,6 +327,89 @@ const ROWS = [
       }
       return bad.length ? FAILS(bad.slice(0, 3).join("; "), "a non-decreasing depth step admits a cycle")
         : HOLDS(`${checked} entries acyclic, maxDepth ${maxD}`, "depth strictly decreases along m[0]");
+    } },
+
+  { id: "R-MECH-6", req: "Tiers MUST NOT be hand-assigned labels; tier IS dictionary depth.",
+    run() {
+      const d = lzw();
+      if (d.absent) return MANUAL(`no dictionary at ${d.where}`, "npm run mine");
+      if (d.err) return FAILS(null, d.err);
+      const keys = new Set();
+      let n = 0;
+      for (const axis of ["narrow", "wide"]) {
+        const w = d.j[axis] && d.j[axis].words; if (!w) continue;
+        for (const e of Object.values(w)) { for (const k of Object.keys(e)) keys.add(k); if (++n > 60000) break; }
+      }
+      const labelled = [...keys].filter((k) => /^(tier|archetype|skeleton|idiom|level)$/i.test(k));
+      if (labelled.length) return FAILS(labelled.join(", "), "a stored tier label makes depth and tier able to disagree");
+      return keys.has("d")
+        ? HOLDS(`entry keys are {${[...keys].sort().join(", ")}} -- depth \`d\` present, no tier label`,
+                "ARCHETYPE/SKELETON/IDIOM/LEAF is derivable from depth, not stored")
+        : FAILS([...keys].join(", "), "no depth field, so tier is not derivable at all");
+    } },
+
+  { id: "R-MECH-8", req: "A retired layer MUST NOT be revived as a parallel producer, and the engine MUST NOT publish a number no mine can move.",
+    run() {
+      /* The flat counters are STRUCTURALLY zero (enfile.js:834-838) and are retained deliberately
+       * as a TRIPWIRE, not as a coverage figure -- `tier` is set to "recursive" at exactly one
+       * place and to "flat" nowhere. So the row is checked as the tripwire it is: zero means the
+       * retired producer stayed retired; NON-zero means someone revived it, which is the failure.
+       * Reporting "publishes a structurally-zero number" as a violation here would be wrong, and
+       * was nearly reported as one before enfile.js's own comment was read. */
+      const flatTier = liveGrep(/tier:\s*["']flat["']/, { excludeTests: true });
+      if (flatTier.length) return FAILS(flatTier.join(", "),
+        "a flat tier is being assigned -- the retired producer is back, and R-COMP-7's gate does not know");
+      const i = enIndex();
+      if (i.absent) return MANUAL("dictionary tripwire clear; the manifest half needs a render",
+                                  "npm run render, then re-run");
+      if (i.err) return FAILS(null, i.err);
+      const g = i.j.generators || {};
+      if (g.flatFallback === undefined) return MANUAL("no flatFallback counter in the manifest",
+        "the tripwire is not armed; nothing reports a revived flat producer");
+      return g.flatFallback === 0
+        ? HOLDS(`tripwire armed and unfired: flatFallback 0 of ${g.calls} calls, recursive ${g.recursive}`,
+                "structurally zero BY DESIGN, retained to catch a revived flat producer")
+        : FAILS(`flatFallback ${g.flatFallback}`,
+                "a flat tier produced spans -- see R-COMP-7; this counter cannot rise by itself");
+    } },
+
+  { id: "R-PAY-1", req: "Payloads MUST be plain readable UTF-8, never an opaque blob; the live form is `lzw1 <axis><wordId>⟨hole⟨hole…`.",
+    run() {
+      const e = enFiles();
+      if (e.absent) return MANUAL(`no rendered .en under ${e.where}`, "npm run render");
+      if (e.err) return FAILS(null, e.err);
+      if (!e.files.length) return MANUAL("no .en files rendered", "npm run render");
+      /* Checked against every payload on disk, not against payload.js's own doc comment. The hole
+       * INTRODUCER ⟨ is legitimate structure; what must never appear is a span sentinel inside a
+       * hole's contents, which is R-PAY-3's runtime counterpart -- R-PAY-3 proves the escape table
+       * is total, this proves the corpus agrees. */
+      const SENT = ["«", "»", "⟪", "⟫", "▶"];
+      let payloads = 0, holes = 0, withPayload = 0;
+      const bad = [];
+      for (const f of e.files) {
+        const t = fs.readFileSync(f, "utf8");
+        const found = t.match(/⟪([^⟫]*)⟫/g);
+        if (!found) continue;
+        withPayload++;
+        for (const raw of found) {
+          payloads++;
+          const body = raw.slice(1, -1);
+          const m = body.match(/^lzw1 ([nw])(\d+)(⟨[\s\S]*)?$/);
+          if (!m) { bad.push(`${path.relative(e.home, f)}: ${JSON.stringify(body.slice(0, 40))} is not \`lzw1 <axis><id>\``); }
+          else if (m[3]) {
+            for (const h of m[3].split("⟨").slice(1)) {
+              holes++;
+              const s2 = SENT.find((c) => h.includes(c));
+              if (s2) bad.push(`${path.relative(e.home, f)}: hole contains unescaped ${s2}`);
+            }
+          }
+          if (bad.length > 3) break;
+        }
+        if (bad.length > 3) break;
+      }
+      return bad.length ? FAILS(bad.slice(0, 3).join("; "), `${payloads} payloads scanned`)
+        : HOLDS(`${payloads} payloads in ${withPayload} of ${e.files.length} .en, ${holes} holes: all \`lzw1 <axis><id>⟨…\`, no sentinel in any hole`,
+                "verified on disk over the whole corpus, not from payload.js's doc comment");
     } },
 
   { id: "R-PAY-3", req: "Sentinel safety MUST be structural: an encoded payload provably contains none of « » ⟪ ⟫ ▶ ⟨.",
