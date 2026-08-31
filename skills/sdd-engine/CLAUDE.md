@@ -192,6 +192,24 @@ This gap was silently forgotten once already.
   - **Group commits by the work, not by the clock.** Do not sweep an unrelated staged change into a
     commit whose message describes something else — that happened here on 2026-08-31 and the skill
     removals now sit inside a commit titled "add a real front door README".
+  - **This tree is shared by several sessions at once, and `git commit -o` does NOT make you safe.**
+    Four lanes hit this on 2026-08-31 — five sweeps, every one recoverable only because someone
+    checked afterwards. *Measured in throwaway repos, both halves:*
+    - `git commit -o -- <path>` commits that path's **WORKING TREE** content, staged or not. A lane
+      appending to a file you name has its uncommitted work taken into your commit. Proven: lane A
+      appends an unstaged line to `shared.md`, lane B runs `git commit -o shared.md mine.txt` — the
+      commit contains `LANE-A-WORK`.
+    - What `-o` *does* buy is protection for paths you do **not** name: a peer's work there stays
+      out and stays staged. Proven: lane A stages `theirs.md`, lane B commits `-o mine.txt` — the
+      commit holds one file and `theirs.md` is still staged afterwards.
+    - So `-o` narrows the blast radius to the paths you list; it gives **zero** protection inside
+      them. `git status` is not enough either — it says a file changed, not by whose hand.
+    - **The defence that works: `git diff --numstat` on every path immediately BEFORE committing,
+      and `git show --stat` immediately after.** Check each path is the size you expect. A one-line
+      refactor reporting 24 insertions is the tell — that is exactly how the only *pre*-commit catch
+      of the day was made, on `test-lzw-roundtrip.js`. Everything else was caught after the fact.
+    - For a file several lanes append to (`ASSUMPTIONS.md`), diff the added hunks and confirm they
+      are yours: `git diff -- <file> | grep '^+## '`.
   - **Never stage a deletion you cannot account for.** If `git status` shows a file gone that you did
     not remove, leave it unstaged and ask. Deletions in this repo have been deliberate manual wipes
     more than once.
