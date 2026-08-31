@@ -900,3 +900,40 @@ mined-library). **Why the test wins:** the rename was deliberate and size-motiva
 enforced on disk, and the requirement was **unimplementable as written** — a requirement no producer
 can satisfy is not a standard, it is a stale note. **Judgment call:** I kept the *substance* (ordered
 member ids + depth to leaf, leaf = 0) and changed only the spellings, rather than deleting the row.
+
+---
+
+## 2026-08-31 — the mining constants are reported on every run, and parsed rather than copied
+
+**Decided:** `sdd-run.js` records `MIN_COUNT`, `MIN_SKEL` and `MAXWIN` in every envelope and in
+`--status`, warns on stderr when one is overridden, and **parses the defaults out of
+`build-lzw-generators.js` instead of restating them**.
+
+**Why the reporting:** sdd-engine-5f flagged that these are env-overridable and that §R binds the
+**defaults**, so a run with `MIN_COUNT=2` exported satisfies the code and violates the register
+silently. Their finding, their lane for the §R prose — but the place a UI would observe it is the
+run record, which is mine. A mine attributed to a constant nobody chose is exactly the class of
+thing this project keeps paying for.
+
+**Why parsed and not copied — this is the load-bearing half.** Restating `1, 8, 64` in
+`sdd-run.js` would create a second copy of a constant whose first copy had *already rotted*: three
+§R cites pointed at `engine/compose.js` (retired to `archive/`, and it says **2**) and
+`engine/enlzw.js` (defines neither). Anyone verifying MIN_COUNT against the cited file read 2 and
+would have "found" a violation that does not exist. Adding a fourth location was not an option.
+
+If the declaration changes shape, the parse returns `unknown` rather than a stale number — absent
+beats confidently wrong, the same asymmetry as `{ optional: true }` returning a reason instead of
+a bare `null`.
+
+**Verified by running it:** the real file parses to 1 / 8 / 64, matching the declaration at
+`build-lzw-generators.js:59`; a reshaped `Number(process.env.X ?? 1)` yields `defaultKnown: false`
+rather than `1`; a missing file the same. With `MIN_COUNT=2` exported: `overridden: true`,
+`effective: 2`, the stderr warning fires, and `constantsOverridden` appears in the envelope.
+`test:unit` 20/20.
+
+**Not decided by me:** whether §R should bind the *effective* value rather than the default, i.e.
+whether an overridden run should be a hard refusal instead of a warning. sdd-run warns and still
+runs, because refusing would make a legitimate experiment impossible from the UI. That is a
+register question, logged as open by sdd-engine-5f.
+
+**Commit:** `12fa07e`
