@@ -14,8 +14,28 @@ const CR = require("./corpus-root");
 /* These two are STEP 4 catalogs in the corpus's legacy root `catalog/`, not §8B artifacts under
  * sen/catalog/, so they are joined here rather than resolved via artifact-contract.pathFor. */
 const CATALOG = path.join(CR.corpusRoot(), "catalog");
-const ops = JSON.parse(fs.readFileSync(path.join(CATALOG, "operation-idioms.json"), "utf8"));
-const fns = JSON.parse(fs.readFileSync(path.join(CATALOG, "function-archetypes.json"), "utf8"));
+/* A missing prerequisite must EXPLAIN ITSELF, never surface as a raw ENOENT stack — the same rule
+ * `{ optional: true }` follows everywhere else in this engine (CLAUDE.md §8: a reason, never a bare
+ * null). Measured 2026-08-31: neither file exists in the corpus, and the ONLY producer is
+ * `archive/build-operation-idioms.js`, which hardcodes `/home/amir/Documents/Rentsync/delonix/...`
+ * — the root CLAUDE.md §1 forbids and `.claude/settings.json` denies — and does not load anyway.
+ * So this test cannot be satisfied from the live tree by anyone, and `run-tests.js` (which lists
+ * both files as its prerequisites) reports it SKIPPED against a prerequisite nobody can produce.
+ * Exit 2, not 1: nothing was tested and nothing failed. Reviving the producer or retiring this
+ * test is a decision, not a fix — it is not made here. */
+function required(file) {
+  const abs = path.join(CATALOG, file);
+  if (fs.existsSync(abs)) return JSON.parse(fs.readFileSync(abs, "utf8"));
+  console.error(`SKIPPED — ${file} is absent, so no assertion in this file ran.`);
+  console.error(`  looked in : ${CATALOG}   (the LEGACY STEP-4 catalog, not the §8B sen/catalog tree)`);
+  console.error(`  producer  : archive/build-operation-idioms.js — ARCHIVED, hardcodes a forbidden`);
+  console.error(`              corpus root at line 26, and does not load. There is no live producer.`);
+  console.error(`  this is a STATE, not a failure. Whether to revive the producer or retire this`);
+  console.error(`  test needs Amir; see ASSUMPTIONS.md.`);
+  process.exit(2);
+}
+const ops = required("operation-idioms.json");
+const fns = required("function-archetypes.json");
 
 let pass = 0;
 const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };

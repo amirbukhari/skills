@@ -1766,3 +1766,47 @@ A one-line refactor reporting 24 insertions is the documented tell; this is the 
 different magnitude, and reading the minus lines is what turns the tell into a diagnosis.
 
 **Commit:** 356adf8
+
+---
+
+## 2026-08-31 — a live test whose only producer is archived and points at the forbidden root
+
+**Found by running the unit tier one test at a time** (27 files, individually — never the suite,
+CLAUDE.md §7). Result: **25 PASS, 2 known-blocked** (`artifact-location`, `word-names` — both the
+expected word-names consequence), **1 unexplained**: `engine/operation-idioms.test.js` died with a
+raw `ENOENT` stack at module load.
+
+**The chain, each link measured:**
+
+1. It reads `<CORPUS>/catalog/operation-idioms.json` and `function-archetypes.json`. Neither
+   exists. The legacy STEP-4 tree holds only `coined-words.json` (hand-curated, protected) and
+   `mined-library.v1.json`.
+2. `grep` for a producer: the **only** one is `archive/build-operation-idioms.js`.
+3. That file, line 26: `const CORPUS = "/home/amir/Documents/Rentsync/delonix/hydra-source";` —
+   the root **CLAUDE.md §1 forbids touching** and `.claude/settings.json` denies outright.
+4. Run against a throwaway corpus, it fails to load at all (module not found).
+
+So the test cannot be satisfied from the live tree by anybody, and `run-tests.js` — which correctly
+lists both files as its prerequisites — will report it SKIPPED forever against a prerequisite
+nobody can produce. The PRD still lists `build-operation-idioms.js` as a live tier-2 component
+(`05-architecture.md:15`, "partially built").
+
+**Swept the whole tree for that literal while I was there:** 11 files hold
+`/home/amir/Documents/Rentsync/delonix`, and **every one is under `archive/`**. Zero live `.js`
+files name it. Confined, but 11 loaded guns — reviving any archived script points the engine at the
+forbidden root. Worth knowing before anyone "just runs the archived producer".
+
+**Decided — made the failure honest, and nothing more.** Replaced the bare `readFileSync` pair with
+a `required()` helper that names the absent file, the tree it looked in (and that it is the LEGACY
+tree, not `sen/catalog/`), the archived producer, and why that producer cannot be used. Exit **2**:
+nothing was tested and nothing failed — distinct from 0 (pass) and 1 (assertion failure). This is
+the `{ optional: true }` rule from CLAUDE.md §8 — *a reason, never a bare null* — applied to a test
+that was violating it.
+
+**Verified both directions:** with the files absent → exit 2 and the full explanation. With two stub
+files present in a throwaway corpus → the guard passes straight through into the real assertions,
+which then fail on the stub shape (exit 1). So the guard does not block a corpus that has them.
+
+**Explicitly NOT done:** I did not revive the producer (it points at a denied root), did not
+generate the catalogs by hand, and did not retire the test. Reviving versus retiring is a decision
+for Amir, not a fix.
