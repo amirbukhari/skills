@@ -104,6 +104,13 @@ const EXPR_GUARDS = [ts.isCallExpression, ts.isBinaryExpression, ts.isPropertyAc
 const isExprNode = (n) => EXPR_GUARDS.some((g) => g(n));
 const isSimpleStmt = (st) => ts.isVariableStatement(st) || ts.isExpressionStatement(st) || ts.isReturnStatement(st) || ts.isThrowStatement(st);
 const isCFStmt = (st) => ts.isIfStatement(st) || ts.isForStatement(st) || ts.isForOfStatement(st) || ts.isForInStatement(st) || ts.isWhileStatement(st) || ts.isDoStatement(st) || ts.isTryStatement(st) || ts.isSwitchStatement(st) || ts.isBlock(st);
+/* v3: DECLARATION statements. An import is the single most repetitive construct in the corpus
+ * (5,833 of 33,918 statements) and it was not foldable, so it never entered the symbol stream AND
+ * it split the run at that point — every file's head was shredded before LZW saw it. Routed
+ * through the same generic getChildren walk as control flow, which is self-verifying: identifiers
+ * and module specifiers become holes, keywords stay skeleton, and `fillOf !== exact slice` returns
+ * null. So this widens what is ELIGIBLE without touching the byte-exact gate. */
+const isDeclStmt = (st) => ts.isImportDeclaration(st);
 function pushExpr(node, out, wide) { const tmp = []; if (wide) wExpr(node, tmp); else ops.canonExpr(node, tmp, "op"); for (const x of tmp) out.push(x); }
 function genericParts(node, sf, wide, out) {
   let cursor = node.getStart(sf);
@@ -127,12 +134,12 @@ function appendKid(kid, sf, wide, out) {
 }
 function generalStmtPartsInner(st, sf, wide) {
   if (isSimpleStmt(st)) return stmtPartsExact(st, sf, wide);
-  if (isCFStmt(st)) { const out = []; genericParts(st, sf, wide, out); if (fillOf(out) !== sf.text.slice(st.getStart(sf), st.getEnd())) return null; return out; }
+  if (isCFStmt(st) || isDeclStmt(st)) { const out = []; genericParts(st, sf, wide, out); if (fillOf(out) !== sf.text.slice(st.getStart(sf), st.getEnd())) return null; return out; }
   return null;
 }
 /** foldable statement (simple OR control-flow) -> exact parts | null */
 function generalStmtParts(st, sf, wide) { SF = sf; ops.useSF(sf); return generalStmtPartsInner(st, sf, wide); }
-const isFoldable = (st) => isSimpleStmt(st) || isCFStmt(st);
+const isFoldable = (st) => isSimpleStmt(st) || isCFStmt(st) || isDeclStmt(st);
 
 /**
  * windowParts(stmts, sf, wide) -> { parts, key, holes, fill } | null
