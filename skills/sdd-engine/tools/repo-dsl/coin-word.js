@@ -12,6 +12,7 @@ const { execFileSync } = require("child_process");
 const { tokenize } = require("./engine/fanout.js");
 const { coinWord, authorWith, readWith, matchStatement } = require("./engine/coin.js");
 const CR = require("./engine/corpus-root");
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set — this walker had NONE
 
 const REPO = __dirname;
 const CORPUS = CR.corpusRoot();   // WRITE root
@@ -19,7 +20,7 @@ const SRC = CR.sourceRoot();       // READ root: the .ts tree
 const OUT = path.join(CORPUS, "coined-demo");
 const CATALOG = path.join(CORPUS, "catalog", "coined-words.json");
 fs.mkdirSync(OUT, { recursive: true });
-function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
+function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 const rel = (f) => path.relative(SRC, f);
 const files = walk(SRC).sort().filter((f) => !f.includes("/demo/") && !f.startsWith(OUT));
 const log = (...a) => console.log(...a);

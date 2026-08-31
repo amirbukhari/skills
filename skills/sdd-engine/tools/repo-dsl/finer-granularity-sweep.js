@@ -23,6 +23,7 @@ const { mine } = require("./engine/pipeline");
 const { tokenize, fill } = require("./engine/fanout");
 const { slotsAreTyped } = require("./lib/skeleton");
 const CR = require("./engine/corpus-root");
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set — this walker had NONE
 
 const DEFAULT_CORPUS = CR.sourceRoot();
 const argv = process.argv.slice(2);
@@ -37,6 +38,7 @@ const isTrivial = (txt) => txt.trim().length <= 2; // punctuation / tiny operato
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
     else if (e.isFile() && p.endsWith(".ts") && !p.endsWith(".d.ts")) out.push(p);

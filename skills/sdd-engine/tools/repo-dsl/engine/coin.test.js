@@ -7,6 +7,7 @@ const path = require("path");
 const { tokenize } = require("./fanout.js");
 const { coinWord, authorWith, readWith, matchStatement } = require("./coin.js");
 const CR = require("./corpus-root");
+const { SKIP } = require("./walk-skip");   // the ONE canonical corpus walk-skip set — this walker had NONE
 
 let pass = 0;
 const ok = (name, fn) => { try { fn(); pass++; console.log(`  ok  ${name}`); } catch (e) { console.error(`FAIL  ${name}\n      ${e.message}`); process.exitCode = 1; } };
@@ -87,7 +88,7 @@ ok("readWith names the real corpus occurrences of isProduction", () => {
   const CORPUS = CR.sourceRoot();
   if (!fs.existsSync(CORPUS)) { console.log("      (corpus absent — skipped)"); return; }
   const w = coinWord({ name: "isProduction", kind: "expression", example: "process.env.NODE_ENV === 'production'" });
-  function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
+  function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
   let total = 0;
   for (const f of walk(CORPUS).filter((f) => !f.includes("/demo/"))) { total += readWith(w, fs.readFileSync(f, "utf8")).length; }
   assert.ok(total >= 6, `expected >=6 sites, got ${total}`);

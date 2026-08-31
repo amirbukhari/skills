@@ -20,11 +20,13 @@ const AC = require("./engine/artifact-contract");
 const path = require("path");
 const { ts, parse } = require("./lib/skeleton");
 const CR = require("./engine/corpus-root");
+const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set — this walker had NONE
 
 const DEFAULT_CORPUS = CR.sourceRoot();
 
 function walk(dir, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walk(p, out);
     else if (e.isFile() && p.endsWith(".ts") && !p.endsWith(".d.ts")) out.push(p);

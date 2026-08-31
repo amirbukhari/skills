@@ -1668,3 +1668,41 @@ register". Replaced with an explicit instruction not to read a coverage count ou
 naming what it said and what was true, plus the `tail`-swallows-the-exit-code trap.
 
 **Commit:** see below.
+
+---
+
+## 2026-08-31 — six walkers had NO skip set at all, which the duplication sweep could not see
+
+**Decided:** migrated `resolve-imports.js`, `pattern-census.js`, `coin-word.js`,
+`finer-granularity-sweep.js`, `engine/coin.test.js` and `guard-idiom.js` to
+`engine/walk-skip.js`, the canonical set another lane (`sdd-engine-e2`) created earlier tonight.
+
+**Why they were missed, and it is nobody's error:** that sweep enumerated the landmine by grepping
+`SKIP = new Set(` and fixed 18 files in three shapes. These six define **no skip set at all**, so
+that grep could not see them. Found from the other direction — every file containing
+`function walk(` that does not mention `SKIP`. The two categories are complementary, and neither
+grep alone finds the whole set.
+
+**Measured before changing anything:** an unguarded walk of the corpus returns **1038** `.ts`
+files against the canonical walk's **1037** — one extra, from `coined-demo/`. So the exposure today
+is one file, and **no published number was materially wrong**. The defect is latent: it becomes
+active the moment the corpus gains a `node_modules`, `dist`, `build` or `.cache` containing `.ts`,
+or SOURCE is pointed at a real repo. Fixed so it cannot become active silently — the same reasoning
+`walk-skip.js` gives for its own existence.
+
+**Two of them had hand-rolled partial skips** — `coin-word.js:24` and `engine/coin.test.js:92` both
+filter `!f.includes("/demo/")` inline. Those are left in place: they are narrower than the canonical
+set and removing them would change what those two scripts count, which is not what this change is
+for.
+
+**Not touched, and each for a reason:** `explain.js` and `lib/skeleton.js` matched the "walk with no
+SKIP" grep but their `walk` is an **AST** walk, not a filesystem walk — the guard does not apply.
+`verify-register.js` keeps its own set because it walks the **ENGINE** tree, which `walk-skip.js`
+explicitly scopes itself out of. `engine/corpus-root.test.js` and `engine/corpus-walk.test.js` keep
+theirs because the root-literal guard's exemption keys on the literal text `SKIP = new Set(`.
+
+**Verified by running all six**, not by reading them: every one exits 0 and still produces its
+output, and `pattern-census.js` now reports `corpus: 1037 files` where the unguarded walk gave 1038.
+The require was also checked to precede the first `walk()` call in each file — a `const` used above
+its own `require` is exactly the TDZ failure that killed `test-lzw-roundtrip.js`, and `node --check`
+does not catch it.
