@@ -292,6 +292,20 @@ function literalGloss(n, sf) {
   return null;
 }
 
+/* the distinct dotted values an expression READS, in source order, capped so a sentence stays a
+ * sentence. Used where the operation itself cannot be named honestly but its inputs can. */
+function inputsOf(n, sf, out, seen) {
+  out = out || []; seen = seen || new Set();
+  const visit = (x) => {
+    if (!x || out.length >= 4) return;
+    const d = dottedText(x, sf);
+    if (d) { if (!seen.has(d)) { seen.add(d); out.push(d); } return; }
+    ts.forEachChild(x, visit);
+  };
+  visit(n);
+  return out;
+}
+
 /* a CONDITION stated in English, or null. Null is the honest answer for anything this cannot say
  * truthfully — the caller then emits the vacuous clause and the metric counts it. */
 const CMP = { [ts.SyntaxKind.EqualsEqualsEqualsToken]: "is", [ts.SyntaxKind.EqualsEqualsToken]: "is",
@@ -304,6 +318,21 @@ function condGloss(n, sf) {
   if (ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.ExclamationToken) {
     const d = dottedText(n.operand, sf);
     return d ? q(d) + " is missing" : null;
+  }
+  /* `typeof x === 'number'` is a type test, and saying so is more informative than either
+   * operand alone. 86 conditions were falling through to "branch on a condition" on this shape. */
+  if (ts.isBinaryExpression(n) && ts.isTypeOfExpression(n.left) && ts.isStringLiteralLike(n.right)) {
+    const t = dottedText(n.left.expression, sf);
+    const neg = n.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+      || n.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken;
+    if (t) return q(t) + (neg ? " is not " : " is ") + P.a(n.right.text);
+  }
+  if (ts.isCallExpression(n)) {
+    const callee = n.expression;
+    const cn = ts.isPropertyAccessExpression(callee) ? callee.name.text : (ts.isIdentifier(callee) ? callee.text : null);
+    const ins = inputsOf(n, sf).filter((x) => x !== cn);
+    if (cn && ins.length) return P.list(ins.map(q)) + " passes " + q(cn);
+    if (cn) return q(cn) + " holds";
   }
   const d = dottedText(n, sf);
   if (d) return q(d) + " is set";
@@ -431,12 +460,42 @@ function spanProse(win, sf) {
     if (ts.isReturnStatement(st)) {
       const e = st.expression;
       if (!e) { actions.push("return"); continue; }
+      /* `x as Foo` returns x; the cast is a type assertion, not part of what is returned. */
+      let bare = e; while (ts.isAsExpression(bare) || ts.isTypeAssertionExpression(bare) || ts.isNonNullExpression(bare) || ts.isParenthesizedExpression(bare)) bare = bare.expression;
+      if (bare !== e) {
+        const bd = dottedText(bare, sf);
+        if (bd) { actions.push("return " + q(bd)); continue; }
+        if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
+        const bc = firstCallName(bare);
+        if (bc) { actions.push("return " + P.words(bc)); continue; }
+      }
+      if (ts.isNewExpression(e) && ts.isIdentifier(e.expression)) { actions.push("return a new " + q(e.expression.text)); continue; }
       const lit = literalGloss(e, sf);
       if (lit) { actions.push("return " + lit); continue; }
       const dotted = dottedText(e, sf);
       if (dotted) { actions.push("return " + q(dotted)); continue; }
       const c = firstCallName(st);
-      actions.push(c ? "return " + P.words(c) : "return the result");
+      if (c) { actions.push("return " + P.words(c)); continue; }
+      /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we
+       * can truthfully say which values feed it, which is what a reader actually wants. */
+      if (ts.isTemplateExpression(e)) {
+        const parts = inputsOf(e, sf);
+        actions.push(parts.length ? "return text built from " + P.list(parts.map(q)) : "return some text");
+        continue;
+      }
+      if (ts.isConditionalExpression(e)) {
+        const cg = condGloss(e.condition, sf);
+        const a = dottedText(e.whenTrue, sf) || literalGloss(e.whenTrue, sf);
+        const b = dottedText(e.whenFalse, sf) || literalGloss(e.whenFalse, sf);
+        const fmt = (x, node) => (dottedText(node, sf) ? q(x) : x);
+        if (cg && a && b) { actions.push("return " + fmt(a, e.whenTrue) + " when " + cg + ", otherwise " + fmt(b, e.whenFalse)); continue; }
+        if (cg) { actions.push("return one of two values depending on whether " + cg); continue; }
+      }
+      if (ts.isBinaryExpression(e) || ts.isParenthesizedExpression(e) || ts.isPrefixUnaryExpression(e)) {
+        const parts = inputsOf(e, sf);
+        if (parts.length) { actions.push("return a value worked out from " + P.list(parts.map(q))); continue; }
+      }
+      actions.push("return the result");
       continue;
     }
 
@@ -454,6 +513,10 @@ function spanProse(win, sf) {
     if (ts.isExpressionStatement(st)) {
       const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
       /* assignment: `ctx.body = {...}` had no call, so it rendered as "run a step" */
+      if (ts.isBinaryExpression(inner) && (inner.operatorToken.kind === ts.SyntaxKind.PlusEqualsToken || inner.operatorToken.kind === ts.SyntaxKind.MinusEqualsToken)) {
+        const t = dottedText(inner.left, sf);
+        if (t) { actions.push((inner.operatorToken.kind === ts.SyntaxKind.PlusEqualsToken ? "add to " : "subtract from ") + q(t)); continue; }
+      }
       if (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         let lhs = dottedText(inner.left, sf);
         if (!lhs && ts.isElementAccessExpression(inner.left)) {
@@ -477,6 +540,8 @@ function spanProse(win, sf) {
         if (keys.length && keys.length <= 6) { actions.push("log " + noun + " about " + P.list(keys.map(q))); continue; }
         const ad = a0 && dottedText(a0, sf);
         if (ad) { actions.push("log " + noun + " about " + q(ad)); continue; }
+        const ins = a0 ? inputsOf(a0, sf) : [];
+        if (ins.length) { actions.push("log " + noun + " about " + P.list(ins.map(q))); continue; }
         actions.push("log " + (lvl === "log" ? "a message" : noun));
         continue;
       }
@@ -502,7 +567,11 @@ function spanProse(win, sf) {
     }
 
     if (ts.isForStatement(st) || ts.isForOfStatement(st) || ts.isForInStatement(st) || ts.isWhileStatement(st) || ts.isDoStatement(st)) {
-      const c = firstCallName(st); actions.push(c ? "loop over " + P.words(c) : "loop"); continue;
+      const c = firstCallName(st);
+      if (c) { actions.push("loop over " + P.words(c)); continue; }
+      const over = (ts.isForOfStatement(st) || ts.isForInStatement(st)) ? dottedText(st.expression, sf)
+        : (ts.isForStatement(st) && st.condition ? inputsOf(st.condition, sf).filter((x) => !/^i$|^j$|^k$/.test(x))[0] : null);
+      actions.push(over ? "loop over " + q(over) : "loop"); continue;
     }
 
     if (ts.isIfStatement(st)) {
@@ -531,7 +600,14 @@ function spanProse(win, sf) {
       continue;
     }
 
-    if (ts.isTryStatement(st)) { const c = firstCallName(st.tryBlock); actions.push(c ? "try " + P.words(c) : "run a try/catch"); continue; }
+    if (ts.isTryStatement(st)) {
+      const c = firstCallName(st.tryBlock);
+      if (c) { actions.push("try " + P.words(c)); continue; }
+      const first = st.tryBlock.statements[0];
+      const inner = first ? spanProse([first], sf) : null;
+      actions.push(inner && !/^(run a step|compute a value)$/.test(inner) ? "try to " + inner + ", recovering on error" : "run a try/catch");
+      continue;
+    }
     if (ts.isSwitchStatement(st)) {
       const on = dottedText(st.expression, sf);
       actions.push(on ? "choose on " + q(on) : "switch on a value"); continue;
