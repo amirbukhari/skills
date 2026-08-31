@@ -90,6 +90,27 @@ const ARTIFACTS = Object.freeze({
     corpusPinned: true, requires: ["rollup", "files"],
     role: "per-file coverage rollup",
   },
+  /* en-index.json PUBLISHES THREE GATES (byte-identity, R-COMP-6's composition counts, and the
+   * R-ARCH-16 review surface) and was written by a hand-built path.join with no header at all —
+   * no schema, no fingerprint, no corpus pin. That is the incident-5 shape exactly: a producer
+   * publishing numbers a consumer reads, with nothing to verify what it is reading. Registered so
+   * `pathFor` names it and `stamp` headers it. `home: "cache"` because it is regenerable by one
+   * render. `requires` lists what a consumer actually reads today: the byte-identity gate, the
+   * generator counts R-COMP-6/7 read, and the review-surface block §7.3 froze. */
+  "en-index": {
+    schema: "sdd-repo-dsl/en-index/1", home: "cache", file: "en-index.json",
+    corpusPinned: true, requires: ["gate", "generators", "reviewSurface"],
+    role: "the render manifest — byte-identity, composition counts, and the review-surface metric (§7.3)",
+  },
+  /* name-queue.json was hand-stamped at reconcile-names.js: a schema STRING written by hand, no
+   * fingerprint, and the kind absent from this registry — so `validate` could never have been
+   * called on it and a shape change would have been silent. The exact landmine CLAUDE.md §8 warns
+   * about, in the module whose whole job is reconciliation. */
+  "name-queue": {
+    schema: "sdd-repo-dsl/name-queue/1", home: "cache", file: "name-queue.json",
+    corpusPinned: false, requires: ["queue", "queueLength", "orphans"],
+    role: "re-adoption PROPOSALS for orphaned names, scored by edit distance; a human is the consumer (R-LANG-7)",
+  },
   "gate": {
     schema: "sdd-repo-dsl/gate/1", home: "cache", file: "gate.json",
     corpusPinned: false, requires: ["pass", "thresholds"],

@@ -84,9 +84,16 @@ if (APPLY) {
   fs.writeFileSync(FILE, JSON.stringify(AC.stamp("word-names", { names, orphans }, { generated: today }), null, 1) + "\n");
   console.log("\nwrote " + FILE + " (orphans moved; proposals NOT applied)");
 }
-fs.mkdirSync(path.join(AC.corpusRoot(), ".cache", "spec-derived"), { recursive: true });
-fs.writeFileSync(path.join(AC.corpusRoot(), ".cache", "spec-derived", "name-queue.json"), JSON.stringify({
-  schema: "sdd-repo-dsl/name-queue/1", generated: today, newlyOrphaned, orphans: Object.keys(orphans).length,
+/* This used to hand-write `schema: "sdd-repo-dsl/name-queue/1"` as a literal, with no fingerprint,
+ * and the kind was not in the §8B registry at all — so `validate` could never have been called on
+ * it and a shape change would have been silent. That is the exact landmine CLAUDE.md §8 names, in
+ * the module whose entire job is reconciliation. Registered kind + AC.stamp + AC.pathFor now, so
+ * the schema string and the location both come from the registry rather than from this line. */
+const queuePath = AC.pathFor("name-queue");
+fs.mkdirSync(path.dirname(queuePath), { recursive: true });
+fs.writeFileSync(queuePath, JSON.stringify(AC.stamp("name-queue", {
+  newlyOrphaned, orphans: Object.keys(orphans).length,
   proposals, queueLength: queue.length, named: Object.keys(names).length,
   queue: queue.slice(0, 200).map((r) => ({ sites: r.sites, axis: r.axis, sym: r.sym })),
-}, null, 1) + "\n");
+}, { generated: today }), null, 1) + "\n");
+AC.load("name-queue", queuePath);

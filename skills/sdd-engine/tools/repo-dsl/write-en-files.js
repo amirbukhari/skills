@@ -23,6 +23,7 @@ const path = require("path");
 const ts = require("typescript");
 const EN = require("./engine/enfile");
 const CR = require("./engine/corpus-root");
+const AC = require("./engine/artifact-contract");
 
 const CORPUS = CR.corpusRoot();   // WRITE root: sen/, .cache/
 const SRC = CR.sourceRoot();      // READ root: the .ts tree
@@ -153,12 +154,25 @@ const manifest = {
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
 };
-// en-index.json is DERIVED -> write it into the gitignored cache, not the sen/ tree.
-// In --no-write mode, write it to --out <dir> if given, else skip it (numbers still printed).
+/* en-index.json is DERIVED -> the gitignored cache, never the sen/ tree. The location comes from
+ * AC.pathFor, not a hand-built path.join: this file publishes three gates (byte-identity, R-COMP-6's
+ * counts, R-ARCH-16's review surface) and used to be written with NO contract header at all — no
+ * schema, no fingerprint, no corpus pin — which is the §8B incident-5 shape (a producer publishing
+ * numbers with nothing for a consumer to verify). Registered as a kind and stamped now.
+ * In --no-write mode it goes to --out <dir> if given, keeping the registry's filename; else skipped. */
+const enIndexSpec = AC.specOf("en-index");
 const enIndexOut = DRY
-  ? (OUT_DIR ? path.join(OUT_DIR, "en-index.json") : null)
-  : path.join(CORPUS, ".cache", "spec-derived", "en-index.json");
-if (enIndexOut) { fs.mkdirSync(path.dirname(enIndexOut), { recursive: true }); fs.writeFileSync(enIndexOut, JSON.stringify(manifest, null, 2)); }
+  ? (OUT_DIR ? path.join(OUT_DIR, enIndexSpec.file) : null)
+  : AC.pathFor("en-index", CORPUS);
+if (enIndexOut) {
+  const stamped = AC.stamp("en-index", manifest, { corpus: CORPUS });
+  fs.mkdirSync(path.dirname(enIndexOut), { recursive: true });
+  fs.writeFileSync(enIndexOut, JSON.stringify(stamped, null, 2));
+  /* Read it straight back through the contract. A producer that cannot pass its own validator has
+   * published a file its consumers will refuse, and finding that out here is cheaper than finding
+   * it out in the gate. */
+  AC.load("en-index", enIndexOut, { corpus: CORPUS });
+}
 
 const residualCalc = walkAll(senDir, (p) => p.endsWith(".calc")).length;
 console.log(`=== STEP 7 — ENGLISH SOURCE OF TRUTH ===${DRY ? "  (DRY RUN — no corpus writes)" : ""}`);

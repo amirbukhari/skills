@@ -1021,3 +1021,20 @@ or fixing anything.
 row still reporting the evidence it decided on.
 
 **Commit:** `c2a0a4b`
+
+## en-index and name-queue registered as artifact kinds rather than left hand-stamped
+
+**Decided:** added both to the §8B registry, routed both producers through `AC.pathFor` + `AC.stamp`,
+and made each read its own output back through `AC.load` immediately after writing.
+**Why:** `en-index.json` publishes three gates (byte-identity, R-COMP-6's counts, R-ARCH-16's review
+surface) and carried **no header at all** — the incident-5 shape, a producer publishing numbers with
+nothing for a consumer to verify. `name-queue.json` hand-wrote its schema string with no fingerprint
+and its kind was absent from the registry, so `validate` could never have been called on it.
+**Judgment call — `requires` lists what consumers read TODAY** (`gate`, `generators`, `reviewSurface`
+for en-index; `queue`, `queueLength`, `orphans` for name-queue), not every key present. A `requires`
+that lists everything catches nothing, because any shape change trips it and the signal is lost.
+**Both guards proven, not assumed:** a hand-edit to `reviewSurface.reviewSurface` is REFUSED on
+fingerprint; deleting the `reviewSurface` block is REFUSED as "same schema string, different shape".
+**Pre-existing red:** `artifact-location.test.js` still fails on `word-names` missing — Amir's wipe,
+red by decision (s12's entry A), not caused by this change; the four assertions covering the two new
+kinds pass.
