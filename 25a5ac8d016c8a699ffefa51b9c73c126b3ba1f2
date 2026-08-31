@@ -20,3 +20,10 @@ path two lanes both append to.
 The only thing that actually works for a shared append-only file is to diff the
 file immediately before committing and compare it to what you appended -- not
 'git status', which shows only that it changed, not by whose hand.
+
+ATTRIBUTION, added later. The three entries above are sdd-engine-5a's. Confirmed
+by 5a directly; they cover exit codes in write-en-files / measure-english /
+build-lzw-generators / sdd-clean and removing the frozen ceiling from
+measure-english. This note originally said only "another lane's" -- accurate but
+unhelpful, and one of those entries is a decision (exit 3 vs 2) that another
+lane's wrapper contract depends on, so the author needs to be findable.
