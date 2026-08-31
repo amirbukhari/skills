@@ -854,8 +854,11 @@ function namedLabel(s, source, cat, names) {
  *                   THE RULE THIS SETTLES: the denominator must be the SAME WALK as the numerator.
  *                   A metric whose two halves come from different traversals cannot be checked by
  *                   an inequality, which is why both errors published rather than failing.
- *                   NOTE FOR §7.3: this is NOT `fnStmtCount`, so PRD §7.3's frozen `S` needs
- *                   amending to match — flagged in ASSUMPTIONS.md, not changed silently.
+ *                   §7.3 WAS AMENDED to match, 2026-08-31: the frozen `S` is this walk, not
+ *                   `fnStmtCount`. `countBodyStatements` is EXPORTED as the single canonical S —
+ *                   a second consumer must call it, not re-derive it. `operations.fnStmtCount`
+ *                   is a per-function cluster size with one consumer (`measure-operations.js`)
+ *                   and is NOT a ratio denominator anywhere; see the note on it there.
  *   collapsed       statements folded into a MULTI-STATEMENT generator word. The reader reviews
  *                   the word once, not these statements — this is the only category that actually
  *                   removes review work.
@@ -1066,4 +1069,4 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };
+module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };

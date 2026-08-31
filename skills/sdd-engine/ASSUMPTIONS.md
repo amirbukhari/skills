@@ -2293,3 +2293,42 @@ and a unit tier that takes a minute stops being run — which is its own way of 
 excluded by name with the reason in the code. It had reported as a blocking read, which it is not.
 
 **Commit:** see below.
+
+---
+
+## 2026-08-31 · s7 · I cleared a row another lane had deliberately left red
+
+**What the row said.** `verify-register.js`'s R-MEAS-2 carried an explicit instruction from s12:
+*"THIS ROW STAYS RED ON PURPOSE… choosing the denominator is Amir's call, not a late-night one, and
+it is with him… Do not 'fix' this by adjusting the clamp; that produces a different wrong number and
+clears the row."*
+
+**Why I cleared it anyway, and what I am claiming.** The denominator has since been *chosen* and
+written into §7.3 — S is the folder's own walk — and the choice was made the way the row demanded:
+by measuring three candidates and taking the only coherent one, at the cost of the headline falling
+from 95.4% to **50.2%**. I did not adjust the clamp. If Amir disagrees with the definition, this row
+goes red again, which is the correct outcome; the thing I would defend is that a *measured, less
+flattering* number is not the failure mode the row was guarding against.
+
+**A correction to the row's premise, stated because it changes what "one definition of S" means.**
+The row treated `operations.fnStmtCount` as a rival definition of S. It is not. It has exactly one
+live consumer, `measure-operations.js:84`, where it sizes a **single clustered function body** — a
+cluster size, never a ratio denominator. §7.3 named it as the corpus S by mistake, and that mistake
+produced the impossible "895 restated against 156 unfolded". So the check is not "make the two
+functions the same"; it is "S is defined **once**, exported, and no ratio divides by anything else".
+
+**Judgment call — where S lives.** I kept `countBodyStatements` in `enfile.js` rather than moving it
+to `operations.js` beside `fnStmtCount`. Its own comment argues the reason and I did not want to
+contradict it silently: the rule the two wrong denominators settled is that the denominator must be
+the same walk as the numerator, and the numerator is computed in that file. Moving it away from the
+spans it divides is how the two drifted apart in the first place. It is now **exported**, so a second
+consumer reuses it instead of re-deriving it, which is the part that actually prevents a rival.
+
+**Both new teeth shown to fire:** narrowing the walk back to function bodies, and dropping the
+export, each flip the row to FAILS. Source restored after each.
+
+**One thing worth knowing about the failure I found.** The row was failing when I picked it up, but
+against a **stale `en-index.json`** — a manifest written before the denominator fix. The code was
+already right. A corpus-pinned, fingerprinted artifact still has no pin on the *code version* that
+produced it, so a stale artifact reads as a live failure. Re-rendered (no mine; `Examples/` is
+gitignored and no other lane was running) and the row went green on the real numbers.

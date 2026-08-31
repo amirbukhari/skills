@@ -120,6 +120,15 @@ function fnKey(node) {
   block(node);
   return parts.join(" ");
 }
+/* PER-FUNCTION CLUSTER SIZE — how many statements one function body holds, for reporting how big a
+ * clustered idiom is (`measure-operations.js`, its only consumer). It is NOT `S`, the review-surface
+ * denominator, and MUST NOT be used as a ratio denominator: it recurses into if/loop/try bodies but
+ * never sees SourceFile-level statements, so it ranges over a different population than the folder
+ * does. PRD §7.3 named it as the frozen `S` until 2026-08-31 and the resulting ratio divided 22,760
+ * by 22,916 while reporting 895 restated against 156 unfolded — impossible, and published. The
+ * canonical S is `enfile.countBodyStatements`, deliberately defined in the same file as the
+ * numerator it is divided into, because the rule that mistake settled is that the denominator must
+ * be the SAME WALK as the numerator. */
 function fnStmtCount(node) { let n = 0; const b = (x) => { if (ts.isBlock(x)) x.statements.forEach(walkS); else walkS(x); }; const walkS = (st) => { n++; if (ts.isIfStatement(st)) { b(st.thenStatement); if (st.elseStatement) b(st.elseStatement); } else if (st.statement) b(st.statement); else if (ts.isTryStatement(st)) { b(st.tryBlock); if (st.catchClause) b(st.catchClause.block); } }; b(node); return n; }
 
 module.exports = { useSF, canonStmt, canonExpr, keyOf, fillOf, holeTypes, fnKey, fnStmtCount, chainSegments };

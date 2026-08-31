@@ -32,6 +32,7 @@
  * Diagnostics go to stderr so --json stdout stays machine-parseable.
  */
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const HERE = __dirname;
@@ -576,6 +577,158 @@ const ROWS = [
         : HOLDS("the cleaner lives in the engine, not in the corpus");
     } },
 
+  /* ── ROOTS (§1B) ──────────────────────────────────────────────────────────────────────────────
+   * These are checked BEHAVIOURALLY wherever a behaviour is what the row claims. A grep can show
+   * that a refusal message exists in the source; only running it shows that the refusal fires, and
+   * CLAUDE.md §9's first entry is a whole incident caused by reading this subsystem instead of
+   * running it. */
+
+  { id: "R-CFG-1", req: "There MUST be exactly two roots: SOURCE (read, never written) and CORPUS (write, holds sen/).",
+    run() {
+      let CR; try { CR = require("./engine/corpus-root"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const names = CR.names();
+      if (names.length !== 2 || names[0] !== "source" || names[1] !== "corpus")
+        return FAILS(JSON.stringify(names), "exactly two roots, named source and corpus");
+      /* `sen` must NOT be a root -- three designs were rejected before this one (CLAUDE.md §9) and
+       * the failure mode each time was sen becoming configurable. */
+      if (names.includes("sen") || CR.ROOTS.sen)
+        return FAILS("sen appears in the root registry", "sen is a FOLDER NAME inside CORPUS, not a root");
+      if (typeof CR.LAYOUT.sen !== "string")
+        return FAILS(typeof CR.LAYOUT.sen, "LAYOUT.sen must be the one place `sen` is spelled");
+      if (!Object.isFrozen(CR.ROOTS)) return FAILS("ROOTS is not frozen", "the registry must not be mutable at runtime");
+      return HOLDS(`two roots (${names.join(", ")}), ROOTS frozen, sen only as LAYOUT.sen`);
+    } },
+
+  { id: "R-CFG-2", req: "The two roots MUST be independently settable with no crosstalk.",
+    run() {
+      let CR; try { CR = require("./engine/corpus-root"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      /* Setting ONE root must not move the other. Checked by resolving both under an env that names
+       * only SOURCE, and asserting CORPUS did not follow it. Resolution only -- nothing is written,
+       * and the paths need not exist because select() does not touch the disk. */
+      const probe = "/tmp/__r_cfg_2_probe__";
+      const src = CR.select("source", { env: { SOURCE: probe }, argv: ["node", "s"] });
+      const cor = CR.select("corpus", { env: { SOURCE: probe }, argv: ["node", "s"] });
+      if (src.root !== probe) return FAILS(`SOURCE resolved to ${src.root}`, "an env-set root must win");
+      if (cor.root === probe) return FAILS("CORPUS followed SOURCE", "crosstalk: setting one root moved the other");
+      const cor2 = CR.select("corpus", { env: { CORPUS: probe }, argv: ["node", "s"] });
+      const src2 = CR.select("source", { env: { CORPUS: probe }, argv: ["node", "s"] });
+      if (cor2.root !== probe) return FAILS(`CORPUS resolved to ${cor2.root}`, "an env-set root must win");
+      if (src2.root === probe) return FAILS("SOURCE followed CORPUS", "crosstalk in the other direction");
+      return HOLDS("each root moves alone, in both directions", "resolution only; no disk touched");
+    } },
+
+  { id: "R-CFG-3", req: "Precedence MUST be resolved per root in exactly one module: flag > env > <engine>/.env > default.",
+    run() {
+      let CR; try { CR = require("./engine/corpus-root"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      /* (i) the ORDER, exercised rather than read: stack all four layers and check the winner. */
+      const flag = "/tmp/__by_flag__", env = "/tmp/__by_env__";
+      /* argv follows the process.argv convention -- fromArgv scans from index 2, so a bare
+       * ["--source", p] is silently skipped. Caught by this row failing on its first run. */
+      const AV = (...a) => ["node", "script", ...a];
+      const byFlag = CR.select("source", { argv: AV("--source", flag), env: { SOURCE: env } });
+      if (byFlag.root !== flag) return FAILS(`${byFlag.root} via ${byFlag.layer}`, "the flag must outrank the env var");
+      const byEnv = CR.select("source", { argv: AV(), env: { SOURCE: env } });
+      if (byEnv.root !== env) return FAILS(`${byEnv.root} via ${byEnv.layer}`, "the env var must outrank .env and the default");
+      const byRest = CR.select("source", { argv: AV(), env: {} });
+      if (!/\.env|built-in default/.test(byRest.layer))
+        return FAILS(byRest.layer, "with no flag and no env the winner must be .env or the built-in default");
+      /* (ii) EXACTLY ONE MODULE. A second reader of SOURCE/CORPUS is a second resolver, which is
+       * R-PIN-7's "two paths kept equal by discipline" -- not an invariant. */
+      const others = liveGrep(/process\.env\.(SOURCE|CORPUS)\b/, {})
+        .filter((h) => !/^engine[\/\\]corpus-root\.js/.test(h));
+      if (others.length) return FAILS(others.join(", "), "a second module resolves a root, so precedence is no longer in one place");
+      /* (iii) every layer names itself, so a wrong answer can be traced to the layer that gave it. */
+      for (const s of [byFlag, byEnv, byRest])
+        if (!s.layer) return FAILS(JSON.stringify(s), "a resolution with no named layer cannot be diagnosed");
+      return HOLDS(`flag > env > .env/default exercised; sole reader is engine/corpus-root.js; every layer self-names`);
+    } },
+
+  { id: "R-CFG-4", req: "A root that is set but missing MUST refuse loudly, naming the root, the resolved absolute path, and which layer supplied it. No silent fallback.",
+    run() {
+      /* RUN IN A CHILD PROCESS, deliberately. This row is about what the engine does when it is
+       * wrong, and the incident in CLAUDE.md §9 is exactly this: a stale root produced ENOENT that
+       * MASKED a real failure, and the wrong diagnosis was reported as fact. An in-process assertion
+       * on the message string would not have caught it; a real invocation does. */
+      const ABSENT = "/definitely/not/a/root/__r_cfg_4__";
+      let out = "";
+      try {
+        require("child_process").execFileSync(process.execPath,
+          ["-e", 'require("./engine/corpus-root").sourceRoot()'],
+          { cwd: HERE, env: { ...process.env, SOURCE: ABSENT }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+        return FAILS("exit 0", "a set-but-missing root was ACCEPTED -- this is the silent fallback the row bans");
+      } catch (e) { out = `${e.stdout || ""}${e.stderr || ""}`; }
+      const missing = [];
+      if (!/\bsource\b/.test(out)) missing.push("the root's name");
+      if (!out.includes(ABSENT)) missing.push("the resolved absolute path");
+      if (!/supplied by:\s*SOURCE env/.test(out)) missing.push("the layer that supplied it");
+      if (!/REFUSED|RootError/.test(out)) missing.push("a loud refusal (not a warning)");
+      if (missing.length) return FAILS(`refusal omits ${missing.join(", ")}`, `got: ${out.trim().split("\n").slice(0, 3).join(" / ").slice(0, 200)}`);
+      /* NO FALL-THROUGH. Checked on the `path:` line, not on the whole output: the refusal also
+       * PRINTS the precedence table, which names the built-in default by design. My first draft
+       * grepped the default out of the whole message and failed this row on its own help text --
+       * the fall-through would show up as a resolved path that is not the one that was set. */
+      const pathLine = (out.match(/^\s*path:\s*(.+)$/m) || [])[1];
+      if (!pathLine || pathLine.trim() !== ABSENT)
+        return FAILS(`path: ${pathLine || "(no path line)"}`, `expected exactly ${ABSENT} -- anything else is a fall-through`);
+      return HOLDS("a real child process refused, naming root, absolute path and layer",
+        "verified by running it, not by reading the message");
+    } },
+
+  { id: "R-PIN-1", req: "Every generated artifact MUST carry a corpus stamp written ON the artifact, never inferred from its path or filename. A filename is not provenance.",
+    run() {
+      let AC; try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      if (!AC.HEADER_KEYS.includes("corpus")) return FAILS(AC.HEADER_KEYS.join(","), "`corpus` must be a header key");
+      /* (i) BEHAVIOURAL: the publisher refuses a corpus-pinned kind with no corpus. This is the
+       * half that makes "never inferred" true -- if stamp could derive provenance from the path it
+       * is writing to, it would have no reason to demand one. */
+      const pinned = AC.kindsOf().filter((k) => AC.specOf(k).corpusPinned);
+      if (!pinned.length) return FAILS("no corpusPinned kind in the registry", "provenance would be unenforced");
+      const k = pinned[0], spec = AC.specOf(k);
+      const body = {}; for (const r of spec.requires) body[r] = [];
+      let refused = false;
+      try { AC.stamp(k, body, {}); } catch { refused = true; }
+      if (!refused) return FAILS(`stamp(${k}) accepted no corpus`, "provenance would be optional, so a filename could stand in for it");
+      /* (ii) every artifact actually on disk carries one, and it is a non-empty absolute path. */
+      const bad = [];
+      for (const kind of AC.kindsOf()) {
+        const p = AC.pathFor(kind);
+        if (!fs.existsSync(p)) continue;
+        let j; try { j = JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { bad.push(`${kind}: unreadable`); continue; }
+        if (!AC.specOf(kind).corpusPinned) continue;
+        if (typeof j.corpus !== "string" || !j.corpus.trim() || !path.isAbsolute(j.corpus)) bad.push(`${kind}: corpus=${JSON.stringify(j.corpus)}`);
+      }
+      if (bad.length) return FAILS(bad.join("; "), "a corpus-pinned artifact on disk carries no usable provenance");
+      return HOLDS(`stamp refuses an unpinned publish; every corpus-pinned artifact present carries an absolute corpus path`,
+        "that the stamp is not DERIVED from the write path is enforced by (i): stamp demands one it could otherwise infer");
+    } },
+
+  { id: "R-PIN-4", req: "An absent stamp is UNKNOWN, not WRONG: unusable for reporting until republished, and MUST NEVER be silently adopted. allowUnstamped is explicit, never default.",
+    run() {
+      let AC; try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      /* BEHAVIOURAL, in a temp file, because the whole claim is about a DEFAULT -- and a default is
+       * a runtime fact. Reading `!opts.allowUnstamped` in the source tells you the branch exists;
+       * only calling load() with no opts tells you which way it goes when nobody chose. */
+      const kind = AC.kindsOf().find((x) => !AC.specOf(x).corpusPinned);
+      if (!kind) return FAILS("no unpinned kind available", "cannot construct an unstamped fixture");
+      const spec = AC.specOf(kind);
+      const body = { schema: spec.schema, artifactVersion: 1, generated: new Date().toISOString() };
+      for (const r of spec.requires) body[r] = [];
+      const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pin4-")), spec.file);
+      fs.writeFileSync(tmp, JSON.stringify(body));                 // NO fingerprint: unstamped
+      let def = null; try { AC.load(kind, tmp); def = "ACCEPTED"; } catch (e) { def = "refused"; }
+      if (def !== "refused")
+        return FAILS("load() accepted an unstamped artifact with no opts", "the default silently adopts an UNKNOWN as an answer");
+      let opted = null; try { AC.load(kind, tmp, { allowUnstamped: true }); opted = "accepted"; } catch (e) { opted = `still refused (${e.message.split("\n")[0]})`; }
+      if (opted !== "accepted")
+        return FAILS(opted, "allowUnstamped must be a usable escape hatch, or callers will catch-and-continue instead");
+      /* and nothing live may take that escape hatch silently on a reporting path */
+      const users = liveGrep(/allowUnstamped\s*:\s*true/, { excludeTests: true })
+        .filter((h) => !/^engine[\/\\]artifact-contract\.js/.test(h));
+      if (users.length) return FAILS(users.join(", "), "a live consumer adopts an unstamped artifact by default");
+      return HOLDS("unstamped is refused by default and accepted only when explicitly opted into; no live opt-in",
+        "verified by calling load() both ways on a temp fixture");
+    } },
+
   { id: "R-MEAS-1", req: "Every metric MUST be computed by one committed command reading one field of one committed artifact. No metric is computed by eye; \"done\" MUST be a number a second engineer can reproduce.",
     run() {
       /* The row that governs every other number in this file, so it is checked against the thing
@@ -657,24 +810,39 @@ const ROWS = [
        * late-night one, and it is with him. A red row is the correct interim state -- it is the only
        * thing standing between a flattering number and a reader who believes it. Do not "fix" this
        * by adjusting the clamp; that produces a different wrong number and clears the row. */
-      /* CHECKED FIRST, and deliberately independent of the disputed VALUE: there must be exactly
-       * ONE live definition of S. Two functions in the live tree count "statements" by different
-       * rules and both feed published numbers -- operations.fnStmtCount (which recurses into
-       * if/loop/try bodies) is read by measure-operations.js, while enfile.js computes its own
-       * bodyStatements inline. §7.3 names fnStmtCount as the frozen one. Whichever denominator is
-       * chosen, mixing two definitions is what this row forbids, so this half fails on its own --
-       * fixing the inequality alone must NOT clear the row. */
+      /* WHAT CHANGED, 2026-08-31 (s7). The comment above says this row stays red until the
+       * denominator is CHOSEN, because §7.3 called it frozen and the choice was Amir's. It is now
+       * chosen and written into §7.3: S is "every statement that is a direct child of a Block or a
+       * SourceFile" — the folder's own walk — and the headline duly fell from 95.4% to 50.2%. The
+       * row is therefore no longer red-on-purpose; it checks the SETTLED definition instead.
+       *
+       * The "two definitions of S" half was half wrong, and worth saying why. `fnStmtCount` has
+       * exactly ONE live consumer, `measure-operations.js:84`, where it sizes a single clustered
+       * function body. It never was a rival denominator — it was a per-function count that §7.3
+       * mistakenly named as the corpus one. So the check is not "make them the same function"; it
+       * is "S is defined ONCE, exported, and no ratio anywhere divides by anything else".
+       *
+       * The teeth are unchanged and deliberately not softened: the accounting identity below still
+       * fails on any clamp, any mismatched population, and any drift between reviewSurface and its
+       * own definition. Fixing the inequality by adjusting the clamp still cannot clear this row. */
       const problems = [];
       const ef = read("engine/enfile.js");
       if (!ef.ok) return FAILS(null, ef.why);
       const cbs = ef.text.match(/function countBodyStatements[\s\S]*?\n}/);
-      if (!cbs) problems.push("engine/enfile.js has no countBodyStatements to check");
-      else if (!/fnStmtCount/.test(cbs[0])) {
-        const other = liveGrep(/fnStmtCount\(/, { excludeTests: true })
-          .filter((h) => !/^engine[\/\\]operations\.js/.test(h));
-        problems.push(`enfile.js countBodyStatements defines S inline instead of calling ` +
-          `operations.fnStmtCount, which §7.3 names as frozen and which is live at ${other.join(", ") || "operations.js only"}`);
-      }
+      if (!cbs) problems.push("engine/enfile.js has no countBodyStatements — the canonical S is gone");
+      /* S must range over the folder's own universe. Checked structurally, against the same
+       * predicate enlzw.genSpans uses to find runs, so a quiet narrowing back to function bodies
+       * reopens the exact hole that published a perfect score. */
+      else if (!/isBlock\([a-z]+\)\s*\|\|\s*ts\.isSourceFile\(/.test(cbs[0]))
+        problems.push("countBodyStatements no longer walks Block|SourceFile — S has stopped matching the folder's own walk");
+      /* One definition: it must be EXPORTED, so a second consumer reuses it rather than re-deriving. */
+      if (!/module\.exports\s*=\s*\{[^}]*countBodyStatements/.test(ef.text))
+        problems.push("countBodyStatements is not exported — a second consumer will define S again");
+      /* And nothing may divide by the per-function count. `stmts:` in measure-operations is a
+       * cluster SIZE, not a ratio, and is the one permitted use. */
+      const asDenominator = liveGrep(/\/\s*fnStmtCount\(|fnStmtCount\([^)]*\)\s*\)?\s*\*\s*100/, { excludeTests: true });
+      if (asDenominator.length)
+        problems.push(`fnStmtCount is used as a ratio denominator at ${asDenominator.join(", ")} — it is a per-function cluster size, not S`);
       const i = enIndex();
       if (i.absent) return problems.length ? FAILS(problems.join("; "), "two definitions of S, and no manifest to check the identity against")
                                            : MANUAL(`no manifest at ${i.where}`, "npm run render");
@@ -702,9 +870,11 @@ const ROWS = [
                      "the frozen §7.3 definition does not reproduce");
       if (problems.length)
         return FAILS(problems.join("; "),
-          "the identity closes, but S is still defined twice -- one of the two definitions must go");
+          "the identity closes, but S is no longer the single settled definition §7.3 froze");
       return HOLDS(`collapsed ${coll} <= body ${body}; residual ${resid} unclamped; ` +
-        `reviewSurface ${rs.reviewSurface} = calls ${g.calls} + residual ${resid}; one definition of S`);
+        `reviewSurface ${rs.reviewSurface} = calls ${g.calls} + residual ${resid}; ` +
+        `S = ${body} from one exported definition over the folder's own walk`,
+        "the denominator is §7.3's settled S (Block|SourceFile children), not the retired fnStmtCount");
     } },
 
   { id: "R-MEAS-3", req: "Placeholder density MUST be a STRICT comparison: holes / N < 0.5.",
