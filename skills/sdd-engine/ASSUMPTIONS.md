@@ -1706,3 +1706,63 @@ output, and `pattern-census.js` now reports `corpus: 1037 files` where the ungua
 The require was also checked to precede the first `walk()` call in each file — a `const` used above
 its own `require` is exactly the TDZ failure that killed `test-lzw-roundtrip.js`, and `node --check`
 does not catch it.
+
+## 2026-08-31 — verbatim sentinels are escaped structurally, not detected by a stricter scanner
+
+**Decided:** fix the sentinel byte-identity failure by ESCAPING sentinels in verbatim regions on
+render and unescaping on compile, rather than by teaching `compileFileEn`'s scanner to recognise
+which `«` are "really" span openers.
+
+**Why:** the stricter-scanner fix would have to infer intent from position — a `«` at the start of a
+line modulo indentation is an opener, one inside a string literal is not — which is an assumption
+about what the text looks like. `payload.js` already rejected exactly that reasoning for hole text,
+and its header says why in terms that turned out to be prophetic: no sentinel appears in the corpus
+today, *"but that is luck, and luck is what the dialect work just finished removing"*. The same
+argument applies verbatim (literally) to the other text in a `.en`. Matching the existing mechanism
+also means one escape character in the dialect, not two.
+
+**Scoped to three characters, not the payload's eight.** Verbatim text lies OUTSIDE every chunk, so
+the only characters that can change how it parses are `OPEN`, `CLOSE` and the escape marker. `⟪ ⟫ ▶`
+are chunk-internal and mean nothing out there. Escaping them would be cargo-cult symmetry that made
+the artifact Amir is supposed to read worse for no gain.
+
+**Verified by running it:** cost on the corpus is zero — all 1037 SOURCE `.ts` scanned for
+`« » ⟪ ⟫ ▶ ⟨ ⟩ ⟡`, none contains any, so no `.en` byte and no fingerprint moves. The floor holds:
+`test-gen-roundtrip` 1037/1037 byte-identical, 0 failures; `test:unit` 20/20; full suite 24 passed,
+0 failed, 3 skipped. Both halves mutation-checked red-then-green per §10.3 — neutering
+`escapeVerbatim` fails the round-trip, and so does neutering `unescapeVerbatim`.
+
+**The test now guards the mechanism, not the outcome.** The pre-existing assertion passed for a long
+time purely because no `.ts` held a sentinel, which is precisely how this stayed dark. So the new
+assertions check the property that makes it hold by construction: escaped text provably contains no
+raw `«`/`»`, the codec round-trips input adversarial about the escape marker itself, sentinel-free
+text is returned unchanged, and a stray escape is refused.
+
+**Commit:** 356adf8
+
+## 2026-08-31 — how to commit your own change to a file another lane is editing, without -o
+
+**Decided:** when `enfile.js` turned out to carry another lane's uncommitted `countBodyStatements`
+work at commit time, I did NOT use `git commit -o`, and did not ask them to commit first and wait.
+I constructed the blob — HEAD's version of the file plus only my four edits — `git hash-object -w`'d
+it, staged it with `git update-index --cacheinfo`, asserted their hunk was absent from the staged
+diff, and committed from the index without touching the working tree.
+
+**Why:** `-o` would have swept their work, for the exact reason logged earlier today — it commits
+WORKING TREE content for the paths you name. Two lanes editing the same FILE cannot be separated by
+path, so the path-based defence has no purchase here. This is the case the earlier correction did not
+cover, and by now it is the fifth or sixth sweep-shaped hazard of the day.
+
+**Verified by running it:** staged diff went from 70/9 (mine + theirs) to 56/5 (mine alone) with
+`grep -c fnStmtCount` on the staged diff returning 0; after the commit, `grep -c` on the working tree
+still returns 1, so their change survived and is still theirs to commit. The constructed blob was
+`node --check`ed before staging, and a `assert "fnStmtCount" not in s` guard sat in the construction
+script so a silent inclusion would have thrown rather than shipped.
+
+**How it was caught, which is the transferable part:** `git diff --numstat` immediately before
+committing showed `enfile.js` at 70 insertions when I had written about 56. That gap is the entire
+signal. I then read every `-` line in the diff, which is what identified four deletions as not mine.
+A one-line refactor reporting 24 insertions is the documented tell; this is the same tell at a
+different magnitude, and reading the minus lines is what turns the tell into a diagnosis.
+
+**Commit:** 356adf8
