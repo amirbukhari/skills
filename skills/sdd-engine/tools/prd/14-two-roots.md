@@ -63,8 +63,9 @@ byte-identical — verified by comparing a file manifest hash before and after:
 defined by `CORPUS`, and a second knob for one fact is a second source of truth (R-PIN-7).
 
 Variable names stay uppercase by convention (`SOURCE`, `CORPUS`); the folder on disk is lowercase
-`sen`. Note that §8A/§8B prose written before today still says `<corpus>/sen/catalog/`; that path
-now reads `<corpus>/sen/catalog/`, and the code is the authority.
+`sen`. *(A sentence here previously claimed a path "now reads" what it already said — a botched
+find-replace that asserted nothing. Deleted rather than guessed at: `artifact-contract.js` HOMES is
+the authority, and it resolves `tracked` to `<corpus>/sen/catalog/`.)*
 
 ## 1B.3 `sen/` is wipable — behind an explicit flag, never otherwise
 

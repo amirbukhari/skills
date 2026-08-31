@@ -87,5 +87,6 @@ Mechanical and re-runnable, not hand-edited:
 - **`§R` (13 `R-*` groups) and `§Q` (7 questions) stay whole.** Both are registers cited by item
   id; splitting them would scatter a lookup table.
 
-Known wart: **`§6 Open technical fronts` sits after `PART VI`** in `PRD.md`, outside any part. It is
-filed last, in physical order. It most likely belongs inside PART VI, but that is a content call.
+Known wart: **`§6 Open technical fronts` sits after `PART VI`**, outside any part — it is filed last,
+in physical order. *(This used to say "in `PRD.md`"; `PRD.md` is now a pointer file and the wart is
+in this index.)* It most likely belongs inside PART VI, but that is a content call.

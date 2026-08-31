@@ -219,10 +219,17 @@ entry per file. **How to clear it — three moves, none speculative:**
    *"…and 4 statements not yet part of any pattern"* — under §7.0's honesty rule (R-LANG-10). The
    file is still accounted for by one word; the word admits what it has not yet factored, which is
    what makes the number shrinkable instead of hidden.
-3. **Report residual as the metric that closes the gap.** *Unclaimed statements per file* becomes the
-   number the mine is tuned against, replacing "% collapsed" — because the target is **totality per
-   file**, not an aggregate percentage. It is also the honest measure of **review surface**
-   (statement 8): unclaimed statements are exactly the lines a human still has to read as code.
+3. **Report the per-file residual as the component that closes the gap.** *Unclaimed statements per
+   file* is what the mine is tuned against, because the target is **totality per file**, not an
+   aggregate percentage.
+
+   **It is not a second metric.** §7.3's frozen definition is the only one:
+   **review surface = `calls + (S − statementsCollapsed)`**. Per-file residual is the
+   `S − statementsCollapsed` term of that formula, computed per file so the worst file is visible
+   instead of averaged away. *An earlier draft of this section proposed "unclaimed statements per
+   file → 0" as its own headline metric, which would have left two definitions of one goal in one
+   document; §7.3's is measured and already had a producer, so it wins.* One producer emits both
+   views (`en-index.json → reviewSurface` and `perFile[].reviewSurface`).
 
 **What it does NOT require:** a model call (stage 1 stays deterministic, §5D.2), a hand-authored
 grammar per file, or abandoning byte-identity — the one word's holes carry the file's exact bytes,

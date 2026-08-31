@@ -140,10 +140,15 @@ const manifest = {
     collapsedStatements: collapsedStmts, restatedStatements: restatedStmts,
     verbatimStatements: Math.max(0, bodyStmts - collapsedStmts - restatedStmts),
     residualStatements: Math.max(0, bodyStmts - collapsedStmts),
-    residualPct: bodyStmts ? +(100 * Math.max(0, bodyStmts - collapsedStmts) / bodyStmts).toFixed(1) : 0,
+    /* §7.3 FROZEN DEFINITION, corpus view. reviewSurface = calls + unfolded statements; the
+     * collapse ratio is netStatementReduction / S. One definition, two granularities — the per-file
+     * view is `perFile[].reviewSurface`. */
+    netStatementReduction: collapsedStmts - genSpans,
+    reviewSurface: genSpans + Math.max(0, bodyStmts - collapsedStmts),
+    collapseRatioPct: bodyStmts ? +(100 * (collapsedStmts - genSpans) / bodyStmts).toFixed(1) : 0,
     filesFullyCovered: perFile.filter((f) => (f.residualStatements || 0) === 0 && (f.bodyStatements || 0) > 0).length,
-    worstFiles: perFile.slice().sort((a, b) => (b.residualStatements || 0) - (a.residualStatements || 0))
-      .slice(0, 15).map((f) => ({ rel: f.rel, residualStatements: f.residualStatements, bodyStatements: f.bodyStatements })),
+    worstFiles: perFile.slice().sort((a, b) => (b.reviewSurface || 0) - (a.reviewSurface || 0))
+      .slice(0, 15).map((f) => ({ rel: f.rel, reviewSurface: f.reviewSurface, residualStatements: f.residualStatements, bodyStatements: f.bodyStatements })),
   },
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
@@ -168,13 +173,38 @@ console.log(`  generator spans ............... ${genSpans}   all recursive (no f
 if (genFlatFallback) console.log(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
 console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
 const rs = manifest.reviewSurface;
-console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.residualStatements}/${rs.bodyStatements} body statements still reviewed one at a time = ${rs.residualPct}%`);
-console.log(`                                 collapsed into words ${rs.collapsedStatements}; restated 1:1 ${rs.restatedStatements} (English, NOT credited — §4); verbatim ${rs.verbatimStatements}`);
+console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurface} things to read, from S=${rs.bodyStatements} statements  (${rs.collapseRatioPct}% left the reader's view)`);
+console.log(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);
 console.log(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);
 console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
 console.log(`  .calc REMAINING under sen/ .... ${residualCalc}   ${residualCalc === 0 ? "(sen tree is .calc-free)" : "(!!)"}`);
-console.log(DRY ? `  en-index ...................... ${enIndexOut ? enIndexOut : "(not written: pass --out <dir> to emit)"}` : `  wrote .gitignore ( .cache/ ) + sen/en-index.json`);
+/* s12, 2026-08-31: this line used to say `wrote .gitignore ( .cache/ ) + sen/en-index.json`, but
+ * en-index.json is written to <corpus>/.cache/spec-derived/. A log that names the wrong path is how
+ * a reader looks for an artifact in the sen tree and concludes it was never produced. */
+console.log(`  en-index ...................... ${enIndexOut || "(not written: pass --out <dir> to emit)"}`);
 console.log(`\n  worst review surface (statements still read as code):`);
-for (const f of rs.worstFiles.slice(0, 8)) console.log(`     ${String(f.residualStatements).padStart(5)} of ${String(f.bodyStatements).padEnd(5)} ${f.rel}`);
+for (const f of rs.worstFiles.slice(0, 8)) console.log(`     surface ${String(f.reviewSurface).padStart(4)} of S=${String(f.bodyStatements).padEnd(5)} (${f.residualStatements} unfolded)  ${f.rel}`);
 console.log(`\n  most-English files:`);
 for (const f of perFile.slice(0, 8)) console.log(`     ${String(f.englishPct).padStart(5)}%  ${f.rel}`);
+
+/* ---------- EXIT CODE — gate 1 must be able to fail a caller ----------
+ * PRD R-REND-1 / §7.0 gate 1: `compileFileEn(renderFileEn(src)) === src` for EVERY file, always;
+ * "the floor and it never regresses". This script computed `manifest.gate.allByteIdentical`,
+ * printed "FAILURES: N" — and then exited 0 regardless, so the one guarantee this project sells
+ * was invisible to every automated caller.
+ *
+ * It matters more since `sdd-run.js` landed. Its contract is "EXIT CODE = the child's exit code,
+ * unchanged … exitCode === 0, so a UI never has to interpret prose to know whether a step
+ * succeeded." A child that cannot exit non-zero makes that promise false: `sdd-run render` would
+ * report ok:true on a byte-identity regression. This is the missing half of that wrapper, not a
+ * competing mechanism.
+ *
+ * A dry run reports and does not gate — it writes nothing, so it is a measurement, not a build.
+ * Measured before the change: 1037/1037 byte-identical, so this exits 0 on today's corpus. */
+if (!DRY && !manifest.gate.allByteIdentical) {
+  console.error(`\nBYTE-IDENTITY FLOOR BREACHED — ${byteExact}/${src.length} files round-trip; ${failures.length} failed.`);
+  console.error(`  PRD R-REND-1: this is the floor and it never regresses. Refusing to report success.`);
+  for (const [rel, why] of failures.slice(0, 10)) console.error(`    ${why.padEnd(10)} ${rel}`);
+  if (failures.length > 10) console.error(`    ... and ${failures.length - 10} more`);
+  process.exit(1);
+}

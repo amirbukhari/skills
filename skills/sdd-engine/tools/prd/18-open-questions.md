@@ -58,6 +58,11 @@ no real mine was spent:
 | composition depth, mined dictionary | 5, across 20 composites / 40 edges |
 | byte-identity | **4/4** |
 
+*These are the SYNTHETIC fixture's numbers and are left as they were measured — they answered "which
+code path is live", which is what Q-2 asked. The **real corpus** was measured later the same day
+(Q-8): live depth **62**, dictionary **63**, 5,731 spans all recursive, 1,037/1,037 byte-identical.
+The conclusion held; the magnitude was ~20× larger.*
+
 **Why a synthetic corpus is the right instrument here, and what it does not prove.** Q-2 asks which
 *code path* is live — a property of the engine, not of any corpus — and a 4-file fixture answers
 that exactly. It does **not** establish depth or coverage numbers for the real corpus; those need a
@@ -135,10 +140,22 @@ constant with two values is not a constant.
 
 Flagged rather than silently promoted or cut:
 
-- **`MAXWIN` is "64, which is the point past which the parameter is inert"** (§4B, R-MINE-2). *Inert*
-  is an observation about the longest node stream in a particular corpus, not a property of the
-  design. On a corpus with longer streams the number would bind. Keep 64 as the value; confirm
-  whether "inert" is meant as a permanent claim.
+- **`MAXWIN` "inert" is CONTRADICTED BY THE ARTIFACT — this is now a measurement, not a
+  confirmation** (§4B, §8, R-MINE-2). The PRD calls 64 *"the point past which the parameter is
+  inert"*. On disk, `sen/catalog/generators-lzw.json` reports `maxDepth` **63** on **both** axes —
+  exactly `MAXWIN − 1`, which `build-lzw-generators.js:52` **itself** names as the signature of the
+  bound **PINNING**. The code's own sweep comment records 64 → *"maxDepth 57 (NOT pinned — ceiling
+  found)"*, and the artifact now says 63: either the corpus grew past a 60-statement stream, or that
+  comment is stale. **Not resolved by reading.** Closing it is one command — `MAXWIN=128 node
+  build-lzw-generators.js`, compare `counts.maxDepth` — and the mine is 1–2s. If depth rises past
+  63, "inert" is false and every depth number in this document was measured against a ceiling.
+  *This bullet used to ask only whether "inert" was meant permanently; it did not know the artifact
+  disagreed with it.*
+
+- **A second live `MAXWIN`.** `engine/enfile.js:34` defines `MAXWIN = 8` — same name, different
+  value, different module from the miner's 64, and undocumented. Not a contradiction (they bound
+  different windows) but a name collision that will mislead someone. Needs one sentence in §8 saying
+  which is which.
 - **`minCount` appears twice with different values** — `MIN_COUNT = 1` for word promotion
   (§4B, §8, R-MINE-1) and `minCount ≥ 2` for middle-tier body candidacy (§5A, §7.3, R-WIDE-3).
   They are two different thresholds in two different modules, and this document has never said so in
@@ -156,22 +173,37 @@ it is not, and the document should say why.
 
 ---
 
-## Q-8 — Does composition depth clear the bar on the REAL corpus? · CLARIFY · one real mine · Amir's call to spend it
+## Q-8 — ~~Does composition depth clear the bar on the REAL corpus?~~ **CLOSED 2026-08-31 by measurement. Yes, by a wide margin.**
 
-Q-2 settled the mechanism: the live path composes, and `generators.maxDepth` is now a field that
-actually exists, so R-COMP-7 is evaluable. **The magnitude is unmeasured.** On a 4-file fixture the
-live path reached depth 3 while the dictionary reached 5 — most spans (16 of 20) were still depth 1.
+**It did not cost a fresh mine.** The dictionary had already been mined that afternoon, so only a
+render was needed — `write-en-files.js --dry-run --out <tmp>`, no corpus writes. Q-8 had assumed
+"tens of minutes, Amir's call"; the answer cost minutes and no decision.
 
-**The open question is not "does it compose" but "how much of the real corpus renders through depth
-≥ 2".** The gap between dictionary depth and live-path depth is the interesting number: a deep word
-buys nothing until a file actually renders through it, and that gap is where §6 front 3's
-whole-repo leverage would show up or fail to.
+| | real corpus, 2026-08-31 |
+|---|---|
+| files | **1,037**, byte-identical **1,037/1,037** |
+| generator spans | **5,731 — all recursive, 0 flat fallbacks** |
+| composition depth, live `.en` path | **62** |
+| composition depth, mined dictionary | **63** |
+| composites / composition edges | 112,423 / 224,846 |
+| English coverage (bytes) | 82% |
+| statements collapsed / calls / net reduction | 22,760 / 5,731 / **17,029** |
+| `S` (body statements, `fnStmtCount` over the same walk) | **26,824** across 8,794 bodies |
+| **statement-collapse ratio** | **63.5%** |
+| **review surface** | **9,795** things to read (5,731 calls + 4,064 unfolded) |
+| byte compression | **−19%** (`.en` 4,830,829 B vs `.ts` 4,058,328 B) |
 
-**What closing it requires:** `npm run mine && npm run name && npm run render`, then read
-`generators.maxDepth`, `.dictionaryMaxDepth` and `.depthHistogram` from `en-index.json`. That is a
-full mine — tens of minutes — so it is **Amir's call when to spend it**, not something to kick off
-unasked. Nothing else is blocked on it: the requirements stand either way.
+**R-COMP-7's `≥ 2` clears by 30×.** And the answer to the question Q-8 was really asking — the gap
+between dictionary depth and live-path depth — is **1** (63 vs 62), not the wide gap the fixture
+suggested.
 
+**The number that is still interesting, and it is not the headline one:** the depth histogram spreads
+to 62 but **3,249 of 5,731 spans are still at depth 1**. Most spans are shallow even though the
+dictionary is deep. That is not a failure of the mechanism — it is exactly the residual §5D.4 names,
+and it is where one-word-per-file has to make its gains.
+
+**19% more bytes, 63.5% less to read.** Amir's reframe (§5D.0 statement 8) measured rather than
+asserted.
 
 ## Q-9 — Naming-stage mechanics · CLARIFY · this lane · §5D.2
 

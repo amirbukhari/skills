@@ -793,8 +793,15 @@ function namedLabel(s, source, cat, names) {
  *                   would let the metric improve by paraphrasing bespoke code, which is the exact
  *                   thing §4 forbids.
  *   verbatim        statements with no English at all. Read as raw TypeScript.
- *   residual        bodyStatements - collapsed = restated + verbatim. The statements a human still
- *                   reviews one at a time, and the number §5D.4 says the mine is tuned against.
+ *   reviewSurface   genSpans + (bodyStatements - collapsed) — the number of things a reader must
+ *                   still read. ONE DEFINITION, shared with §7.3's corpus ratio; this is the
+ *                   per-file view of the same quantity.
+ *                   A generator call is counted as ONE unit, not zero: reading a word's sentence is
+ *                   cheaper than reading its statements, but it is not free. An earlier cut of this
+ *                   counter treated a call as free, which credited a 10-statement fold as removing
+ *                   10 units of review when it removes 9.
+ *   residual        bodyStatements - collapsed: the unfolded statements alone (restated + verbatim),
+ *                   kept as a component of reviewSurface, not as a competing metric.
  * Counted here rather than in a separate measure script on purpose: a second definition of
  * "statement" in a second file is the producer/consumer drift shape (§8B) with the metric as the
  * consumer. One definition, published beside the spans it is derived from. */
@@ -900,7 +907,11 @@ function renderFileEn(source, index) {
     collapsedStatements: genStmts, restatedStatements: stmtN,
     verbatimStatements: Math.max(0, bodyStmts - genStmts - stmtN),
     residualStatements: Math.max(0, bodyStmts - genStmts),
-    reviewSurfacePct: bodyStmts ? +(100 * Math.max(0, bodyStmts - genStmts) / bodyStmts).toFixed(1) : 0,
+    /* §7.3's frozen definition, per file. netStatementReduction = collapsed - calls is what leaves
+     * the reader's view; reviewSurface is what is left of S after it. */
+    netStatementReduction: genStmts - genN,
+    reviewSurface: genN + Math.max(0, bodyStmts - genStmts),
+    reviewSurfacePct: bodyStmts ? +(100 * (genN + Math.max(0, bodyStmts - genStmts)) / bodyStmts).toFixed(1) : 0,
     genSpans: genN, genStmtsCollapsed: genStmts,
     genRecursive: recN, genFlatFallback: flatN, maxDepth, depthHist,
   } };

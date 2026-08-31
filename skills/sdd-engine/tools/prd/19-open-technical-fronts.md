@@ -11,8 +11,10 @@ who remembers it is owed the reason it is gone rather than a silent absence.
 
 ~~**0. THE CORE FRONT — replace flat anti-unification with LZW dictionary construction.**~~
 **RETIRED — the replacement already happened.** Measured: the live `.en` path loads only
-`generators-lzw.json`, emits 20/20 recursive spans with zero flat spans, and composes to depth 3
-with byte-identity held (§Q-2). Nothing live reads `generators.json`; the four remaining mentions of
+`generators-lzw.json` and composes with byte-identity held. **Real corpus, 2026-08-31 (§Q-8):
+5,731 spans, all recursive, zero flat fallbacks, live composition depth 62, 1,037/1,037
+byte-identical.** *(The 20 spans / depth 3 previously cited here were the synthetic fixture from
+§Q-2 — right conclusion, ~20× off in magnitude.)* Nothing live reads `generators.json`; the four remaining mentions of
 it in the tree are prose. The four requirements this front carried are **not** retired with it —
 they are R-MECH-1, R-MECH-7, R-COMP-1..3 and the compression goal in R-MEAS-6, and they hold as
 standing requirements rather than as work to schedule.
@@ -26,7 +28,7 @@ renders through depth ≥ 2, which needs one real mine.
 4. ~~**Close the composition gap — point `.en` compilation at the composing layer.**~~ **RETIRED.**
    The premise — *"the capability already exists on the abandoned path and is being lost"* — measured
    false. `enfile.js` already compiles through generators-calling-generators: `generators.maxDepth`
-   on the live path is 3, not 0 or 1 (§Q-2). The success criterion this front named,
+   on the live path is **62**, not 0 or 1 (§Q-8; the fixture in §Q-2 showed 3). The success criterion this front named,
    `generators.maxDepth ≥ 2`, is met and is now a standing gate (R-COMP-7) rather than a target.
    Its one genuine residue — the manifest did not expose the field the gate reads — is fixed.
 5. **Measurement discipline.** Keep the measure-first scripts (`measure-bytes.js`, `measure-middle-tier.js`, `measure-windows.js`, `measure-operations.js`, `measure-callgraph.js`) as the source of truth; refresh the stale `gate.json` snapshot so the gate reflects the current library.

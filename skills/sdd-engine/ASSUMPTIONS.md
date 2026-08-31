@@ -826,3 +826,77 @@ gets found, and it is cheap.
 paths were still staged and uncommitted afterwards.
 
 **Commit:** this practice, not a code change.
+# Prepared ASSUMPTIONS.md entries (NOT yet merged — ASSUMPTIONS.md does not exist; s7 is creating it)
+
+## A. word-names.json — NOT restored, confirmed obsolete
+Amir, 2026-08-31, verbatim: *"get rid of that words file its old we dont need it anymore."*
+I never touched Trash. The file remains absent from `<corpus>/sen/catalog/`; the Trash copy
+(`~/.local/share/Trash/files/sen/catalog/word-names.json`, 48 names, 0 orphans, fingerprint
+cb739d77685eb2af) is untouched and left where it is.
+**Consequences deliberately NOT chased, per instruction:** `word-names.test.js` and the word-names
+assertion in `artifact-location.test.js` stay red — expected, not a bug.
+**Consequence that DOES need a decision and is not mine to make:** this contradicts §8A
+(SOURCE-PROTECTED, "not reproducible by a re-mine"), R-LANG-5 ("MUST NEVER be deleted"), and the
+`word-names` entry in the artifact registry (`engine/artifact-contract.js:84`). If the words file is
+obsolete then the whole skeleton-NAMES half of §5C — R-LANG-1..8 and §7.0 gate 4's rename queue —
+is retired with it, which is a much larger call than deleting one file. Flagged, not acted on.
+
+## B. Compression → review surface (supersedes my earlier fix plan for contradiction #1)
+Amir, 2026-08-31: *"its not about compression, its about less of a review surface..."*
+My earlier plan ("report 1 − .en/.ts, don't optimise") is superseded. Judgment call made: the
+review-surface metric **already exists in the PRD** and did not need inventing — §7.3's
+statement-collapse ratio `netStatementReduction ÷ S`, defined there as "the fraction of body
+statements removed from the reader's view by being folded into a generator call." I promoted that
+existing definition rather than authoring a new one, because a second definition of the same
+quantity is how this project has drifted before.
+MEASURED 2026-08-31 on the real 1,037-file corpus: S = 26,824 body statements (8,794 bodies);
+22,760 folded (84.8%); 5,731 generator calls; net 17,029 removed = **63.5%**; review surface
+26,824 → 9,795 statements. Byte compression on the same run: **−19%** (.en 4,830,829 B vs .ts
+4,058,328 B). More bytes, far less to review — the reframe in one measurement.
+NOTE: s7 independently defines review surface as "unclaimed statements per file → 0" (§5D.4 move 3).
+Two different metrics for one goal. Unreconciled — see the collision report.
+
+## C. Flat-path attribution refuted (#2)
+§3/§4 blamed the .en being larger than the .ts on the flat anti-unification path. Measured false:
+flat path gone (5,731 spans, all recursive, 0 flat fallbacks, live depth 62) and .en still +19%.
+Rewrote the attribution to gloss prose + span structure per §7A.5. Applied to 04 and 06.
+
+## D. MAXWIN "inert" — flagged in place, not resolved
+§4B/§8/R-MINE-2 call MAXWIN 64 inert. The dictionary on disk reports maxDepth 63 on both axes =
+MAXWIN − 1, which build-lzw-generators.js:52 calls the signature of the bound BINDING. I recorded
+the conflict in the constants table and pointed at §Q-6 rather than resolving it, because resolving
+it needs a sweep run (MAXWIN=128) that nobody has authorised.
+
+## E. MIN_WORD_CHARS retired rather than deleted
+No live module defines it; it existed only in the archived engine/compose.js. Struck through in the
+constants table and R-MINE-4 marked retired, rather than deleted outright, following this document's
+own habit (§9 corrections, Q-2 kept struck-through) so a stale memory cannot re-add it.
+
+## REVERSED my own review-surface definition in favour of s12's
+
+**What happened:** I defined review surface in §5D.4 as *"unclaimed statements per file → 0"* and
+built a producer for it. §7.3 already had a different definition — `netStatementReduction ÷ S` — with
+a committed producer and a measured value (63.5%). **Two definitions of one goal in one document is
+exactly the contradiction the whole sweep existed to kill,** and mine was the one with no
+measurement. **Decided:** §7.3's wins. `reviewSurface = calls + (S − statementsCollapsed)`; my
+per-file residual is now published as the `S − statementsCollapsed` **term** of that formula, per
+file, so the worst file is visible instead of averaged away. One producer, one formula, two
+granularities.
+
+**The substantive reason mine was worse, not just later:** mine counted a generator call as **free**.
+It is not — reading a word's sentence is cheaper than reading its statements but it still costs one
+unit, so a 10-statement fold removes **nine**. On the synthetic fixture my formula reported 7.7%
+residual where the corrected one reports a 53.8% collapse ratio. **I had built the flattering
+number**, and did not notice until s12's definition forced the comparison. Producer corrected in
+`engine/enfile.js` and `write-en-files.js`; §5D.4 and §7.3 now state the single definition and say
+explicitly which draft lost.
+
+## R-COMP-4 was stale; the test won
+
+**Decided:** R-COMP-4 mandated `members[]` and `hierarchyDepth`; `wordlzw-enlzw-fields.test.js` (825
+live assertions) pins `["id","len","freq","m","d"]` and **explicitly forbids** those two spellings as
+pre-reconciliation legacy. The register was rewritten to name `m`/`d` (and `memberLeafIds` in
+mined-library). **Why the test wins:** the rename was deliberate and size-motivated, the test is
+enforced on disk, and the requirement was **unimplementable as written** — a requirement no producer
+can satisfy is not a standard, it is a stale note. **Judgment call:** I kept the *substance* (ordered
+member ids + depth to leaf, leaf = 0) and changed only the spellings, rather than deleting the row.

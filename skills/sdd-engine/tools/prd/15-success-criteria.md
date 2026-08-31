@@ -68,10 +68,25 @@ second engineer can reproduce, not a judgement.
 
 - **Total statements `S`** — the sum of function/method body statements over the enfile-layer walk
   (§4), as counted by `fnStmtCount` in `operations.js`. The fixed denominator.
-- **Statement-collapse ratio** = `generators.netStatementReduction ÷ S`, where
-  `netStatementReduction = statementsCollapsed − calls` (both fields of `en-index.json →
-  generators`). It is the fraction of body statements removed from the reader's view by being folded
-  into a generator call.
+- **Statement-collapse ratio** = `netStatementReduction ÷ S`, where
+  `netStatementReduction = statementsCollapsed − calls`. It is the fraction of body statements
+  removed from the reader's view by being folded into a generator call. **Measured 2026-08-31:
+  17,029 ÷ 26,824 = 63.5%.**
+- **REVIEW SURFACE** = `calls + (S − statementsCollapsed)` = `S − netStatementReduction`. **This is
+  the one definition; §5D.4's per-file residual is a component of it, not a rival.** Both are emitted
+  by one producer (`en-index.json → reviewSurface`, and `perFile[].reviewSurface` per file), so there
+  is exactly one number and one place it comes from.
+
+  **Why a generator call costs ONE and not ZERO.** Reading a word's sentence is cheaper than reading
+  the statements it folds, but it is not free — a 10-statement fold removes **nine** units of review,
+  not ten. An earlier draft of the per-file counter treated a call as free; it reported 7.7% residual
+  on a fixture where this definition reports a 53.8% collapse ratio. The flattering number was the
+  wrong one.
+
+  **What is NOT credited:** a statement rendered as its own one-to-one English clause. It is English,
+  but it is still one review unit, and §4 names line-by-line restatement *"a failure mode, not the
+  goal"*. Credited, the metric would improve by paraphrasing bespoke code. It is reported as
+  `restatedStatements` and counted in the surface, not out of it.
 - **Un-collapsed repeated structure** — decidable, frozen to one classifier. A function/method body
   qualifies iff **(a)** its WIDE-axis canonical key recurs across the corpus with frequency
   ≥ `minCount` (2); **(a2)** its key has **placeholder density below ½** — of the *N* per-statement
@@ -92,8 +107,8 @@ second engineer can reproduce, not a judgement.
 |---|---|
 | **Files with un-collapsed repeated structure** | **→ 0**: every recurring-up-to-renaming body is promoted, or provably non-refillable. |
 | **Composition depth on the live `.en` path** (`generators.maxDepth`) | **≥ 2 and rising** — the live compile must expand generators that call generators (§5B). Depth 1 means the flat degenerate path (§2.4). |
-| **REVIEW SURFACE** — statements a human must read as **code**, per file (the residual, §5D.4) | **→ 0.** This is the headline metric. See below. |
-| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | Should turn positive and rise, by recursive word reuse — never by paraphrase. **A mechanism, not the goal.** |
+| **REVIEW SURFACE** = `calls + (S − statementsCollapsed)` — the things a reader must still read | **→ falling, toward the vocabulary size.** The **headline** metric. **Measured 2026-08-31: 9,795, from S = 26,824 — 63.5% left the reader's view.** Per-file view: `perFile[].reviewSurface`. |
+| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | **NOT A GATE. Reported only.** *This row used to read "Must turn positive and rise" and then "should turn positive and rise"; both are retired — a rise here with review surface flat is **not progress** (see below).* **Measured 2026-08-31: −19%** (`.en` 4,830,829 B vs `.ts` 4,058,328 B) **while 63.5% of statements left the reader's view.** More bytes, far less to read. |
 | **Statement-collapse** | Rising, with byte-identity held. |
 
 **Explicitly not a metric: English-%.** It is a by-product; a rise from paraphrasing unique code is a
