@@ -1,14 +1,133 @@
 # 7. Success criteria
 
-*PART V — ACCEPTANCE*
+*PART V — ACCEPTANCE · [index](README.md)*
 
-> **TODO: move content from PRD.md §7** — scaffold only, no content moved yet.
-> Live source at time of scaffold: `PRD.md` lines 1067–1198 (132 lines).
+**This section states GATES, not readings.** A PRD says what must be true; it does not carry a
+scoreboard. Every number that was a point-in-time measurement has been removed — run the tools for
+current values (`npm run measure`, `npm run measure:uncollapsed`, `npm test`). What remains is the
+definition of each measure and the bar it must clear, because a definition is a requirement and a
+reading is not.
 
-Sub-headings that belong in this file (verbatim from PRD.md, so the move can be checked for completeness):
+## 7.0 The four gates
 
-- `### 7.0 The four gates`
-- `### 7.1 The byte-level ceiling is not a gap to close`
-- `### 7.2 Panel-quality reading`
-- `### 7.3 Frozen definitions and the remaining gates`
-- `### 7A. Payload encoding — requirements`
+| # | Gate | Computed by | Requirement |
+|---|---|---|---|
+| 1 | **Byte-identity** | `en-index.json → gate.byteIdentical` | **Every file in the corpus, always.** This is the floor and it never regresses. A change that improves readability and loses one byte of identity is a regression, not a trade. |
+| 2 | **Vacuous clauses** | `measure-english.js` (i), classifier frozen in `engine/clause-quality.js` | **Zero** — or a floor stated with sampled evidence for why it cannot be zero. |
+| 3 | **English-completeness** | `measure-english.js` (ii) | **100%, held.** No clause may carry TypeScript syntax outside quoted verbatim regions. |
+| 4 | **Rename queue** | `results/name-queue.json` | **Reported, never minimised.** The number is information, not a target to drive down. |
+
+**Gate 2 — the frozen vacuous classifier.** A fixed list of placeholder clauses (`run a step`,
+`compute a value`, `return the result`, `branch on a condition`, …) — the phrases that say only that
+*something* happened. It is a frozen array plus a private lookup `Set`; note that `Object.freeze` on
+a `Set` does not prevent `.add()`. **The list may be added to; an entry may NEVER be removed to make
+the number fall.** That rule is the whole point of freezing it.
+
+**Gate 3 — the English-completeness scanner.** Strip every quoted verbatim region (`` `ids` `` and
+`"literals"`) and every parenthetical idiom from a clause; if TypeScript syntax survives in the
+residue, the clause is code wearing a sentence's clothes and it fails. This is the mechanical form of
+the per-site predicate in §5C, and it is trusted over the author's eye.
+
+## 7.1 The byte-level ceiling is not a gap to close
+
+There are two ceilings and they behave differently.
+
+- **Sentence-level: ~100%.** Every clause the renderer emits can be made to read as English. This is
+  gate 3, and it is a real target.
+- **Byte-level: bounded well below 100%, and that is correct.** A large share of corpus bytes are
+  **code-bearing hole interiors** — expressions with their own syntax. That is **code by nature, not
+  a gap**. Rendering it as prose would be a lie the gate-3 scanner exists to catch.
+
+**Requirement: do not chase the byte-level English percentage.** A rise in it achieved by
+paraphrasing unique code is a regression in disguise (§3). Report it; do not optimise it.
+
+## 7.2 Panel-quality reading
+
+**"Panel-quality" is the name of an engine metric, not a dependency on any UI.** `measure-english.js`
+computes and prints it per archetype. Read it as *"reads well enough to show a human unedited."*
+
+**Definition:** the share of an archetype's bytes inside spans whose every clause is both
+English-complete and non-vacuous.
+
+**What it must be measured on.** Panel-quality counts only bytes on the **round-tripping path** —
+mined words plus the §5C per-site productions. A number produced by a grammar that does not compile
+back byte-exactly does not qualify, whatever it reads like. The comparison that matters is not the
+percentage but the **totality**: a hand-authored grammar renders the archetypes someone wrote a
+grammar for; this path must render *every* file and compile every one of them back byte-exactly.
+
+## 7.3 Frozen definitions and the remaining gates
+
+**Measurement discipline (a requirement, not a convention).** Every metric is computed by one
+committed command reading one field of a committed artifact. `write-en-files.js` regenerates
+`en-index.json` into the gitignored cache (`--dry-run --out <dir>` measures without writing to the
+corpus); `measure-uncollapsed.js` implements the frozen classifier below and buckets each gap as
+MINER / GATE / ARBITRATION per §5A. **No metric is computed by eye**, and "done" must be a number a
+second engineer can reproduce, not a judgement.
+
+**Frozen definitions.**
+
+- **Total statements `S`** — the sum of function/method body statements over the enfile-layer walk
+  (§4), as counted by `fnStmtCount` in `operations.js`. The fixed denominator.
+- **Statement-collapse ratio** = `generators.netStatementReduction ÷ S`, where
+  `netStatementReduction = statementsCollapsed − calls` (both fields of `en-index.json →
+  generators`). It is the fraction of body statements removed from the reader's view by being folded
+  into a generator call.
+- **Un-collapsed repeated structure** — decidable, frozen to one classifier. A function/method body
+  qualifies iff **(a)** its WIDE-axis canonical key recurs across the corpus with frequency
+  ≥ `minCount` (2); **(a2)** its key has **placeholder density below ½** — of the *N* per-statement
+  parts of the key, the number equal to the hole symbol `·` must satisfy **`holes / N < 0.5`**, a
+  strict comparison, since exactly one half is not enough; **(b)** it is not covered by a generator
+  span in that file's `.en`; and **(c)** it is not claimed by an archetype slot. The metric is the
+  **count of files containing ≥ 1 such body**. Membership is a pure function of the two canonical
+  keys and the `.en`, so two engineers get the same answer.
+
+  *(a2) is load-bearing and must not be dropped.* Without it, a body whose every statement fails to
+  generalize keys as all-placeholders, so every such body collides with every other and each scores
+  `freq ≥ 2` — functions sharing no content are counted as repeated structure. Frozen in
+  `engine/uncollapsed-density.js`, guarded and mutation-checked by `engine/uncollapsed-density.test.js`.
+
+**The remaining gates.**
+
+| Measure | Requirement |
+|---|---|
+| **Files with un-collapsed repeated structure** | **→ 0**: every recurring-up-to-renaming body is promoted, or provably non-refillable. |
+| **Composition depth on the live `.en` path** (`generators.maxDepth`) | **≥ 2 and rising** — the live compile must expand generators that call generators (§5B). Depth 1 means the flat degenerate path (§2.4). |
+| **Real lossless compression** (`1 − .en ÷ .ts` over the enfile-layer walk) | **Must turn positive and rise.** The `.en` must become smaller than the `.ts`, by recursive word reuse — never by paraphrase. |
+| **Statement-collapse** | Rising, with byte-identity held. |
+
+**Explicitly not a metric: English-%.** It is a by-product; a rise from paraphrasing unique code is a
+regression in disguise. **Byte size IS a metric:** real lossless compression through recursive word
+reuse is a goal, not a forbidden one. The earlier "compression is capped, not a target" framing
+applied only to the flat anti-unification path and does not hold for LZW.
+
+---
+
+## 7A. Payload encoding — requirements
+
+The `.en` payload carries each span's hole fills. Its encoding is a **readability requirement**, not
+an implementation detail, because the `.en` is the canonical human artifact (§1).
+
+1. **Payloads MUST be plain readable UTF-8 text, never an opaque blob.** Hole text is the code's own
+   identifiers and literals; encoding it opaquely turns the artifact a human is meant to read and
+   edit into something they cannot. The `lzw1` encoding (`engine/payload.js`) is the live form:
+   `lzw1 <axis><wordId>⟨hole⟨hole…`, holes introduced by `⟨` and running to the next `⟨` or the
+   payload end, with no closing bracket.
+2. **The failure mode this rule exists to prevent:** an opaque payload scales with success — each
+   newly mined word appends more blob, so **improving the miner actively degrades the artifact**.
+   Any future encoding must be checked against that property.
+3. **Sentinel safety MUST be structural, not incidental.** The `.en` scanner locates spans by
+   searching for its sentinels, which is sound only if no payload can contain one. Escaping provides
+   that **by construction**, so an encoded payload provably contains none of `« » ⟪ ⟫ ▶ ⟨`. This must
+   not rest on an assumption about what source happens to contain — that no sentinel appears in a
+   given corpus today is luck, and luck is a hazard, not a guarantee.
+4. **`decode()` MUST be fail-closed.** Wrong tag, bad axis, missing id, or unknown escape all throw.
+   A stale payload in a superseded encoding is named specifically, so the fix is obvious.
+5. **Readability beats further compression.** Hole dedup via a shared fill table, and parameter
+   hoisting, both compress further and both replace visible source text with an indirection a reader
+   must resolve by hand. Per §3, and Amir's standing instruction that compression is the strategy and
+   not the point, they are **rejected**. Residual negative compression from gloss prose and span
+   structure — which the `.ts` does not carry — is honest and acceptable.
+
+Guarded by `engine/dialect-guard.test.js`, mutation-checked per §10.3.
+
+---
