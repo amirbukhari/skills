@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(~/Documents/Rentsync/delonix/**)",
+      "Edit(~/Documents/Rentsync/delonix/**)",
+      "Read(~/Documents/Rentsync/better-claude-cli-ui/**)",
+      "Edit(~/Documents/Rentsync/better-claude-cli-ui/**)",
+      "Read(~/Documents/delonix-notes/**)",
+      "Read(~/Documents/kraken-archive/**)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --delete:*)"
+    ],
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run roots)",
+      "Bash(npm run clean)",
+      "Bash(node run-tests.js:*)",
+      "Bash(node roots.js)",
+      "Bash(node --check:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git mv:*)",
+      "Bash(git push:*)"
+    ],
+    "ask": [
+      "Bash(npm run mine:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run test:slow:*)",
+      "Bash(node build-lzw-generators.js:*)",
+      "Bash(node sdd-clean.js:*)",
+      "Bash(npm run clean:sen:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh repo:*)",
+      "Bash(git remote:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh run:*)",
+      "Bash(git merge:*)"
+    ]
+  }
+}
