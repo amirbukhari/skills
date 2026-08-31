@@ -259,6 +259,9 @@ is the mechanics, and the current code is on the far side of the change:
   **structurally inert modulo names** or it is refused (R-LANG-15). The model has no channel through
   which a sentence, a connective or a slot boundary could arrive; `refine-language.js` already works
   this way and is the precedent stage 2 follows.
+- **The output form is no longer open either:** §5D.3B is the hand-authored reference specimen
+  (`partners.ts`, today's output beside the target, every line attributed to code / model / mine).
+  Stage 2 is checked against it the way the archetype grammar is checked against §5D.1's sentence.
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the

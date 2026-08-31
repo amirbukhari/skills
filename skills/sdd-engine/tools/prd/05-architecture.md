@@ -218,6 +218,13 @@ against, because the thing that would define "correct" is the output being check
 is what makes the LLM's contribution safe to accept, so the shell must not be part of what it
 contributes.
 
+**The target form is written down, not left to the implementer.** §5D.3B
+([21-naming-specimen.md](21-naming-specimen.md)) is the hand-authored reference specimen — the real
+`partners.ts.en` as it renders today, beside what it should read like once stage 2 has named its
+words, with each line attributed to code, model or mine. It plays the role §5D.1's PaymentPlan
+sentence plays for the archetype grammar. **Three model-supplied tokens for that file; a fourth is a
+spec violation, not a style question.**
+
 **What stage 2 therefore is, mechanically:** for each unnamed dictionary entry, code emits the
 production and the slot inventory; the model returns one lexical token per entry; the renderer
 substitutes spellings into productions code already built; the gate re-renders the corpus and rejects

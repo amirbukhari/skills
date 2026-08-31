@@ -2517,3 +2517,42 @@ what a named `.en` file should look like on the page. §5D.1's PaymentPlan sente
 for the archetype work and is why the archetype grammar could be built and pinned. Stage 2 has the
 constraints but no target rendering, so it could be built to spec and still miss what Amir pictures.
 Flagged, not invented: writing that specimen is a decision about the target, and it is his.
+
+---
+
+## 2026-08-31 · s7 · The naming-stage reference specimen (§5D.3B) — what is invented and what is measured
+
+**Written:** `tools/prd/21-naming-specimen.md` — `partners.ts` as it renders today, beside a
+hand-authored target of how it should read once stage 2 has named its words, with **every line
+attributed** to code (the production), the model (a name), or the mine (a hole fill). Indexed as 21;
+§5D.3A and Q-9 point at it.
+
+**What is MEASURED, not asserted.** `renderFileEn` on that file: `bodyStatements 4,
+collapsedStatements 4, residualStatements 0, genSpans 2` (both recursive), `maxDepth 1`,
+`englishPct 99.4`, `reviewSurface 2`. Both words are `len: 2, d: 1` in the wide axis. The word
+boundaries in the target are `w3344` and `w5964` exactly as the mine drew them — **not** boundaries
+chosen to make the example read well, which would have made the specimen worthless.
+
+**A number I removed rather than kept.** My first draft annotated the words *"used in 118 files"* and
+*"used in 9 files"*. Those were invented. The dictionary entry carries no per-word file count and
+`generators.filesUsing` is corpus-level, so no command produces either figure — putting them in a
+spec is exactly R-MECH-8's failure shape (a published number nothing can move or check). Replaced
+with the measured `len`/`d`, and the specimen now says explicitly why no usage count is shown.
+
+**A method error worth recording, because it nearly became a false claim.** My first measurement of
+the file reported `genSpans 0, residual 4` — I had called `renderFileEn(src, rel, index)` when the
+real signature is `renderFileEn(src, index)`, so the relative path was being used as the dictionary.
+The number was wrong in the *pessimistic* direction and contradicted the `.en` sitting on disk, which
+is the only reason I caught it. **A measurement that disagrees with an artifact you can see is a
+signal to check the harness, not to publish the surprise.**
+
+**What the specimen deliberately does NOT claim**, since a spec artifact that overreaches is worse
+than none: not that `liftPartnerAccess` / `entityAndHelperImports` / `memoizedEntityLookup` are the
+right names (they are placeholders; the specimen pins form, split and checks, never vocabulary); not
+that the production text (`imports … from …`) is settled, only that **code** derives it; not that
+every file reads this cleanly — one with a large residual will read worse, honestly; and not anything
+about a UI.
+
+**The one number in it that is a requirement, not an illustration:** the diff between today's `.en`
+and the target contains **exactly three** model-supplied tokens for this file. A fourth is a spec
+violation. That is the specimen's real teeth, and it is checkable by counting.

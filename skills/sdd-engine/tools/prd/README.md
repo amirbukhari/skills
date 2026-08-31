@@ -69,6 +69,7 @@ PART IV — and engine source comments cite it directly.
 | 18 | [§Q Open questions](18-open-questions.md) | 118 |
 | 19 | [6. Open technical fronts](19-open-technical-fronts.md) | 20 |
 | 20 | [§5E Archetype/word hybrid — the design](20-archetype-hybrid-design.md) | 414 |
+| 21 | [§5D.3B Naming-stage reference specimen — `partners.ts`](21-naming-specimen.md) | 156 |
 
 ## How the split was made
 
