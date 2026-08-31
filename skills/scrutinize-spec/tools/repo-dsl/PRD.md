@@ -16,6 +16,17 @@ We have a large real TypeScript corpus (Rentsync/Hydra: **1037 source files**; t
 
 **The core mechanism is LZW dictionary construction over the AST — this is the design, stated up front (§5).** Parse each source file to its AST; walk **bottom-up from the leaves**; run the **dictionary-building (encoding) half of LZW** over that node stream. LZW's defining property is that *every new dictionary entry is an existing entry plus one more symbol* — so the dictionary is **recursive by construction**: larger patterns are defined in terms of smaller patterns already in it. **Each dictionary entry is a word is a generator.** Because entries reference earlier entries, **generators reference generators automatically** — composition is *emergent* from LZW, not bolted on, and the ARCHETYPE→SKELETON→IDIOM→LEAF hierarchy is the emergent **dictionary depth**, not hand-labeled levels.
 
+**Two things the compressor does not settle, and §5C does.** A dictionary makes a file *short*; it
+does not make it *read*. Two layers turn a word into a sentence — **skeleton names** (word-level,
+content-hashed, cosmetic by construction) and **per-site productions** (statement-level, reading the
+real AST). The measured finding is that productions are the larger and cheaper half: ~14 statement
+kinds outreach 2,450 nameable words, because a name caps at 8.4% of corpus bytes and a production
+can quote the site. See §5C for the design and §7.0 for the scoreboard.
+
+**The compiling half is DONE, and should not be read as a roadmap item.** "Write the `.en` and get
+the file" is **already true for all 1037 files** (§4B). Everything now in flight is a question about
+how the `.en` *reads*.
+
 So "English source" here is not translation and not documentation. It is a *lossless compressor's dictionary made readable*: LZW factors the repo into a recursive word dictionary; the English re-emits each file as a short word stream; and a byte-exact gate guarantees the derived code is the exact bytes we started from. LZW is **lossless *and* compressing** — real compression under byte-exactness is exactly what the mechanism delivers. The metric that matters is **real (lossless) compression via recursive word reuse plus statement-collapse**, not how much prose we produce.
 
 ---
@@ -127,6 +138,48 @@ rejects nothing and arbitration steals nothing; every remaining gap is a word th
 
 ---
 
+### 4B. Mining parameters and THE LIFT — the pipeline's current shape (2026-08-31)
+
+The mechanism of §4A is settled; what changed after it is the *shape* of the words it mines. These
+are design decisions with measurements attached, not tuning knobs to be re-litigated.
+
+**`MIN_COUNT` is 1 — a word need not recur.** The recurrence threshold of 2 encoded an assumption
+that only shared structure is worth naming. It is not: a file's own shape is admissible vocabulary,
+and a word used once still buys the reader a sentence in place of a statement. Compression comes
+from the *dictionary's* recursion (§5 step 3), not from a frequency floor.
+
+**`MAXWIN` is 64, and 64 is the true ceiling.** MAXWIN binds only `maxDepth`; raising it past the
+length of the longest stream in the corpus can do nothing, and the longest corpus stream is **60**.
+64 is therefore not a tuned value but the point past which the parameter is inert.
+
+**Imports and declarations are foldable.** `isFoldable` previously excluded them, which removed the
+most regular structure in the corpus from the dictionary. They are now admitted like any other
+statement and are gated identically.
+
+**The canonicalizer rolls back rather than lying.** When a sub-expression cannot be refilled
+byte-exactly, the canonicalizer no longer fails the whole skeleton: it rolls that sub-expression
+back to an opaque hole and keeps the surrounding structure. Measured effect: **3,683 `null`
+canonicalization failures → 15.**
+
+**THE LIFT — a file is never one word.** The renderer now refuses any word that covers an entire
+run. Before the lift, a file could be tiled by a single whole-file span, and **317 files were**;
+the reader then saw one opaque reference instead of the file's structure. After the lift, **0 of
+1037 files are a single whole-file span** and every file renders as its constituent words.
+> **The pre-lift reading of "317 whole-file words" is SUPERSEDED and must not be re-quoted.** It
+> was true, it is now 0, and it was repeated in analysis after it stopped being true.
+
+**Settled — do not re-open without new measurement:**
+- **The unit-boundary rule STAYS.** No span may straddle two or more units: a word means one thing.
+  Amir's call, and the readability of every clause downstream depends on it.
+- **`MIN_SKEL` stays 8.** The curve below it (8→715, 6→719, 4→732 `filesUsing`) buys files by
+  promoting near-trivial two-statement words — a number bought with readability.
+- **Holes stay verbatim TypeScript.** See the hole taxonomy in §5C.
+- **"Write the `.en` and get the file" is ALREADY TRUE, for all 1037 files.** Byte-identity is not
+  a roadmap item; it is the standing state of the system. Every readability metric in §7 is a
+  question about *how the `.en` reads*, never about whether it compiles back.
+
+---
+
 ## 5. Architecture
 
 **The core pipeline — LZW dictionary construction over the AST (the intended design).** This is the mechanism the rest of the system exists to serve:
@@ -135,7 +188,7 @@ rejects nothing and arbitration steals nothing; every remaining gap is a word th
 3. **LZW encode → recursive dictionary.** The encoding half of LZW runs over that stream (`engine/lzw.js`, `engine/compose.js`): every new dictionary entry is an existing entry **plus one symbol**, so the dictionary is recursive — bigger words are literally defined as smaller words. **Each entry = a word = a generator**, and because entries cite earlier entries, **generators reference generators for free** (the composition of §2.4). Dictionary depth *is* the ARCHETYPE→SKELETON→IDIOM→LEAF hierarchy — emergent, not labeled.
 4. **Re-emit as a word stream.** The file's `.en` is the file rewritten as references to those words; repeated structure becomes a single reference, so the source is **shorter and lossless** (LZW inverts exactly, and the fully-expanded result is gated byte-exact, §2.3).
 
-⚠️ **What actually runs today is not this (§4A):** the live path substitutes flat anti-unification for steps 3–4, yielding 3,532 non-recursive leaf generators. The pipeline above is the required target; the tiers below describe its emergent structure.
+✅ **This is what runs (§4A, §4B).** Steps 1–4 are the live path; the flat anti-unification layer is deleted. The tiers below describe the dictionary's emergent structure, not a target.
 
 **Tiers (top → bottom) — realized as composition (§2.4, §5B), not as labels.** A file is described at the coarsest tier that conforms, and each tier expands *through* the tier below it (a higher generator's fill invokes a lower generator, down to leaves):
 1. **Archetype** (`archetypes.js`) — the file *is* a word: a fixed architectural template with big typed slots (Entity = `@Entity` + columns\* + relations\*; RouterModule = `Router(prefix)` + routes\*). Conformance-gated: residual top-level code is *reported*, never absorbed to inflate the number.
@@ -143,7 +196,15 @@ rejects nothing and arbitration steals nothing; every remaining gap is a word th
 3. **Statement + data idiom** (`cnl.js`, `data-english.js`) — single statements and data leaves rendered as controlled English.
 4. **Leaf / literal** — opaque atoms and genuinely-novel bytes, verbatim (the base case of the composition recursion).
 
-⚠️ **Live-path caveat (§4A):** these tiers are realized as real composition only in the compose-layer catalog (depth 9). The catalog the live `.en` compiles through today (`generators.json`) is **flat** — the tiers above are the required target, not the current live state.
+✅ **Live-path status (§4A):** these tiers are realized as real composition on the live path, at depth 14 through `catalog/generators-lzw.json`. The flat `generators.json` is no longer read by anything.
+
+⛔ **Tier 1 is NOT wired in, and that is a decision, not a gap (2026-08-31).** `engine/archetypes.js` / `build-archetypes.js` hold hand-authored generative grammars (Entity, RouterModule, ReduxModule, DtoBuilder) and **nothing on the live path consumes them**. They stay disconnected:
+- Wiring them in would stand a **second, lossy, unverified producer beside a working byte-exact one** — the producer/consumer split (§2.2) in a new costume, with silent fallback as the failure mode.
+- Their reported **`byteIdentical: 100%` is a TAUTOLOGY.** `checkTiling` computes `rebuilt = segs.map(s => src.slice(s.a, s.b)).join("")` — it re-slices the source and rejoins it. That verifies *segmentation completeness*; it verifies nothing about generation. No archetype has ever regenerated a byte it did not copy.
+- **The LZW dictionary already discovered the entity grammar.** 90.5% of Entity bytes fall inside mined spans, and the payload holes *are* the grammar's slots: the dictionary learned `@Column(...) prop: type;` as a word with variadic fill, without anyone writing the grammar down. A hand-authored grammar is redundant where the miner already succeeded and unverifiable where it did not.
+- `extractEntity` currently returns `className`, `table`, and per-column `.name` as **undefined** (it stores them as `slots.className`, `slots.table`, and column `.prop`). This is recorded so no future reader copies the shape from the call site; the live path reads the AST directly instead (§5C).
+
+The replacement for tier-1 grammars is **per-site productions in `spanProse`** (§5C), which run on the byte-exact path and cannot desynchronize from it.
 
 **The fold (universal invariant).** At every tier a construct is only replaced by a higher-tier form when the higher-tier form refills to the **exact source span**. Segment lists tile `[0, len)` exactly (`checkTiling`), each segment reproduces its own bytes, so `reconstruct === source` by construction. This is what makes byte-identity a property of the *design*, not of any particular file.
 
@@ -198,6 +259,103 @@ Realizes principle §2.4 and closes the §4A gap. This is a **first-class, load-
 
 ---
 
+## 5C. Language and grammar — how a word becomes a sentence
+
+§5 says how structure is *discovered*. This section says how it is *read*. A rendered `.en` clause
+is produced by exactly two layers, and knowing which layer owns a given site is the whole of the
+design.
+
+### The two layers
+
+| | **Skeleton NAMES** | **Per-site PRODUCTIONS** |
+|---|---|---|
+| granularity | one per mined word | one per statement kind |
+| where | `catalog/word-names.json`, applied in `namedLabel` | `spanProse` in `engine/enfile.js` |
+| sees | the canonical skeleton only | the actual AST at the actual site — identifiers, callees, literals |
+| population | 2,450 words in the queue | **~14 statement kinds** |
+| ceiling | **8.4% of corpus bytes** (the skeleton share; §7 bucket B) | everything a statement can say about itself |
+
+**Productions are the larger and cheaper half, and that is the central finding.** Fourteen
+statement kinds reach further than two and a half thousand names, because a production reads the
+site and a name cannot. Naming is a background trickle against the queue; productions are the line
+of work.
+
+### The admission rule for naming (verbatim, decidable)
+
+> **Name a leaf only where `spanProse` has nothing site-specific to say.**
+
+Applied to the top 250 words by frequency, this **refused 193 and admitted 57** (48 after
+declaration rules were retired, once productions covered declarations better than any name could).
+The reason a refusal is *correct* and not laziness: where `spanProse` can quote the real identifier
+and the real callee — ``await `invoices` from `softDeleteRecordsForRun` `` — a static skeleton name
+is a **REGRESSION**. It replaces two true facts about this site with one generic phrase about a
+thousand sites. An unnamed word is honest; a vacuous name is noise that looks like progress.
+
+### Names key on content, never on word id
+
+A name's key is **`sha256(canonical skeleton)[0:16]`**, axis-prefixed — never the word's dictionary
+id, which is an artifact of mining order and changes when anything upstream changes. Measured
+stability:
+
+| change | names surviving | collisions |
+|---|---|---|
+| `MAXWIN` 64 → 16 | **8922 / 8922 (100.0%)** | 0 |
+| `MIN_COUNT` 1 → 2 | **2576 / 2576 (100.0%)** | 0 |
+| canonicalizer change (`8ae62a3`) | **5982 / 6596 (90.7%)** | 0 |
+
+Mining-parameter changes orphan **nothing**. The canon change orphaned **exactly the 614 skeletons
+it altered** — which is the correct behaviour, not a failure: those skeletons genuinely became
+different skeletons, and a name that followed them across the change would be asserting a meaning
+nobody verified.
+
+### The steady state — orphan, never delete
+
+Names outlive the words they were written for, so the naming catalog is append-and-orphan:
+
+1. A name whose skeleton no longer exists moves to the **`orphans` ledger**. It is never deleted.
+2. Before generating any new name, the authoring pass **matches against orphans first**.
+3. A match produces a **re-adoption PROPOSAL** written to the rename queue (`results/name-queue.json`,
+   derived/gitignored), scored by token edit distance. **It is never applied automatically.**
+4. **Queue length is a first-class metric**, reported beside byte-identity.
+
+> **Auto-re-attachment is the producer/consumer drift bug (§2.2) in a new costume.** A name silently
+> re-attaching to a skeleton that merely *resembles* the one it was written for is a producer
+> asserting a meaning no consumer verified — and the failure is silent by construction, because a
+> wrong name renders as confident prose. The proposal step exists so a human is the consumer.
+
+### Names are cosmetic by CONSTRUCTION, not by test
+
+`compileChunk` recovers a payload with `chunk.lastIndexOf(PAY_OPEN)` / `chunk.lastIndexOf(PAY_CLOSE)`
+and **never reads the label region at all**. A wrong name therefore yields wrong prose and
+**byte-identical output**. This is a structural property of the compiler, not a property maintained
+by a test — the test would be the weaker guarantee (§10).
+
+### The hole taxonomy — a per-site predicate, not a per-type policy
+
+Holes are the domain meaning: they carry the identifiers, literals, and type names the skeleton
+generalized away. The cut that matters is **word-like vs code-bearing**:
+
+- **word-like** — a hole whose contents read as a noun in a sentence: `` `invoices` ``, `` `./helpers` ``,
+  `` `HttpStatusCode.NotAcceptable` ``. These **stay verbatim** and are quoted into the clause. They are
+  already the clearest possible words; §3 backs literals staying verbatim.
+- **code-bearing** — a hole whose contents are an expression with its own syntax: index arithmetic,
+  chained ternaries, inline object construction. These are code, and a template that splices one into
+  a sentence produces **code wearing a sentence's clothes**.
+
+**The cut runs ACROSS hole types, not along them.** An identifier hole is usually word-like and
+sometimes not; a literal hole is usually word-like and sometimes an inline object. So the rule is a
+**per-site predicate on the hole's contents**, evaluated at render time — never a policy attached to
+the hole's type. The English-completeness scanner (§7) is the mechanical form of that predicate:
+strip the quoted verbatim regions, and if TypeScript syntax remains, the clause failed.
+
+### The honesty rule for productions
+
+If a production cannot say something **true** about a site, it emits the vacuous clause and that
+site is **counted** (§7). A production retires a vacuous clause by saying something true about the
+site — **never** by rewording the placeholder into something that merely escapes the frozen list.
+
+---
+
 ## 6. Open technical fronts
 
 **0. THE CORE FRONT — replace flat anti-unification with LZW dictionary construction (§4A).** This supersedes and subsumes fronts 1–4 below: they were framed around the flat generator layer, which is itself the defect. The required work, as explicit requirements:
@@ -208,7 +366,7 @@ Realizes principle §2.4 and closes the §4A gap. This is a **first-class, load-
    Build on the compose-layer seed (`compose.js`, `lzw.js`, `mined-library.json`, depth 9) — SOURCE-PROTECTED (§8A) — not on `generators.json`. Then point `enfile.js` at the recursive dictionary and expand nested word references recursively.
 
 1. **Finish the member/ctor-generalized procedure layer (specified in §5A).** The additive widened axis has begun landing (5,623 statements collapsed); the remaining work is to promote the rest of the WIDE-axis recurring bodies. The `type`-name hole is admitted only when the type is not load-bearing for refill — concretely, when replacing it with a `‹type›` hole still yields a byte-exact `fillOf` at every site (the same gate as every other hole), never on a subjective judgement. Hard constraint unchanged: every widened generator must **refill byte-exact** at every site.
-2. **Widen renderer consumption of the middle-tier generators.** `enfile.js` now emits generator spans (§5A wiring contract) but only for 715 / 1037 files; the front is to raise `generators.filesUsing` toward the target in §7 by promoting more admitted generators, still span-gated.
+2. **~~Widen renderer consumption of the middle-tier generators.~~ RETIRED (2026-08-31).** This front chased `filesUsing` toward a target that turned out to sit under an unmeasured wall, and every remaining route to it was *punch more holes until things match* — the §4A defect. It is replaced by **the language front: per-site productions in `spanProse` (§5C), scored by §7.0.** That is where the remaining readability lives.
 3. **Whole-repo statement reduction, not per-file coverage.** Cross-file repetition carries the leverage (composites built from composites, depth 9). Drive down `netStatementReduction`-eligible residue across the whole corpus (the §7 metric), not a per-file average.
 4. **Close the composition gap — point `.en` compilation at the composing layer (§4A, §5B).** Either wire `enfile.js` to expand compose-layer composites recursively, or rebuild the middle-tier generators as composites carrying `members[]`/`hierarchyDepth`. Success = the live `.en` path compiles through generators-calling-generators (manifest `generators.maxDepth ≥ 2`), not the flat `generators.json`. This is the highest-value front — the capability already exists on the abandoned path and is being lost.
 5. **Measurement discipline.** Keep the measure-first scripts (`measure-bytes.js`, `measure-middle-tier.js`, `measure-windows.js`, `measure-operations.js`, `measure-callgraph.js`) as the source of truth; refresh the stale `gate.json` snapshot so the gate reflects the current library.
@@ -216,6 +374,83 @@ Realizes principle §2.4 and closes the §4A gap. This is a **first-class, load-
 ---
 
 ## 7. Success metrics
+
+### 7.0 THE OFFICIAL SCOREBOARD (2026-08-31 — supersedes every readability metric before it)
+
+Four numbers. Everything else in this section is history or supporting detail.
+
+| # | Metric | Source | Today | Target |
+|---|---|---|---|---|
+| 1 | **Byte-identity** | `en-index.json → gate.byteIdentical` | **1037 / 1037** | **1037 / 1037** — the floor, never regresses |
+| 2 | **Frozen vacuous-clause count** | `node measure-english.js` (i), classifier frozen in `engine/clause-quality.js` | **135 of 25,456 clauses (0.5%)** | **0**, or a floor stated with sampled evidence |
+| 3 | **English-completeness** | `node measure-english.js` (ii), same module | **25,456 / 25,456 (100.0%)** | 100%, held |
+| 4 | **Rename-queue length** | `results/name-queue.json` | 0 orphans, 48 names | reported, not minimised |
+
+**Metric 2 — the frozen vacuous classifier.** A fixed, frozen list of thirteen placeholder clauses
+(`run a step`, `compute a value`, `return the result`, `branch on a condition`, …) — the phrases that
+say only that *something* happened. The list is a frozen **array** plus a private lookup `Set`;
+`Object.freeze` on a `Set` does not prevent `.add()`, a defect the suite caught before it shipped.
+The list may be added to; **an entry may never be removed to make the number fall.**
+
+**Metric 3 — the English-completeness scanner.** Strip every quoted verbatim region (`` `ids` `` and
+`“literals”`) and every parenthetical idiom from a clause; if TypeScript syntax survives in the
+residue, the clause is code wearing a sentence's clothes and fails. This is the mechanical form of
+the §5C per-site predicate, and it is trusted over the author's eye.
+
+### 7.1 THE TWO CEILINGS — both official, and the byte-level one is not a failure
+
+- **Sentence-level: ~100%.** Every clause the renderer emits can be made to read as English. This is
+  metric 3 and it is met.
+- **Byte-level: 33.8%** (40.2% optimistic). This is the fraction of *corpus bytes* that can ever be
+  read as English prose. Today: **33.7% against a 33.8% ceiling.**
+
+> **39.7% of the corpus is code-bearing hole interiors. That is code BY NATURE and it is the correct
+> answer, not a gap to close.** An expression with its own syntax is not connective tissue; rendering
+> it as prose would be a lie the scanner is built to catch. A byte-level number near 34% is the
+> system succeeding.
+
+**The byte partition** (`node measure-english.js`, full corpus, 4,058,328 B):
+
+| | bucket | share | reads as English? |
+|---|---|---|---|
+| A | residue, no span (§3 one-off code) | **20.1%** | no — verbatim by design |
+| B | skeleton → English (the naming ceiling, §5C) | **8.4%** | yes |
+| C | gap (whitespace / comments) | **4.5%** | n/a |
+| D | word-like holes, quoted verbatim | **20.9%** | yes — as quoted nouns |
+| E | long but structureless | **6.4%** | no |
+| F | **code-bearing hole interiors** | **39.7%** | **no — code by nature** |
+
+B + D = 29.3% carried by the two layers of §5C; the remainder of the 33.8% ceiling is the
+structureless and gap material that can still be captioned.
+
+### 7.2 Panel-quality reading, by archetype
+
+The direct comparison to a hand-authored generative panel: the share of an archetype's bytes inside
+spans whose every clause is both English-complete and non-vacuous.
+
+| archetype | files | % corpus | panel-quality |
+|---|---|---|---|
+| IndexBarrel | 10 | 0.1% | **94.3%** |
+| ConstMapConfig | 9 | 0.1% | **90.8%** |
+| **Entity** | 64 | 2.9% | **90.5%** |
+| TestSuite | 81 | 16.1% | 84.1% |
+| TypeDefs | 73 | 1.4% | 83.6% |
+| RouterModule | 35 | 7.6% | 82.8% |
+| ClientWrapper | 33 | 3.8% | 78.9% |
+| ServiceClass | 131 | 11.3% | 78.7% |
+| DataAccessModule | 135 | 27.7% | 75.3% |
+| AsyncFunctionModule | 153 | 14.7% | 74.2% |
+| PureModule | 145 | 5.1% | 70.7% |
+
+Entity reaches 90.5% **on the round-tripping path**, through mined words plus the §5C decorated-class,
+relation, and route productions — not through a disconnected grammar. **The comparison that matters
+is not the percentage but the totality: a hand-authored grammar renders the archetypes someone wrote
+a grammar for; this path renders all 1037 files and compiles every one of them back byte-exactly.**
+
+---
+
+### 7.3 Compression and collapse metrics (unchanged)
+
 
 The metrics are **real lossless compression AND statement/readability collapse** — not prose length. Under the intended LZW mechanism (§2.1) byte-size compression is a legitimate goal, not a forbidden one; the flat-path "capped ~4.5%" framing is corrected and retired (§3, §4A). Today the `.en` is still *larger* than the `.ts`, so the compression metric reads negative and must cross zero — but the attribution has been **corrected**: this was blamed on the flat path, and the flat path is deleted. The inflation was the **payload encoding** (base64(JSON)), now fixed in §7A; what remains is gloss prose and span structure, which are deliberate. Every metric below is computed by one committed command and reads one field, so "done" is a number, not a judgement.
 
@@ -245,14 +480,14 @@ The metrics are **real lossless compression AND statement/readability collapse**
 | Metric | Formula / source field | Today | Milestone target |
 |---|---|---|---|
 | **Byte-identity** | `en-index.json → gate.byteIdentical` | **1037 / 1037** | **1037 / 1037** (the floor — never regresses) |
-| **Statement-collapse ratio** | `generators.netStatementReduction ÷ S` | net reduction **6,920** (`calls 4,362`, `statementsCollapsed 11,282`, `filesUsing 715/1037`, `maxCompositionDepth 14`, `flatFallback 0`) — target met | **netStatementReduction ≥ 4,500 and filesUsing ≥ 715 / 1037**, byte-identity held at 1037/1037 (~~filesUsing ≥ 750~~ **superseded 2026-08-31** — see the ceiling note below) |
+| **Statement-collapse ratio** | `generators.netStatementReduction ÷ S` | net reduction **6,920** (`calls 4,362`, `statementsCollapsed 11,282`, `filesUsing 715/1037`, `maxCompositionDepth 14`, `flatFallback 0`) — target met | **netStatementReduction ≥ 4,500 and filesUsing ≥ 715 / 1037**, byte-identity held at 1037/1037. ~~filesUsing ≥ 750~~ and the ~~753 ceiling~~ are **RETIRED (2026-08-31)**: readability is now measured by §7.0, not by how many files hold a generator. |
 | **Files with un-collapsed repeated structure** | `node measure-uncollapsed.js` — implements this classifier exactly | **38 files / 46 bodies** (all MINER-limited; 0 gate, 0 arbitration). Corrected by §7(a2); the pre-(a2) reading was 126 files / 179 bodies. A further **133 bodies** are excluded by density, 24 of them all-placeholder. | **0** |
 | **Composition depth (live `.en` path)** | `en-index.json → generators.maxDepth` (longest generator-calls-generator chain the live compile actually expands, §5B) | **14 — target met (§4A)** | **≥ 2**, rising toward the compose-layer's depth 9 |
 | **Real (lossless) compression ratio** | `1 − (.en bytes ÷ .ts bytes)` over the enfile-layer walk — LZW makes this positive without breaking byte-identity (§2.1) | **−13.3%** (`.en` 4,598,270 B > `.ts` 4,058,328 B). Was **−30.8%** before the `lzw1` payload encoding (§7A); the residual is gloss prose (334,343 B) plus 165,621 B of span structure, neither of which the `.ts` carries. | **positive and rising** — `.en` smaller than `.ts`, growing with dictionary depth |
 
 > **NEAR-MISS — why (a2) exists (2026-08-31).** The classifier shipped with only (a), (b), (c). A body whose every statement fails to generalize keys as `·<GAP>·`, so **all** such bodies collide with each other and **every one of them scores `freq ≥ 2`**. Two functions sharing no content whatsoever were being counted as repeated structure. The metric read **126 files / 179 bodies**; the truth was **38 files / 46 bodies** — an inflation of roughly **3×**, and it would have sent someone hunting 102 files of nothing. The number was already being steered by when the error was caught. Placeholder density is the decidable discriminator: a key that is at least half holes carries too little evidence to assert recurrence. Frozen in `engine/uncollapsed-density.js`, guarded by `engine/uncollapsed-density.test.js` (mutation-checked: removing the condition turns 4 cases red, including the real-source one).
 
-> **SUPERSEDED TARGET — `filesUsing ≥ 750` (set in this document; retired 2026-08-31).** The measured ceiling at the current readability bar is **753**: 715 files use a generator today, and only **38 files** hold a genuinely repeated, genuinely unclaimed body (§7 as corrected by (a2)). The target was therefore set one to two files under a wall nobody had measured. Worse, **none of those 38 are reachable by legitimate miner work**: 15 need `MIN_SKEL` dropped below 8 (measured curve 12→649, 8→715, 6→719, 4→732, byte-identity holding throughout, but promoting near-trivial two-statement words), and 23 recur only at whole-body silhouette while sharing no recurring adjacent statement pair anywhere in the corpus — reaching them means widening the canon until more of each statement is a hole. Both routes are *punch more holes until things match*, which is the flat anti-unification defect §4A exists to kill, and both trade readability for a number. **Decision: leave the miner alone.** §3 already rules that genuinely one-off code stays verbatim and is counted as residue; these 38 files are that residue. The replacement target is `filesUsing ≥ 715` — held, not chased. The history is kept here rather than deleted because *why* a target moved is the part worth having.
+> **RETIRED TARGET — `filesUsing ≥ 750`, and with it the 753 ceiling (retired 2026-08-31; kept for the reasoning, not as a target).** The measured ceiling at the current readability bar is **753**: 715 files use a generator today, and only **38 files** hold a genuinely repeated, genuinely unclaimed body (§7 as corrected by (a2)). The target was therefore set one to two files under a wall nobody had measured. Worse, **none of those 38 are reachable by legitimate miner work**: 15 need `MIN_SKEL` dropped below 8 (measured curve 12→649, 8→715, 6→719, 4→732, byte-identity holding throughout, but promoting near-trivial two-statement words), and 23 recur only at whole-body silhouette while sharing no recurring adjacent statement pair anywhere in the corpus — reaching them means widening the canon until more of each statement is a hole. Both routes are *punch more holes until things match*, which is the flat anti-unification defect §4A exists to kill, and both trade readability for a number. **Decision: leave the miner alone.** §3 already rules that genuinely one-off code stays verbatim and is counted as residue; these 38 files are that residue. The replacement is not another `filesUsing` number at all: **§7.0 replaces it.** `filesUsing ≥ 715` is held, not chased, and the 753 ceiling is retired along with the target it bounded. The history is kept here rather than deleted because *why* a target moved is the part worth having.
 
 ### 7A. Payload encoding — why the `.en` grew as reuse improved (fixed 2026-08-31)
 
@@ -301,11 +536,16 @@ Every threshold the implementation depends on, with its literal value and source
 
 | Constant | Value | Where |
 |---|---|---|
-| `minCount` (LZW / widened-axis recurrence threshold) | **2** | `engine/compose.js` `MIN_COUNT`; `repo-dsl.js` `--min-count` default 2 |
+| `MIN_COUNT` (word recurrence threshold) | **1** — a word need not recur; a file's own shape is admissible (§4B) | `engine/compose.js` `MIN_COUNT` |
+| `MAXWIN` (max window length) | **64** — binds only `maxDepth`; the longest corpus stream is 60, so 64 is the true ceiling, not a tuning choice (§4B) | `engine/enlzw.js` |
+| `MIN_SKEL` (minimum skeleton bytes to promote a word) | **8** — settled; below it the curve buys files with near-trivial words (§4B) | `engine/enlzw.js` |
+| Skeleton-name key | **`sha256(canonical skeleton)[0:16]`**, axis-prefixed — never the word id (§5C) | `engine/word-names.js` |
+| Frozen vacuous-clause list | **13 entries**; may be added to, never removed to lower the count (§7.0) | `engine/clause-quality.js` `VACUOUS` |
+| Byte-level English ceiling | **33.8%** (40.2% optimistic); 39.7% is code by nature (§7.1) | `measure-english.js` |
 | `MIN_WORD_CHARS` (ignore trivial punctuation tokens as words) | **4** | `engine/compose.js` `MIN_WORD_CHARS` |
 | Gate corpus-coverage threshold | **≥ 20%** (the run of record; the `--min` flag default in code is 80) | `results/gate.json → thresholds.corpus`; `repo-dsl gate --min` |
 | Gate worst-file threshold | **disabled (null)** — no per-file floor is enforced | `results/gate.json → thresholds.perFile` = `null`; `repo-dsl gate --min-file` unset |
-| Statement-collapse milestone target | **netStatementReduction ≥ 4,500; filesUsing ≥ 715 / 1037** (~~≥ 750~~ superseded 2026-08-31; measured ceiling 753) | §7 (this document) |
+| Statement-collapse milestone target | **netStatementReduction ≥ 4,500; filesUsing ≥ 715 / 1037** (~~≥ 750~~, ~~ceiling 753~~ — both retired 2026-08-31, §7.0) | §7 (this document) |
 | Byte-identity target | **1037 / 1037** | §7 |
 | Enfile-layer walk SKIP set | `node_modules, .git, .worktrees, dist, build, coverage, spec, catalog, .cache, demo, coined-demo` | `write-en-files.js` `SKIP` |
 | Corpus root | `/home/amir/Documents/Rentsync/delonix/hydra-source` | `write-en-files.js`, `measure-middle-tier.js` `CORPUS` |
