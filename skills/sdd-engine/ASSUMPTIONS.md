@@ -937,3 +937,87 @@ runs, because refusing would make a legitimate experiment impossible from the UI
 register question, logged as open by sdd-engine-5f.
 
 **Commit:** `12fa07e`
+
+---
+
+## 2026-08-31 — R-CFG-6 was fixed in `engine/sdd.js`, reversing an earlier call in this log
+
+**Decided:** wired `CR.LAYOUT.sen` into `engine/sdd.js:58,62`, which had spelled `"sen"` as a path
+literal. **This supersedes the entry above titled "`sdd.js`'s hardcoded `"sen"` literal was left in
+place."**
+
+**Why the earlier call changed:** it was made on a cost argument — "wiring the resolver in to fix a
+string is a larger change than the defect" — and mechanizing R-CFG-6 changed the cost. The defect is
+no longer a note in a log; it is a permanently red check that every future run has to explain away,
+and a check that everyone learns to ignore is worse than no check. The fix turned out to be one
+`require` plus two call sites, and `sdd.js` takes `projectDir` as a parameter and resolves no root,
+so requiring the resolver costs nothing at import time — `LAYOUT.sen` is a frozen constant.
+
+**Verified by running it:** `node engine/sdd.test.js` → 24 passed, 0 failed;
+`node engine/corpus-root.test.js` → 11 assertions passed; R-CFG-6 now HOLDS.
+
+**Commit:** `c2a0a4b`
+
+---
+
+## 2026-08-31 — two §R rows are validated against the real artifact, not against prose
+
+**Decided:** R-MECH-2 and R-MECH-3 read the actual 42 MB `generators-lzw.json` rather than
+inspecting the miner's source, and the dictionary is loaded lazily so no other row pays for it.
+
+**Why:** these two are the core mechanism. Asserting "the code looks like it builds a DAG" is the
+exact move CLAUDE.md's opening rule forbids; the artifact either is a DAG or it is not, and that is
+answerable. Acyclicity is proven by depth strictly decreasing along `m[0]` — a cycle cannot satisfy
+it — which is both cheaper and stronger than walking every chain.
+
+**Verified by running it, with two independent cross-checks I did not construct:** 232,906 non-leaf
+entries hold the (existing entry + one symbol) property, and the 8,922 skipped leaves decompose as
+5,684 narrow + 3,238 wide — exactly the leaf counts `npm run mine` prints separately. `maxDepth 63`
+likewise matches the mine's own output. Two numbers agreeing from different directions is worth more
+than either alone.
+
+**Commit:** `c2a0a4b`
+
+---
+
+## 2026-08-31 — R-ART-4 was mechanized as the landmine, and its runtime half split off
+
+**Decided:** checked R-ART-4 as "no live file outside `artifact-contract.js` authors a header key",
+and split what static analysis cannot see into a separate `R-ART-4-runtime` row marked MANUAL.
+
+**Why:** the requirement as written ("AC.stamp is the only publisher") is not statically decidable —
+a file can call `writeFileSync` on a path it computed three variables ago. Two weaker formulations
+were tried and rejected for crying wolf: "a file that mentions a kind and calls writeFileSync must
+stamp it" flags every *reader* (`enfile.js`, `measure-uncollapsed.js`, `refine-language.js` all read
+a kind and write something else). What IS decidable is the failure that actually happened: a
+hand-built header is how `generators-lzw.json` was born without a `fingerprint` and failed 5 tests.
+Splitting the row is honest; stretching one check to cover both would have made it unreliable.
+
+**The MANUAL half is a known real gap, not a formality:** pipeline B publishes `mined-library` and
+`corpus-coverage` unstamped and relies on a later `stamp-artifacts.js` run.
+
+**Commit:** `c2a0a4b`
+
+---
+
+## 2026-08-31 — the verifier cried wolf a second time; the fix was again to read, not to loosen
+
+**Decided:** of four new FAILS, fixed three checks and one engine file. No check was weakened to
+make a failure disappear.
+
+**Why:** R-MECH-2 called leaves violations (ids 0,1,2 have no `m` and `d === 0` — they carry `sym`
+and are base symbols, 5,684 of them per the mine's own count). R-PAY-3 reported all six sentinels
+missing from a table containing all eight, because `ESCAPES` is an array **of pairs** and a
+non-greedy `]`-terminated match stopped inside `[ESC, "0"]`. R-MEAS-3 read `MAX_HOLE_FRAC = 0`
+because `constValue`'s `([0-9]+)` matched the `0` out of `0.5`. R-CFG-6 was real.
+
+**The pattern is now twice-observed and worth stating as a rule:** a new mechanized check's first
+run should be treated as testing the *check*, not the tree. Both times, the majority of first-run
+failures were the checker's bugs — and both times the minority was a real defect that would have
+been lost if the whole batch had been dismissed as noise. Read every hit on disk before exempting
+or fixing anything.
+
+**Verified by running it:** 4 fails → 0 fails, 22 hold / 0 fail / 5 manual of 27 rows, with every
+row still reporting the evidence it decided on.
+
+**Commit:** `c2a0a4b`
