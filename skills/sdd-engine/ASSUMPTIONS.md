@@ -734,3 +734,17 @@ The only real defence is to check `git status` immediately before committing and
 cites are present in `HEAD`, so the content is on origin and needs no re-applying.
 
 **Commit:** notes on `37af0ed` and `aae0d96`, pushed as `refs/notes/commits`
+
+## Review surface: did NOT credit one-to-one English restatement as collapsed
+
+**Decided:** `residualStatements = bodyStatements − collapsedIntoWords`. A statement rendered as its
+**own** English clause counts as `restatedStatements` and is **reported but not credited**. **Why:**
+the first cut credited it, which made the metric improvable by paraphrasing bespoke code — exactly
+what §4 calls *"a failure mode, not the goal"*. Crediting it also made the number look good for the
+wrong reason: on a corpus with no dictionary loaded it would have read near-0% residual.
+**Judgment call:** "body statement" is defined as a direct child of a function-like block —
+top-level declarations and class members are structure, not review units. That definition lives in
+**one** place (`engine/enfile.js countBodyStatements`) rather than in a separate measure script,
+because a second definition of "statement" is the §8B drift shape with the metric as the consumer.
+**Non-vacuity proven both ways:** no dictionary → 100% residual; the synthetic corpus with its mined
+dictionary → 7.7% (4 of 52), byte-identity 4/4.

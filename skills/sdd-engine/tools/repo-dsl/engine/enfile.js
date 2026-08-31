@@ -777,6 +777,39 @@ function namedLabel(s, source, cat, names) {
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
  * Narrow-preferred (longest narrow match at a position), widened generators only claim a
  * position narrow leaves fully verbatim. Emits a span ONLY if refill === exact source slice. */
+/* REVIEW SURFACE (PRD R-ARCH-16, §5D.4). The headline metric is no longer byte size but how many
+ * statements a human must still read AS CODE. Amir, 2026-08-31: "its not about compression, its
+ * about less of a review surface." So the renderer has to publish the denominator it already has
+ * the AST for.
+ *   bodyStatements  every statement that is a direct child of a FUNCTION-LIKE body. That is the
+ *                   reader's unit: top-level declarations and class members are structure, the
+ *                   statements inside them are the code someone reviews line by line.
+ *   collapsed       statements folded into a MULTI-STATEMENT generator word. The reader reviews
+ *                   the word once, not these statements — this is the only category that actually
+ *                   removes review work.
+ *   restated        statements rendered as their OWN one-to-one English clause. English, but still
+ *                   one review unit each, and §4 names line-by-line restatement "a failure mode,
+ *                   not the goal". Counted separately and NOT credited as collapsed — crediting it
+ *                   would let the metric improve by paraphrasing bespoke code, which is the exact
+ *                   thing §4 forbids.
+ *   verbatim        statements with no English at all. Read as raw TypeScript.
+ *   residual        bodyStatements - collapsed = restated + verbatim. The statements a human still
+ *                   reviews one at a time, and the number §5D.4 says the mine is tuned against.
+ * Counted here rather than in a separate measure script on purpose: a second definition of
+ * "statement" in a second file is the producer/consumer drift shape (§8B) with the metric as the
+ * consumer. One definition, published beside the spans it is derived from. */
+function countBodyStatements(sf) {
+  let n = 0;
+  const isFnLike = (nd) => ts.isFunctionDeclaration(nd) || ts.isFunctionExpression(nd) || ts.isArrowFunction(nd)
+    || ts.isMethodDeclaration(nd) || ts.isConstructorDeclaration(nd) || ts.isGetAccessor(nd) || ts.isSetAccessor(nd);
+  const walk = (nd) => {
+    if (isFnLike(nd) && nd.body && ts.isBlock(nd.body)) n += nd.body.statements.length;
+    ts.forEachChild(nd, walk);
+  };
+  walk(sf);
+  return n;
+}
+
 function renderFileEn(source, index) {
   index = index || cnl.loadWordsIndex([]);
   const sf = ts.createSourceFile("f.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -855,10 +888,19 @@ function renderFileEn(source, index) {
     const d = sp.depth || 0; depthHist[d] = (depthHist[d] || 0) + 1; if (d > maxDepth) maxDepth = d;
   }
   out += source.slice(pos);
+  const bodyStmts = countBodyStatements(sf);
   return { en: out, stats: {
     totalBytes: source.length, englishBytes,
     englishPct: source.length ? +(100 * englishBytes / source.length).toFixed(1) : 0,
     stmtSpans: stmtN, dataSpans: dataN,
+    /* R-ARCH-16 — review surface. `residualStatements` is the number that must fall; it is
+     * reported as a count, never only as a percentage, because a percentage of a shrinking
+     * denominator can improve while the reader's work does not. */
+    bodyStatements: bodyStmts,
+    collapsedStatements: genStmts, restatedStatements: stmtN,
+    verbatimStatements: Math.max(0, bodyStmts - genStmts - stmtN),
+    residualStatements: Math.max(0, bodyStmts - genStmts),
+    reviewSurfacePct: bodyStmts ? +(100 * Math.max(0, bodyStmts - genStmts) / bodyStmts).toFixed(1) : 0,
     genSpans: genN, genStmtsCollapsed: genStmts,
     genRecursive: recN, genFlatFallback: flatN, maxDepth, depthHist,
   } };

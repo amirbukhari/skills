@@ -60,6 +60,9 @@ const index = EN.loadIndex(CORPUS);
 const src = walk(SRC);
 let byteExact = 0, failures = [];
 let totBytes = 0, engBytes = 0, stmtSpans = 0, dataSpans = 0, genSpans = 0, genStmtsCollapsed = 0, filesWithGen = 0;
+/* R-ARCH-16 review surface: statements a human must still read as code. Summed, never averaged —
+ * an average over files hides the worst file, which is the one that costs the review. */
+let bodyStmts = 0, collapsedStmts = 0, restatedStmts = 0;
 // recursive-producer instrumentation: recursive (word-of-words) vs flat-fallback spans, and the
 // composition-depth distribution. A flat-fallback span is a permanent depth-1 hole in the language.
 let genRecursive = 0, genFlatFallback = 0, filesWithFlat = 0, maxDepth = 0; const depthHist = {};
@@ -87,6 +90,8 @@ for (const abs of src) {
   }
   totBytes += r.stats.totalBytes; engBytes += r.stats.englishBytes; stmtSpans += r.stats.stmtSpans; dataSpans += r.stats.dataSpans;
   genSpans += r.stats.genSpans || 0; genStmtsCollapsed += r.stats.genStmtsCollapsed || 0; if (r.stats.genSpans) filesWithGen++;
+  bodyStmts += r.stats.bodyStatements || 0; collapsedStmts += r.stats.collapsedStatements || 0;
+  restatedStmts += r.stats.restatedStatements || 0;
   genRecursive += r.stats.genRecursive || 0; genFlatFallback += r.stats.genFlatFallback || 0; if (r.stats.genFlatFallback) filesWithFlat++;
   if ((r.stats.maxDepth || 0) > maxDepth) maxDepth = r.stats.maxDepth;
   for (const k of Object.keys(r.stats.depthHist || {})) depthHist[k] = (depthHist[k] || 0) + r.stats.depthHist[k];
@@ -125,6 +130,21 @@ const manifest = {
     maxDepth: maxDepth, maxCompositionDepth: maxDepth, depthHistogram: depthHist,
     composites: dictCounts.composites, compositionEdges: dictCounts.compositionEdges,
     dictionaryMaxDepth: dictCounts.maxDepth, dictEntries: dictCounts.dictEntries },
+  /* THE HEADLINE METRIC (PRD R-ARCH-16, §7 "Review surface is the metric"). Statements a human
+   * must still read as TypeScript. Kept OUT of `generators` because it is not a property of the
+   * generator layer — it is the property of the corpus that the whole engine exists to move. */
+  reviewSurface: {
+    bodyStatements: bodyStmts,
+    /* Only `collapsed` removes review work. `restated` is English but one clause per statement,
+     * which §4 calls a failure mode, so it is reported and NOT credited. */
+    collapsedStatements: collapsedStmts, restatedStatements: restatedStmts,
+    verbatimStatements: Math.max(0, bodyStmts - collapsedStmts - restatedStmts),
+    residualStatements: Math.max(0, bodyStmts - collapsedStmts),
+    residualPct: bodyStmts ? +(100 * Math.max(0, bodyStmts - collapsedStmts) / bodyStmts).toFixed(1) : 0,
+    filesFullyCovered: perFile.filter((f) => (f.residualStatements || 0) === 0 && (f.bodyStatements || 0) > 0).length,
+    worstFiles: perFile.slice().sort((a, b) => (b.residualStatements || 0) - (a.residualStatements || 0))
+      .slice(0, 15).map((f) => ({ rel: f.rel, residualStatements: f.residualStatements, bodyStatements: f.bodyStatements })),
+  },
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
 };
@@ -147,8 +167,14 @@ console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   ($
 console.log(`  generator spans ............... ${genSpans}   all recursive (no flat producer exists)`);
 if (genFlatFallback) console.log(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
 console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
+const rs = manifest.reviewSurface;
+console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.residualStatements}/${rs.bodyStatements} body statements still reviewed one at a time = ${rs.residualPct}%`);
+console.log(`                                 collapsed into words ${rs.collapsedStatements}; restated 1:1 ${rs.restatedStatements} (English, NOT credited — §4); verbatim ${rs.verbatimStatements}`);
+console.log(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);
 console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
 console.log(`  .calc REMAINING under sen/ .... ${residualCalc}   ${residualCalc === 0 ? "(sen tree is .calc-free)" : "(!!)"}`);
 console.log(DRY ? `  en-index ...................... ${enIndexOut ? enIndexOut : "(not written: pass --out <dir> to emit)"}` : `  wrote .gitignore ( .cache/ ) + sen/en-index.json`);
+console.log(`\n  worst review surface (statements still read as code):`);
+for (const f of rs.worstFiles.slice(0, 8)) console.log(`     ${String(f.residualStatements).padStart(5)} of ${String(f.bodyStatements).padEnd(5)} ${f.rel}`);
 console.log(`\n  most-English files:`);
 for (const f of perFile.slice(0, 8)) console.log(`     ${String(f.englishPct).padStart(5)}%  ${f.rel}`);
