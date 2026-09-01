@@ -2730,3 +2730,70 @@ number whose definition I could not pin down.
 the run — BLOCKED on R-LANG-19) and R-MEAS-6 (the one-word rate must have a producer; `en-index.json`
 has no `perFile`, so I had to measure it out-of-band, which is the R-MECH-8 shape and should not
 persist).
+
+---
+
+## Executed the §5D.4A order: chunk naming, R-LANG-19, the conditional LIFT (2026-09-01)
+
+Amir: *"go ahead and execute the recommended order."* Done, in that order, and the headline moved
+**0/1037 → 316/1037 files (30.5%)** collapsing to one top-level word, with **1037/1037 still
+byte-identical** and **0 model calls**. Review surface improved as a side effect, 16,889 → 13,874
+(collapse ratio 50.2% → 59.1%), because one whole-file word replaces several partial ones.
+
+**Judgment calls I made, with the reasoning, because each could have gone another way:**
+
+1. **`word-names.json` recreated, not restored.** Amir's deletion was deliberate and I did not touch
+   Trash. I created a **fresh, stamped, contract-validated** artifact carrying a **new second map,
+   `chunks`**, and added `chunks` to the registry's `requires` so a file lacking it is rejected rather
+   than silently read as empty (incident 5's shape). Chunk keys are content hashes of the word's
+   ordered leaf skeletons, never word ids — ids are array indices and move on every re-mine. Side
+   effect: the §8A / R-LANG-5 contradiction is cleared and `word-names.test.js` passes rather than
+   being red by decision.
+
+2. **The gate is NOT "exactly one clause".** My first cut required a whole run to collapse to a
+   single clause. That was wrong: *"import A, B and C then define D"* is ordinary English and reads
+   fine. What Amir rejected in §5D.3D was **mechanical repetition**, so `chunkGloss` refuses a run
+   only when a clause **repeats**, when a clause **says nothing**, or when there is nothing to say.
+   The consequence I like: a refusal now means *"no rule for this pattern yet"*, which makes the
+   one-word rate a direct measure of rule coverage and keeps the residual visible instead of hidden.
+
+3. **I did not simply flip `LIFT_TOP`.** Blanket permission yields 308 files; the conditional gate
+   yields **316** — more files, and every one earned by a real gloss rather than admitted by default.
+   `LIFT_TOP=0` is kept as a measurement escape hatch only.
+
+4. **Generic cardinality alongside the import rule.** The measured refusals were dominated by
+   *identical clause text repeated* (`ExpressionStatement`, `VariableStatement`), not by imports. So
+   besides the `ImportDeclaration` rule I added an adjacent-identical collapse — *"call `res.set`
+   twice"*. Refused runs fell 163 → 88. Non-adjacent repetition (`A B A`) deliberately does not
+   collapse: interleaving is not repetition.
+
+**A bug the test found, not the code review.** The cardinality collapse turned `"run a step"` ×2 into
+`"run a step twice"`, which is not in the says-nothing set — so a meaningless whole-file word would
+have passed the gate. `chunkGloss` now checks the **pre-collapse** clauses. `spanActions` returns
+`raw` alongside `actions` for exactly this. Recorded because it is the general shape: **a collapse
+that improves readability can also launder a failure past a guard placed after it.**
+
+**Several of my test expectations were wrong, not the engine** — `res.set(...)` glosses as
+*"call set"* (not *"call `res.set`"*), and `1 + 2;` as *"call a step"* (not *"run a step"*). I
+corrected the test to what the engine actually does rather than "fixing" the engine to match my
+guess, and added *"call a step"* / *"await a step"* to the says-nothing set, which is a real
+improvement the wrong guess surfaced.
+
+**The corpus was re-rendered, and it had to be.** `enfile.test.js` failed on the persisted `.en`
+files the moment the glosses changed — R-REND-6 (the sentence is authoritative) correctly refused to
+compile prose that no longer matched its payload. That is the guard working, and it means a gloss
+change is never quietly stale. All 1,037 `.en` files are rewritten; the test passes again.
+
+**R-MEAS-6 closed rather than left as a requirement with no producer.** `en-index.json` now publishes
+`oneWordFiles` / `oneWordPct` / `filesNotCollapsed` / `worstBySpans` and `perFile[].topSpans` /
+`.oneWord`, and `write-en-files.js` prints the rate on every run. The first measurement of this had
+been taken by an out-of-band script, which is the R-MECH-8 shape.
+
+**WHAT I DID NOT DO — step 4, the residual, is NOT done.** 721 files still do not collapse, and the
+cause is no longer the LIFT: it is that LZW builds an entry only where a run recurs. §5D.4's remaining
+moves are (a) more node-kind chunk rules — only 88 runs are now refused for want of a rule, the
+cheapest next step and pure §5D.3C work; (b) seeding the archetype as a dictionary entry with a
+variadic tail, which **changes the miner** and therefore needs a fresh mine (tens of minutes) plus the
+still-open `MIN_COUNT` decision — **Amir's call on cost, and it is the gate on the remaining ~70%**;
+(c) making the residual explicit in the top word's gloss. I stopped at the clean boundary rather than
+starting a mine on my own authority.

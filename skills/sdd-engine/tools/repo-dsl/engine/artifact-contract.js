@@ -92,8 +92,8 @@ const ARTIFACTS = Object.freeze({
   },
   "word-names": {
     schema: "sdd-repo-dsl/word-names/1", home: "tracked", file: "word-names.json",
-    corpusPinned: false, requires: ["names", "orphans"],
-    role: "hand-authored names for canonical skeletons, keyed by sha256(sym)[0:16]; entries are {sym,en,sites,named}",
+    corpusPinned: false, requires: ["names", "orphans", "chunks"],
+    role: "hand-authored names, keyed by content hash and never by word id. `names` names ONE leaf skeleton (key w:/n: + sha256(sym)[0:16], entries {sym,en,sites,named}); `chunks` names a WHOLE multi-statement word as one clause (key wc:/nc: + sha256 of its ordered leaf skeletons, entries {en,len,note}) per PRD §5D.3D / R-LANG-19",
   },
   "corpus-coverage": {
     schema: "sdd-repo-dsl/corpus-coverage/1", home: "cache", file: "corpus-coverage.json",

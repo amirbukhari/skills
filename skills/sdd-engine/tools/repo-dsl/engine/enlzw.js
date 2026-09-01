@@ -56,8 +56,23 @@ function expandKey(axis, id) {
   return expandKey(axis, w.m[0]) + W_GAP + expandKey(axis, w.m[1]);
 }
 const W_GAP = W.GAP;
-/* Render one level down from the whole-run word. Default ON; LIFT_TOP=0 restores the collapsed
- * form. Rendering-only: the dictionary and the compiler are unchanged. */
+/* THE LIFT, as amended (PRD §5D.4, §5D.4A, R-ARCH-17, R-MINE-7-amended).
+ *
+ * It used to refuse EVERY word covering an entire run, unconditionally — the original R-MINE-7,
+ * "a file is never one word". Measured cost: 308 of 943 files lost their whole-file word, so the
+ * one-word-per-file rate (R-ARCH-15) was 0.0% BY CONSTRUCTION, not for want of a dictionary.
+ *
+ * The rule's stated purpose was always to prevent ONE OPAQUE REFERENCE, not to prevent one word.
+ * So the refusal is now CONDITIONAL on readability, decided by the caller: `wholeRunOk(run)`
+ * returns true when the renderer can gloss the whole run as a named chunk (enfile.chunkGloss —
+ * no mechanical repetition, nothing that says nothing). A run that cannot be glossed is still
+ * refused and still re-segmented exactly as before, so an unruled repetitive kind never becomes
+ * an opaque blob; it simply shows up as a file that did not collapse, which is the residual work
+ * queue (§5D.4A).
+ *
+ * LIFT_TOP=0 still forces the old unconditional-collapse behaviour, for measurement only.
+ * Byte-identity is untouched either way: this only admits or removes a CANDIDATE, and every
+ * emitted span is byte-gated by `wp.fill === source.slice(...)` regardless. */
 const LIFT_TOP = process.env.LIFT_TOP !== "0";
 
 /* ALL kept words starting at run position p over symbol strings syms[], walking the prefix+symbol
@@ -84,8 +99,11 @@ function wordsAt(axis, syms, p) {
  * EVERY byte-gated candidate word across all runs and pick the max-weight NON-OVERLAPPING set by
  * weighted-interval scheduling over byte ranges (weight = stmts-1 = net reduction). This is
  * globally net-optimal and subsumes per-run tiling; the nesting overlap is resolved, not dropped. */
-function genSpans(sf, source, cat) {
+function genSpans(sf, source, cat, opts) {
   if (!cat) return [];
+  /* Default when no predicate is supplied: the old unconditional refusal. A caller that cannot
+   * gloss (a test, a measurement harness) must not silently start emitting whole-file words. */
+  const wholeRunOk = (opts && opts.wholeRunOk) || (() => false);
   const blocks = [];
   const collect = (n) => { if ((ts.isBlock(n) || ts.isSourceFile(n)) && n.statements.length) blocks.push([...n.statements]); ts.forEachChild(n, collect); };
   collect(sf);
@@ -100,6 +118,7 @@ function genSpans(sf, source, cat) {
       const run = stmts.slice(i, j);
       const nsym = run.map((st) => { const p = G.generalStmtParts(st, sf, false); return p ? G.keyOf(p) : null; });
       const wsym = run.map((st) => { const p = G.generalStmtParts(st, sf, true); return p ? G.keyOf(p) : null; });
+      let _glossable; const runGlossable = () => (_glossable === undefined ? (_glossable = !!wholeRunOk(run, sf)) : _glossable);
       for (let p = 0; p < run.length; p++) {
         const push = (ws, axis, wide) => {
           for (const w of ws) {
@@ -118,7 +137,7 @@ function genSpans(sf, source, cat) {
              * Byte-identity is untouched: this only removes a candidate. Every emitted span is
              * still byte-gated, and any statement left uncovered falls back to per-statement
              * rendering, itself byte-gated. */
-            if (LIFT_TOP && w.len >= run.length && run.length >= 2) continue;
+            if (LIFT_TOP && w.len >= run.length && run.length >= 2 && !runGlossable()) continue;
             const win = run.slice(p, p + w.len);
             if (win.filter(isUnit).length >= 2) continue; // meaning-aware boundary: never straddle >=2 units
             const start = win[0].getStart(sf), end = win[win.length - 1].getEnd();

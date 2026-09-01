@@ -46,14 +46,45 @@ function leavesOf(axis, id, out) {
   return out;
 }
 
+/* ---- WHOLE-CHUNK NAMES (PRD §5D.3D, R-LANG-19) ---------------------------------------------
+ * Amir, 2026-09-01: a recurring run of similar statements must be recognised as a PATTERN and
+ * collapsed under ONE name covering the whole chunk — not rendered as N clauses joined by "then".
+ * So a name may attach to a COMPOSITE word, not only to a leaf.
+ *
+ * Keyed by the same principle as leaf names and for the same reason: word ids are array indices
+ * and move on every re-mine, so the key is a content hash — here of the word's ORDERED LEAF
+ * SKELETONS joined by the dictionary's own gap marker, which is exactly what `expandKey` in
+ * enlzw.js reconstructs. Two words with the same leaf sequence ARE the same chunk and share a
+ * name; a chunk whose skeletons change simply stops matching and falls back to composition, which
+ * is the safe failure.
+ *
+ * The axis marker is "wc:" / "nc:" rather than "w:" / "n:" so a chunk key can never collide with
+ * a leaf key in the same map. */
+const GAP = require("./wordlzw").GAP;
+function chunkKeyOf(axisName, axis, id) {
+  const syms = leavesOf(axis, id);
+  if (syms.length < 2) return null; // a one-leaf "chunk" is a leaf; use `names`
+  return axisName[0] + "c:" + crypto.createHash("sha256").update(syms.join(GAP), "utf8").digest("hex").slice(0, HASH_LEN);
+}
+
+/* The whole-chunk name for one span payload, or null. Takes PRECEDENCE over member composition
+ * (R-LANG-19) — the caller must consult this BEFORE clausesFor. */
+function chunkNameFor(cat, payload, chunks) {
+  if (!chunks) return null;
+  const axis = payload.a === "n" ? cat.narrow : cat.wide;
+  const k = chunkKeyOf(payload.a === "n" ? "narrow" : "wide", axis, payload.w);
+  const rec = k && chunks[k];
+  return rec && rec.en ? rec.en : null;
+}
+
 /* Contract-checked (PRD §8B). ABSENT is a state — names are optional, and an unnamed corpus is
  * the honest default — so a missing file returns empty AND SAYS SO on stderr. PRESENT-BUT-WRONG is
  * a bug and throws: incident 5 was exactly a v0-shaped file read as v1, returning null for all 48
  * names while reporting nothing. */
 function load(p) {
   const r = AC.load("word-names", p, { optional: true });
-  if (!r.ok) { console.error("[word-names] " + r.reason); return { names: {}, orphans: {} }; }
-  return { names: r.value.names || {}, orphans: r.value.orphans || {} };
+  if (!r.ok) { console.error("[word-names] " + r.reason); return { names: {}, orphans: {}, chunks: {} }; }
+  return { names: r.value.names || {}, orphans: r.value.orphans || {}, chunks: r.value.chunks || {} };
 }
 
 /* Compose one span's sentence from its members' names. Returns null when NO member is named, so
@@ -74,4 +105,4 @@ function clausesFor(cat, payload, names) {
   return any ? out : null;
 }
 
-module.exports = { HASH_LEN, hashOf, leavesOf, load, clausesFor };
+module.exports = { HASH_LEN, hashOf, chunkKeyOf, chunkNameFor, leavesOf, load, clausesFor };

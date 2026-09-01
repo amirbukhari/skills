@@ -130,7 +130,102 @@ readable as one sentence. That is the shape the amended rule exists to refuse.
 **Do not re-render the corpus before step 3.** Re-rendering today reproduces the current output
 exactly — the default is unchanged, so every `.en` would be byte-identical to what is on disk.
 
-## 6. Requirements
+## 6. IMPLEMENTED, 2026-09-01 — 0% → 30.5%
+
+Amir directed the recommended order to be executed. It was, and the numbers below are from the
+producer itself (`en-index.json`), not an out-of-band script:
+
+```
+.en -> .ts BYTE-IDENTICAL ..... 1037/1037   (ALL PASS)
+REVIEW SURFACE (R-ARCH-16) .... 13874 things to read, from S=33918   (59.1% left the reader's view)
+ONE WORD PER FILE (R-ARCH-15) . 316/1037 files collapse to a single top-level word (30.5%)
+modelCalls .................... 0
+```
+
+**Review surface improved as a side effect:** 16,889 → **13,874**, i.e. the collapse ratio went from
+50.2% to **59.1%**, because a whole-file word replaces several partial ones.
+
+### What was built, in the order Amir gave
+
+1. **`word-names.json` settled.** Recreated as a properly stamped, contract-validated artifact at
+   `<corpus>/sen/catalog/word-names.json`, now carrying **two** maps: `names` (one leaf skeleton, as
+   before) and **`chunks`** (a whole multi-statement word, named as one clause). `chunks` is
+   **declared in the registry's `requires`**, so a consumer cannot read a file that lacks it. Chunk
+   keys are `wc:`/`nc:` + sha256 of the word's **ordered leaf skeletons** — content-addressed for the
+   same reason leaf names are: word ids are array indices and move on every re-mine. *This also
+   clears the §8A / R-LANG-5 contradiction: the registered artifact exists again, and
+   `word-names.test.js` passes rather than being red by decision.*
+
+2. **Whole-chunk names outrank member composition (R-LANG-19).** `namedLabel` consults
+   `WN.chunkNameFor` **first** and returns that one name; member composition is now the *fallback*
+   for words with no chunk name. `enfile.js`'s old *"never invented whole"* rule is gone. Purely
+   additive — an unnamed word renders exactly as before.
+
+3. **Chunk RULES, keyed to node kinds, cardinality as a parameter (R-LANG-16/17).** Two mechanisms,
+   both deterministic and both zero-model:
+   - **`ImportDeclaration`**, the kind Amir named and the corpus's most repetitive (5,833 of 33,918
+     statements): a maximal run of imports becomes **one clause naming each import**. `partners.ts`
+     now reads *"import `LiftPartner` from `../entities/hydra`, `getManager` from `../helpers`, and
+     `memoize` from `./caching/node-cache` then get `getLiftPartnerFromAccountId` from memoize"* —
+     which is §5D.3B's target prose, produced by code. The same rule renders one import without a
+     list, which is what "cardinality is a parameter" means in practice.
+   - **generic cardinality**: adjacent identical clauses collapse with a count — *"call `res.set`
+     twice"*, *"call `x` 3 times"* — the move `namedLabel`'s long-dead `(×N)` collapse was reaching
+     for, in the one place that is reachable. Non-adjacent repetition (`A B A`) deliberately does
+     **not** collapse; interleaving is not repetition.
+
+4. **THE LIFT is now conditional, not unconditional (R-ARCH-17).** `enlzw.js` refused *every*
+   whole-run word. It now asks the renderer: `wholeRunOk(run)` → `enfile.chunkGloss(run)`, which
+   returns a gloss only when the run reads as a named chunk — **no mechanical repetition, nothing
+   that says nothing**. A run that cannot be glossed is still refused and still re-segmented, so an
+   unruled repetitive kind never becomes an opaque blob; it shows up as a file that did not collapse,
+   which *is* the work queue. The gate is deliberately **not** "exactly one clause": two *different*
+   actions joined by "then" is ordinary English.
+
+**The gate matters more than the count.** Every one of the 316 collapses is *earned* by a real
+English gloss. Forcing the old `LIFT_TOP=0` behaviour yields 308 by comparison — so the conditional
+gate is now admitting **more** files than blanket permission did, while refusing the ones that would
+have read as noise.
+
+**Pinned by `engine/chunk-naming.test.js`, 34 assertions**, each mechanism tested firing *and*
+declining — including one bug the test found rather than the code review: the cardinality collapse
+turned `"run a step"` ×2 into `"run a step twice"`, which is not in the says-nothing set and would
+have slipped a meaningless whole-file word past the gate. The check now runs on the **pre-collapse**
+clauses.
+
+## 7. WHAT REMAINS — the residual, 721 files
+
+Honest, from `en-index.json`:
+
+| | files |
+|---|---|
+| collapse to one word | **316** |
+| fully accounted for by words, but in more than one span | 221 |
+| **do not collapse** | **721** |
+
+The cause for the great majority is unchanged and is **not** the LIFT any more — it is **THE
+RESIDUAL** named in §5D.4: LZW builds an entry only where a run *recurs*, so once-only statements
+produce no entry and nothing accounts for those positions. The worst files are large and
+test-heavy — `tests/hydra-api/massCredits.test.ts` (94 spans, 7,085 non-whitespace bytes outside
+them), `src/xero-api/invoice.ts` (82), `src/rentsync-api/reporting/index.ts` (78).
+
+**§5D.4's three moves are still the plan, and are now the next work**, in this order:
+
+1. **More node-kind chunk rules** (§5D.3C). Only 88 runs corpus-wide are now refused *for want of a
+   rule* (down from 163 before the generic cardinality collapse), and their repeated kinds are
+   `ExpressionStatement` and `VariableStatement`/`FirstStatement`. This is the cheapest remaining
+   move and it is pure §5D.3C work.
+2. **Seed the archetype as a dictionary entry with a variadic tail** (§5E.3.4) — so a file word does
+   not have to be *discovered* by recurrence.
+3. **Make the residual explicit in the top word's gloss** — *"…and 4 statements not yet part of any
+   pattern"* — under §7.0's honesty rule (R-LANG-10), so a file is accounted for by one word that
+   *admits* what it has not factored.
+
+**Not attempted tonight, and flagged rather than guessed at:** move 2 changes the miner, which means
+a fresh mine (tens of minutes) and a parameter decision (`MIN_COUNT`, still open in Q-9). That is
+Amir's call on cost, and it is the gate on the remaining ~70%.
+
+## 8. Requirements
 
 - **R-ARCH-17** — The renderer **MUST NOT** discard a whole-run word solely because it covers the
   run. Check: with names present, a file whose run is covered by one word renders as **one** top-level

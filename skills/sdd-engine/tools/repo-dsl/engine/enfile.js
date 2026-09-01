@@ -514,13 +514,63 @@ function exportGloss(st, sf) {
   return null;
 }
 
+/* ---- CHUNK RULES (PRD §5D.3C, §5D.3D) -------------------------------------------------------
+ * A rule is keyed to an AST NODE KIND, never to a shape mined from a corpus, and CARDINALITY IS A
+ * PARAMETER OF THE RULE: the same rule renders one statement or twelve, joining with a list rather
+ * than repeating itself. That is the whole point — a run of imports is ONE clause naming each
+ * import, not N clauses joined by "then" (§5D.3D: Amir's "No", 2026-09-01).
+ *
+ * Each rule is { kind, match, render }. `render` returns ONE action string for the whole run, or
+ * null to decline — declining is safe and falls straight through to the per-statement path below,
+ * which is why adding a rule can never regress a file (R-LANG-17).
+ *
+ * DISPLAY ONLY, like every other label producer here: the compiler reads the payload, never the
+ * label (see compileChunk). A wrong rule is wrong prose and cannot be wrong bytes. */
+function importPhrase(st, sf) {
+  const spec = st.moduleSpecifier && ts.isStringLiteralLike(st.moduleSpecifier) ? st.moduleSpecifier.text : null;
+  const from = spec ? " from " + q(spec) : "";
+  const c = st.importClause;
+  if (!c) return spec ? q(spec) + " for its side effects only" : null;
+  const nb = c.namedBindings;
+  if (nb && ts.isNamespaceImport(nb)) return "all of " + q(nb.name.text) + from;
+  const named = nb && ts.isNamedImports(nb) ? nb.elements.map((e) => e.name.text) : [];
+  const parts = [];
+  if (c.name) parts.push(q(c.name.text) + " (its default)");
+  for (const n of named) parts.push(q(n));
+  if (!parts.length) return null;
+  return P.list(parts) + from;
+}
+const CHUNK_RULES = [
+  /* ImportDeclaration — the single most repetitive kind in the corpus (5,833 of 33,918
+   * statements, per generators.js's v3 note), and the one Amir named. */
+  { kind: "ImportDeclaration",
+    match: (st) => ts.isImportDeclaration(st),
+    render: (run, sf) => {
+      const phrases = run.map((st) => importPhrase(st, sf));
+      if (phrases.some((x) => !x)) return null; // one unreadable member -> decline the whole run
+      return "import " + P.list(phrases);
+    } },
+];
+const chunkRuleFor = (st) => CHUNK_RULES.find((r) => r.match(st)) || null;
+
 /* Tier-1 prose: describe a run of statements as English grouped by ROLE — a lead sequence of
  * actions (declarations / calls / returns) plus the guard rules pulled out as "failing when …",
  * surfacing the real throw messages. DISPLAY ONLY; deterministic; zero model. */
-function spanProse(win, sf) {
+function spanActions(win, sf) {
   const actions = [], guards = [];
   const isAwait = (st) => /\bawait\b/.test(st.getText(sf).slice(0, 80));
-  for (const st of win) {
+  let wi = 0;
+  while (wi < win.length) {
+    /* CHUNK-RULE PRE-PASS: a maximal run of one node kind gets ONE clause from its rule. Placed
+     * before the per-statement productions so a rule always wins over N repetitions; a rule that
+     * declines (null) leaves wi untouched and the statement falls through unchanged. */
+    const rule = chunkRuleFor(win[wi]);
+    if (rule) {
+      let wj = wi; while (wj < win.length && rule.match(win[wj])) wj++;
+      const one = rule.render(win.slice(wi, wj), sf);
+      if (one) { actions.push(one); wi = wj; continue; }
+    }
+    const st = win[wi++];
     if (isGuardThrow(st)) {
       const msg = throwMessage(throwStmtOf(st.thenStatement));
       if (msg) guards.push('“' + msg + '”');
@@ -770,10 +820,64 @@ function spanProse(win, sf) {
     }
     const c = firstCallName(st); actions.push(c ? "call " + P.words(c) : "run a step");
   }
+  /* CARDINALITY, the generic case (PRD §5D.3C point 1, §5D.3D). Two adjacent statements that
+   * produce the IDENTICAL clause are the same pattern occurring twice, so say it once with a
+   * count — "call `res.set` twice" — rather than repeating the clause. This is the same move the
+   * import rule makes, applied to every kind at once: it is what `namedLabel`'s long-dead (×N)
+   * collapse was reaching for, in the one place that is actually reachable.
+   *
+   * Only ADJACENT identicals collapse. A B A is genuinely interleaved and stays as it is. */
+  const merged = [];
+  for (const a of actions) {
+    const last = merged[merged.length - 1];
+    if (last && last.a === a) last.n++; else merged.push({ a, n: 1 });
+  }
+  /* `raw` is returned alongside because the says-nothing test MUST run before the collapse:
+   * "run a step" twice collapses to "run a step twice", which is not in the says-nothing set and
+   * would have slipped a meaningless whole-file word past the R-ARCH-17 gate. Caught by
+   * chunk-naming.test.js rather than by reading the code. */
+  return { actions: merged.map((m) => (m.n === 1 ? m.a : m.a + (m.n === 2 ? " twice" : " " + m.n + " times"))), guards, raw: actions };
+}
+
+/* The joined sentence. Kept as its own function so ONE-CLAUSE-NESS is testable without re-deriving
+ * it from the string (R-ARCH-17 needs to ask "did this whole run collapse to a single clause?"). */
+function spanProse(win, sf) {
+  const { actions, guards } = spanActions(win, sf);
   let out = P.list(actions, "then");
   /* joined as prose, not with a semicolon: the English-completeness scanner correctly flagged
    * `"A"; "B"` as leftover punctuation, and it was right — a semicolon is not English. */
   if (guards.length) out += (out ? " — " : "") + "failing when " + P.list(guards);
+  return out;
+}
+
+/* The gloss for a whole run, or null if that run may NOT be collapsed into one word — the test
+ * the amended R-MINE-7 (§5D.4, R-ARCH-17) needs. It is deliberately NOT "exactly one clause":
+ * two DIFFERENT actions joined by "then" is ordinary English and reads fine ("import A, B and C
+ * then define D"). What Amir rejected in §5D.3D was MECHANICAL REPETITION — the same clause said
+ * N times because no rule recognised the pattern. So the three disqualifiers are:
+ *
+ *   1. a REPEATED action — some kind recurs here and has no chunk rule yet. Refusing keeps
+ *      today's re-segmented output AND makes the missing rule visible as a non-collapsed file,
+ *      which is exactly the residual work queue (§5D.4A). This is the only interesting one.
+ *   2. an action that SAYS NOTHING ("run a step", "compute a value") — an opaque whole-file word
+ *      is what R-ARCH-15 forbids outright.
+ *   3. nothing to say at all.
+ *
+ * Guards are fine: "… — failing when “x is required”" is real English and carries real content.
+ * A named whole-chunk name (R-LANG-19) bypasses this entirely — see namedLabel. */
+/* Every gloss that carries no information. "call a step" / "await a step" come from the
+ * expression-statement production at line ~771 when no call name could be found — they are the
+ * most common meaningless clause in the corpus, and omitting them would have let an unreadable
+ * whole-file word through the gate. */
+const SAYS_NOTHING = /^(run a step|call a step|await a step|compute a value|branch on a condition|switch on a value|run a try\/catch|compose \d+ statements)$/;
+function chunkGloss(win, sf) {
+  let r; try { r = spanActions(win, sf); } catch (_) { return null; }
+  if (!r.actions.length) return null;
+  if (r.raw.some((x) => !x || SAYS_NOTHING.test(x))) return null; // pre-collapse: see spanActions
+  if (r.actions.some((x) => !x)) return null;
+  if (new Set(r.actions).size !== r.actions.length) return null; // mechanical repetition — rule missing
+  let out = P.list(r.actions, "then");
+  if (r.guards.length) out += " — failing when " + P.list(r.guards);
   return out;
 }
 
@@ -812,7 +916,12 @@ const WN = require("./word-names");
 /* Corpus-rooted (PRD §8B): names are corpus data and live with the corpus, never in the engine tree. */
 const NAMES = WN.load(AC.pathFor("word-names"));
 
-function namedLabel(s, source, cat, names) {
+function namedLabel(s, source, cat, names, chunks) {
+  /* R-LANG-19: a WHOLE-CHUNK name outranks member composition. Amir's "No" (§5D.3D): a recurring
+   * run is one named pattern, not N clauses joined by "then". Composition below remains the
+   * fallback for every word that has no whole-chunk name, so this is purely additive. */
+  const whole = WN.chunkNameFor(cat, s.payload, chunks);
+  if (whole) return sanitizeLabel(whole);
   const clauses = WN.clausesFor(cat, s.payload, names);
   if (!clauses) return null;
   let frag;
@@ -913,10 +1022,11 @@ function renderFileEn(source, index) {
   //      can move, so they are retained as a TRIPWIRE for a re-introduced flat producer, not
   //      reported as a coverage figure. A non-zero value means someone added a flat tier without
   //      updating the composition gate (R-COMP-7).
-  const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw) : [];
+  /* R-ARCH-17: the whole-run refusal is now conditional on the run having a real chunk gloss. */
+  const recSpans = index._lzw ? EL.genSpans(sf, source, index._lzw, { wholeRunOk: (run, rsf) => !!chunkGloss(run, rsf) }) : [];
   const genSpans = recSpans.map((s) => ({
     start: s.start, end: s.end, kind: "gen", tier: "recursive", stmts: s.stmts, depth: s.depth,
-    en: GEN + " " + (namedLabel(s, source, index._lzw, NAMES.names) || genLabel(s.start, s.end, source, s.stmts))
+    en: GEN + " " + (namedLabel(s, source, index._lzw, NAMES.names, NAMES.chunks) || genLabel(s.start, s.end, source, s.stmts))
       + " " + PAY_OPEN + PAY.encode(s.payload) + PAY_CLOSE,
   }));
   for (const g of genSpans) spans.push(g);
@@ -973,6 +1083,18 @@ function renderFileEn(source, index) {
   }
   out += escapeVerbatim(source.slice(pos));
   const bodyStmts = countBodyStatements(sf);
+  /* count TOP-LEVEL spans in the emitted English (nesting-aware) and the non-whitespace bytes
+   * outside them — the two numbers R-ARCH-15 is measured with. Derived from `out` rather than from
+   * the span list so it measures what the reader actually receives. */
+  let topSpanCount = 0, outsideNonWs = 0;
+  { let depth = 0, cursor = 0;
+    for (let k = 0; k < out.length; k++) {
+      const ch = out[k];
+      if (ch === OPEN) { if (depth === 0) { outsideNonWs += out.slice(cursor, k).replace(/\s/g, "").length; } depth++; }
+      else if (ch === CLOSE) { depth--; if (depth === 0) { topSpanCount++; cursor = k + 1; } }
+    }
+    outsideNonWs += out.slice(cursor).replace(/\s/g, "").length;
+  }
   return { en: out, stats: {
     totalBytes: source.length, englishBytes,
     englishPct: source.length ? +(100 * englishBytes / source.length).toFixed(1) : 0,
@@ -984,6 +1106,11 @@ function renderFileEn(source, index) {
     collapsedStatements: genStmts, restatedStatements: stmtN,
     verbatimStatements: Math.max(0, bodyStmts - genStmts - stmtN),
     residualStatements: Math.max(0, bodyStmts - genStmts),
+    /* R-MEAS-6 / R-ARCH-15: does this file collapse to ONE top-level word? `topSpans` is the count
+     * of top-level spans and `oneWord` is true only when there is exactly one AND nothing but
+     * whitespace outside it — i.e. one word accounts for the whole file. Published per file
+     * because an average hides the worst file, which is the one that costs the review. */
+    topSpans: topSpanCount, outsideNonWs: outsideNonWs, oneWord: topSpanCount === 1 && outsideNonWs === 0,
     /* §7.3's frozen definition, per file. netStatementReduction = collapsed - calls is what leaves
      * the reader's view; reviewSurface is what is left of S after it. */
     netStatementReduction: genStmts - genN,
@@ -1022,7 +1149,7 @@ function renderFileEn(source, index) {
  * in the round-trip tests, which is where a drifted gloss must not slip through. */
 function deriveGloss(payload, compiled, cat) {
   const s = { payload, start: 0, end: compiled.length, stmts: null };
-  try { return namedLabel(s, compiled, cat, NAMES.names) || genLabel(0, compiled.length, compiled, null); }
+  try { return namedLabel(s, compiled, cat, NAMES.names, NAMES.chunks) || genLabel(0, compiled.length, compiled, null); }
   catch (_) { return null; }   /* a gloss we cannot derive is not evidence of an edit */
 }
 
@@ -1073,4 +1200,4 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };
+module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };

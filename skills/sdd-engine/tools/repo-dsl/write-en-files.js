@@ -148,6 +148,14 @@ const manifest = {
     reviewSurface: genSpans + Math.max(0, bodyStmts - collapsedStmts),
     collapseRatioPct: bodyStmts ? +(100 * (collapsedStmts - genSpans) / bodyStmts).toFixed(1) : 0,
     filesFullyCovered: perFile.filter((f) => (f.residualStatements || 0) === 0 && (f.bodyStatements || 0) > 0).length,
+    /* R-MEAS-6 (§5D.4A): the ONE-WORD-PER-FILE rate, R-ARCH-15's target, published by the
+     * producer that renders it. It had no producer at all until now — the first measurement of it
+     * was taken by an out-of-band script, which is the R-MECH-8 shape and should not recur. */
+    oneWordFiles: perFile.filter((f) => f.oneWord).length,
+    oneWordPct: perFile.length ? +(100 * perFile.filter((f) => f.oneWord).length / perFile.length).toFixed(1) : 0,
+    filesNotCollapsed: perFile.filter((f) => !f.oneWord).length,
+    worstBySpans: perFile.slice().sort((a, b) => (b.topSpans || 0) - (a.topSpans || 0))
+      .slice(0, 15).map((f) => ({ rel: f.rel, topSpans: f.topSpans, outsideNonWs: f.outsideNonWs })),
     worstFiles: perFile.slice().sort((a, b) => (b.reviewSurface || 0) - (a.reviewSurface || 0))
       .slice(0, 15).map((f) => ({ rel: f.rel, reviewSurface: f.reviewSurface, residualStatements: f.residualStatements, bodyStatements: f.bodyStatements })),
   },
@@ -205,6 +213,7 @@ console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 n
 }
 const rs = manifest.reviewSurface;
 console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurface} things to read, from S=${rs.bodyStatements} statements  (${rs.collapseRatioPct}% left the reader's view)`);
+console.log(`  ONE WORD PER FILE (R-ARCH-15) . ${rs.oneWordFiles}/${perFile.length} files collapse to a single top-level word (${rs.oneWordPct}%)`);
 console.log(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);
 console.log(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);
 console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
