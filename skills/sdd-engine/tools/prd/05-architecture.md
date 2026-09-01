@@ -174,11 +174,18 @@ naming every word is very nearly naming every site. The cause is not a defect: `
 promotes a word that occurs once, and a one-off run of 12 statements still collapses 12 statements
 into 1 call, so it earns its place on review surface while recurring nowhere.
 
-**What actually amortises is the PHRASEBOOK, not the names.** One declared template for *"import a
-name from a module"* serves thousands of import words without any of them being named. Templates
-amortise across shapes; names do not amortise at all. So the priority inverts: **build the phrasebook
-first, name second, and name only words whose reuse justifies a noun phrase** — the 694 words that
-cover half the corpus, not the 2,853 that appear once. Two things need Amir's call: whether
+**What actually amortises is the PHRASEBOOK, not the names.** One declared rule for
+`ImportDeclaration` serves every import in every codebase — one name or ten — without any of those
+words being named. Rules amortise; names do not amortise at all. So the priority inverts: **build the
+phrasebook first, name second, and name only words whose reuse justifies a noun phrase.**
+
+*The strength of that instruction changed on 2026-08-31 when the phrasebook's key did.* It was argued
+here from mined-shape counts (10 / 91 / 437 templates for 50 / 80 / 90% of **this** corpus), which
+made the table look tractable while it in fact grew with every new codebase. **§5D.3C** replaces the
+key with the language's **AST node kinds**: 8 / 19 / 28 rules for the same coverage, fixed by the
+parser rather than discovered by the miner, and **enumerable in advance** — the corpus exercises 100
+of TypeScript's 400 kinds, and 53 rules reach 99%. Same instruction, and now a justification that
+terminates. Two things need Amir's call: whether
 `MIN_COUNT` moves to 2 on the naming path (trading a third of the collapse for vocabulary that
 repeats), and whether an unnamed-but-templated word is acceptable — one reads as *"imports getManager
 from '../helpers'"*, which is already English and needs no model at all.
@@ -243,11 +250,20 @@ spec violation, not a style question.**
 
 **And it carries the correction that the split alone was not enough.** The specimen's first draft
 satisfied every rule in this section and still read as notation rather than English. What produces
-prose is a **phrasebook**: one *declared sentence template per recognised shape*, authored by a human
-the way `entity-sentence.js`'s four lines were, filled by mined slots. `refine-language.js`'s
+prose is a **phrasebook** of declared sentence rules, authored by a human the way
+`entity-sentence.js`'s four lines were, filled by mined slots. `refine-language.js`'s
 `renderProduction` — a signature line from a role signature — **cannot** produce English and no
 amount of naming will make it. So stage 2 has **two** inputs and only one is a model's: the
-phrasebook (human, once per shape, before the run) and the names (model, gated, at the run).
+phrasebook (human, before the run) and the names (model, gated, at the run).
+
+**What the phrasebook is keyed to is DECIDED — see §5D.3C ([22-node-kind-rules.md](22-node-kind-rules.md)),
+the adopted design.** Rules are keyed to the target language's **AST node kinds**, one rule per kind,
+**not** to shapes mined from a corpus. A mined table is corpus-specific and grows without end (437
+templates for 90% of Hydra alone); the language's kinds are a closed set, so a rule set written once
+covers any codebase in that language — **28 kinds cover 90% of node instances, 53 reach 99%, and the
+whole corpus exercises only 100 of TypeScript's 400 `SyntaxKind` values.** The split above is
+unchanged by this and is reinforced by it: a key space closed by the language spec constrains a model
+*more* tightly than one discovered by a miner.
 
 **What stage 2 therefore is, mechanically:** for each unnamed dictionary entry, code emits the
 production and the slot inventory; the model returns one lexical token per entry; the renderer

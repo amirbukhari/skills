@@ -123,6 +123,15 @@ That is the point of this rewrite — **notation was never required by the const
 
 ### 3.3 WHERE THE PROSE COMES FROM — and the plain statement Amir asked for
 
+> **SUPERSEDED IN PART, 2026-08-31 — read §5D.3C ([22-node-kind-rules.md](22-node-kind-rules.md))
+> first.** Everything below about *why* prose needs declared templates, and why
+> `renderProduction` cannot produce it, **stands**. What is superseded is the **key**: this section
+> proposes one template per *mined shape*, and Amir's decision is one rule per **AST node kind**. A
+> mined table is corpus-specific and unbounded (437 templates for 90% of Hydra, starting again at
+> zero for the next repository); the language's node kinds are a closed set — **28 kinds cover the
+> same 90%, and 53 reach 99%.** The shape counts in §3.4 remain valid as *measurements of this
+> corpus*; they are no longer the scoping argument for the phrasebook.
+
 **The current mined-word production builder cannot produce any of this, and no amount of naming will
 make it.** `refine-language.js` `renderProduction(c)` emits:
 
@@ -158,6 +167,10 @@ first sentence for each shape. What makes it bounded is that a template is per *
 site, and shapes recur where words do not.
 
 ### 3.4 THE MEASUREMENT THAT MAKES THIS URGENT — and it contradicts §5D.2
+
+*(Still valid, and still the reason naming does not amortise. Note only that the **conclusion** —
+"build the phrasebook first" — is now justified by §5D.3C's node-kind vocabulary rather than by the
+shape counts here.)*
 
 Counted over the rendered corpus (`grep` for `lzw1 w<id>` across all 1,037 `.en` files):
 

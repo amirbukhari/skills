@@ -2606,3 +2606,35 @@ at all**, which would make a large part of stage 2 unnecessary rather than merel
 **Kept, not deleted:** the failed draft is preserved in the specimen as §3.5, with what was wrong
 with it. Deleting it would leave the next person free to rediscover that satisfying the split feels
 like finishing the job.
+
+---
+
+## §5D.3C — the phrasebook is keyed to AST node kinds (Amir's decision, 2026-08-31)
+
+**Amir's call, not mine.** Rules are keyed to the **target language's own AST node kinds**, one
+hand-authored rule per kind with cardinality as a parameter of the rule — **not** to shapes mined
+from a corpus. Written into `tools/prd/22-node-kind-rules.md` as the adopted design; §3.3/§3.4 of
+the specimen and the "per-shape template" framing of earlier tonight are superseded in part, with
+banners rather than deletions so the reasoning that led here survives.
+
+**What I measured to support it** (not to define it — Amir's point 3 is explicit that the target is
+TypeScript's vocabulary, not Hydra's counts): TypeScript declares **400** `SyntaxKind` values; the
+1,037-file corpus exercises **100** distinct structural kinds over 307,009 node instances;
+**8 / 19 / 28 / 37 / 53** kinds cover **50 / 80 / 90 / 95 / 99%** of instances. Against the mined-
+shape figures from earlier tonight (10 / 91 / 437 for the same 50 / 80 / 90%) that is ~15× fewer
+rules at 90% — and, more to the point, a **finite** set that can be finished, where the shape set
+grows with every new codebase.
+
+**The two columns are not comparable in kind** and the PRD says so: a mined shape is a whole
+statement, a node kind is one node, so 28 node-kind rules cover 90% of *node instances* and 437
+templates covered 90% of *statements*. The honest claim is the one about termination, not the ratio.
+
+**Why I did not treat this as a rewrite.** Enforcement is unchanged (render → parse back → identical
+AST) and an unruled kind falls back to today's unfolded output, so the first rule can ship alone and
+nothing regresses — R-LANG-16 and R-LANG-17 are written to be checkable on that basis. The LLM's
+role is unchanged from §5D.3A: leaf-level name slots only.
+
+**Still Amir's, still open, now recorded in Q-9:** whether `MIN_COUNT` moves to 2 on the naming path,
+and whether an unnamed-but-ruled word is acceptable. The second is now larger than before — if it is
+acceptable, node-kind rules deliver most of the target with **zero model calls** and stage 2 becomes
+an optimisation rather than a prerequisite.

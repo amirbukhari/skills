@@ -262,14 +262,24 @@ is the mechanics, and the current code is on the far side of the change:
 - **The output form is no longer open either:** §5D.3B is the hand-authored reference specimen
   (`partners.ts`, today's output beside the target, every line attributed to code / model / mine).
   Stage 2 is checked against it the way the archetype grammar is checked against §5D.1's sentence.
-- **NEW, and it is the real blocker: THE PHRASEBOOK.** The specimen's first draft satisfied every
-  constraint and was still not English. `renderProduction` emits a signature line from a role
-  signature and cannot produce prose — no amount of naming fixes that. Fluent English needs one
-  **declared sentence template per recognised shape**, human-authored the way `entity-sentence.js`'s
-  four lines were. **Amir's call, two questions:** does `MIN_COUNT` move to 2 on the naming path
-  (87% of live words are used exactly once, so names barely amortise while templates do), and is an
-  unnamed-but-templated word acceptable — *"imports getManager from '../helpers'"* is already English
-  and needs no model at all.
+- **THE PHRASEBOOK'S KEY IS DECIDED (§5D.3C):** rules are keyed to the target language's **AST node
+  kinds**, one rule per kind, cardinality as a parameter of the rule — **not** to mined shapes. Rules
+  compose recursively; an unruled kind falls back to today's unfolded output, so the first rule ships
+  alone and nothing regresses (R-LANG-16, R-LANG-17). The LLM's role is unchanged: leaf-level name
+  slots only. **Measured:** 8 / 19 / 28 rules for 50 / 80 / 90% of node instances, 53 for 99%, and
+  the corpus exercises 100 of TypeScript's 400 `SyntaxKind` values — a set that can be finished,
+  against 437 mined templates for the same 90% that could not.
+- **Why a phrasebook is needed at all, and it is not a naming problem.** The specimen's first draft
+  satisfied every constraint in §5D.3A and was still not English. `renderProduction` emits a
+  signature line from a role signature and **cannot** produce prose — no amount of naming fixes that.
+  Fluent English requires **declared sentence rules**, human-authored the way `entity-sentence.js`'s
+  four lines were. §5D.3C settles what those rules are keyed to; that they must exist is not open.
+- **What remains open is authoring and sequencing, not design** — which rules get written first, and
+  **two calls that are Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words
+  are used exactly once, so names barely amortise while rules do), and **is an unnamed-but-ruled word
+  acceptable?** *"imports getManager from '../helpers'"* is already English and needs **no model at
+  all** — if that is acceptable, the node-kind rules deliver most of the target and the LLM naming
+  stage becomes an optimisation rather than a prerequisite.
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the
