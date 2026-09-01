@@ -2678,3 +2678,55 @@ driven, not human-meaningful. `partners.ts` has three consecutive imports and th
 **2 + 1**, attaching the third to the export. Amir's phrasing ("a block of N imports") implies the
 block is the boundary; longest-match LZW gives what it gives. A chunk name must therefore describe
 the word the mine found, not the block a reader would draw.
+
+---
+
+## §5D.4A — one word per file, measured (2026-09-01)
+
+Amir's principle: *"Every file should be able to be 1 word. If it's not able to be that then we've
+failed."* It was **already** a stated requirement — R-ARCH-15, and §5D.4 is its full treatment — so
+I measured against it rather than restating it. Written up as
+`tools/prd/24-one-word-per-file-measured.md`, cited from §5D.4, Q-9 and the register.
+
+**Measured, 943 files, in-process render plus `compileFileEn` round-trip, no corpus writes:**
+**0 files (0.0%)** collapse to one top-level word today; mean 7.66 top-level spans per file. With
+`LIFT_TOP=0`: **308 files (32.7%)**, mean 5.69, and **0 byte-identity failures either way**. A
+separate scan of the 1,037 `.en` files on disk agrees with the default column (0 one-word files, mean
+8.22 spans, max 126). I ran the baseline through the **same harness** as the experiment rather than
+comparing against the on-disk scan, because the two walks disagree on the denominator (943 vs 1,037)
+and comparing across them would have manufactured a difference.
+
+**The finding that changes the picture:** `enlzw.js:121` — `if (LIFT_TOP && w.len >= run.length &&
+run.length >= 2) continue;`, default ON — discards any word covering an entire run. That is the
+*original* R-MINE-7 (*"a file is never one word"*), which §5D.4 **already superseded**. So a third of
+the target is not blocked by mining; it is being **refused at render time by a retired rule**. No
+test pins it: the only `LIFT_TOP` references in the tree are its own definition and use.
+
+**I did NOT flip the default, and this is not me rationalizing the gap away.** The *amended*
+R-MINE-7 permits a whole-run word only when **named and expandable**. `word-names.json` is deleted,
+so every word is unnamed; flipping today yields 308 whole-file spans glossed as `genLabel`'s
+*"clause then clause then clause…"* — exactly the shape the amended rule refuses, and exactly what
+Amir objected to in §5D.3D. The sequence I recommended instead: settle `word-names.json` → whole-chunk
+names override composition (R-LANG-19) → **then** flip `LIFT_TOP` → then attack the residual.
+**One decision now unblocks both chunk naming and a third of the headline target.**
+
+**Honest accounting of the remaining gap** (so it cannot be read as one cause): 308 files have a
+whole-file word thrown away; 6 are fully covered but by more than one span (a merge problem, no new
+mining); 601 have residual non-whitespace outside the spans; 28 fold nothing at all. So §5D.4's
+"THE RESIDUAL" diagnosis is confirmed for ~67% of files and is **not** the story for the first third.
+
+**Also recorded:** the mechanism answer needed no speculation — a word "calls" another purely as an
+**id pair** `m: [prefix, appended]`; the dictionary holds 3,238 leaves and 112,423 composites; the
+deepest word `w120513` is a left spine where each level is the previous word plus one symbol, with
+`len=64`/`d=63` pinned at `MAXWIN`/`MAXWIN-1`.
+
+**One discrepancy I did not resolve and did not edit:** `build-lzw-generators.js:69` asserts
+*"WHOLE-FILE WORDS DID NOT MOVE: 74/1037 at every value"*. That does not match either of my columns
+(0 or 308), so it is counting a third thing — most likely words whose window spans a file's run in
+the miner's terms, before the renderer's refusal. I left the comment alone rather than "correcting" a
+number whose definition I could not pin down.
+
+**New requirements:** R-ARCH-17 (the renderer must not discard a whole-run word solely for covering
+the run — BLOCKED on R-LANG-19) and R-MEAS-6 (the one-word rate must have a producer; `en-index.json`
+has no `perFile`, so I had to measure it out-of-band, which is the R-MECH-8 shape and should not
+persist).

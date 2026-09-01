@@ -287,6 +287,12 @@ is the mechanics, and the current code is on the far side of the change:
   already exists in `namedLabel` **cannot fire**, because `word-names.json` was deleted — which
   makes the deleted-artifact question **load-bearing for the adopted design**: chunk names have
   nowhere to be stored until it is settled.
+- **§5D.4A raises the stakes on `word-names.json` a second time.** The one-word-per-file target
+  (R-ARCH-15) is **0/943 today**, and the single largest cause is `enlzw.js:121` still refusing
+  whole-run words — the superseded R-MINE-7. Switching it off recovers **308 files (32.7%)**,
+  byte-identity intact, one line, no test pins it. **It is blocked on the same artifact:** the
+  amended R-MINE-7 permits a whole-run word only when **named**, and no names exist. So one decision
+  unblocks both chunk naming and a third of the headline target.
 - **Still open, still Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words are
   used exactly once, so leaf names barely amortise while rules and chunk names do).
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport

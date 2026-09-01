@@ -72,6 +72,7 @@ PART IV — and engine source comments cite it directly.
 | 21 | [§5D.3B Naming-stage reference specimen — `partners.ts`](21-naming-specimen.md) | 249 |
 | 22 | [§5D.3C Node-kind rules — the adopted stage-2 design](22-node-kind-rules.md) | 124 |
 | 23 | [§5D.3D Naming has two levels — the chunk and the leaf](23-two-naming-levels.md) | 121 |
+| 24 | [§5D.4A One word per file — the mechanism, and how far the corpus is](24-one-word-per-file-measured.md) | 143 |
 
 ## How the split was made
 

@@ -278,6 +278,12 @@ A rejected name costs a re-ask, never a corpus edit.
 
 ### 5D.4 ONE WORD PER FILE — a statement about STRUCTURE, not about opacity
 
+> **MEASURED 2026-09-01 — see §5D.4A ([24-one-word-per-file-measured.md](24-one-word-per-file-measured.md)).**
+> Today the corpus achieves this **0 times in 943 files**. The diagnosis below — THE RESIDUAL — is
+> confirmed as the obstacle for ~67% of files. **It is not the obstacle for the first third:**
+> `enlzw.js:121` still enforces the *original* R-MINE-7 that this section superseded, and switching
+> it off recovers **308 one-word files (32.7%) with byte-identity intact**. R-ARCH-17, R-MEAS-6.
+
 **The target, stated without hedging.** A file collapses to **one top-level word** — its archetype,
 which per §5E.3.1 is itself a dictionary entry at the top of the recursive dictionary. What a human
 reviews is **English**, not code and not `«g_412_a1b2c3»`.
