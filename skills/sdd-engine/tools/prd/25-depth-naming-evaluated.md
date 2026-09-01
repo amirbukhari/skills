@@ -133,7 +133,47 @@ which a name can be grounded in already-named parts.
    frequency threshold at all — count is a priority, not a gate. This narrows Q-9's open question
    rather than answering it: what remains is only *how far up* to go, and that is a budget decision.
 
-## 6. Requirements
+## 6. THE NAMING TARGET, recorded
+
+**Decided material, not a proposal.** The coherent bottom-up target is:
+
+| | names |
+|---|---|
+| leaf skeletons the used words are built from (d=0) | **2,619** |
+| used words at d=1–8 | **2,789** |
+| **total naming target** | **5,408** |
+| *today, for comparison (every used word, `MIN_COUNT=1`)* | *3,237* |
+
+**This is MORE names than today, not fewer — 5,408 against 3,237 — and that is the honest cost of
+R-ARCH-15's "words made of words down to leaves."** It is recorded here explicitly so the target is
+never mistaken for a saving. What it buys is **completeness**: at 5,408 every used word is either
+
+- named directly (d≤8), or
+- expressible as a **named** d≤8 prefix plus a tail of **named** leaves (d≥9),
+
+which is guaranteed, not hoped for, by the 0-violations result in §3 — every composite is prefix +
+exactly one leaf, so there is no third case. The 448 deep words need no names of their own.
+
+**R-LANG-22** records this.
+
+## 7. Provenance — how to reproduce every number above
+
+So a future reader can trace these rather than trust them. All were produced 2026-09-01 against the
+catalog at `<corpus>/sen/catalog/generators-lzw.json` and a full in-process render of the 943
+mineable `.ts` files; **zero model calls**; the corpus was not written to.
+
+| number | how it was obtained |
+|---|---|
+| 115,661 / 126,167 entries; 3,238 / 5,684 leaves; per-depth counts; maxDepth 63 | direct walk of `cat.wide.words` / `cat.narrow.words` via `enfile.loadIndex(corpusRoot())._lzw`, bucketing by `w.d` (`w.len === 1` ⇒ d=0) |
+| **0 violations** of "appended half is a leaf" | same walk: for every composite, `words[w.m[1]].len === 1`. 112,423 wide + 120,483 narrow composites, zero exceptions |
+| 3,921 spans, 3,237 distinct used words, 21,323 in-span statements | `enlzw.genSpans(sf, src, cat, { wholeRunOk })` over every mineable file, keyed by `payload.a + ":" + payload.w`, statements counted as `sites × w.len` |
+| per-depth used words / sites / once-only (79% → 99.1%) | the same used-word map, bucketed by `w.d`; "once" is `sites === 1` |
+| strategy table (68.3% / 15.9% / 68.9% / 40.2%) | filters over that map: `d 1..8`, `n >= 2`, the OR, and `d 1..4` |
+| leaf tail: 448/448 terminate at d≤8, mean 5.9, max 54, 2,659 total | for each used word with `d ≥ 9`, walk `m[0]` while `d > 8`, counting steps; every step's `m[1]` checked for `len === 1` |
+| **2,619** distinct leaf skeletons | `word-names.leavesOf(axis, id)` over every used word, de-duplicated per axis |
+| review surface 13,874 / S=33,918; one-word 316/1037 | published by the producer in `<corpus>/.cache/spec-derived/en-index.json` → `reviewSurface` (§5D.4A, R-MEAS-6) |
+
+## 8. Requirements
 
 - **R-LANG-20** — Names **MUST** be assigned in **ascending depth order**, leaves (d=0) first, and a
   word **MUST NOT** be named before every word in its `m` chain is named. Check: the naming producer

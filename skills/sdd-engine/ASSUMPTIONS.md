@@ -2846,3 +2846,35 @@ choose at any time rather than a rule; and note that the coherent target is **le
 named prefix plus *named* leaves. That is **more** names than today, which is the honest price of
 R-ARCH-15's "words made of words down to leaves" — I said so rather than presenting the proposal as
 a saving.
+
+---
+
+## §5D.3E promoted to decided material (2026-09-01)
+
+Amir asked for the depth-naming measurement to be recorded as decided material rather than as an
+evaluation. The analysis was already in `25-depth-naming-evaluated.md` and the register; what was
+missing was three things, now added:
+
+1. **The rejection is marked CLOSED, in the file's own convention** (struck-through sub-question +
+   *"CLOSED 2026-09-01 by measurement — REJECTED"*), carrying the four numbers Amir named: 68.3% vs
+   100% coverage, 0.152 → 0.192 names/statement, 88.4% once-only at d=1–8 rising to 99.1% at d≥9,
+   and the four-word OR no-op. Q-9 as a whole stays open — only the depth-boundary sub-question is
+   closed, and the `MIN_COUNT` budget question is explicitly still Amir's.
+
+2. **The naming target is recorded as a COST, with R-LANG-22 to keep it that way.** 2,619 leaves +
+   2,789 shallow used words = **5,408**, against today's 3,237. The requirement's check is unusual
+   and deliberate: *any published naming plan states both figures and does not present
+   depth-bounding as a reduction.* I wrote it that way because the failure mode here is rhetorical,
+   not technical — the proposal reads like a saving and measures as the opposite, and a future
+   reader skimming for a smaller number is exactly who this row is for.
+
+3. **A provenance table** (§5D.3E §7) giving, for every figure, the artifact and the derivation —
+   which map was walked, which field was bucketed, how "once" and "in-span statements" were counted,
+   and which numbers come from the producer (`en-index.json`) rather than from a script. Added
+   because §5D.4A's own R-MEAS-6 complaint was that a headline number had been measured out-of-band;
+   the fix for a figure that has no producer yet is to make it reproducible, not to leave it
+   unsourced.
+
+**Nothing was re-measured for this pass** — the numbers are the ones produced earlier tonight and
+already committed in `aada578`. I checked each of Amir's four asks against what was on disk before
+writing, and added only the three gaps rather than restating work that was already there.

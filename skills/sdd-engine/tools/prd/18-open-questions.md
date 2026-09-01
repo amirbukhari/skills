@@ -293,12 +293,21 @@ is the mechanics, and the current code is on the far side of the change:
   byte-identity intact, one line, no test pins it. **It is blocked on the same artifact:** the
   amended R-MINE-7 permits a whole-run word only when **named**, and no names exist. So one decision
   unblocks both chunk naming and a third of the headline target.
-- **NARROWED by measurement (§5D.3E, 2026-09-01).** Amir proposed replacing the frequency threshold
-  with **depth-bounded naming** (name d=1–8, leave d≥9 unnamed). Measured against the live
-  dictionary: it costs 14% fewer names (3,237 → 2,789) for **31.7% less coverage**, and it does
-  **not** address the once-only problem — 88.4% of used d=1–8 words occur exactly once, against 87%
-  corpus-wide, because the once-only share *rises* with depth. `depth<=8 OR count>=2` adds exactly
-  **four** words. **Depth is not a frequency filter.**
+- **~~Should depth 1–8 replace `MIN_COUNT` as the naming boundary?~~ CLOSED 2026-09-01 by
+  measurement — REJECTED. Depth is NOT adopted as a naming boundary (§5D.3E).** Amir proposed
+  naming every word at depth 1–8 regardless of frequency and leaving d≥9 unnamed. Measured against
+  the live dictionary and a full render:
+  - **coverage 68.3% vs 100%** — 14,559 of 21,323 in-span statements, against 3,237 names covering
+    all of them today;
+  - **cost per statement gets WORSE, 0.152 → 0.192 names/statement** (3,237 → 2,789 names, a 14%
+    saving, for 31.7% less coverage). The 448 unnamed d≥9 words are 6.6% of the words but **32% of
+    the content**, because a deep word is a long one;
+  - **it does not address the once-only problem: 88.4%** of used d=1–8 words occur exactly once
+    against 87% corpus-wide, and the once-only share **rises** with depth — 79% at d=1, 91% at d=3,
+    99% at d=7, **99.1% at d≥9**. **Depth is not a frequency filter**, it is very nearly the
+    opposite of one.
+  - `depth<=8 OR count>=2` adds exactly **four** words — a measured no-op, recorded because the OR
+    looks like a free improvement and is not.
   **What it IS good for is the ORDER** — see R-LANG-20/21. So `MIN_COUNT` should stay a *mining*
   parameter: on the naming path, count is a **priority within a depth tier**, not a gate. That
   leaves only a budget question — how far up the tiers to go — which is genuinely Amir's.
