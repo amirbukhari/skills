@@ -164,8 +164,24 @@ Three consequences, all of them requirements:
 **Why the `.en` is readable at all** — Amir's last clause is the mechanism, and it is worth stating
 plainly: *"it knows the whole domain of the code base because each pattern/code generator is word
 made up of other words."* Readability is **compositional**. Naming a word does not require describing
-everything it covers, because its parts are already named — so stage 2's cost is per *word*, not per
-*site*, and a name at depth 5 inherits the domain vocabulary of everything beneath it.
+everything it covers, because its parts are already named, and a name at depth 5 inherits the domain
+vocabulary of everything beneath it.
+
+**The cost claim that followed this, "stage 2's cost is per *word*, not per *site*", is CORRECTED by
+measurement (2026-08-31, §5D.3B.3.4).** Counted over the rendered corpus: **5,192 span occurrences,
+3,290 distinct words, and 2,853 of those words — 87% — used exactly once.** At 1.58 sites per word,
+naming every word is very nearly naming every site. The cause is not a defect: `MIN_COUNT = 1`
+promotes a word that occurs once, and a one-off run of 12 statements still collapses 12 statements
+into 1 call, so it earns its place on review surface while recurring nowhere.
+
+**What actually amortises is the PHRASEBOOK, not the names.** One declared template for *"import a
+name from a module"* serves thousands of import words without any of them being named. Templates
+amortise across shapes; names do not amortise at all. So the priority inverts: **build the phrasebook
+first, name second, and name only words whose reuse justifies a noun phrase** — the 694 words that
+cover half the corpus, not the 2,853 that appear once. Two things need Amir's call: whether
+`MIN_COUNT` moves to 2 on the naming path (trading a third of the collapse for vocabulary that
+repeats), and whether an unnamed-but-templated word is acceptable — one reads as *"imports getManager
+from '../helpers'"*, which is already English and needs no model at all.
 
 ### 5D.3A THE SPLIT — a DETERMINISTIC GRAMMAR SHELL, and an LLM that fills only WORDS
 
@@ -222,8 +238,16 @@ contributes.
 ([21-naming-specimen.md](21-naming-specimen.md)) is the hand-authored reference specimen — the real
 `partners.ts.en` as it renders today, beside what it should read like once stage 2 has named its
 words, with each line attributed to code, model or mine. It plays the role §5D.1's PaymentPlan
-sentence plays for the archetype grammar. **Three model-supplied tokens for that file; a fourth is a
+sentence plays for the archetype grammar. **Two model-supplied phrases for that file; a third is a
 spec violation, not a style question.**
+
+**And it carries the correction that the split alone was not enough.** The specimen's first draft
+satisfied every rule in this section and still read as notation rather than English. What produces
+prose is a **phrasebook**: one *declared sentence template per recognised shape*, authored by a human
+the way `entity-sentence.js`'s four lines were, filled by mined slots. `refine-language.js`'s
+`renderProduction` — a signature line from a role signature — **cannot** produce English and no
+amount of naming will make it. So stage 2 has **two** inputs and only one is a model's: the
+phrasebook (human, once per shape, before the run) and the names (model, gated, at the run).
 
 **What stage 2 therefore is, mechanically:** for each unnamed dictionary entry, code emits the
 production and the slot inventory; the model returns one lexical token per entry; the renderer

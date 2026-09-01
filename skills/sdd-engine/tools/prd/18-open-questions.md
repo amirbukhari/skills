@@ -262,6 +262,14 @@ is the mechanics, and the current code is on the far side of the change:
 - **The output form is no longer open either:** §5D.3B is the hand-authored reference specimen
   (`partners.ts`, today's output beside the target, every line attributed to code / model / mine).
   Stage 2 is checked against it the way the archetype grammar is checked against §5D.1's sentence.
+- **NEW, and it is the real blocker: THE PHRASEBOOK.** The specimen's first draft satisfied every
+  constraint and was still not English. `renderProduction` emits a signature line from a role
+  signature and cannot produce prose — no amount of naming fixes that. Fluent English needs one
+  **declared sentence template per recognised shape**, human-authored the way `entity-sentence.js`'s
+  four lines were. **Amir's call, two questions:** does `MIN_COUNT` move to 2 on the naming path
+  (87% of live words are used exactly once, so names barely amortise while templates do), and is an
+  unnamed-but-templated word acceptable — *"imports getManager from '../helpers'"* is already English
+  and needs no model at all.
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the

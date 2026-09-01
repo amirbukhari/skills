@@ -2556,3 +2556,53 @@ about a UI.
 **The one number in it that is a requirement, not an illustration:** the diff between today's `.en`
 and the target contains **exactly three** model-supplied tokens for this file. A fourth is a spec
 violation. That is the specimen's real teeth, and it is checkable by counting.
+
+---
+
+## 2026-08-31 · s7 · "That's not English" — the specimen failed on its first reading, and that is the finding
+
+**Amir's verdict on my first naming specimen:** *"That's not English."* He was right. It had
+guillemets around names, engine word ids (`w3344`) printed on the page, an indentation block standing
+in for subordination, and `imports X from Y` repeated mechanically where a person would write one
+sentence with a list.
+
+**What I got wrong, precisely.** Not the constraint — the first draft satisfied every rule in §5D.3A:
+three model tokens, code-owned structure, mined fills, byte-exact. **I rendered the shape that
+`renderProduction` actually emits — a signature line — and presented it as the target.** The split
+says *who may write what*. It says nothing about whether the result reads. I had been treating the
+split as if it answered the form question, which is exactly the gap a specimen exists to close, and
+the specimen failing on its first reading is the evidence that the gap was real.
+
+**The plain statement he asked for, which I should have led with:** `refine-language.js`'s
+`renderProduction(c)` emits `<keyword> <subject> : <type> -> <type>  <marker> <field>` from a role
+signature, and **it cannot produce English** — a role signature does not carry which verb, which
+preposition, what is subject or object, singular or plural. No amount of naming fixes that.
+
+**What does produce prose is what already produces the PaymentPlan sentence:** a **declared sentence
+template per shape**, human-authored once, filled by mined slots. So stage 2 needs TWO inputs and
+only one is a model's — the phrasebook (human, per shape, before the run) and the names (model,
+gated, at the run). Prose costs **nothing** in blast radius: a template that reads as a sentence
+constrains a model exactly as tightly as one that reads as a signature. Notation was never required
+by the constraint, which is the part I got wrong.
+
+**A measurement I ran while reworking it, which contradicts a claim in §5D.2 and is the more
+consequential finding.** Counted over the rendered corpus: **5,192 span occurrences, 3,290 distinct
+words, 2,853 of them (87%) used exactly once.** §5D.2 argues stage 2's cost is "per *word*, not per
+*site*". At 1.58 sites per word that argument nearly collapses — naming every word is very nearly
+naming every site. Cause: `MIN_COUNT = 1` promotes a word occurring once, which still earns its place
+on review surface (a one-off 12-statement run collapses 12 into 1) while recurring nowhere.
+
+**So the priority inverts, and I have written that into §5D.2 rather than leaving the old claim
+standing:** templates amortise across shapes, names do not amortise at all. Build the phrasebook
+first; name second; name only the ~694 words that cover half the corpus, not the 2,853 that appear
+once.
+
+**Two things I did NOT decide, because they are Amir's:** whether `MIN_COUNT` moves to 2 on the
+naming path (trading roughly a third of the collapse for vocabulary that repeats — the PRD's own
+sweep has the numbers), and whether an unnamed-but-templated word is acceptable. The second matters
+more than it looks: *"imports getManager from '../helpers'"* is already English and needed **no model
+at all**, which would make a large part of stage 2 unnecessary rather than merely cheaper.
+
+**Kept, not deleted:** the failed draft is preserved in the specimen as §3.5, with what was wrong
+with it. Deleting it would leave the next person free to rediscover that satisfying the split feels
+like finishing the job.
