@@ -6,6 +6,11 @@ of §5D.3B (the "10 / 91 / 437 templates" scoping) as the direction for stage 2.
 **stands unchanged**; what is superseded is only its answer to *where the sentence templates come
 from*.*
 
+> **Extended by §5D.3D (Amir, 2026-09-01):** naming is **not** leaf-only. A recurring multi-statement
+> run is named as **one chunk** by the LZW mine; node-kind rules render **the residual** the mine did
+> not claim. The two mechanisms compose, and the layering already exists in code. Nothing below is
+> withdrawn — only the scope of what the naming stage names.
+
 ## 1. The decision
 
 > **Key the phrasebook rules to the target language's own AST node kinds, not to shapes mined from a

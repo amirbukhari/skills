@@ -256,6 +256,11 @@ prose is a **phrasebook** of declared sentence rules, authored by a human the wa
 amount of naming will make it. So stage 2 has **two** inputs and only one is a model's: the
 phrasebook (human, before the run) and the names (model, gated, at the run).
 
+**Naming has TWO LEVELS — see §5D.3D ([23-two-naming-levels.md](23-two-naming-levels.md)).** The LZW
+mine names a recurring multi-statement **chunk** as one word; node-kind rules render the **residual**
+the mine did not claim. The two mechanisms compose, and `genSpans`-before-`inGen`-before-per-statement
+is already the built order. §5D.3A's *model supplies spellings, never grammar* holds at both levels.
+
 **What the phrasebook is keyed to is DECIDED — see §5D.3C ([22-node-kind-rules.md](22-node-kind-rules.md)),
 the adopted design.** Rules are keyed to the target language's **AST node kinds**, one rule per kind,
 **not** to shapes mined from a corpus. A mined table is corpus-specific and grows without end (437

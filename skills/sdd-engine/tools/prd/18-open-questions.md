@@ -274,12 +274,21 @@ is the mechanics, and the current code is on the far side of the change:
   signature line from a role signature and **cannot** produce prose — no amount of naming fixes that.
   Fluent English requires **declared sentence rules**, human-authored the way `entity-sentence.js`'s
   four lines were. §5D.3C settles what those rules are keyed to; that they must exist is not open.
-- **What remains open is authoring and sequencing, not design** — which rules get written first, and
-  **two calls that are Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words
-  are used exactly once, so names barely amortise while rules do), and **is an unnamed-but-ruled word
-  acceptable?** *"imports getManager from '../helpers'"* is already English and needs **no model at
-  all** — if that is acceptable, the node-kind rules deliver most of the target and the LLM naming
-  stage becomes an optimisation rather than a prerequisite.
+- **ANSWERED — unnamed-but-ruled is NOT sufficient (§5D.3D, Amir, 2026-09-01): "No."** A recurring
+  run of similar statements must be recognised as a **pattern** and collapsed under **one named word
+  for the whole chunk**, not rendered as N rule-produced sentences. So **naming has two levels** —
+  the chunk (the LZW word) and the leaf (the node-kind rule slot) — and the two mechanisms
+  **compose**: the mine claims multi-statement runs first (`genSpans` is 0a PRIMARY, `inGen` fences
+  the rest), node-kind rules render the residual. R-LANG-18, R-LANG-19.
+- **§5D.3D §4 exposes two things that are Amir's to resolve, and they are not cosmetic:**
+  (a) `enfile.js:799`'s rule that a span's sentence is *"COMPOSED from its members' names … never
+  invented whole"* directly contradicts one-name-per-chunk, and is what produces today's
+  *"import 1 name from a module then import 1 name from a module"*; (b) the `(×N)` run-collapse that
+  already exists in `namedLabel` **cannot fire**, because `word-names.json` was deleted — which
+  makes the deleted-artifact question **load-bearing for the adopted design**: chunk names have
+  nowhere to be stored until it is settled.
+- **Still open, still Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words are
+  used exactly once, so leaf names barely amortise while rules and chunk names do).
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the

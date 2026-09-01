@@ -2638,3 +2638,43 @@ role is unchanged from §5D.3A: leaf-level name slots only.
 and whether an unnamed-but-ruled word is acceptable. The second is now larger than before — if it is
 acceptable, node-kind rules deliver most of the target with **zero model calls** and stage 2 becomes
 an optimisation rather than a prerequisite.
+
+---
+
+## §5D.3D — naming has two levels (Amir's answer to Q-9, 2026-09-01)
+
+**Amir answered "No":** an unnamed-but-ruled word is not sufficient. A recurring run of similar
+statements gets **one name for the whole chunk**, not N rule-produced sentences. Written up as
+`tools/prd/23-two-naming-levels.md`, cited from Q-9, §5D.2 and §5D.3C, with R-LANG-18/19.
+
+**I verified the composition question in code rather than asserting it.** The two mechanisms compose,
+and the layering is already built: `enfile.js` runs `enlzw.genSpans` as *"0a PRIMARY"*, `inGen`
+fences off anything a span claimed, and the per-statement import branch at `:561` is explicitly the
+*"imports/exports the naming pass did not cover"* residual. Imports were made mine-eligible on
+purpose (`generators.js` `isDeclStmt`, v3 note: 5,833 of 33,918 statements, and unfoldable imports
+were *splitting the run*). Measured on the rendered corpus: `partners.ts.en` word `w3344` already
+covers two import statements as one word. So chunk-level recognition is done; chunk-level *naming*
+is not.
+
+**Two things I flagged instead of glossing, both Amir's to resolve:**
+
+1. **A real conflict.** `enfile.js:799` states a span's sentence is *"COMPOSED from its members'
+   names, in source order, never invented whole"*. One-name-per-chunk is by definition a name not
+   composed from its members — these cannot both stand. That composed rule is also the direct cause
+   of the output Amir objected to: today's real gloss is *"import 1 name from a module then import 1
+   name from a module"*. I recommended the additive resolution (whole-chunk name overrides, member
+   composition demoted to fallback) but did **not** implement it; R-LANG-19 is recorded as BLOCKED.
+
+2. **A dead mechanism, and it makes an old contradiction load-bearing.** `namedLabel` already
+   collapses repeated clauses to `clause (×N)`, with a comment aimed at exactly this case ("seven
+   identical imports should say it once with a count"). It **cannot fire**: `word-names.json` is
+   absent (verified via `AC.pathFor`), so `clausesFor` returns null and every gloss falls through to
+   `genLabel`'s *"X then Y"*. The deleted-`word-names` question was previously cosmetic; chunk names
+   now have nowhere to be stored until it is settled. I did **not** restore the file — that deletion
+   was deliberate and is Amir's call.
+
+**A limitation I recorded rather than a redundancy:** the mine's chunk boundaries are dictionary-
+driven, not human-meaningful. `partners.ts` has three consecutive imports and the mine split them
+**2 + 1**, attaching the third to the export. Amir's phrasing ("a block of N imports") implies the
+block is the boundary; longest-match LZW gives what it gives. A chunk name must therefore describe
+the word the mine found, not the block a reader would draw.

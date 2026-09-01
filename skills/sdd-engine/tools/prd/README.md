@@ -70,7 +70,8 @@ PART IV — and engine source comments cite it directly.
 | 19 | [6. Open technical fronts](19-open-technical-fronts.md) | 20 |
 | 20 | [§5E Archetype/word hybrid — the design](20-archetype-hybrid-design.md) | 414 |
 | 21 | [§5D.3B Naming-stage reference specimen — `partners.ts`](21-naming-specimen.md) | 249 |
-| 22 | [§5D.3C Node-kind rules — the adopted stage-2 design](22-node-kind-rules.md) | 120 |
+| 22 | [§5D.3C Node-kind rules — the adopted stage-2 design](22-node-kind-rules.md) | 124 |
+| 23 | [§5D.3D Naming has two levels — the chunk and the leaf](23-two-naming-levels.md) | 121 |
 
 ## How the split was made
 
