@@ -73,6 +73,7 @@ PART IV — and engine source comments cite it directly.
 | 22 | [§5D.3C Node-kind rules — the adopted stage-2 design](22-node-kind-rules.md) | 124 |
 | 23 | [§5D.3D Naming has two levels — the chunk and the leaf](23-two-naming-levels.md) | 121 |
 | 24 | [§5D.4A One word per file — the mechanism, the measurement, and the implementation](24-one-word-per-file-measured.md) | 238 |
+| 25 | [§5D.3E Depth-bounded naming, evaluated against the live dictionary](25-depth-naming-evaluated.md) | 149 |
 
 ## How the split was made
 

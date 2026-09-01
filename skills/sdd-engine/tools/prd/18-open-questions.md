@@ -293,6 +293,19 @@ is the mechanics, and the current code is on the far side of the change:
   byte-identity intact, one line, no test pins it. **It is blocked on the same artifact:** the
   amended R-MINE-7 permits a whole-run word only when **named**, and no names exist. So one decision
   unblocks both chunk naming and a third of the headline target.
+- **NARROWED by measurement (§5D.3E, 2026-09-01).** Amir proposed replacing the frequency threshold
+  with **depth-bounded naming** (name d=1–8, leave d≥9 unnamed). Measured against the live
+  dictionary: it costs 14% fewer names (3,237 → 2,789) for **31.7% less coverage**, and it does
+  **not** address the once-only problem — 88.4% of used d=1–8 words occur exactly once, against 87%
+  corpus-wide, because the once-only share *rises* with depth. `depth<=8 OR count>=2` adds exactly
+  **four** words. **Depth is not a frequency filter.**
+  **What it IS good for is the ORDER** — see R-LANG-20/21. So `MIN_COUNT` should stay a *mining*
+  parameter: on the naming path, count is a **priority within a depth tier**, not a gate. That
+  leaves only a budget question — how far up the tiers to go — which is genuinely Amir's.
+- **A real defect this surfaced:** `name-words-lzw.js:89`, the only naming producer, sorts by depth
+  **DESCENDING** and enumerates only top-level emitted words. Every composite is prefix + one leaf
+  (0 violations across 115,661 / 126,167 entries), so the dependency relation is a **total order**
+  and names must be assigned leaves-first. R-LANG-20 is FAILING as written.
 - **Still open, still Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words are
   used exactly once, so leaf names barely amortise while rules and chunk names do).
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport

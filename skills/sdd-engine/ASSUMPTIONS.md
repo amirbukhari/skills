@@ -2797,3 +2797,52 @@ variadic tail, which **changes the miner** and therefore needs a fresh mine (ten
 still-open `MIN_COUNT` decision — **Amir's call on cost, and it is the gate on the remaining ~70%**;
 (c) making the residual explicit in the top word's gloss. I stopped at the clean boundary rather than
 starting a mine on my own authority.
+
+---
+
+## §5D.3E — depth-bounded naming evaluated; and the naming order is reversed (2026-09-01)
+
+Amir proposed naming every word at depth 1–8 regardless of frequency, instead of a `MIN_COUNT`
+threshold, and separately asked whether naming proceeds bottom-up in dependency order. Measured
+rather than reasoned about; written up as `tools/prd/25-depth-naming-evaluated.md`.
+
+**The finding that reframes the question: the dictionary is far larger than the part in use.** 115,661
+entries (wide), of which **d=1–8 alone is 59,439** — but a full render emits only 3,921 spans drawn
+from **3,237 distinct words**. So "name all of depth 1–8" is ~18× today's naming cost if read against
+the dictionary, and 2,789 names if read against the used set. I evaluated the used-set reading, since
+the other is not a real option, and said so rather than quietly picking one.
+
+**Depth-bounding measured worse than today as a coverage rule:** 3,237 → 2,789 names (14% fewer) for
+**31.7% less coverage** (21,323 → 14,559 statements), with cost per statement rising 0.152 → 0.192.
+The 448 deep words are 6.6% of the words and 32% of the content, because a deep word is a long one.
+
+**It does not solve the once-only problem, and I checked the direction of the correlation rather than
+assuming it:** 88.4% of used d=1–8 words occur exactly once vs 87% corpus-wide, and the once-only
+share *rises* with depth (79% at d=1 → 99.1% at d≥9). Depth is not a frequency filter.
+`depth<=8 OR count>=2` adds **four** words — a measured no-op, worth stating plainly because the OR
+looks like a free improvement.
+
+**The compositional claim is true but weaker than it sounds, and I found a hole in it.** Verified
+**0 violations** across both axes: every composite is `prefix + exactly one leaf`, so the dictionary
+is strictly left-leaning **chains**, not balanced trees. A deep word therefore does **not** decompose
+into several named shallower words — it decomposes into **one** named d≤8 prefix plus a tail of bare
+leaves (mean 5.9, max 54; 2,659 of 2,659 appended halves are leaves). And leaves are **d=0, outside
+the proposed 1–8 range**, while the used words draw on **2,619 distinct leaf skeletons** and every
+chain bottoms out there. So the proposal as stated leaves the foundation unnamed — R-LANG-21.
+
+**Amir's ordering instinct is right, and the code does the opposite.** `name-words-lzw.js:89` sorts
+`(b.count - a.count) || (b.depth - a.depth)` — deepest first — and enumerates only TOP-LEVEL emitted
+words, so a deep word's components never even get a row. Render-time lookup is hash-keyed and
+order-free, so nothing downstream compensates. Because the structure is a chain, the dependency
+relation is a **total order** (naming d=k needs d=k−1 … needs d=0): bottom-up is not a preference,
+it is the only order in which a name is grounded. R-LANG-20, recorded as **FAILING** rather than as
+an aspiration — I did not "fix" the sort, because changing the only naming producer's ordering is a
+design change to an unbuilt pipeline and Amir is mid-decision on its scope.
+
+**What I recommended:** keep depth as the **work order** (ascending, leaves first, `count` only as a
+priority *within* a tier), not as a coverage boundary; treat a ceiling as a stopping point you may
+choose at any time rather than a rule; and note that the coherent target is **leaves + shallow words
+= 2,619 + 2,789 = 5,408 names**, at which point every used word is either named directly or is a
+named prefix plus *named* leaves. That is **more** names than today, which is the honest price of
+R-ARCH-15's "words made of words down to leaves" — I said so rather than presenting the proposal as
+a saving.
