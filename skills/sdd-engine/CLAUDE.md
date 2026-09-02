@@ -249,6 +249,11 @@ This gap was silently forgotten once already.
         a private index*, with every check looking clean.
       - **`update-ref <branch> <new> <old>` with the old value as a guard** makes the tip move
         atomic: if a peer moved it, you fail harmlessly instead of clobbering.
+      - **THEN `git add <path>` on the paths you just committed — this step is REQUIRED, not
+        tidying.** `update-ref` moves the tip and leaves the **shared** index behind, still holding
+        the pre-commit blob, so `git status` reads `MM` and the next lane is one `git commit` away
+        from reverting you. *Measured 2026-09-01* — observed immediately after the private-index
+        commit above, and it is the same stale-index trap that caused two of the three sweeps.
     - **THE DETECTOR MATTERS MORE THAN THE TECHNIQUE, and it runs AFTER the commit.** All three
       sweeps were caught by `git show --stat HEAD`, none by any pre-commit check — because a
       pre-commit check asks what the commit *contains*, and this failure is what it **drops**. So
@@ -256,6 +261,13 @@ This gap was silently forgotten once already.
       heading or marker to confirm you did not carry it away**. A stale working copy reverts
       whoever committed most recently, and it cuts **both** ways — the same night, one lane's
       commit read 19 insertions against **69 deletions** in the other direction.
+      - **Grep a string you have CONFIRMED EXISTS IN THE FILE — a heading, a distinctive
+        sentence — never a commit subject.** *2026-09-01* — I ran the detector against two of the
+        other lane's commit **subjects**, which are not in the file at all, so it returned two
+        clean zeros and would have reported "nothing dropped" no matter what I had dropped.
+        Checked against the previous commit before believing it; the strings had never been there.
+        **A detector that cannot fire is the same defect as a guard that cannot fire** (§3), one
+        layer up — and it fails in the reassuring direction.
   - **Never stage a deletion you cannot account for.** If `git status` shows a file gone that you did
     not remove, leave it unstaged and ask. Deletions in this repo have been deliberate manual wipes
     more than once.
