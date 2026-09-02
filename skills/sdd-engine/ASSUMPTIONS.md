@@ -4814,3 +4814,57 @@ audit already names every file it affects.
 
 *(Two other things stay deliberately open and are Amir's design calls, not backlog: the `.en` -> `.ts`
 writer question and the whole-codebase mechanism question.)*
+
+## A4 — a hand-authored `.en`, exercised for the first time. 2026-09-01
+
+Confirmed the item text against `244450c` before starting, as asked. A4 verbatim: *"No test
+exercises a hand-authored `.en`. Verified by reading: every gate is `compile(render(ts)) === ts`;
+`enfile.test.js:70`'s corpus case reads the persisted `.en` as an input and recompiles it to its
+`.ts`. There is no fixture of a human-written `.en` anywhere. §1B.5 reason 1 says exactly this."*
+
+Landed as `engine/hand-authored-en.test.js` (`4306098`), CORPUS tier, `needs: ["generators-lzw"]`,
+**6 assertions, green**, and `run-tests.js --tier=corpus` picks it up (`PASS … 0.8s`).
+
+**Why this was worth more than a test.** Every gate compared the machine against itself. This is the
+first fixture in the tree where a *person* changes the English, so it converts **A2** — s9's
+*"largest single gap"* — from prose into something that fails when it stops being true.
+
+**Measured, and every assertion was observed before it was written:**
+
+| what a person does to the `.en` | what actually happens |
+|---|---|
+| edits a sentence, payload untouched, production default | **silent no-op** — compiles to the original `.ts` |
+| the same edit with `deriveCheck` on | **throws** R-REND-6 |
+| either setting | **nothing** makes the edit authoritative |
+| writes a clause from scratch with no payload | **refused** — `malformed generator payload` |
+
+Neither behaviour is *"the sentence is authoritative"*. The from-scratch case is refused at the
+payload parser because §5E.3.2's grammar parser does not exist — refusing is right; silently
+accepting would be worse.
+
+**The test asserts a LIMITATION and its header says so.** It is expected to fail the day the flip
+lands, with an explicit instruction not to relax it but to rewrite it for the new contract. A green
+run means English is still a report, not a source.
+
+**Mutation-tested — and the first mutation was against my own draft.** The probe I built this from
+edited a word (`"define"`) that is not in the gloss (`"compute \`total\`"`), so `EDITED === en` and
+the "the edit did nothing" observations passed for the wrong reason. I caught it because the printed
+`.en` was unchanged, and did not report the vacuous result. Assertion 2 now proves the edit landed
+before anything asserts what it did; under that mutation **assertion 2 fails loudly while assertion
+3 still passes vacuously** — which is the whole argument for having it. A second mutation simulating
+the flip (payload edited too, so the compile really does change) fails assertions 3 and 5 as
+intended. Both probes removed; nothing left in the tree.
+
+### A5, deliberately NOT taken — and this is a judgment call worth recording
+
+A5 needs a **re-mine** to test idempotence of the `.en`. A re-mine tonight would rewrite the shared
+40 MB `generators-lzw.json`, **renumber every word id** (R-PAY-6), and thereby invalidate all 1037
+persisted `.en` files — while three other lanes are active in this tree. That is destructive to
+shared state and an OOM risk on this machine (CLAUDE.md §7), so it is not a unilateral call.
+
+Worth flagging for whoever does take it: **A5's gate would go red the moment it is built**, and not
+because of a regression. Ids are array indices in mining order — the payload of a rendered file
+reads `⟪lzw1 n1414⟨…` — so a re-mine changes the bytes of every `.en` by construction. That makes
+A5 *"if I mine the codebase again I should see no change to the .en file"* strictly blocked on
+A1/R-PAY-6 (content-derived ids, or a dictionary fingerprint stamped on the `.en`), exactly as s9
+suspected. Building the A5 gate before A1 lands would produce a red that no one can clear.
