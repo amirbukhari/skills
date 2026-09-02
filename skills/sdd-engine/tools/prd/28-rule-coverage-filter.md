@@ -1,4 +1,4 @@
-# §5D.4E THE RULE-COVERAGE FILTER — measured, and the leaf tier is 98% already done
+# §5D.3G THE RULE-COVERAGE FILTER — measured, and the leaf tier is 98% already done
 
 *[index](README.md) · Built 2026-09-02 on Amir's call after the 80-leaf pilot measured a 72% loss of
 concrete identifiers (§5D.3F §2d): "measure which leaf skeletons already have a node-kind rule

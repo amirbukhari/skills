@@ -37,7 +37,7 @@ const withNames = EN.renderFileEn(SRC, idx).en;
  *
  * This file used to assert the literal string "import one name from a module" appeared in the
  * render — i.e. that the SHIPPED catalog happened to contain a name for the import skeleton. That
- * premise died with §5D.4E (2026-09-01): the rule-coverage filter deliberately does NOT spend a
+ * premise died with §5D.3G (2026-09-01): the rule-coverage filter deliberately does NOT spend a
  * model call on a leaf a node-kind rule already renders, and imports are the best-covered kind in
  * the corpus, so no such name is ever authored again. The assertion was measuring naming POLICY
  * while claiming to measure the naming MECHANISM, and it went red when the policy changed.

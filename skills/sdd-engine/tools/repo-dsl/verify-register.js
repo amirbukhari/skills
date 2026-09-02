@@ -1101,13 +1101,15 @@ const ROWS = [
    * ONE OF THEM IS RED, AND THAT IS THE POINT. R-ARCH-15 says a file MUST be accounted for by one
    * top-level word; 34 files are not. Mechanizing it makes `verify-register.js` exit 1. That is not
    * a regression this runner introduced — it is the register's own THE RESIDUAL becoming visible at
-   * the place the register is read. R-ARCH-18's own Check column already treats R-ARCH-15 as unmet
+   * the place the register is read. R-ARCH-22's own Check column already treats R-ARCH-15 as unmet
    * ("30.6% with it off and 93.1% with it on, so the row can be shown to bind").
    *
-   * IDS ARE NOT UNIQUE IN THE REGISTER — measured: 140 rows, 136 distinct ids. R-ARCH-18, R-MEAS-6
-   * and R-MEAS-7 each appear TWICE with different requirements. Where that happens the id here
-   * carries a suffix naming which meaning is mechanized, following the existing R-CFG-roots /
-   * R-ART-stamp / R-ART-4-runtime convention. `--id` could not otherwise say which row it meant. */
+   * IDS ARE UNIQUE AGAIN — the four collisions (R-ARCH-18, R-MEAS-6, R-MEAS-7, R-REND-8, each
+   * appearing TWICE with different requirements) were resolved 2026-09-01 by renumbering the
+   * LATER arrival in each pair: R-ARCH-22, R-MEAS-9, R-MEAS-10, R-REND-9. The rows below
+   * therefore carry the plain id again; the disambiguating suffixes they used to need retired
+   * with the collision. The R-CFG-roots / R-ART-stamp / R-ART-4-runtime suffixes remain — those
+   * name which ASPECT of one row is mechanized, which is a different thing. */
 
   { id: "R-ARCH-15", req: "A file MUST be accounted for by ONE top-level word. An opaque whole-file token is forbidden.",
     run() {
@@ -1118,7 +1120,7 @@ const ROWS = [
       const need = ["oneWordFiles", "oneWordPct", "filesNotCollapsed"];
       const missing = need.filter((k) => rs[k] === undefined);
       if (missing.length) return FAILS(`missing ${missing.join(", ")}`,
-        "R-MEAS-6 requires the producer to publish the rate; without it this row cannot be decided at all");
+        "R-MEAS-9 requires the producer to publish the rate; without it this row cannot be decided at all");
       const not = rs.filesNotCollapsed;
       /* The row says MUST, so the bar is every file, not a good rate. The rate is reported either
        * way, because "34 left" and "34 of 1037" are different pieces of news. */
@@ -1140,7 +1142,7 @@ const ROWS = [
         "the row says BESIDE byte-identity — compression reported alone is what R-MEAS-6 forbids");
       /* THE PER-FILE HALF, measured rather than assumed. The producer computes a full perFile[] and
        * publishes only three top-15 SLICES of it, so per-file review surface exists for at most 45
-       * distinct files out of 1037. R-MEAS-6's Check column cites `perFile[].topSpans` / `.oneWord`
+       * distinct files out of 1037. R-MEAS-9's Check column cites `perFile[].topSpans` / `.oneWord`
        * as though the whole array were on disk. It is not: the top-level key is absent. */
       const rels = new Set();
       for (const arr of [i.j.topEnglishFiles, rs.worstFiles, rs.worstBySpans])
@@ -1149,7 +1151,7 @@ const ROWS = [
       if (i.j.perFile) return HOLDS(`corpus ${rs.reviewSurface}, per file for all ${(i.j.perFile || []).length}`,
         "the full per-file array is published");
       return FAILS(`corpus total ${rs.reviewSurface} beside byteIdentical ${g.byteIdentical}/${total}, but per-file rows for only ${rels.size} of ${total} files`,
-        "`perFile` is computed by write-en-files.js and published only as three top-15 slices; R-MEAS-6 cites `perFile[]` as if the array were on disk");
+        "`perFile` is computed by write-en-files.js and published only as three top-15 slices; R-MEAS-9 cites `perFile[]` as if the array were on disk");
     } },
 
   { id: "R-ARCH-19", req: "A chunk MUST be able to carry CHILDREN instead of a payload, recursively, to leaves — no depth cap.",
@@ -1172,7 +1174,7 @@ const ROWS = [
         "structural chunks exist in quantity and nest well past two levels");
     } },
 
-  { id: "R-ARCH-18-ordering", req: "R-ARCH-15 OUTRANKS R-ARCH-16: where one word covers a file the renderer MUST emit it, even when nested words would remove more statements.",
+  { id: "R-ARCH-22", req: "R-ARCH-15 OUTRANKS R-ARCH-16: where one word covers a file the renderer MUST emit it, even when nested words would remove more statements.",
     run() {
       const f = read("engine/enlzw.js");
       if (!f.ok) return FAILS(null, f.why);
@@ -1185,7 +1187,7 @@ const ROWS = [
         "lexicographic, not weighted — and the control that measures it exists (§10.3: a guard that cannot be shown to fire is not a guard)");
     } },
 
-  { id: "R-MEAS-6-onewordrate", req: "The per-file ONE-WORD RATE MUST be published by the render producer, beside review surface.",
+  { id: "R-MEAS-9", req: "The per-file ONE-WORD RATE MUST be published by the render producer, beside review surface.",
     run() {
       const i = enIndex();
       if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
@@ -1196,7 +1198,7 @@ const ROWS = [
         "the rate had to be measured by an out-of-band script — the R-MECH-8 shape this row exists to close");
       /* BESIDE review surface, in the same block, is the requirement — not merely somewhere in the
        * artifact. A rate published apart from the surface it qualifies is how compression gets
-       * reported as the goal (R-MEAS-6, the other one). */
+       * reported as the goal (R-MEAS-6). */
       if (rs.reviewSurface === undefined) return FAILS("rate published without review surface beside it",
         "the row says BESIDE review surface");
       const p = read("write-en-files.js");
@@ -1206,7 +1208,7 @@ const ROWS = [
                : "published in the artifact, but the producer no longer PRINTS it — the row's 'on every run' half is gone");
     } },
 
-  { id: "R-MEAS-7-bothreads", req: "Where the render is a TREE, review surface MUST be published as BOTH the top-level read and the whole-tree read, side by side, never one alone.",
+  { id: "R-MEAS-10", req: "Where the render is a TREE, review surface MUST be published as BOTH the top-level read and the whole-tree read, side by side, never one alone.",
     run() {
       const i = enIndex();
       if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");

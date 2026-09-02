@@ -4336,3 +4336,53 @@ conclusion was right; the reason understated it.
 are in the **root** `.gitignore`. `git check-ignore -v` gave the right answer in one command. §9's
 rule about `check-ignore` is about the `-q` exit code; reading its `-v` output is still the fast
 correct move.
+
+---
+
+## 2026-09-01 — PRD doc-sync batch: unique ids, one meaning per §-number, and disk-true counts
+
+**1. Where two rows shared an id, the LATER arrival was renumbered and the earlier kept the number.**
+Dated from git, not guessed. `R-ARCH-18` (relation slot, 2026-08-31) kept its id and the scheduler
+ordering row (2026-09-01) became **R-ARCH-22**; `R-MEAS-6` (English-%) kept its, and the one-word
+rate row became **R-MEAS-9**; `R-MEAS-7` (residue classification) kept its, and the tree review
+surface row became **R-MEAS-10**; `R-REND-8` (honest placeholder) kept its, and the chunk-sentence
+row became **R-REND-9**. Every inbound citation was resolved *per site* to the row it actually meant
+— `05-architecture.md:105`'s `R-REND-8` predates the new row (2026-08-31) and was left alone, while
+`:325`'s `R-MEAS-6` arrived in the same commit as the one-word row and moved.
+
+**2. `verify-register.js`'s disambiguating suffixes retired with the collision.** `R-ARCH-18-ordering`
+/ `R-MEAS-6-onewordrate` / `R-MEAS-7-bothreads` existed only because `--id` could not otherwise say
+which row it meant; they are now the plain ids. The `R-CFG-roots` / `R-ART-stamp` /
+`R-ART-4-runtime` suffixes stay — those name which *aspect* of one row is mechanized, a different
+thing, and the comment now says so.
+
+**3. §5D.4E labelled two sections; the rule-coverage filter moved to §5D.3G rather than the nested
+renderer moving.** Both arrived 2026-09-01, so "first keeps it" could not decide alone. The
+rule-coverage filter's own body derives it from the §5D.3F naming pilot and `name-words.js` cites it
+as "§5D.3F §2d, §5D.4E" — it is a *naming* section that had been filed in the §5D.4 collapse series.
+Nested rendering is the true successor to §5D.4D. This also happens to be the lower-churn choice
+(6 citations moved instead of 12), but the reason is where each section belongs.
+
+**4. The "0 names / reverted" and "20 names, modelCalls 1" notes were both stale — measured, not
+assumed.** `sen/catalog/word-names.json` currently holds **20 leaf names, 20 chunk names,
+`modelCalls: 2`**. Applied to the corpus: **103 of 1037 files carry at least one leaf name, 18 carry
+at least one chunk name**, byte-identity **1037/1037**. That last number retires a caveat repeated
+in several places — that with `chunks: 0` the additive chunk-name path was unexercised by any real
+render. It now has a population of 18 files.
+
+**Pinned historical measurements were NOT rewritten.** `28-rule-coverage-filter.md`'s and
+`05-architecture.md`'s "20 names give …" tables are measurements against a named commit; a doc-sync
+pass that edits those is falsifying a record, not updating it. Only present-tense claims moved.
+
+**5. R-MEAS-6's compression clause carried a framing §4 had already retired.** It read "real
+lossless compression through recursive word reuse is a goal" while §4 says "REVIEW-SURFACE REDUCTION
+is the goal — not byte compression" (Amir, 2026-08-31). Amended to require byte size be reported
+*beside* review surface and never called a goal, with the measured reason the old framing is wrong:
+**+19% bytes** and review surface **1,610 / 29,260** of S=33,918. Its Check column now says plainly
+that it has **no mechanized row of its own** rather than implying one — naming the nearest enforced
+neighbour (`R-ARCH-16`) instead of claiming a check that does not exist.
+
+**Left alone deliberately:** `R-LANG-23` was already registered by another lane, and README's 26/26
+and 27/27 ordinal collisions were already fixed by `776a0d1`. Both were on the batch list; neither
+needed doing. My §5D.3G edit to `engine/chunk-naming.test.js` sits in a file the concurrent lane has
+uncommitted work in, so it rides with that lane rather than being split out.

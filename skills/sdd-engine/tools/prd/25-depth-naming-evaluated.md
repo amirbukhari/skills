@@ -171,7 +171,7 @@ mineable `.ts` files; **zero model calls**; the corpus was not written to.
 | strategy table (68.3% / 15.9% / 68.9% / 40.2%) | filters over that map: `d 1..8`, `n >= 2`, the OR, and `d 1..4` |
 | leaf tail: 448/448 terminate at d≤8, mean 5.9, max 54, 2,659 total | for each used word with `d ≥ 9`, walk `m[0]` while `d > 8`, counting steps; every step's `m[1]` checked for `len === 1` |
 | **2,619** distinct leaf skeletons | `word-names.leavesOf(axis, id)` over every used word, de-duplicated per axis |
-| review surface 13,874 / S=33,918; one-word 316/1037 | published by the producer in `<corpus>/.cache/spec-derived/en-index.json` → `reviewSurface` (§5D.4A, R-MEAS-6) |
+| review surface 13,874 / S=33,918; one-word 316/1037 | published by the producer in `<corpus>/.cache/spec-derived/en-index.json` → `reviewSurface` (§5D.4A, R-MEAS-9) |
 
 ## 8. Requirements
 

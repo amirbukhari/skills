@@ -76,7 +76,7 @@ PART IV — and engine source comments cite it directly.
 | 25 | [§5D.3E Depth-bounded naming — rejected as a boundary, adopted as an order](25-depth-naming-evaluated.md) | 189 |
 | 26 | [§5D.4C The arbitrary ceilings removed — and what actually blocks one word per file](26-ceiling-removed.md) | 159 |
 | 27 | [§5D.3F The naming pass — built, and the three Q-9 mechanics proposed](27-naming-pass-mechanics.md) | 156 |
-| 28 | [§5D.4E The rule-coverage filter — the leaf tier is 98% already done](28-rule-coverage-filter.md) | 118 |
+| 28 | [§5D.3G The rule-coverage filter — the leaf tier is 98% already done](28-rule-coverage-filter.md) | 118 |
 | 29 | [§5D.4D One word per file, chosen over compression](29-one-word-first.md) | 133 |
 | 30 | [§5D.4E Nested rendering: words made of words, to leaves](30-nested-rendering.md) | 108 |
 | 31 | [§5D.5 The NDJSON progress stream](31-progress-stream.md) | 72 |

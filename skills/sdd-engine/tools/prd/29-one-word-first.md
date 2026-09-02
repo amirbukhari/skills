@@ -64,7 +64,7 @@ nothing. It had been passing by having nothing to check — since before this ch
 rebuilt on real corpus source, publishes its own population counts, and carries a control proving
 the exemption rides on `wholeRunOk` rather than on `isUnit` being ignored.
 
-## 3. Blocker 2: the scheduler objective (R-ARCH-18)
+## 3. Blocker 2: the scheduler objective (R-ARCH-22)
 
 `genSpans` picked the maximum-weight non-overlapping set of candidate words, `weight = w.len - 1`
 (statements removed). Under that objective **k nested words covering the same bytes score `n - k`
@@ -73,7 +73,7 @@ against a single whole-file word's `n - 1`** — so the scheduler structurally *
 
 Weight maximisation was never the goal. It was a **proxy** for "least left to read", and it is the
 wrong proxy: one word is less to read than three, whatever the arithmetic says. So the ordering is
-now stated rather than implied, as **R-ARCH-18: R-ARCH-15 outranks R-ARCH-16.**
+now stated rather than implied, as **R-ARCH-22: R-ARCH-15 outranks R-ARCH-16.**
 
 Implemented **lexicographically**, not as a tuned bonus: if a candidate covers the file's entire
 top-level statement range, it is returned directly and the DP never runs; otherwise the weighted
@@ -122,7 +122,7 @@ and it would recover the collapse ratio without giving back one point of the one
 - **Admissibility.** Every emitted span passes the identical `wp.fill === source.slice(...)` gate.
   Both changes only *admit* or *rank* candidates, so byte-identity is preserved by construction —
   which is why 1037/1037 was the expected result, and it was.
-- **R-ARCH-16 as the headline metric.** R-ARCH-18 orders the two requirements; it does not retire
+- **R-ARCH-16 as the headline metric.** R-ARCH-22 orders the two requirements; it does not retire
   the measurement. Review surface is still reported per file and per corpus, and it is now worse.
   Recording that plainly is the point of R-MECH-8.
 

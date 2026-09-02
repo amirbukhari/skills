@@ -6,7 +6,7 @@ the same 'some code stays raw' problem one level in." Byte-identity held through
 
 ## 1. Headline
 
-| | flat (§5D.4D) | nested | vs. before R-ARCH-18 |
+| | flat (§5D.4D) | nested | vs. before R-ARCH-22 |
 |---|---|---|---|
 | byte-identity | 1037/1037 | **1037/1037** | 1037/1037 |
 | **one word per file (R-ARCH-15)** | 965 — 93.1% | **1003 — 96.7%** | 317 — 30.6% |
@@ -66,7 +66,7 @@ a reader sees between the sentences is the structure, not the body.
 
 **Reading the tree exhaustively is 29,260 units, up from 23,784.** A tree does not have one answer
 to "how many things must you read", and publishing only the flattering half would be exactly what
-R-MECH-8 forbids. Both are published, always, side by side (R-MEAS-7):
+R-MECH-8 forbids. Both are published, always, side by side (R-MEAS-10):
 
 - **top level — 1,610.** What the corpus costs to understand at a glance: one sentence per file for
   1,003 of 1,037 files. This is the number R-ARCH-16 is about, and it is **8.6x better than the
@@ -102,7 +102,7 @@ order. `chunkGloss` keeps its real job: the admissibility gate in `genSpans`.
 
 - The mined dictionary. Not re-mined; `generators-lzw.json` is byte-identical to `216f928`'s.
 - The byte gate, in form or in strictness.
-- R-ARCH-18. One-word-per-file still outranks compression; nesting is what makes the ordering
+- R-ARCH-22. One-word-per-file still outranks compression; nesting is what makes the ordering
   cheap rather than a trade. `ONE_WORD_FIRST=0` and `NEST=0` both still restore the older
   behaviours for measurement, and both are exercised by tests.
 - Zero model calls, at every level of the tree.

@@ -235,7 +235,7 @@ Amir's call on cost, and it is the gate on the remaining ~70%.
   run. Check: with names present, a file whose run is covered by one word renders as **one** top-level
   span; `enlzw.js:121`'s unconditional refusal is gone. **Measured cost of the current refusal: 308
   of 943 files. BLOCKED on R-LANG-19.**
-- **R-MEAS-6** — The per-file **one-word rate** MUST be published by the render producer, alongside
+- **R-MEAS-9** — The per-file **one-word rate** MUST be published by the render producer, alongside
   review surface. Check: `en-index.json` carries `oneWordFiles` and `perFile[].topSpans`; a run that
   cannot state the rate is not a passing run. *(Currently neither key exists — `en-index.json` has no
   `perFile` at all, so this measurement had to be taken by an out-of-band script, which is the

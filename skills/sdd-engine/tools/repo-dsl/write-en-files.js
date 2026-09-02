@@ -170,7 +170,7 @@ const manifest = {
      * collapse ratio is netStatementReduction / S. One definition, two granularities — the per-file
      * view is `perFile[].reviewSurface`. */
     netStatementReduction: collapsedStmts - genSpans,
-    /* TWO SURFACES, BECAUSE A TREE HAS TWO (PRD §5D.4E, R-MEAS-7). Nested rendering replaced the
+    /* TWO SURFACES, BECAUSE A TREE HAS TWO (PRD §5D.4E, R-MEAS-10). Nested rendering replaced the
      * flat list with a tree, and "how many things must you read" stopped having one answer. The
      * flat definition below counts EVERY node — what the corpus costs to read exhaustively, which
      * no one does, but it is the honest ceiling and it must not hide. `reviewSurfaceTop` counts
@@ -185,7 +185,7 @@ const manifest = {
     reviewSurface: genSpans + Math.max(0, bodyStmts - collapsedStmts),
     collapseRatioPct: bodyStmts ? +(100 * (collapsedStmts - genSpans) / bodyStmts).toFixed(1) : 0,
     filesFullyCovered: perFile.filter((f) => (f.residualStatements || 0) === 0 && (f.bodyStatements || 0) > 0).length,
-    /* R-MEAS-6 (§5D.4A): the ONE-WORD-PER-FILE rate, R-ARCH-15's target, published by the
+    /* R-MEAS-9 (§5D.4A): the ONE-WORD-PER-FILE rate, R-ARCH-15's target, published by the
      * producer that renders it. It had no producer at all until now — the first measurement of it
      * was taken by an out-of-band script, which is the R-MECH-8 shape and should not recur. */
     oneWordFiles: perFile.filter((f) => f.oneWord).length,
