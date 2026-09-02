@@ -5412,3 +5412,69 @@ catch and which reads as a clean pass by inspection. The three instances — C11
 are three different mechanisms with one shape. That argues for anchoring each row on the structure
 it means and mutation-checking every one of them, and **against** a filtering pass, which is what
 was first proposed.
+
+## Register batch 3 — ten more rows, and two guards that cried wolf before they held (2026-09-01)
+
+Mechanized R-ART-1, R-PIN-2, R-PIN-3, R-PIN-5, R-MEAS-5, R-MEAS-7, R-MEAS-8, R-REND-3, R-REND-8,
+R-MECH-1. The runner is now **78 hold / 4 fail / 4 manual of 86** mechanized rows; the four reds are
+unchanged and each red on purpose (R-ARCH-15, R-PAY-6, R-REND-6, and `sdd-engine-e2`'s R-ARCH-23).
+
+Every row was anchored on the construct it names and mutation-checked in **both** directions, each
+mutated file restored byte-identical (sha256 before/after):
+
+| row | mutation | what it said |
+|---|---|---|
+| R-ART-1 | moved `engine/artifact-location.test.js` away | *the named guard is gone; R-ART-1 has nothing running behind it* |
+| R-PIN-2 | disabled the corpus-pinned refusal in `stamp` | *7 kinds published with no corpus* |
+| R-PIN-3 | disabled the corpus-mismatch throw in `validate` | *load accepted an artifact mined from a different tree* |
+| R-PIN-5 | added a `/generators-lzw\.v\d+\.json/` rank to `roots.js` | `roots.js:37` |
+| R-MEAS-5 | deleted `"loop"` from `VACUOUS` | *e95ca17: "loop", 022f53e: "loop", 64b301f: "loop"* |
+| R-MEAS-7 | re-stamped a doctored artifact in a temp corpus, 3 ways | *B="slot"* · *class C unpublished* · *no samples for A, B, C, D* |
+| R-MEAS-8 | printed `collapsed 12 shapes` from a WIDE tool | `measure-callgraph.js:292` |
+| R-REND-3 | removed the gap test from `checkTiling` | *a GAP at 3 was not caught* |
+| R-REND-8 | dropped `&& handler.named` in `prose.js` | *the words branch is no longer guarded by handler.named* |
+| R-MECH-1 | added `editDistance` to `engine/payload.js` | `engine/payload.js:2` |
+
+R-MEAS-7 is the one worth copying: the artifact is **corpus data with no git safety net**, so the
+mutation was made on a *re-stamped copy in a temp corpus* reached by `CORPUS=<tmp>`, never on the
+real one. A doctored artifact that is not re-stamped only proves the fingerprint works.
+
+**Two rows cried wolf and were narrowed, and the narrowing is the finding.**
+
+*R-PIN-5.* First cut asked for a `readdir` **anywhere**, an artifact stem **anywhere** and a `.sort(`
+**anywhere** in one file → **14 hits**, every corpus walk in the tree. Second cut required the three
+within 400 characters → **1 hit**, `measure-uncollapsed.js:43`, where a `.ts` corpus walk sits four
+lines above an `AC.pathFor("generators-lzw")` call and a `.sort()` on the **file list**. Both false,
+both the same shape as R-MINE-10: *the right identifier in the wrong role*. The anchor is now the
+rank itself — a regex literal matching a version suffix, near an artifact name.
+
+*R-MECH-1.* A tree-wide grep for the three rejected discovery mechanisms returned **9 hits in 4
+files** — `engine/wholefile.js` (near-miss shape analysis), `measure-callgraph.js` and
+`measure-operations.js` (the LATENT-reuse reports, which say "anti-unified" about candidates they
+explicitly do not mint), `reconcile-names.js` (similarity between *names*). All four are measurement
+and naming; none produces a word the `.en` path can read. Failing them would have been the guard
+crying wolf at exactly the tools the PRD asks for. Scope is now the six files that **build or read**
+the dictionary, and the off-path uses are **counted in the evidence line** so growth stays visible.
+
+**And the runner committed the failure it exists to remove.** R-MEAS-5's ratchet compares the shipped
+`VACUOUS` against every committed version. The first cut hard-coded today's path, so every `git show`
+printed `fatal: Path ... does not exist in <rev>` to stderr while the row reported **green across "3
+committed revisions"** — it had compared **nothing**. Two causes, both real: `--follow` crosses the
+2026-08-31 extraction, where the file moved from `skills/scrutinize-spec/…` to `skills/sdd-engine/…`,
+and `git ls-tree` run inside a subdirectory prints paths relative to *that* directory while `rev:path`
+resolves from the repo root. Fixed by resolving the name inside each revision from the top-level, and
+by **counting what was actually read and printing the count** ("3 of 3 revisions actually read"). A
+check that compares zero things must never be able to say HOLDS — the count in the evidence is what
+makes that visible rather than a matter of trust.
+
+**Judgment calls, logged rather than asked:**
+- **R-PIN-5 HOLDS by construction, not by enforcement.** `pathFor` resolves one fixed filename per
+  kind, so there is no ranking step to invert. Recorded as such in the row's own evidence, and the
+  row is explicitly a *watchdog* on that construction. It also states what it does **not** cover:
+  that nothing builds an artifact path by hand — R-ART-2/R-ART-3 own that, and this row leans on them.
+- **R-REND-3 does not lean on `checkTiling().byteIdentical`**, which is tautological once the segments
+  tile (it re-joins slices of the same source) — `sdd-engine-e2`'s C11. The row tests the *tiling*
+  verdict (gap, overlap, shortfall) and, for the live `.en` path, the pair that makes non-overlap
+  structural: `spans.sort(...)` **and** the `sp.start < pos` cursor drop. Either alone is meaningless.
+- **R-MEAS-5's ratchet reads git rather than a baseline copied into the runner.** A copy is the thing
+  that would rot, and this runner exists because pointers rot.

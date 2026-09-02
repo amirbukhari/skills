@@ -2051,6 +2051,383 @@ const ROWS = [
         "with the check off all 580 were SILENT; with it on, 460 atomic became refusals and 120 structural stayed silent (▷ has no payload to derive from). " +
         "Reproduce: node measure-hand-edit.js. Closing it needs the §5E.3.2 grammar parser (§18 Q-1)");
     } },
+  /* ══ BATCH 3 — 2026-09-01 ═══════════════════════════════════════════════════════════════════
+   * Ten more rows, each anchored on the CONSTRUCT the row names rather than on a string that
+   * happens to appear near it. That anchoring rule is the standing correction from R-MINE-10:
+   * an oracle can match the RIGHT IDENTIFIER IN THE WRONG ROLE (sdd-engine-e2's phrasing), and
+   * comment-stripping does not close it. Every row below was mutation-checked in both directions
+   * -- break the construct, watch this row go red with a message that names the break; restore,
+   * watch it go green -- and every mutated file was restored byte-identical. */
+
+  { id: "R-ART-1", req: "The engine tree is engine code + PRD only. It MUST NOT hold bytes derived from anyone's corpus.",
+    run() {
+      /* TWO HALVES, and the second is the one that matters. Half 1 RUNS the named guard
+       * (engine/artifact-location.test.js) rather than checking that it exists -- a test file on
+       * disk that nobody runs is exactly the "MANUAL is not a pass" shape. Half 2 re-derives the
+       * property in-process from the registry, so a guard that were gutted to `pass++` without
+       * asserting anything cannot carry this row on its own. */
+      const t = runNode("engine/artifact-location.test.js");
+      if (t.err) return FAILS(null, `${t.err} — the named guard is gone; R-ART-1 has nothing running behind it`);
+      if (t.code !== 0) return FAILS(`artifact-location.test.js exited ${t.code}`, t.out.trim().split("\n").slice(-3).join(" / "));
+
+      const AC2 = require("./engine/artifact-contract");
+      const ENGINE = HERE;
+      const inside = [];
+      for (const kind of AC2.kindsOf()) {
+        const p = path.resolve(AC2.pathFor(kind));
+        if (p === ENGINE || p.startsWith(ENGINE + path.sep)) inside.push(`${kind} -> ${p}`);
+      }
+      if (inside.length) return FAILS(inside.join(", "),
+        "a registered artifact resolves INSIDE the engine tree, whose remote is public and whose corpus is not");
+      /* The corpus itself lives under Examples/, which is gitignored at the repo root -- so the
+       * third way corpus bytes reach the public remote is a tracked file under Examples/. */
+      let tracked = [];
+      try { tracked = trackedJs(); } catch (e) { return FAILS(null, e.message); }
+      const leaked = tracked.filter((r) => r.startsWith("Examples/") || r.includes("/Examples/"));
+      if (leaked.length) return FAILS(leaked.slice(0, 3).join(", "), "corpus-derived JS is TRACKED in the engine repo");
+      return HOLDS(`${AC2.kindsOf().length} registered kinds all resolve outside the engine tree, and the named guard passes`,
+        "the guard was RUN (exit 0), not merely found on disk, and the registry property re-derived here independently");
+    } },
+
+  { id: "R-PIN-2", req: "There MUST be one publisher, and it MUST refuse to publish a corpus-pinned artifact with no corpus. It writes the artifact BESIDE the corpus it describes.",
+    run() {
+      const AC2 = require("./engine/artifact-contract");
+      const pinned = AC2.kindsOf().filter((k) => AC2.specOf(k).corpusPinned);
+      if (!pinned.length) return FAILS("no registered kind is corpusPinned", "then provenance is not pinned anywhere and R-PIN-1..5 are vacuous");
+      /* HALF 1 — the refusal, exercised rather than read. One `stamp` call per pinned kind with no
+       * corpus: every one must throw. A kind that quietly publishes an unpinned artifact is the
+       * exact hole R-PIN-1 then cannot see, because there is no stamp to disagree with. */
+      const silent = [];
+      for (const k of pinned) {
+        const body = {}; for (const key of AC2.specOf(k).requires) body[key] = [];
+        try { AC2.stamp(k, body, {}); silent.push(k); } catch (_) { /* refused, as required */ }
+      }
+      if (silent.length) return FAILS(`${silent.join(", ")} published with no corpus`, "the publisher does not refuse; provenance becomes optional");
+      /* HALF 2 — BESIDE the corpus it describes, checked as a PATH IDENTITY rather than as a habit.
+       * pathFor(kind, R) must land under R for every pinned kind, so "the tree it declares" and
+       * "the tree it is written into" cannot drift apart by construction. */
+      const t2 = tmpCorpus({});
+      if (t2.err) return FAILS(null, t2.err);
+      const R = t2.dir;                       /* a REAL directory: CR.corpusRoot refuses a root that is set but missing */
+      const stray = pinned.filter((k) => !path.resolve(AC2.pathFor(k, R)).startsWith(path.resolve(R) + path.sep));
+      if (stray.length) return FAILS(stray.join(", "), "pathFor puts a corpus-pinned artifact somewhere other than the corpus it describes");
+      return HOLDS(`${pinned.length} corpus-pinned kinds: all refuse an absent corpus, all resolve under the root they are given`,
+        "the refusal was RUN once per kind (not grepped), and the beside-the-corpus half is a path identity, not a convention");
+    } },
+
+  { id: "R-PIN-3", req: "A consumer MUST refuse a non-matching artifact and MUST NEVER fall back: an honest miss naming what it looked for and where.",
+    run() {
+      const AC2 = require("./engine/artifact-contract");
+      const kind = AC2.kindsOf().find((k) => AC2.specOf(k).corpusPinned);
+      const body = {}; for (const key of AC2.specOf(kind).requires) body[key] = [];
+      const t = tmpCorpus({});
+      if (t.err) return FAILS(null, t.err);
+      const file = path.join(t.dir, "artifact.json");
+      fs.writeFileSync(file, JSON.stringify(AC2.stamp(kind, body, { corpus: "/tmp/MINED-FROM-HERE" })));
+
+      /* (a) A DIFFERENT corpus must throw -- and the throw must NAME BOTH TREES. A refusal that
+       * says only "mismatch" sends the reader back to guess which of the two is stale, which is
+       * how a stale artifact gets re-adopted after the refusal that caught it. */
+      let msg = null;
+      try { AC2.load(kind, file, { corpus: "/tmp/LOADING-INTO-HERE" }); }
+      catch (e) { msg = e.message; }
+      if (msg === null) return FAILS("load accepted an artifact mined from a different tree", "the consumer does not refuse at all");
+      const names = ["/tmp/MINED-FROM-HERE", "/tmp/LOADING-INTO-HERE", file].filter((s) => !msg.includes(s));
+      if (names.length) return FAILS(`refusal omits ${names.join(", ")}`, `it said: ${msg.slice(0, 160)}`);
+
+      /* (b) NEVER FALL BACK. `optional: true` is the one tolerated miss, and even it must return a
+       * REASON, never a bare null -- and it must NOT extend to a file that exists and is wrong.
+       * "not installed" is a state; "installed and wrong" is a bug (artifact-contract.js:312). */
+      const miss = AC2.load(kind, path.join(t.dir, "absent.json"), { optional: true });
+      if (!miss || miss.ok !== false || !miss.reason) return FAILS(JSON.stringify(miss), "an absent optional artifact returned no reason");
+      let stillThrows = false;
+      try { AC2.load(kind, file, { corpus: "/tmp/LOADING-INTO-HERE", optional: true }); }
+      catch (_) { stillThrows = true; }
+      if (!stillThrows) return FAILS("optional:true swallowed a corpus MISMATCH", "then any consumer can opt out of provenance by passing one flag");
+      return HOLDS("a mismatched artifact throws naming both trees and the file; optional:true tolerates ABSENT only, with a reason",
+        "all three exercised in-process against a stamped temp artifact -- the mismatch path was run, not read");
+    } },
+
+  { id: "R-PIN-5", req: "Version shadowing MUST filter by corpus FIRST, then take the highest vN. Version rank MUST NEVER override provenance.",
+    run() {
+      /* HOLDS BY CONSTRUCTION, and saying so precisely matters more than a green tick: there is no
+       * ranking step to invert, because `pathFor(kind, root)` resolves ONE fixed filename per kind
+       * per root. Nothing enumerates candidates, so nothing can prefer a higher vN from a foreign
+       * tree over a correct local mine. The row is therefore a WATCHDOG on that construction --
+       * it goes red the day a consumer starts choosing among files. */
+      const AC2 = require("./engine/artifact-contract");
+      const a = tmpCorpus({}), b = tmpCorpus({});
+      if (a.err || b.err) return FAILS(null, a.err || b.err);
+      const R1 = a.dir, R2 = b.dir;           /* real dirs, for the same reason as R-PIN-2 */
+      const varies = AC2.kindsOf().filter((k) => path.basename(AC2.pathFor(k, R1)) !== path.basename(AC2.pathFor(k, R2)));
+      if (varies.length) return FAILS(varies.join(", "), "an artifact filename varies with the root — a name that varies is a name that can be ranked");
+      /* DETERMINISM, so the one name cannot become a choice made at read time: pathFor must be a
+       * pure function of (kind, root). A resolver that consulted the filesystem could return a
+       * different file on a second call, which IS a selection step, just an implicit one. */
+      const t3 = tmpCorpus({ "sen/catalog/generators-lzw.json": "{}", "sen/catalog/generators-lzw.v2.json": "{}" });
+      if (t3.err) return FAILS(null, t3.err);
+      const unstable = AC2.kindsOf().filter((k) => AC2.pathFor(k, t3.dir) !== AC2.pathFor(k, t3.dir));
+      if (unstable.length) return FAILS(unstable.join(", "), "pathFor is not a pure function of (kind, root)");
+      const picked = AC2.pathFor("generators-lzw", t3.dir);
+      if (/\.v2\./.test(picked)) return FAILS(picked, "a higher-numbered sibling was preferred — that is the shadowing this row forbids");
+
+      /* THE WATCHDOG, narrowed after it cried wolf TWICE — recorded rather than quietly retuned,
+       * because the retuning is the interesting part. First cut: readdir ANYWHERE + an artifact
+       * stem ANYWHERE + a sort ANYWHERE in the same file -> 14 hits, every corpus walk in the tree.
+       * Second cut: the three within 400 characters -> 1 hit, measure-uncollapsed.js:43, where a
+       * .ts corpus walk happens to sit four lines above an AC.pathFor("generators-lzw") call and a
+       * .sort() on the FILE LIST. Both false, both the same shape as R-MINE-10: the right
+       * identifier in the wrong role. So the anchor is now the RANK ITSELF — a regex literal that
+       * matches a version suffix, near an artifact name. That is the construct, and nothing else is.
+       *
+       * What this row does NOT check, stated so the gap is not mistaken for coverage: that no live
+       * file builds an artifact path by hand. R-ART-2 and R-ART-3 own that, and this row leans on
+       * them — without those two, an enumeration could exist that never touches pathFor at all. */
+      const files = new Set(AC2.kindsOf().map((k) => path.basename(AC2.pathFor(k))));
+      const suspects = [];
+      for (const rel of trackedJs()) {
+        if (rel.split("/").some((s) => ["node_modules", ".git", "archive"].includes(s))) continue;
+        if (path.basename(rel) === path.basename(__filename)) continue;
+        let text; try { text = stripComments(fs.readFileSync(path.join(HERE, rel), "utf8")); } catch { continue; }
+        for (const m of text.matchAll(/\/[^\n\/]*v\\d[^\n\/]*\//g)) {
+          const win = text.slice(Math.max(0, m.index - 200), m.index + 200);
+          if (![...files].some((f) => win.includes(f.replace(/\.json$/, "")))) continue;
+          suspects.push(`${rel}:${text.slice(0, m.index).split("\n").length}`);
+        }
+      }
+      if (suspects.length) return FAILS(suspects.join(", "),
+        "a live file ranks artifact filenames by version — R-PIN-5 stops being vacuous the moment this exists, and provenance must be filtered FIRST");
+      return HOLDS(`no vN selection path exists: ${AC2.kindsOf().length} kinds each resolve to one fixed filename, and no live file ranks artifact files`,
+        "so shadowing is impossible by construction rather than prevented by discipline — this row is the watchdog on that");
+    } },
+
+  { id: "R-MEAS-5", req: "The frozen vacuous-clause list MAY be added to and an entry MUST NEVER be removed to make the number fall.",
+    run() {
+      const CQ = require("./engine/clause-quality");
+      if (!Array.isArray(CQ.VACUOUS)) return FAILS(typeof CQ.VACUOUS, "VACUOUS is no longer an array — see the register's own note: Object.freeze on a Set does NOT prevent .add()");
+      if (!Object.isFrozen(CQ.VACUOUS)) return FAILS("VACUOUS is not frozen", "a mutable list can be shortened at runtime by any consumer, and the metric moves with it");
+      let grew = false;
+      try { CQ.VACUOUS.push("x"); grew = true; } catch (_) { /* frozen arrays throw in strict mode */ }
+      if (grew) return FAILS("VACUOUS accepted a push", "frozen in name only");
+      if ("VACUOUS_LOOKUP" in CQ) return FAILS("the lookup Set is exported", "a Set is freeze-proof (.add still works), so exporting it re-opens what freezing the array closed");
+
+      /* THE RATCHET, against git rather than against a number written down here. Every committed
+       * version of the file must be a SUBSET of what ships now. A baseline duplicated into this
+       * runner would be a second copy of the list to keep in sync -- and the copy, not the list,
+       * is what would rot. */
+      let revs = [];
+      try {
+        revs = require("child_process").execFileSync("git", ["-C", HERE, "log", "--format=%H", "--follow", "--", "engine/clause-quality.js"],
+          { encoding: "utf8" }).split("\n").filter(Boolean);
+      } catch (e) { return MANUAL(`git could not list the file's history: ${e.message.split("\n")[0]}`, "git log --follow -- engine/clause-quality.js"); }
+      const setOf = (text) => {
+        const m = /const VACUOUS = Object\.freeze\(\[([\s\S]*?)\]\)/.exec(text);
+        if (!m) return null;
+        return new Set([...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]));
+      };
+      const now = new Set(CQ.VACUOUS);
+      const dropped = [];
+      let compared = 0;
+      /* THE PATH IS NOT CONSTANT ACROSS HISTORY. First cut hard-coded todays path and every
+       * `git show` printed `fatal: Path ... does not exist in <rev>` to stderr while the row
+       * reported GREEN across "3 committed revisions" — a ratchet that had compared NOTHING and
+       * said so nowhere. That is the failure this whole runner exists to remove, committed by the
+       * runner itself. So: resolve the file BY NAME inside each revisions tree, count what was
+       * actually compared, and say the count. */
+      /* FROM THE REPO TOP-LEVEL, because a rev-relative path is resolved from the repo root while
+       * ls-tree run inside a subdirectory prints paths relative to THAT directory — mixing the two
+       * is how the first cut read zero revisions while reporting three. And the path is not stable
+       * across history anyway: --follow crosses the 2026-08-31 extraction, where this file moved
+       * from skills/scrutinize-spec/... to skills/sdd-engine/..., so the name must be resolved
+       * inside each revision rather than assumed. */
+      let TOP;
+      try { TOP = require("child_process").execFileSync("git", ["-C", HERE, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim(); }
+      catch (e) { return MANUAL(`git could not name the repo top-level: ${e.message.split("\n")[0]}`, "git rev-parse --show-toplevel"); }
+      const show = (args) => {
+        const r = require("child_process").spawnSync("git", ["-C", TOP, ...args], { encoding: "utf8" });
+        return r.status === 0 ? r.stdout : null;
+      };
+      for (const rev of revs) {
+        const listing = show(["ls-tree", "-r", "--name-only", rev]);
+        if (!listing) continue;
+        const at = listing.split("\n").filter((p) => p.endsWith("/clause-quality.js") || p === "clause-quality.js");
+        for (const p of at) {
+          const old = show(["show", `${rev}:${p}`]);
+          if (!old) continue;
+          const s = setOf(old);
+          if (!s) continue;
+          compared++;
+          for (const e of s) if (!now.has(e)) dropped.push(`${rev.slice(0, 7)}: ${JSON.stringify(e)}`);
+        }
+      }
+      if (dropped.length) return FAILS(dropped.slice(0, 4).join(", "),
+        "an entry present in a committed version is gone — removing one is how the vacuous count falls without the prose improving");
+      if (!compared) return FAILS(`the ratchet compared 0 of ${revs.length} revision(s)`,
+        "no committed version of clause-quality.js could be read, so nothing was checked — a ratchet that compares nothing must not report green");
+      return HOLDS(`${now.size} entries, frozen ARRAY (push refused), lookup Set unexported, and no entry dropped across ${compared} of ${revs.length} committed revision(s) actually read`,
+        "the ratchet reads git, not a baseline copied into this runner — a copy is the thing that would rot");
+    } },
+
+  { id: "R-MEAS-7", req: "Residue MUST be classified, never papered over: non-recurring shape · free-text slot · comment/trivia · formatting variance.",
+    run() {
+      const AC2 = require("./engine/artifact-contract");
+      let j;
+      try { j = AC2.load("corpus-coverage", AC2.pathFor("corpus-coverage")); }
+      catch (e) { return MANUAL(`corpus-coverage: ${e.message.split("\n")[0]}`, "npm run gate — the classification is published by the run, not by a reader"); }
+      const r = j.rollup || {};
+      const chars = r.residueChars, legend = r.residueLegend;
+      if (!chars || !legend) return FAILS(`residueChars:${!!chars} residueLegend:${!!legend}`,
+        "a residue TOTAL with no classes is exactly the papering-over this row forbids");
+      const missing = ["A", "B", "C", "D"].filter((k) => chars[k] === undefined || !legend[k]);
+      if (missing.length) return FAILS(`class ${missing.join(", ")} unpublished`, "four classes are named in the register; a missing one absorbs into another silently");
+      /* The LEGEND must still say what the register says. A class renamed in the artifact and not in
+       * the register is how two engineers end up reading the same number as two different things. */
+      const want = { A: /non-recurring/i, B: /free.?text/i, C: /comment|trivia/i, D: /formatting/i };
+      const drifted = Object.keys(want).filter((k) => !want[k].test(legend[k]));
+      if (drifted.length) return FAILS(drifted.map((k) => `${k}="${legend[k]}"`).join(", "), "the published legend no longer matches the register's four classes");
+      const total = chars.A + chars.B + chars.C + chars.D;
+      const samples = j.residueSamples || {};
+      const unsampled = ["A", "B", "C", "D"].filter((k) => !Array.isArray(samples[k]) || (chars[k] > 0 && !samples[k].length));
+      if (unsampled.length) return FAILS(`no samples for ${unsampled.join(", ")}`, "a class with a count and no example cannot be checked by a second engineer");
+      return HOLDS(`${total.toLocaleString()} residue chars split A${chars.A} B${chars.B} C${chars.C} D${chars.D}, each with samples`,
+        "read off the stamped corpus-coverage artifact through AC.load, so a hand-edited split breaks the seal rather than the reading");
+    } },
+
+  { id: "R-MEAS-8", req: "A candidate count MUST NOT be reported as a collapse count. WIDE-axis tools report CLUSTER CANDIDATES.",
+    run() {
+      /* The confusion this forbids happens in the OUTPUT, so the check reads what the tools PRINT.
+       * Anchored on console lines that pair a WIDE-axis noun with a collapse verb -- "collapsed",
+       * "removed", "folded" -- because the failure is a candidate count wearing the word that
+       * belongs to a byte-exact result. */
+      const WIDE = ["measure-callgraph.js", "measure-bespoke-composites.js", "finer-granularity-sweep.js", "pattern-census.js"];
+      const present = WIDE.filter((f) => exists(f));
+      if (!present.length) return MANUAL("no WIDE-axis tool is present to check", "ls measure-callgraph.js measure-bespoke-composites.js");
+      const bad = [];
+      for (const rel of present) {
+        const f = readCode(rel);
+        if (!f.ok) continue;
+        f.text.split("\n").forEach((l, i) => {
+          if (!/console\.log|process\.stdout\.write/.test(l)) return;
+          if (/\bcollapsed?\b|\bfolded\b|\bremoved\b/i.test(l) && !/candidate|latent|potential|would|not auto|NOT /i.test(l)) bad.push(`${rel}:${i + 1}`);
+        });
+      }
+      if (bad.length) return FAILS(bad.join(", "),
+        "a WIDE-axis tool prints a collapse verb over a candidate count — only sites passing the byte-exact gate become spans, and the two are not comparable");
+      /* The other half: the tools that DO print candidates must say so. A count with no noun is
+       * read as whatever the reader expected. */
+      const label = present.filter((rel) => { const f = readCode(rel); return f.ok && /candidate/i.test(f.text); });
+      return HOLDS(`${present.length} WIDE-axis tool(s) checked, ${label.length} name their counts as candidates, none prints a collapse verb over one`,
+        "checked on the PRINTED lines, which is where a candidate count gets mistaken for a collapse count");
+    } },
+
+  { id: "R-REND-3", req: "Selected segments MUST tile [0, len) exactly, and no two selected spans may overlap.",
+    run() {
+      /* HALF 1 — the named check, EXERCISED. checkTiling's `byteIdentical` is tautological once the
+       * segments tile (it re-joins slices of the same source, so the comparison cannot fail) --
+       * sdd-engine-e2's C11 finding, and it is why this row does not lean on that field. What the
+       * function really decides is the TILING: a gap and an overlap must both be caught, and both
+       * are exercised here against a known source. */
+      const A = require("./engine/archetypes");
+      if (typeof A.checkTiling !== "function") return FAILS("checkTiling is not exported", "the register names it as the check; an unexported check is not one");
+      const src = "abcdefgh";
+      const exact = A.checkTiling(src, [{ a: 4, b: 8 }, { a: 0, b: 4 }]);
+      const gap = A.checkTiling(src, [{ a: 0, b: 3 }, { a: 4, b: 8 }]);
+      const over = A.checkTiling(src, [{ a: 0, b: 5 }, { a: 4, b: 8 }]);
+      const shortfall = A.checkTiling(src, [{ a: 0, b: 4 }]);
+      const fails = [];
+      if (!exact.byteIdentical) fails.push("an exact tiling was rejected");
+      if (gap.byteIdentical || gap.hole !== 3) fails.push(`a GAP at 3 was not caught (${JSON.stringify(gap)})`);
+      if (over.byteIdentical) fails.push("an OVERLAP was accepted");
+      if (shortfall.byteIdentical || shortfall.hole !== 4) fails.push("a tiling short of len() was accepted");
+      if (fails.length) return FAILS(fails.join("; "), "the tiling check does not decide what the row says it decides");
+
+      /* HALF 2 — the LIVE .en path, which does not call checkTiling. It enforces non-overlap by
+       * construction: spans are sorted by start and any span opening before the write cursor is
+       * DROPPED. Anchored on that pair (the sort and the cursor test), because either alone is
+       * meaningless -- an unsorted list makes the cursor test drop arbitrary spans instead. */
+      const e = readCode("engine/enfile.js");
+      if (!e.ok) return FAILS(null, e.why);
+      const sorted = /spans\.sort\(\(a, b\) => a\.start - b\.start\)/.test(e.text);
+      const cursor = /if \(sp\.start < pos\) continue;/.test(e.text);
+      if (!sorted || !cursor) return FAILS(`sort:${sorted} cursor-guard:${cursor}`,
+        "the live renderer lost its non-overlap construction; overlap would then be decided by span order, which nothing guarantees");
+      return HOLDS("checkTiling catches gap, overlap and shortfall on a known source; the live .en path sorts spans and drops any that opens before the cursor",
+        "the archetype check was RUN (its byteIdentical field is tautological -- C11 -- so this row tests the tiling verdict instead)");
+    } },
+
+  { id: "R-REND-8", req: "A body that is not named MUST read as an honest placeholder, and MUST NOT be given invented prose.",
+    run() {
+      /* Anchored on the BRANCH, not on the string. `custom logic` appears in prose.js's header
+       * comment, in a test, and in a measurement tool -- matching any of those would be the
+       * R-MINE-10 shape again (the right identifier in the wrong role). What the row is about is
+       * that the words-branch is GUARDED BY `.named`, so an unnamed body cannot reach it. */
+      const p = readCode("engine/prose.js");
+      if (!p.ok) return FAILS(null, p.why);
+      const guarded = /if \(handler && handler\.named\) desc = skeletonToWords\(handler\);/.test(p.text);
+      const placeholder = /else if \(handler\) desc = `runs custom logic \(\$\{handler\.stmtCount\} statements\)`/.test(p.text);
+      if (!guarded) return FAILS("the words branch is no longer guarded by handler.named",
+        "an unnamed body would be described in invented prose — the one thing this row forbids");
+      if (!placeholder) return FAILS("the honest placeholder no longer carries the statement count",
+        "'custom logic' with no count says a body exists but not how much of it is unreviewed");
+      /* And the guard must FIRE, not merely be present: run the module's own suite, which asserts
+       * the placeholder on a real rendered router. */
+      const t = runNode("engine/prose.test.js");
+      if (t.err) return FAILS(null, t.err);
+      if (t.code !== 0) return FAILS(`prose.test.js exited ${t.code}`, t.out.trim().split("\n").slice(-3).join(" / "));
+      return HOLDS("the words branch is guarded by handler.named; the unnamed branch emits `runs custom logic (N statements)`, and prose.test.js passes",
+        "the branch STRUCTURE is the anchor — the phrase alone also occurs in a comment, a test and a measurement tool");
+    } },
+
+  { id: "R-MECH-1", req: "Pattern discovery MUST be LZW dictionary construction over the AST node stream. Flat anti-unification / clone detection MUST NOT be the discovery mechanism.",
+    run() {
+      /* THREE HALVES: what BUILDS the dictionary, what the live compile path READS, and what does
+       * NOT exist beside them. The third is the one the row actually forbids -- a second discovery
+       * mechanism is only dangerous once something reads it. */
+      const b = readCode("build-lzw-generators.js");
+      if (!b.ok) return FAILS(null, b.why);
+      const builds = /W\.buildSaturated\(/.test(b.text) && /require\("\.\/engine\/wordlzw"\)/.test(b.text);
+      if (!builds) return FAILS("build-lzw-generators.js no longer builds through engine/wordlzw buildSaturated",
+        "then discovery is some other mechanism and every depth and id figure was measured under a different regime");
+      const e = readCode("engine/enfile.js");
+      if (!e.ok) return FAILS(null, e.why);
+      if (!/require\("\.\/enlzw"\)/.test(e.text)) return FAILS("the .en path does not load engine/enlzw",
+        "the register names enlzw as the ONE reader of the dictionary on the live path");
+      const el = readCode("engine/enlzw.js");
+      if (!el.ok) return FAILS(null, el.why);
+      if (!/function loadLzw/.test(el.text)) return FAILS("enlzw no longer exposes loadLzw", "the single load point for the dictionary is gone");
+      /* No SECOND discovery mechanism ON THE DISCOVERY PATH — and the scope is the whole point.
+       *
+       * The first cut grepped anti-unification / clone-detection / edit-distance over EVERY live
+       * file and returned 9 hits in 4 files: engine/wholefile.js (near-miss shape analysis),
+       * measure-callgraph.js and measure-operations.js (the LATENT-reuse reports, which say
+       * "anti-unified" about candidates they explicitly do not mint), and reconcile-names.js
+       * (string similarity between NAMES). All four are MEASUREMENT and NAMING; none of them
+       * produces a word the .en path can read — measure-callgraph itself prints its results as
+       * "consolidation candidates" (R-MEAS-8). Reporting them red would have been the guard crying
+       * wolf at exactly the tools the PRD asks for, so the scope is now the files that BUILD or
+       * READ the dictionary, and the off-path uses are counted instead, so growth is visible. */
+      const PATH_FILES = ["build-lzw-generators.js", "engine/wordlzw.js", "engine/generators.js",
+                          "engine/enlzw.js", "engine/enfile.js", "engine/payload.js"];
+      const RE = /anti-?unif|cloneDetect|clone_detect|levenshtein|editDistance/i;
+      const onPath = [];
+      for (const rel of PATH_FILES) {
+        const f = readCode(rel);
+        if (!f.ok) return FAILS(null, `${f.why} — a file on the discovery path is missing, so this row cannot be decided by its absence`);
+        f.text.split("\n").forEach((l, i) => { if (RE.test(l)) onPath.push(`${rel}:${i + 1}`); });
+      }
+      if (onPath.length) return FAILS(onPath.join(", "),
+        "a file that BUILDS or READS the word dictionary implements a rejected discovery mechanism beside the LZW one");
+      const offPath = liveGrep(RE, { excludeTests: true }).filter((h) => !PATH_FILES.includes(h.split(":")[0]));
+      /* ONE dialect for what discovery produces, so a second producer could not hide behind a
+       * second encoding: engine/payload.js is the codec and `lzw1` is its only prefix. */
+      const pay = readCode("engine/payload.js");
+      const oneDialect = pay.ok && /lzw1/.test(pay.text);
+      return HOLDS(`dictionary built by wordlzw.buildSaturated; the .en path reads it only through enlzw.loadLzw; none of the ${PATH_FILES.length} discovery-path files names a rejected mechanism` +
+          (oneDialect ? "; one payload dialect (lzw1)" : ""),
+        `the three rejected mechanisms are grepped BY NAME on the discovery path itself; ${offPath.length} off-path use(s) in measurement/naming tools are counted, not failed` +
+        (offPath.length ? ` (${offPath.slice(0, 4).join(", ")}${offPath.length > 4 ? ", ..." : ""})` : ""));
+    } },
+
 ];
 
 /* ---------- evaluate ---------- */
