@@ -7,15 +7,22 @@
  *
  * WHY THIS FILE EXISTS, and why it does not use a fixture.
  *
- * These guarantees had a guard — `verify-dsl.js` — and it had been DEAD since the skill extraction
- * (e95ca17). Traced 2026-09-01: its inputs `compositions/*.json` and `surface/*.calc` were tracked
- * once (f7ba5f3), later declared derived and gitignored (.gitignore:10 and :22), and the extraction
- * moved 129 TRACKED files with `git mv` — so the ignored fixtures did not travel and are now absent
- * from both skills. Its producer, `build-compositions.js`, sits in `archive/`.
+ * These guarantees had a guard — `verify-dsl.js` — and it was DEAD, dying at load on a missing
+ * `compositions/*.json`. Its inputs were tracked once (f7ba5f3, ade30c3) and are gitignored today
+ * (root `.gitignore:10` and `:22`). Its producer, `build-compositions.js`, sits in `archive/`.
  *
- * So restoring the fixture would mean re-committing files the repo deliberately ignores, in order to
- * revive a script whose generator is retired — and they would be lost again by the same mechanism
- * the next time a tree moves. The guarantee is worth keeping; the fixture is not the way to keep it.
+ * THE FIXTURE IS NOT AN OPTION THAT EXISTS. It was not lost to tooling. `801d704`,
+ * "security: scrub all Hydra-derived material from the skills repo" (2026-08-30), deleted
+ * `catalog/`, `results/`, `compositions/` and `surface/` from the index AND the working tree — 85
+ * pure deletions — on Amir's explicit word: "the skills repo should hold no copies." That commit
+ * rewrote `.gitignore` as a guard so re-mined output could not be committed back, and this repo has
+ * a PUBLIC remote (see `../.gitignore:7`). Measured: `git ls-tree -r 801d704^` holds 3 composition
+ * fixtures, `801d704` holds 0. The skill extraction (e95ca17, 2026-08-31 12:46) came thirteen hours
+ * later, so `git mv` semantics never entered into it.
+ *
+ * Read that carefully before "fixing" this: restoring the fixture is not a matter of tracking it
+ * properly this time. It would re-add Hydra-derived bytes to a public repo against a standing
+ * instruction. The guarantee is worth keeping; the fixture is forbidden as the way to keep it.
  *
  * This file therefore builds its own trees IN MEMORY from the live grammar. It hardcodes no
  * composite, no keyword and no param: for every surface form `dsl.grammar()` reports, it synthesises
