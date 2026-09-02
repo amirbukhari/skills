@@ -3523,3 +3523,88 @@ aggregated byte-identical count, no worst-first ordering).
 - Did not re-litigate anything the PRD marks SETTLED, and did not treat a §Q recommendation as a
   decision.
 
+
+## 2026-09-01 — RESOLVED: composite-tier names KEEP their holes (option 1). Reworded spec, not implemented.
+
+**Decided** (autonomy grant, Amir asleep, relayed decision — logged rather than blocked): of the
+three ways out of the R-LANG-19 / check-4 conflict measured in the entry above, take **option 1 —
+a whole-chunk name AUGMENTS member composition, it never replaces it.**
+
+**Why this one and not the other two.** It is the only option that does not trade detail for prose.
+Option 2 (restrict R-LANG-19 to identifier-free labels) reaches **2,392 of 27,650 chunks — 8.7%** by
+measurement, so it buys almost nothing. Option 3 (relax check 4) is re-running the pilot that created
+check 4. And option 1 matches the shape of every other decision in this codebase: **nested rendering
+already made structure and content coexist at different depths instead of competing for the same
+bytes** (§5D.4E §2: "parent and child no longer compete because they are at different depths"). A
+name and the clause it names are the same relationship one tier up. The flat span model was the
+assumption worth dropping there; "a name replaces what it names" is the assumption worth dropping
+here.
+
+**A name is a label, not a structure** — which is already asserted at `enfile.js:1004` as R-LANG-23,
+a requirement that exists in the code and **nowhere in the register or `prd/`** (found independently
+by sdd-engine-5f tonight, filed as C6 in their sweep). Option 1 is R-LANG-23 applied to the composite
+tier, so registering R-LANG-23 and rewording R-LANG-19 are one job, not two.
+
+### Proposed R-LANG-19 rewording — a SKETCH for whoever owns the change, not a spec I applied
+
+Current text: *"A **whole-chunk name MUST take precedence** over member composition; composition
+remains the fallback for words with no whole-chunk name."*
+
+Proposed: *"A whole-chunk name, where present, **MUST be emitted as a label ALONGSIDE** the composed
+member clause; it **MUST NOT replace, shorten or otherwise remove** any part of it. Composition
+remains the sole source of the concrete identifiers a chunk's prose supplies, named or not. A name
+changes how a chunk is **addressed**, never what it **says**."*
+
+**What that buys, stated as testable consequences rather than intent:**
+
+1. **Check 4 (DETAIL RETENTION) stays a backstop instead of becoming a veto.** Under the current
+   wording it would reject essentially every useful chunk name — 63% of the corpus's prose
+   identifiers sit in d>=1 labels, so it is the de-facto gate on the whole composite tier, a much
+   larger role than its doc comment claims (5f's point, and correct). Under option 1 nothing is
+   lost, so it goes back to catching mistakes rather than defining policy. **No relaxation needed —
+   that is the test of whether option 1 was implemented correctly.**
+2. **Check 5 (FOLD INVARIANCE) becomes the binding constraint, and it is already written.** Adding a
+   label must not split a folded clause; `labelClauses` must not rise. That is precisely the check
+   that caught the second leaf regression (1 -> 284 import repeats), and it is the one most likely to
+   fire on a naive "emit the name too" implementation.
+3. **A new cost appears that MUST be measured before anyone claims success: `.en` size.** Emitting a
+   name alongside composition adds bytes to every named chunk. Nesting already took `.en` from +19%
+   to +74% of `.ts` (§5D.4E §4). Whoever implements this **must publish the before/after size** —
+   this project's rule is that both halves of a tradeoff are published side by side (R-MEAS-7,
+   R-MECH-8), and a naming pass that quietly re-inflates the corpus would be the flattering half.
+
+**Open question I am NOT deciding: where the label goes.** A structural chunk is
+`«▷ gloss ⟨ children ⟩»` and an atomic one is `«▶ gloss ⟪payload⟫»`. Whether the name prefixes the
+gloss, replaces the gloss while the composed clause moves into the body, or takes a third marker, is
+a rendering-grammar decision with byte-identity consequences on the compile side — `compileChunk`
+finds the payload by `lastIndexOf(PAY_OPEN)` and never reads the label today, which is what makes
+names cosmetic by construction and must stay true.
+
+**NOT IMPLEMENTED, deliberately, and flagged back.** This is real design work in `enfile.js`'s
+rendering grammar — currently s16's active file — and it needs an owner with the room to do it
+properly, not a night-time edit at the edge of someone else's rebuild. What exists here is the
+measurement, the decision, and the wording; the rendering change is unclaimed.
+
+**Register text is Amir's.** R-LANG-19 lives in `prd/11-requirements-register.md`, which is another
+lane's file, so this is a proposal recorded in ASSUMPTIONS.md — not an edit to the register.
+
+## 2026-09-01 — CORRECTION: my chunk-naming entry was already committed; there was no collision to avoid
+
+**What I reported:** that I had left `ASSUMPTIONS.md` uncommitted because it held another lane's
+staged progress-stream entry alongside mine, and that committing would sweep theirs.
+
+**What was actually true:** both entries were **already on HEAD** when I looked. A third lane had
+committed them in **fdb7bc6**, and the working tree was clean. Raised by sdd-engine-5f and
+**verified here before accepting it**: `git log -S'chunk-level (d>=1) naming risk' -- ASSUMPTIONS.md`
+→ fdb7bc6, and `git status --short -- ASSUMPTIONS.md` → empty.
+
+**How I got it wrong:** I read `git diff --cached` and took staged-looking hunks as *pending*. They
+were the index agreeing with a HEAD that had moved under me — I never re-checked HEAD after the
+lanes' pushes. The defence I wrote into CLAUDE.md §7 (`--numstat` before, `--stat` after) tells you
+the SIZE of a change, not whether it is already committed. `git status --short` on the path answers
+that in one line and I did not run it.
+
+**The part worth keeping:** my entry IS on origin, but it is filed under a commit message about the
+NDJSON progress stream that does not mention chunk naming at all — the exact CLAUDE.md §7 pattern,
+landed one lane upstream of both of us. Nothing to fix; worth knowing when someone greps the log for
+this measurement and does not find it.
