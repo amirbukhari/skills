@@ -339,6 +339,35 @@ const ROWS = [
         : HOLDS("only the resolver names a root", "guarded further by engine/corpus-root.test.js");
     } },
 
+  { id: "R-CFG-13", req: "A refusal MUST NOT present as a crash: declines exit 3 with prose, faults exit 1 with their stack.",
+    run() {
+      const rf = read("sdd-clean.js");
+      if (!rf.ok) return FAILS(null, rf.why);
+      const f = rf.text;
+      /* STRUCTURAL, deliberately. The BEHAVIOURAL proof — declines exit 3, faults exit 1, both
+       * mutation-checked — is engine/sdd-clean.test.js, which spawns the tool against throwaway
+       * temp roots. This check must never spawn `--wipe-sen --go`, because verify-register runs
+       * against the LIVE corpus and that is the one command that would delete it. */
+      if (!/class Decline extends Error/.test(f))
+        return FAILS("no Decline class", "declines are indistinguishable from faults");
+      const guard = (f.split("function assertRemovable(rel) {")[1] || "").split("\nfunction ")[0];
+      const plain = (guard.match(/throw new Error\(/g) || []).length;
+      if (plain) return FAILS(`${plain} plain Error throw(s) in assertRemovable`, "a guard still crashes instead of declining");
+      /* ORDER IS THE WHOLE REQUIREMENT. Installed below the root resolution, the handler never
+       * sees a bad root — and the test that was meant to catch that passed anyway, because it was
+       * measuring Node's default behaviour. Position, not presence. */
+      const h = f.indexOf("process.on(\"uncaughtException\"");
+      /* Anchor on the ASSIGNMENT, not on a bare `CR.corpusRoot()` — the handler's own comment
+       * explains the ordering bug and names that call, so a loose match found the prose and
+       * reported the correct code as broken. A check that reads comments is reading English. */
+      const r = f.indexOf("const CORPUS = CR.corpusRoot()");
+      if (h < 0) return FAILS("no handler", "an uncaught decline still prints a stack");
+      if (r >= 0 && h > r)
+        return FAILS("handler installed after the roots resolve", "a misconfigured root bypasses it entirely");
+      return HOLDS("Decline class, no plain throws in the guard, handler installed before the roots resolve",
+        "behaviour is pinned by engine/sdd-clean.test.js, not by this check");
+    } },
+
   { id: "R-ART-stamp", req: "Every artifact MUST be published through AC.stamp and carry a fingerprint.",
     run() {
       let AC;

@@ -231,6 +231,7 @@ over the live tree and `archive/`, not by reading the prose.
 | R-CFG-10 | The wipe **MUST NOT** touch `<CORPUS>/catalog/`, the legacy STEP-4 tree. It is a separate, still-undetermined question (§Q-4). | `PROTECTED` name list. | §1B.3, §1B.4 |
 | R-CFG-11 | A tool that deletes a tree **MUST NOT** live inside that tree, and a fresh corpus **MUST** need no scripts copied into it. | `sdd-clean.js` lives in the engine. | §1B.3 |
 | R-CFG-12 | SOURCE-PROTECTED artifacts (§8A) **MUST** be tracked in the corpus's own repo and **MUST NEVER** be classified as regenerable-cache, gitignored away, or deleted in any cleanup. A cleanup that cannot tell them apart **MUST** stop and ask. | §8A list. | §8A |
+| R-CFG-13 | **A refusal MUST NOT present as a crash.** Every guard that DECLINES a run **MUST** exit 3 with its reason as prose; only genuine faults exit 1, and they **MUST** keep their stack. The fault handler **MUST** be installed **before the roots resolve**, or a misconfigured root bypasses it entirely. | `sdd-clean.js`'s `Decline` class and its single `uncaughtException` handler. Behaviour pinned by `engine/sdd-clean.test.js` (declines -> 3, faults -> 1), both mutation-checked; structure by `verify-register.js`. | §1B.3 |
 
 ## R-MEAS — measurement discipline
 
