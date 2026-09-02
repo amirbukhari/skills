@@ -5367,3 +5367,35 @@ cannot take the runner down with it, and so an exit *code* is observable at all 
 fault is 1). `tmpCorpus()` builds a throwaway tree in `os.tmpdir()` for the rows that must run a
 **destructive** tool to decide. The real corpus is never a subject of these rows — the only safe
 place to watch a tool that deletes is a tree nobody minds losing.
+
+### CORRECTION to the entry above — R-MINE-10's false green was NOT prose. 2026-09-01
+
+I wrote that R-MINE-10 stayed green because *"the header comment names all three reasons a few lines
+above, and prose about the check satisfied the check"*, and `sdd-engine-e2` generalised from it into
+a class. **Re-measured while implementing the class fix, and it is wrong.** With every comment
+stripped, the loose `/bucket[\s\S]{0,200}ARBITRATION/` **still matches** — the report line
+`` `${bucket.ARBITRATION}` `` is real code. The row was satisfied by a **different part of the file
+than the one it was about**, which is the same family as e2's C11 tautology and the A4 fixture (an
+oracle matching something that was never the subject) but **not** the comment mechanism I named.
+Anchoring on the object literal is what fixed it, and that is what the row already does.
+
+Corrected at the row and in the helper header (`1717ac2`) rather than only here, because the wrong
+cause was written into the code comment too — and a comment is what the next session reads first.
+
+**The class fix landed anyway, and here is what it is actually worth.** `liveGrep`'s exemption used
+to test for a *line-leading* `//`, `/*` or `*`, which misses a trailing `code(); /* prose */` and a
+block comment whose continuation lines carry no `*`. Probe, measured: appending
+`const probe = 1; /* a comment mentioning path.join(__dirname, "generators-lzw.json") */` to a
+tracked file makes **R-ART-2 FAIL under the old test and stay green under the new one**. So the
+direction it closes is a guard **crying wolf at prose** — §3's "a guard that cries wolf gets ignored,
+then removed" — not a guard passing on prose.
+
+**And it repaired nothing today.** Migrating every `read()` to `readCode()` left all 76 rows'
+verdicts *and* their evidence strings byte-identical: 68 hold / 4 fail / 4 manual before and after.
+Preventive, and worth saying plainly rather than letting the commit imply it found something.
+
+**The general lesson, which is the third time tonight in a different disguise:** I diagnosed a
+mechanism by reading the code and reported it as fact, and the measurement that would have refuted it
+took forty seconds. `stripComments` + re-run was that measurement, and I only ran it because I was
+building on top of the claim. A cause stated without the counter-measurement is a hypothesis wearing
+a fact's clothes.
