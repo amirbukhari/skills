@@ -5399,3 +5399,16 @@ mechanism by reading the code and reported it as fact, and the measurement that 
 took forty seconds. `stripComments` + re-run was that measurement, and I only ran it because I was
 building on top of the claim. A cause stated without the counter-measurement is a hypothesis wearing
 a fact's clothes.
+
+**Corroborated, with the sites counted.** `sdd-engine-e2` reproduced the correction independently
+before accepting it: `ARBITRATION` appears in `measure-uncollapsed.js` at **line 88** (the bucket),
+**line 131** (the `why` ternary) and **line 156** (`${bucket.ARBITRATION}` in the report) — three
+real code sites against **one** comment at line 28. Comment-stripping would have changed nothing.
+
+Their framing of the mundane version is sharper than mine and worth keeping in these words: **an
+oracle can match the right identifier in the wrong role**, which no filtering by comment-ness will
+catch and which reads as a clean pass by inspection. The three instances — C11's tautological
+`byteIdentical`, A4's fixture editing a word not in the gloss, R-MINE-10 matching a report line —
+are three different mechanisms with one shape. That argues for anchoring each row on the structure
+it means and mutation-checking every one of them, and **against** a filtering pass, which is what
+was first proposed.
