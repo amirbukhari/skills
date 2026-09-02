@@ -4629,3 +4629,69 @@ absorbing it.** The imports that used to be one atomic word became one chunk per
 a structural chunk renders one child per statement. R-ARCH-22 already ranks one-word-per-file above
 that number, so the trade was the sanctioned direction — but the cause turned out to be fixable,
 which is the next entry.
+
+## 2026-09-01 — a refusal is not a crash (sdd-clean exit 3, R-CFG-13)
+
+**The finding was mine and so was the fix, but the fix reversed a DOCUMENTED decision, which is
+worth recording as more than a bugfix.** The four guards in `assertRemovable` threw plain `Error`s,
+so each reached the user as an uncaught stack and exit 1. The exit-code comment right below them
+read *"0 = did what was asked · 1 = error (the hard refusals above throw) · 3 = declined, nothing
+deleted"* — so someone had already considered these four and filed them under *error*, on purpose.
+
+**Why I overrode that rather than deferring to it.** The flip gate sits a few lines further down.
+It is an equally un-releasable refusal — its own output says *"--wipe-sen and --wipe-catalog do NOT
+release it"* — and it prints prose and exits 3. So "releasable by a flag" is not what separated the
+two groups, and nothing else did either. Same event, two presentations, and the SOURCE guard — the
+most safety-critical refusal this tool has — was on the stack-trace side. Every one of the four
+leaves the tree untouched, which is the exact wording of the 3 case. The old sentence is kept in
+the comment rather than replaced silently, per §9's habit.
+
+**A new numbered row, not an amendment to an old one — and that choice is the reusable part.**
+`verify-register.js` restates each requirement inline as `{ id, req }` in executable code, so the
+row and the check that enforces it are one artifact. **Amending a row to match new code is
+therefore circular: the implementation ends up defining its own acceptance criterion, and the check
+goes green by construction.** Adding a row is not circular. That asymmetry is the shared reason
+three lanes independently declined to amend rows and all three added them freely; it is now written
+down as R-CFG-13 rather than left as an instinct. (Measured earlier: 69 distinct R-IDs cited from
+live `.js` against 143 defined — the register deliberately runs ahead of what is mechanized, and
+that gap is the backlog, not a defect.)
+
+**It is not R-CFG-8, and I checked before saying so.** R-CFG-8 governs the *no-flag dry-run*
+refusal and the file and byte counts it must print. This is a different refusal on a different
+trigger, and it printed no counts at all — it threw. The convention it violated existed only in a
+code comment and a test header, numbered nowhere.
+
+**Three things only running it could have told me, all of which reading the code got wrong:**
+
+1. **The handler was installed BELOW the root resolution**, so a missing or misconfigured root —
+   thrown by `corpus-root.js` at `CR.corpusRoot()` — never reached it. The test written to prove
+   "faults still exit 1" passed anyway, because it was measuring **Node's default behaviour rather
+   than this code**. Mutating the fault branch to `exit 3` left it GREEN. Moved above the
+   resolution; the same mutation now turns it red. A handler that does not cover the first thing
+   that can fail is not a handler.
+2. **`read()` in `verify-register.js` returns `{ ok, text }`, not a string.** My first check tested
+   a truthy object and reported *"no Decline class"* against a file that plainly has one. A check
+   that fails for its own reasons is worse than no check.
+3. **Anchoring the ordering test on a bare `CR.corpusRoot()` matched the handler's own comment** —
+   the comment explains the ordering bug and names that call — so the check reported correct code
+   as broken. Anchored on the assignment instead. **A check that reads comments is reading English.**
+
+**And one that only a correct pathspec could tell me.** I verified "the other lane's hunk is absent
+from my staged diff" with `git diff --cached -- skills/sdd-engine/tools/prd/...` while sitting in
+`skills/sdd-engine`. Git resolves a pathspec relative to CWD, so it matched nothing, printed an
+empty diff, and my grep dutifully reported 0 — **a false all-clear on the exact check that exists
+to prevent sweeping a peer's work.** Re-run with a CWD-relative path it was genuinely 0, and the
+row went in from `git show HEAD:` via `update-index`. Same family as `git check-ignore -q` (§9) and
+as e2's `git ls-files --others --ignored` finding: the command answered a narrower question than
+the one asked, and answered it correctly.
+
+**`REMOVED` is counted, not assumed.** Today every escaping `Decline` is raised by `plan()` and the
+one late call site is already inside a `catch` that swallows it, so the count is always 0 — the
+words *"nothing was deleted"* are true today by construction. It is tracked anyway so that the day
+a guard moves after the removal loop, the tool reports a PARTIAL wipe instead of confidently
+claiming an untouched tree.
+
+**Not done, deliberately.** The other three guards' messages (`not inside CORPUS`, `protected`, the
+§8A guarded-subtree one) now exit 3 as well. I did not reword any of them; only their classification
+changed. Mutation-checked three ways: disabling the SOURCE condition 17 -> 13, reverting `Decline`
+to `Error` 17 -> 15, swallowing faults into exit 3 17 -> 16.
