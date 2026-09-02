@@ -60,6 +60,50 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   ok(!/undefined|null/.test(g), "declining never leaks a null into the label");
 }
 
+/* ---- 1b. THE EXPORT CHUNK RULE (§5D.4E) ---------------------------------------------------
+ * Written because the rule-coverage measurement found the asymmetry, not because a shape was
+ * missing from a list: the import rule QUOTED its symbol and module while exports only COUNTED
+ * ("re-export 1 name from another module") across 9 leaf skeletons / 113 sites. The alternative
+ * was naming those 9 skeletons, which serves this corpus only; the rule serves the language. */
+{
+  const [st, sf] = stmts("export { LiftPartner } from '../entities/hydra';\n");
+  eq(EN.spanProse(st, sf), "re-export `LiftPartner` from `../entities/hydra`",
+    "a re-export QUOTES the symbol and the module — the gap this rule closes");
+  ok(!/1 name/.test(EN.spanProse(st, sf)), "the counting fallback is gone for this shape");
+}
+{ // CARDINALITY IS A PARAMETER, same as imports: one rule, one clause, any number of statements.
+  const [st, sf] = stmts("export { A } from './a';\nexport { B, C } from './b';\n");
+  const g = EN.spanProse(st, sf);
+  eq(g, "re-export `A` from `./a` and `B` and `C` from `./b`", "a run of re-exports is ONE clause");
+  ok(!/ then /.test(g), "no 'then' — it is one clause, not two");
+}
+{ // every export shape the rule handles
+  const [st1, sf1] = stmts("export * from './all';\n");
+  eq(EN.spanProse(st1, sf1), "re-export everything from `./all`", "a star re-export names its module");
+  const [st2, sf2] = stmts("export * as helpers from './helpers';\n");
+  eq(EN.spanProse(st2, sf2), "re-export all of `helpers` from `./helpers`", "a namespace re-export names both");
+  const [st3, sf3] = stmts("export { internal as publicName } from './m';\n");
+  eq(EN.spanProse(st3, sf3), "re-export `internal` as `publicName` from `./m`",
+    "a rename is quoted on BOTH sides — the reader cannot recover it from the path");
+  const [st4, sf4] = stmts("export { Local };\n");
+  eq(EN.spanProse(st4, sf4), "export `Local` from this module", "a local export uses the other verb");
+  const [st5, sf5] = stmts("export type { T } from './t';\n");
+  eq(EN.spanProse(st5, sf5), "re-export `T` from `./t`", "a type-only re-export renders like any other");
+}
+{ /* THE RULE DECLINES rather than fudging one verb onto two different things. Declining is safe:
+   * it falls through to the per-statement path, which is correct, just less compact (R-LANG-17). */
+  const [st, sf] = stmts("export { A } from './a';\nexport { Local };\n");
+  const g = EN.spanProse(st, sf);
+  ok(/ then /.test(g), "a MIXED run declines and falls through per statement");
+  ok(!/undefined|null/.test(g), "declining never leaks a null into the label");
+}
+{ // ADDING A RULE MUST NOT REGRESS A FILE (R-LANG-17): imports are untouched by the export rule.
+  const [st, sf] = stmts("import { X } from './x';\nexport { Y } from './y';\n");
+  const g = EN.spanProse(st, sf);
+  ok(/import `X` from `\.\/x`/.test(g), "the import rule still fires beside the new one");
+  ok(/re-export `Y` from `\.\/y`/.test(g), "and the export rule fires on its own kind");
+}
+
 /* ---- 2. GENERIC CARDINALITY --------------------------------------------------------------- */
 {
   const [st, sf] = stmts("res.set('a', 1);\nres.set('a', 1);\n");

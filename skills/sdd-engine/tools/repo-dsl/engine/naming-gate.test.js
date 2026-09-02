@@ -5,7 +5,7 @@
  * chunk-naming.test.js states the standard this file is held to: "a gate that cannot be shown to
  * FIRE is not a gate". Names are cosmetic by construction, so against the real renderer this gate
  * passes unconditionally — which means a broken comparison would look exactly like a working one.
- * The renderer is therefore INJECTED, and each of the three checks is shown failing against a
+ * The renderer is therefore INJECTED, and each of the four checks is shown failing against a
  * renderer that breaks precisely that one property, and passing against one that does not.
  *
  * UNIT tier: a fake renderer, a temp file, no corpus, no artifacts.
@@ -34,6 +34,10 @@ function fakeEN(mode) {
       const named = NAMES.names["w:aaaa"];
       const label = named ? named.en : "assign a number";
       const payload = mode === "payload" && named ? "⟪MOVED⟫" : "⟪p1⟫";
+      /* THE PILOT'S SHAPE: unnamed, a node-kind rule quotes what the source actually said; named,
+       * one hole-free name stands in its place and the two identifiers are simply gone. */
+      const detail = mode === "detail" && !named ? " calling `getManager` on `partnerRepo`" : "";
+      if (mode === "detail") return { en: `▶ ${label}${detail} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: 3 } };
       return { en: `▶ ${label} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: mode === "coverage" && named ? 2 : 3 } };
     },
     compileFileEn(en, _index) { return mode === "bytes" && /hold a constant/.test(en) ? "DIFFERENT BYTES" : "const x = 1;\n"; },
@@ -63,6 +67,24 @@ ok("COVERAGE INVARIANCE: a name that changes what collapsed FAILS", () => {
   const r = GATE.gateNames(fakeEN("coverage"), {}, dir, FILES, applied);
   assert.strictEqual(r.passed, false);
   assert.match(r.failures[0].why, /coverage moved/);
+});
+
+ok("DETAIL RETENTION: a name that eats identifiers the rule was quoting FAILS", () => {
+  const r = GATE.gateNames(fakeEN("detail"), {}, dir, FILES, applied);
+  assert.strictEqual(r.passed, false, "this is the pilot: 27,673 -> 7,644 identifiers, gated clean before this check existed");
+  assert.match(r.failures[0].why, /detail lost: 2 -> 0/);
+  assert.strictEqual(r.detailBefore, 2, "and the totals are reported, so a caller sees the size of the loss");
+  assert.strictEqual(r.detailAfter, 0);
+});
+
+ok("... while a name that leaves the rule's identifiers alone still PASSES", () => {
+  const r = GATE.gateNames(fakeEN("clean"), {}, dir, FILES, applied);
+  assert.strictEqual(r.passed, true, "check 4 must not simply reject every name");
+});
+
+/* Payloads are verbatim SOURCE. Counting them would let an untouched payload mask a real loss. */
+ok("detailOf ignores identifiers inside a payload and counts only what the PROSE supplies", () => {
+  assert.strictEqual(GATE.detailOf("says `a` and `b` ⟪const x = `c` + `d`;⟫"), 2);
 });
 
 ok("a batch that reaches no label is reported as VACUOUS rather than passing quietly", () => {

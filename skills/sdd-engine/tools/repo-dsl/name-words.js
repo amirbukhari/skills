@@ -237,11 +237,26 @@ function cmdName(args) {
   const gate = GATE.gateNames(EN, index, SRC, affected, accepted);
 
   console.log(`\nd=${tierN}: ${todo.length} asked, ${accepted.length} accepted, ${rejected.length} rejected, ${unnamed.length} left unnamed, ${calls} model call(s)`);
-  console.log(`gate: ${gate.passed ? "PASSED" : "FAILED"} — byte-identity + payload identity + coverage invariance over ${gate.checked} affected file(s); ${gate.proseChanged} of them read differently`);
+  console.log(`gate: ${gate.passed ? "PASSED" : "FAILED"} — byte-identity + payload identity + coverage invariance + detail retention over ${gate.checked} affected file(s); ${gate.proseChanged} of them read differently`);
+  /* The pilot gated clean on the first three checks and still cost the corpus 20,029 identifiers,
+   * so this figure is printed on every run, pass or fail — it is the one a reader must see. */
+  console.log(`      concrete identifiers in the prose: ${gate.detailBefore} -> ${gate.detailAfter}` +
+    (gate.detailAfter < gate.detailBefore ? `  (LOST ${gate.detailBefore - gate.detailAfter})` : "  (none lost)"));
   if (gate.passed && accepted.length && gate.proseChanged === 0) console.log("  WARNING: not one file reads differently — the names did not reach any label. Accepting them would be vacuous.");
   for (const f of gate.failures.slice(0, 5)) console.log(`  FAIL ${f.rel}: ${f.why}`);
 
-  if (!apply) { console.log("\ndry run — word-names.json NOT written. Re-run with --apply to write these names."); return; }
+  if (!apply) {
+    /* A dry run whose proposals are never shown is not a review, it is a slower --apply. */
+    console.log("\nproposed names:");
+    for (const a of accepted) {
+      const row = todo.find((r) => r.key === a.key) || {};
+      const was = (row.rule && row.rule.sampleClause) || "";
+      console.log(`  ${String(row.sites || a.sites || 0).padStart(5)}  ${a.name}`);
+      if (was) console.log(`         was: ${was}`);
+    }
+    console.log("\ndry run — word-names.json NOT written. Re-run with --apply to write these names.");
+    return;
+  }
   if (!gate.passed) { console.error("\nREFUSING to write: the gate failed. No name is applied when the batch does not gate."); process.exit(1); }
 
   const names = Object.assign({}, existing.names), chunks = Object.assign({}, existing.chunks);

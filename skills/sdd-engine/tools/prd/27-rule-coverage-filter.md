@@ -116,3 +116,67 @@ count over a chunk-named render.
   accounts for a leaf, not whether.
 - **R-LANG-22**'s leaf half is now **28** rather than 1,414 at `8882830`. The composite half (638)
   is unchanged and unmeasured against this hazard — see §6.
+
+---
+
+## 8. DELIVERED: the `ExportDeclaration` rule (§4's "missing rule" half)
+
+Written first, per the design's own priority (§5D.2: a rule serves every codebase, a name serves this
+corpus). `exportPhrase` mirrors `importPhrase` and covers `export {A}`, `export {A as B}`,
+`export * from`, `export * as ns from`, `export type {T}`, and local `export {A}`; the rule declines a
+run that MIXES re-exports with local exports rather than fudging one verb onto two different things,
+falling through to the per-statement path (R-LANG-17). Cardinality is a parameter, as with imports.
+
+    was:  re-export 1 name from another module
+    now:  re-export `LiftPartner` from `../entities/hydra`
+
+**Measured** at `3df26f8`: 1037/1037 files byte-identical; 15 files render through the new rule;
+`chunk-naming.test.js` 47 assertions. The 9 export skeletons reclassified as rule-covered and the
+namable leaf set fell **28 -> 20** (the extra movement is another lane's re-mine, not this rule).
+
+## 9. The gate gained a FOURTH check, because checks 1-3 all passed during the pilot
+
+The 80-leaf pilot gated clean and still took the corpus from 27,673 quoted identifiers to 7,644.
+Nothing in byte-identity, payload identity or coverage invariance can see that: the bytes round-trip,
+the payloads are untouched, coverage is identical — the render simply says less. `naming-gate.js` now
+counts **concrete identifiers the PROSE supplies** (backticked tokens outside any verbatim payload,
+`detailOf`) per file and fails any file that loses one. `naming-gate.test.js` shows it FIRING against
+an injected renderer built to the pilot's exact shape. The figure prints on every run, pass or fail.
+
+## 10. The 20 were named, gated, applied — and REVERTED. Names are no longer cosmetic.
+
+One model call produced 20 names; all four gate checks passed (identifiers 2,226 -> 2,226 over the 23
+affected files, and 77,766 -> 77,766 over all 1,037), 1037/1037 still byte-identical. The names were
+applied and then measured against the corpus, and a fifth thing had moved:
+
+| toggling ONLY word-names.json, same tree (`3df26f8`) | without names | with 20 names |
+|---|---|---|
+| import repeats INSIDE one clause (`, import \``) — an UNFOLDED run | 1 | **284** |
+| clause markers | 28,714 | 28,714 |
+
+    without:  import `fs` (its default) from `fs`, `path` ... , and `dotenv` from `dotenv`, call config
+    with:     import `fs` (its default) from `fs`, import `path` ..., import `dotenv` ..., configure a module
+
+Naming ONE leaf in a run (`dotenv.config()`) unfolded the IMPORT run beside it — the import rule's
+cardinality parameter stopped applying and three statements that were one clause became three. **A
+name changed structure, which §5D.3A says only code may do.** It is invisible to all four gate checks:
+bytes round-trip, payloads hold, coverage holds, and every identifier is still quoted — they are just
+quoted three times in three clauses instead of once in one.
+
+The cause is not the names. It is that nested rendering (`3df26f8`, landed mid-run) makes segmentation
+**name-sensitive**: a named word is preferred as a unit, so naming a leaf moves the word boundaries
+around it. That is a defensible design for chunk naming and a direct contradiction of "a name is a
+spelling" for leaves. The 20 names were reverted (`word-names.json` is byte-identical to its committed
+state) and this is recorded as a DECISION, not a bug report:
+
+> **Open — for Amir.** Under nested rendering, does a leaf name participate in segmentation? If yes,
+> §5D.3A needs amending and the gate needs a fold-invariance check (the word-id sequence must be
+> identical with and without a name) so the trade is at least measured. If no, segmentation must be
+> computed from the unnamed dictionary and names applied afterwards. Naming cannot proceed past d=0
+> until this is settled — every tier above compounds it.
+
+Also worth Amir's eye independent of that: three of the 20 (`clearPartnerActivePropertiesCache` and
+friends) came back WITHOUT the word "partner", and `‹id›.set(‹args›)` was named "set a configuration
+value" while one of its two sites is a cache write (`cacheProxy.set(...)`). Both are the same defect
+in miniature — a hole-free name standing in for a receiver the render had already dropped — and both
+argue for the rule that quotes a call's receiver ahead of any further naming.

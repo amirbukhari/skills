@@ -11,7 +11,18 @@
  *   2. PAYLOAD IDENTITY   every ⟪payload⟫ is unchanged and in the same order — the structural half
  *                         of §5D.3A: a name that moved a payload touched something that is not a
  *                         name, and no amount of "but the bytes came back" makes that acceptable;
- *   3. COVERAGE INVARIANCE  the same spans collapse the same statements as before.
+ *   3. COVERAGE INVARIANCE  the same spans collapse the same statements as before;
+ *   4. DETAIL RETENTION   no file's prose loses a concrete identifier.
+ *
+ * CHECK 4 EXISTS BECAUSE CHECKS 1-3 ALL PASSED WHILE THE PROSE WAS DESTROYED. The 80-leaf pilot
+ * gated clean and took the corpus from 27,673 quoted identifiers to 7,644 across 982 files. Nothing
+ * above can see that: the bytes still round-trip, the payloads are untouched, coverage is identical
+ * — the render simply says less. The cause is structural, not a bad batch of names: A LEAF NAME IS
+ * HOLE-FREE AND A NODE-KIND RULE IS HOLE-FILLED, so substituting the first for the second trades a
+ * clause that says `getManager` for one that says the same six words everywhere. A name may change
+ * how prose reads; it may never delete something only the source could have supplied. Payload
+ * regions are excluded from the count on purpose — they are verbatim source, unchanged by
+ * construction, and counting them would dilute exactly the loss this check is looking for.
  *
  * AND ONE THAT IS NOT A SAFETY CHECK BUT A HONESTY CHECK: `proseChanged`. If applying a batch of
  * names changes not one file's prose, the names never reached a label and accepting them would be
@@ -54,7 +65,7 @@ function gateNames(EN, index, srcRoot, files, applied) {
     let src;
     try { src = fs.readFileSync(path.join(srcRoot, rel), "utf8"); } catch (_) { continue; }
     const r = EN.renderFileEn(src, index);
-    before.set(rel, { src, en: r.en, payloads: payloadsOf(r.en), stats: r.stats || {} });
+    before.set(rel, { src, en: r.en, payloads: payloadsOf(r.en), stats: r.stats || {}, detail: detailOf(r.en) });
   }
 
   const NAMES = EN.NAMES;
@@ -63,7 +74,7 @@ function gateNames(EN, index, srcRoot, files, applied) {
   for (const a of applied) { const { map, rec } = recordFor(a); NAMES[map][a.key] = rec; }
 
   const failures = [];
-  let checked = 0, proseChanged = 0;
+  let checked = 0, proseChanged = 0, detailBefore = 0, detailAfter = 0;
   try {
     for (const [rel, b] of before) {
       const r = EN.renderFileEn(b.src, index);
@@ -78,19 +89,28 @@ function gateNames(EN, index, srcRoot, files, applied) {
       const as = r.stats || {};
       if ((as.genSpans || 0) !== (b.stats.genSpans || 0) || (as.genStmtsCollapsed || 0) !== (b.stats.genStmtsCollapsed || 0)) {
         failures.push({ rel, why: `coverage moved: ${b.stats.genSpans}/${b.stats.genStmtsCollapsed} -> ${as.genSpans}/${as.genStmtsCollapsed}` });
+        continue;
+      }
+      const dAfter = detailOf(r.en);
+      detailBefore += b.detail; detailAfter += dAfter;
+      if (dAfter < b.detail) {
+        failures.push({ rel, why: `detail lost: ${b.detail} -> ${dAfter} concrete identifiers — a name replaced a rule that was saying more` });
       }
     }
   } finally {
     restore(NAMES.names, savedNames);
     restore(NAMES.chunks, savedChunks);
   }
-  return { passed: failures.length === 0, checked, proseChanged, failures };
+  return { passed: failures.length === 0, checked, proseChanged, detailBefore, detailAfter, failures };
 }
 
 function payloadsOf(en) { return String(en).match(/⟪[^⟫]*⟫/g) || []; }
+/** Concrete identifiers the PROSE supplies: backtick-quoted tokens outside any verbatim payload.
+ *  This is the one measure that would have caught the pilot, so it has exactly one definition. */
+function detailOf(en) { return (String(en).replace(/⟪[^⟫]*⟫/g, "").match(/`[^`\n]*`/g) || []).length; }
 function restore(live, saved) {
   for (const k of Object.keys(live)) delete live[k];
   Object.assign(live, saved);
 }
 
-module.exports = { gateNames, recordFor, payloadsOf };
+module.exports = { gateNames, recordFor, payloadsOf, detailOf };
