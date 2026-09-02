@@ -567,6 +567,45 @@ const ROWS = [
         : FAILS(`only ${throws} throw sites`, "expected a throw per named failure mode");
     } },
 
+  { id: "R-PAY-6", req: "A word id is not stable across a re-mine and payloads reference word ids, so a `.en` is decodable only against the dictionary it was rendered with. The engine MUST close this by (a) each `.en` naming the dictionary `fingerprint`, with `compileFileEn` REFUSING on mismatch, or (b) content-addressed ids.",
+    run() {
+      /* RED ON PURPOSE, same treatment as R-ARCH-15. Neither closure is built, and the row says
+       * MUST, so the honest verdict is FAILS -- not MANUAL and not absence from this runner, which
+       * would read as "nothing to see here" for the failure mode the register itself calls a
+       * compile producing WRONG BYTES, NOT AN ERROR. Priced in measure-id-stability.js.
+       *
+       * Decided WITHOUT a mine, deliberately: a re-mine renumbers every id by construction and is
+       * gated for that reason, so this checks the two closures' PRESENCE on disk rather than
+       * demonstrating the drift. Closure (a) is a file-format fact and closure (b) an allocator
+       * fact; both are decidable statically. */
+      const e = enFiles();
+      if (e.absent) return MANUAL(`no rendered .en under ${e.where}`, "npm run render");
+      if (e.err) return FAILS(null, e.err);
+      if (!e.files.length) return MANUAL("no .en files rendered", "npm run render");
+
+      let withId = 0, withFp = 0;
+      for (const f of e.files) {
+        let t; try { t = fs.readFileSync(f, "utf8"); } catch { continue; }
+        if (/⟪lzw1 [nw]\d+/.test(t)) withId++;
+        if (/fingerprint/i.test(t)) withFp++;
+      }
+      /* Closure (b): an id that is a position cannot be content-addressed. The allocator says so
+       * in one line, and the shipped dictionary agrees -- its words are keyed by nothing else. */
+      const w = read("engine/wordlzw.js");
+      const positional = w.ok && /const id = dict\.length/.test(w.text);
+
+      if (withFp === 0 && withId > 0)
+        return FAILS(`${withId} of ${e.files.length} .en reference a word id, ${withFp} name a dictionary fingerprint` +
+            (positional ? "; ids are allocated as `dict.length`, i.e. by position" : ""),
+          "NEITHER closure is built: no .en pins the dictionary it was rendered against (a), and ids are still mining-order positions (b). " +
+          "A stale .en therefore compiles to WRONG BYTES instead of refusing -- the register's own words. This row is red on purpose");
+      if (withFp < withId)
+        return FAILS(`${withId} .en reference a word id but only ${withFp} name a fingerprint`,
+          "closure (a) is partial -- an unstamped .en is exactly the one that compiles silently");
+      return HOLDS(`${withFp} of ${e.files.length} .en name the dictionary fingerprint they were rendered against`,
+        "a mismatched pair can be refused rather than compiled");
+    } },
+
   { id: "R-ART-4", req: "Every artifact MUST carry the header; AC.stamp is the only publisher.",
     run() {
       /* Checked as the landmine it actually is (CLAUDE.md §8): a HAND-WRITTEN header is how
