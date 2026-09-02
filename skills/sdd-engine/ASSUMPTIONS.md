@@ -3733,3 +3733,39 @@ exist, so it dies with ENOENT at load. It is the guard for the DSL's own print/p
 byte-identity (the three guarantees named in `dsl.js`'s header), so that property currently has no
 running test. Same shape as the `test-lzw-roundtrip.js` TDZ find. Not fixed here because restoring it
 needs its fixture back, and I do not know whether those compositions were deleted deliberately.
+
+## 2026-09-01 — FOR WHOEVER OWNS THE R-LANG-19 IMPLEMENTATION (reassigned to s16): three findings
+
+Recorded here rather than only in a message because s16 is not reachable from this session's peer
+list, and a warning that dies with a session is worth nothing. The in-flight `namedLabel` change
+already cites my chunk-naming entry, so this file is the channel that reaches it.
+
+**1. "`compileChunk` never reads the label" is CONDITIONALLY FALSE, and the design rests on it.**
+Under `SDD_DERIVE_CHECK=1` (`enfile.js:1537`, R-REND-6) `compileChunk` reads
+`chunk.slice(1, a).trim()` as the WRITTEN gloss at `enfile.js:1561-1566` and **throws** if it
+disagrees with `deriveGloss`. A chunk name prepended to the gloss changes exactly that string. The
+path is OFF by default outside the tests, so an unfixed `deriveGloss` breaks **nothing today** and
+breaks `enfile.test.js` for whoever runs it next — a latent red, the worst shape. It is also the
+defect class §5D.4E §5 already recorded once: a renderer and its checker computing the same thing
+two ways. **Teach `deriveGloss` about names in the same commit as the label change.** Confirmed
+independently by sdd-engine-5f.
+
+**2. The R-LANG-19 register row now CONTRADICTS the code being written, and its block condition is
+factually gone.** `11-requirements-register.md:165` still reads "a whole-chunk name MUST take
+precedence over member composition" and still carries "**BLOCKED** on §5D.3D §4a/§4b
+(`word-names.json` is deleted, so chunk names have nowhere to live)". `word-names.json` exists and
+holds **20 authored names** (verified on disk). Register text is Amir's and neither 5f nor I will
+pre-empt it — but shipping the amended implementation against a row that says the opposite leaves
+the register asserting the defect as the requirement. **R-LANG-23 is already registered** at line
+169 (landed e32d3ad); only R-LANG-19 is stale.
+
+**3. There are ZERO chunk names, so the R-MEAS-7 before/after cannot be taken yet.** Measured:
+`EN.NAMES` → `{ names: 20, orphans: 0, chunks: 0 }`. The additive-label path is therefore
+**unexercised on the real corpus** — every render today takes the `!whole` branch. Two consequences:
+the implementation cannot be validated by rendering the corpus (it will look identical either way),
+and the `.en`-size/review-surface measurement R-MEAS-7 requires has **nothing to turn off**. It
+needs a chunk-name batch first, even a synthetic one. I flagged this rather than fabricate a
+measurement from an empty map.
+
+**Not mine, not touched.** `enfile.js`, `enlzw.js` and `chunk-naming.test.js` are s16's in-flight
+files; I read them and edited nothing.
