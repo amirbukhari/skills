@@ -1661,7 +1661,10 @@ function renderFileEn(source, index) {
  * COST. One extra parse per generator span at compile time, and it needs the catalog (already
  * required for compileSpan). Off unless asked for, because the .en -> .ts round-trip is on the hot
  * path of every test; `SDD_DERIVE_CHECK=1` or `{deriveCheck:true}` turns it on. It is ON by default
- * in the round-trip tests, which is where a drifted gloss must not slip through. */
+ * in the round-trip tests, which is where a drifted gloss must not slip through.
+ *
+ * SCOPE. Atomic generator chunks only — compileChunk's structural branch returns before the check
+ * runs. See the note there before reading a green round-trip as "no hand-edit got through". */
 function deriveGloss(payload, compiled, cat) {
   const s = { payload, start: 0, end: compiled.length, stmts: null };
   try { return namedLabel(s, compiled, cat, NAMES.names, NAMES.chunks) || genLabel(0, compiled.length, compiled, null); }
@@ -1678,6 +1681,16 @@ function compileChunk(chunk, index, opts) {
      * escaped verbatim — so byte-exactness is inherited from the children rather than asserted
      * here. The body is delimited by the LAST BODY_CLOSE, matched against the first BODY_OPEN
      * after the marker, so a ⟨ inside a child's payload cannot end it early. */
+    /* WHERE THE R-REND-6 DERIVE CHECK STOPS, and it is structural, not an oversight. This branch
+     * returns before the deriveCheck below, so a structural chunk's OWN name is never compared
+     * against anything — it has no payload to disagree with. Its CHILDREN are still checked, on
+     * the recursive call. So a hand-edit to a nested chunk's sentence is refused; a hand-edit to
+     * the NAME this chunk carries is silent, even with SDD_DERIVE_CHECK=1.
+     * Measured 2026-09-01 (`measure-hand-edit.js`, another lane): of 580 hand edits, the check
+     * turns all 460 atomic-chunk edits into refusals and leaves the 120 structural ones silent —
+     * and all 120 sit at chunk depth 0, which is 777 of 9,611 structural chunks corpus-wide, so
+     * the silent class is measured on the atypical 8.1%. Closing it is not a comment's business:
+     * it needs a second producer of the run grouping, which is the shape R-REND-9 forbids. */
     const bo = chunk.indexOf(BODY_OPEN), bc = chunk.lastIndexOf(BODY_CLOSE);
     if (bo < 0 || bc < bo) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
     return compileFileEn(chunk.slice(bo + 1, bc), index, opts);
