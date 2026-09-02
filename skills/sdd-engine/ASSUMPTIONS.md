@@ -3361,3 +3361,165 @@ is the only one that does not trade prose for names. This is a measurement and a
 a decision — R-LANG-19 is register text and belongs to Amir.
 
 **Commit:** see below.
+
+## 2026-09-01 — FULL PRD SWEEP: what still stands between here and English-as-source
+
+Read every file in `tools/prd/` (33 files, 4,748 lines) plus `PRD.md`, looking for gaps between the
+current state and the actual goal — `.en` human-authored, `.ts` derived, the codebase collapsible
+toward one word. **Nothing was changed by this pass.** Findings only, each carrying whether it was
+**verified by running it** or **read**. Items already handled are deliberately absent.
+
+Grouped by how close each one sits to the goal, not by area.
+
+### TIER A — hard blockers on the flip
+
+**A1. R-PAY-6 is wide open, and both §1B.5 and Q-1 name it as the gate on the flip.**
+*Verified by running it:* the first payload of `sen/files/src/hydra-api/partners.ts.en` is
+`⟪lzw1 n29511⟨ …` — a bare mining-order word id. `grep fingerprint engine/enfile.js
+engine/payload.js engine/enlzw.js` finds no fingerprint on any `.en` path. Neither named fix is
+built: the `.en` does not name the dictionary it was rendered against, and ids are still array
+indices. `AC.contentFingerprintOf` (R-ART-11) already exists, so fix (a) — stamp the `.en`, refuse
+on mismatch in `compileFileEn` — is a small, design-free piece of work. Not mechanized in
+`verify-register.js`.
+
+**A2. A hand-edit to the English still cannot change the compiled `.ts`. This is the largest single
+gap.** *Verified by reading the live path:* `compileChunk` (`engine/enfile.js:1552`) locates the
+payload with `chunk.lastIndexOf(PAY_OPEN)` and `DERIVE_CHECK` (`:1537`) is off unless
+`SDD_DERIVE_CHECK=1`. So on a production compile an edit to an atomic chunk's sentence is a silent
+no-op; with the check on it is an **error**. Neither behaviour is "the sentence is authoritative"
+(R-REND-6). Cut 2 needs §5E.3.2's grammar parser, which does not exist. Until this lands, "English
+is the source" describes a path nobody can walk — the `.en` is a drillable, byte-exact **report**.
+
+**A3. There is no `.en → .ts` writer, and the two-root model has nowhere to put one. NOT FILED
+ANYWHERE.** *Verified by running it:* the only en→ts write in the live tree is
+`new-archetype.js:99`, one file into an explicit `--out`. Nothing inverts `write-en-files.js` over
+the corpus. And R-CFG-1 makes `SOURCE` the read root, *"never written by any tool"*, while §1B.5
+requires *"the `.ts` stays generated AND committed"* — so the flip needs either a third root (the
+`BUILD_ROOT` proposal §1B cut on Amir's word) or an explicit amendment making `SOURCE` writable.
+**No §Q entry holds this.** Of everything in this sweep it is the highest-value *unfiled* gap: it is
+an architecture decision, not work, and it is Amir's.
+
+**A4. No test exercises a hand-authored `.en`.** *Verified by reading:* every gate is
+`compile(render(ts)) === ts`; `enfile.test.js:70`'s corpus case reads the persisted `.en` as an
+**input** and recompiles it to its `.ts`. There is no fixture of a human-written `.en` anywhere.
+§1B.5 reason 1 says exactly this and it is unchanged.
+
+**A5. Re-mine idempotence of the `.en` — Amir's own statement-2 acceptance criterion — has no
+corpus-wide gate.** *Verified by running it:* `grep -rln "idempot\|AT-ARCH-1"` over the live tree
+hits only `new-archetype.js` / `entity-sentence.js` / `archetypes.js` / `selfhost-package.js`, i.e.
+single generated files. Nothing compares a fresh render against the `.en` on disk. §5D.0 statement 2
+— *"if I mine the codebase again I should see no change to the .en file"* — is **strictly stronger**
+than byte-identity of the `.ts`, which is the only thing measured. It is also entangled with A1: ids
+renumber on every re-mine, so this is the check that would have caught R-PAY-6's harm.
+
+**A6. The `sen/` wipe gate does not harden at the flip, and nothing carries the trigger.** §1B.3:
+*"If that ever inverts (§1B.5), this gate must harden from 'explicit flag' to 'refuse'."* R-CFG-7 as
+written still permits the wipe unconditionally on the flag. *Read only* — no code change is
+warranted before the flip; what is missing is the conditional in the requirement.
+
+### TIER B — the "one word" goal above the file
+
+**B1. The corpus-level collapse is unspecified, and unreachable with the current symbol stream.**
+Amir's statement 6 has **two** clauses: *"you can turn the whole codebase into 1 word, each file can
+become 1 word."* *Verified by running it:* `grep -rn "whole codebase"` over `prd/` returns **three
+hits, all of them the verbatim quotation itself** — no section, requirement or metric covers the
+first clause. R-ARCH-15 is per-file, and `engine/fanout.js` emits a node stream per `SourceFile`
+(`for (const s of sf.statements) emit(s, 0)`), so **no dictionary entry can span two files**: a
+cross-file word is not merely unbuilt, it is unreachable without a stream that spans files. The
+import graph is the obvious ordering axis and `import-resolution` is already a tracked §8B kind — but
+*verified by reading `resolve-imports.js`'s header*, it exists to **drop import params and re-derive
+them**, not to compose. **Nothing states what the level above the file even is.** This is the gap
+sitting most directly on the stated goal, and it is a design pass, not a build.
+
+**B2. "Editable at every level" (R-ARCH-15) is not achieved inside a file either** — same cause as
+A2. One word per file is 96.7% and the tree drills to depth 14, but the levels are **readable, not
+writable**.
+
+### TIER C — contract and register integrity, in the order it will bite
+
+**C1. The §8A SOURCE-PROTECTED artifacts are untracked, so the protection §8B was designed to give
+does not exist.** *Verified by running it:* `git ls-files sen/catalog` → **0 files**;
+`git check-ignore -v` → `.gitignore:32: skills/sdd-engine/Examples/`. R-CFG-12 requires them
+*"tracked in the corpus's own repo and never gitignored away"*. §8B chose `sen/catalog/` over root
+`catalog/` **precisely** to avoid being silently untracked — and the whole corpus is ignored one
+level up, so the trap sprang at the outer scope. `word-names.json`'s `names` and `orphans` are the
+half §8A says a re-mine **cannot** rebuild. R-CFG-12 is absent from `verify-register.js`, so nothing
+checks it.
+
+**C2. `sdd-clean.js --wipe-sen --go` would delete `sen/catalog/word-names.json`.** *Verified by
+running the dry run:* it reports `sen/catalog  4 files  41.63 MB` inside what the wipe removes, and
+`PROTECTED` (`sdd-clean.js:64`) covers root `catalog` — not `sen/catalog`. R-CFG-7 (`sen/` is
+wipable) and R-CFG-12 (never deleted by any cleanup) are in **direct contradiction** and the code
+follows R-CFG-7. Given C1 the loss is unrecoverable. The refusal text also understates it — *"re-deriving it is a full mine + render"* is true of `sen/files/` and **false** of the authored names.
+
+**C3. Four register IDs each name two different requirements.** *Verified by running it:*
+`grep -o '^| R-[A-Z]*-[0-9]*' | sort | uniq -d` → **R-ARCH-18, R-MEAS-6, R-MEAS-7, R-REND-8**. Plus
+R-ARCH-17 is *"no discarding a whole-run word"* in the register and *"grammar injectivity"* in §5E
+§9. §R's own rule is that every requirement appears *"here once"*; a citation to `R-MEAS-6` from code
+or from a runner row is now ambiguous. Also `PRD.md` says *"113 requirements"* against **140 rows /
+136 distinct ids**.
+
+**C4. R-MEAS-6 (first instance) still carries the retired framing:** *"Byte size, by contrast, **IS**
+a metric — real lossless compression … is a goal."* §3, §7's table (*"NOT A GATE. Reported only"*)
+and §5D.0 statement 8 all retired that. A live register row contradicting the settled metric.
+
+**C5. `§5D.4E` labels two different sections** — `27-rule-coverage-filter.md` and
+`28-nested-rendering.md` — and the README index carries duplicate ordinals `26/26` and `27/27`.
+README says the section label *"is the citation authority"*; one label with two targets defeats it.
+
+**C6. R-LANG-23 is cited in live code and does not exist in the PRD.** *Verified by running it:*
+`enfile.js:1004` implements Amir's ruling *"A NAME IS A LABEL, NOT A STRUCTURE"* and cites
+**R-LANG-23**; the register stops at R-LANG-22 and `grep -rn R-LANG-23 prd/` returns nothing. §R: a
+requirement not in the register is not a requirement.
+
+**C7. The §5D.4E §10 open question is CLOSED in code and still recorded as open and blocking.**
+The PRD says *"Naming cannot proceed past d=0 until this is settled"*, that the 20 names were
+reverted and `word-names.json` is *"byte-identical to its committed state"*, and (§5D.3F §4) that it
+*"still holds 0 names, 0 chunks, modelCalls: 0"*. *Verified by running it:* on disk it holds
+**20 names, `modelCalls: 1`, `generated: 2026-09-02`**; `engine/naming-gate.js` carries **check 5,
+fold invariance**, written for exactly this failure; and the regression tell — import repeats inside
+one clause — measures **1** corpus-wide, not the pilot's 284. So the fix landed and three PRD
+sections are behind it. Reported as documentation staleness, not a defect; it is also why C6 exists.
+
+**C8. The headline requirements are not mechanized.** *Verified by running it:* `verify-register.js`
+carries **37** rows (reporting 38 hold / 0 fail / 3 manual of 41). Absent: **R-ARCH-15, R-ARCH-16,
+R-ARCH-18, R-ARCH-19, R-MEAS-6, R-MEAS-7** — even though `en-index.json` already publishes exactly
+the fields they need (`oneWordFiles`, `oneWordPct`, `reviewSurface`, `reviewSurfaceTop`, `chunks*`,
+`nestMaxDepth`) — plus **R-PAY-6, R-REND-6, R-CFG-12** and **every R-TEST row**. Per the register's
+own rule, *"a row absent from this runner is not a row that holds."* The one-word-per-file rate is
+the project's headline number and nothing fails when it falls.
+
+**C9. Q-7 is a live R-ART-1 violation, contained only by a hand-written gitignore line.** *Verified
+by running it:* `name-words-lzw.js:32` writes `path.join(__dirname, "name-words-lzw-worksheet.json")`
+and the file is on disk in the engine tree at **2.4 MB** of corpus-derived skeletons; the only thing
+keeping it off a **public** remote is `.gitignore:25`, which names that one filename.
+R-ART-1 forbids the engine tree from *holding* those bytes at all, and §9.4 says documenting a risk
+is not a control. `npm run name` points at this script and `npm run build` calls it. The
+artifact-location guard does not see it because the worksheet is not a registered kind. **No leak has
+occurred** — the rule holds today; the producer is what is wrong.
+
+**C10. Q-5 is open with both numbers live, and a second producer mines at a different threshold.**
+*Verified by reading:* `repo-dsl.js:243` `--min` defaults to **80** where §8 records the gate
+threshold as **≥ 20%**; and `repo-dsl.js:226`/`:246` default `minCount` to **2** while R-MINE-1 says
+`MIN_COUNT` MUST be 1. `npm run gate` runs that path. A constant with two values is not a constant.
+
+**C11. The archetype tier's prerequisites are unmet, and it is move 2 of the residual plan.** Three
+separate things, all *verified by running it*: the §8B registry has **no archetype kind**
+(`AC.ARTIFACTS` lists generators-lzw, mined-library, import-resolution, word-names, naming-plan,
+corpus-coverage, en-index, name-queue, language, gate — and no archetypes), so `AC.validate` can
+never run on `catalog/archetypes.json`; both archetype catalogs are **absent from the corpus**; and
+R-ARCH-4's *real* generation check still does not exist — correctness is `checkTiling`, which
+re-slices and rejoins the source, which R-ARCH-4 itself calls a tautology. **No archetype has yet
+regenerated a byte it did not copy.** R-ARCH-20 is partly satisfied (no per-archetype breakdown, no
+aggregated byte-identical count, no worst-first ordering).
+
+### What I deliberately did NOT do
+
+- Changed nothing. Every item above is a report; four of them (A3, A6, C2, C10) are Amir's calls
+  rather than work, and C7 is another lane's to land in the PRD.
+- Did not touch `engine/enfile.js`, `name-words.js`, `engine/rule-coverage.js` or
+  `word-names.json` — all active in other lanes at the time of the sweep.
+- Did not run a mine, a full render, or the full test suite.
+- Did not re-litigate anything the PRD marks SETTLED, and did not treat a §Q recommendation as a
+  decision.
+
