@@ -204,11 +204,20 @@ for (const e of fs.readdirSync(CORPUS, { withFileTypes: true })) {
  * a cleaner that crashes reading an artifact it is about to decline to delete is worse than one
  * that says "unreadable". */
 function authoredCounts() {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(CORPUS, SEN, "catalog", "word-names.json"), "utf8"));
-    const n = (o) => Object.keys(o || {}).length;
-    return { names: n(j.names), chunks: n(j.chunks), orphans: n(j.orphans) };
-  } catch { return null; }
+  /* A REASON, NEVER A BARE NULL (R-ART-6). The first version returned null on any failure, so a
+   * missing artifact and an unparseable one produced the identical message and the operator could
+   * not tell which had happened -- on the path to a refusal about UNRECOVERABLE data, which is the
+   * worst possible place for that ambiguity. Reading it outside AC.load stays deliberate: this runs
+   * to price a refusal and must survive an artifact too broken to validate. */
+  const f = path.join(CORPUS, SEN, "catalog", "word-names.json");
+  let raw;
+  try { raw = fs.readFileSync(f, "utf8"); }
+  catch (e) { return { ok: false, why: `word-names.json is ${e.code === "ENOENT" ? "not present" : `unreadable (${e.code})`} at ${f}` }; }
+  let j;
+  try { j = JSON.parse(raw); }
+  catch (e) { return { ok: false, why: `word-names.json at ${f} is not parseable JSON: ${e.message.split("\n")[0]}` }; }
+  const n = (o) => Object.keys(o || {}).length;
+  return { ok: true, names: n(j.names), chunks: n(j.chunks), orphans: n(j.orphans) };
 }
 
 /* ─── THE FLIP GATE (PRD §1B.3, §1B.5) ────────────────────────────────────────────────────────────
@@ -316,10 +325,10 @@ else if (WIPE_SEN) {
     const a = authoredCounts();
     console.log(`REFUSING to touch ${cat}/ — no --wipe-catalog flag.`);
     console.log(`  it holds ${cm.files} files, ${mb(cm.bytes)} MB: the §8A SOURCE-PROTECTED artifacts.`);
-    console.log(a
+    console.log(a.ok
       ? `  word-names.json carries ${a.names} authored name(s), ${a.chunks} chunk name(s), ${a.orphans} orphan(s) —` +
         `\n  §8A: hand-authored and NOT reproducible by a re-mine. A mine rebuilds the words, never their names.`
-      : `  word-names.json could not be read to count its authored names — assume the loss is unrecoverable.`);
+      : `  ${a.why}\n  so its authored names could not be counted — assume the loss is unrecoverable.`);
     console.log(`  everything else here is a full mine away; these names are not.`);
     console.log(`  to remove it anyway:  node sdd-clean.js --wipe-sen --wipe-catalog --go`);
     console.log("");
@@ -336,7 +345,7 @@ else if (WIPE_SEN) {
    * the refusal understated its own cost for the one thing that cannot be re-derived at all. */
   console.log(`  re-deriving sen/files/ is a full mine + render (tens of minutes).`);
   const a0 = authoredCounts();
-  if (a0 && (a0.names || a0.chunks || a0.orphans))
+  if (a0.ok && (a0.names || a0.chunks || a0.orphans))
     console.log(`  sen/catalog/ additionally holds ${a0.names} authored name(s), ${a0.chunks} chunk name(s), ` +
       `${a0.orphans} orphan(s), which NO re-mine rebuilds (§8A) — and it needs --wipe-catalog of its own.`);
   console.log(`  to remove it anyway:  node sdd-clean.js --wipe-sen --go`);

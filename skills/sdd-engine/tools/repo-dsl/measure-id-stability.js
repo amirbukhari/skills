@@ -39,7 +39,7 @@ const PAY = require("./engine/payload");
 const W = require("./engine/wordlzw");
 
 const CORPUS = CR.corpusRoot();
-const EN_ROOT = path.join(CORPUS, "sen", "files");
+const EN_ROOT = path.join(CR.senDir(), "files");   /* senDir is the ONE place `sen` is spelled (R-CFG-6) */
 const OPEN = "«", CLOSE = "»", PAY_OPEN = "⟪", PAY_CLOSE = "⟫";
 
 function sh(cmd) { try { return cp.execSync(cmd, { cwd: __dirname, encoding: "utf8" }).trim(); } catch { return "?"; } }

@@ -641,6 +641,266 @@ const ROWS = [
         : FAILS(typeof AC.idOf, "AC.idOf is not available, so consumers cannot comply");
     } },
 
+  /* ------------------------------------------------------------------ BATCH: the artifact rows.
+   * Mechanized 2026-09-01. Every row here is decidable from tracked source, the exported contract,
+   * or an artifact already on disk -- no mine, no render, no model call. Where a row could only be
+   * decided by mining, it is left out rather than approximated: a row that checks a proxy for its
+   * requirement reports on the proxy, and the register would then say something the requirement
+   * does not. */
+
+  { id: "R-ART-2", req: "Every artifact MUST resolve through AC.pathFor(kind, corpusRoot); no source line may name a corpus artifact relative to __dirname.",
+    run() {
+      let AC;
+      try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const files = AC.kindsOf().map((k) => AC.specOf(k).file).filter(Boolean);
+      const alt = files.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+      /* The violation is an artifact FILENAME reached from __dirname -- the engine tree resolving
+       * corpus data by its own location, which is the R-ART-1 boundary breaking from the inside. */
+      const hits = liveGrep(new RegExp(`__dirname[^\\n]*(${alt})|(${alt})[^\\n]*__dirname`))
+        .filter((h) => !/^engine[\/\\]artifact-contract\.js/.test(h));
+      return hits.length ? FAILS(hits.join(", "), "a corpus artifact is named relative to the engine tree, bypassing AC.pathFor")
+        : HOLDS(`no live line joins __dirname to any of the ${files.length} registered artifact filenames`,
+          "the corpus root is the only way to an artifact");
+    } },
+
+  { id: "R-ART-3", req: "`tracked` artifacts MUST live at <corpus>/sen/catalog/, `cache` at <corpus>/.cache/spec-derived/. Root catalog/ is forbidden for tracked artifacts.",
+    run() {
+      let AC, CR2;
+      try { AC = require("./engine/artifact-contract"); CR2 = require("./engine/corpus-root"); }
+      catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const want = { tracked: path.join("sen", "catalog"), cache: path.join(".cache", "spec-derived") };
+      const wrong = Object.entries(want).filter(([k, v]) => AC.HOMES[k] !== v).map(([k, v]) => `${k}=${AC.HOMES[k]} (want ${v})`);
+      if (wrong.length) return FAILS(wrong.join(", "), "a home moved; every artifact under it moved with it");
+      /* And check the resolution, not just the table: root catalog/ is forbidden because the corpus
+       * .gitignore ignores it, so a SOURCE-PROTECTED artifact placed there is silently untracked --
+       * the trap that had actually sprung on word-names.json (CLAUDE.md §5). */
+      const root = CR2.corpusRoot();
+      const bad = [];
+      for (const k of AC.kindsOf()) {
+        const rel = path.relative(root, AC.pathFor(k, root));
+        const home = AC.specOf(k).home;
+        if (!rel.startsWith(want[home])) bad.push(`${k} -> ${rel}`);
+        if (home === "tracked" && /^catalog[\/\\]/.test(rel)) bad.push(`${k} resolves under root catalog/, where the corpus .gitignore would hide it`);
+      }
+      return bad.length ? FAILS(bad.join(", "), "an artifact resolves outside its declared home")
+        : HOLDS(`${AC.kindsOf().length} kinds all resolve under their declared home; none under root catalog/`);
+    } },
+
+  { id: "R-ART-5", req: "`schema` MUST be bumped on any shape change, and the registry's `requires` MUST name the top-level keys a consumer actually reads.",
+    run() {
+      let AC;
+      try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const bad = [];
+      for (const k of AC.kindsOf()) {
+        const s = AC.specOf(k);
+        if (!/^[\w-]+\/[\w-]+\/\d+$/.test(String(s.schema || ""))) bad.push(`${k}: schema ${JSON.stringify(s.schema)} carries no version`);
+        if (!Array.isArray(s.requires) || !s.requires.length) bad.push(`${k}: requires is empty, so a shape change at the same version is invisible`);
+      }
+      if (bad.length) return FAILS(bad.join("; "), "the registry cannot catch a same-version shape change");
+      /* `requires` is only a promise until validate() acts on it. Checked by running it: a body
+       * missing a required key MUST be refused, and the refusal MUST name the key. */
+      const k0 = AC.kindsOf()[0], spec = AC.specOf(k0);
+      const body = { schema: spec.schema, artifactVersion: 1, corpus: "x", generated: "x", fingerprint: "x" };
+      let refused = null;
+      try { AC.validate(k0, body, "(synthetic)"); } catch (e) { refused = e.message; }
+      if (!refused) return FAILS(`validate("${k0}") accepted a body with none of ${spec.requires.join(", ")}`,
+        "requires is declared but not enforced -- a documented contract nothing checks");
+      const names = spec.requires.some((r) => refused.includes(r));
+      return names ? HOLDS(`${AC.kindsOf().length} kinds carry a versioned schema and non-empty requires; validate refuses a body missing them, naming the key`)
+        : FAILS(`validate refused but named none of ${spec.requires.join(", ")}: ${refused.split("\n")[0]}`,
+          "a refusal that does not name what was missing cannot be acted on (R-ART-6)");
+    } },
+
+  { id: "R-ART-6", req: "A consumer that cannot verify what it is reading MUST REFUSE, naming what it expected and what it got. `catch { return null }` is the bug class.",
+    run() {
+      /* SCOPED TO ARTIFACT READS, and the first version of this row was not -- it grepped every
+       * `catch { return null }` on any live path and reported five, of which four were correct code:
+       * a failed ts.createSourceFile meaning "no name is derivable here", a statSync probe meaning
+       * "not present", and deriveGloss's own documented `a gloss we cannot derive is not evidence of
+       * an edit`. Those are local control flow, not a consumer misreporting an artifact. The row is
+       * about the artifact contract, so the check is too: a file that reads a REGISTERED artifact
+       * without going through AC.load, and turns a failure into a bare null, is the bug class -- the
+       * caller then cannot tell "the artifact is missing" from "the artifact says zero".
+       *
+       * A guard that cries wolf gets ignored, then removed; narrowing it to what the row actually
+       * says is what keeps the four correct sites out of the report. */
+      let AC;
+      try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const files = AC.kindsOf().map((k) => AC.specOf(k).file).filter(Boolean);
+      const alt = files.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+      const bad = [];
+      for (const rel of trackedJs()) {
+        if (rel.split("/").some((seg) => ["node_modules", ".git", "archive"].includes(seg))) continue;
+        if (path.basename(rel) === path.basename(__filename)) continue;
+        let text; try { text = fs.readFileSync(path.join(HERE, rel), "utf8"); } catch { continue; }
+        const lines = text.split("\n");
+        lines.forEach((l, i2) => {
+          if (/^\s*(?:\/\/|\/\*|\*)/.test(l)) return;
+          if (!new RegExp(`(${alt})`).test(l)) return;
+          if (/AC\.load|artifact-contract/.test(l)) return;                 // the validated path
+          /* the read is here; is the catch within the next few lines a bare null? */
+          const window = lines.slice(i2, i2 + 6).join("\n");
+          if (/catch\s*(\([^)]*\))?\s*\{\s*return\s*(null|undefined|""|\[\]|\{\})\s*[;}]/.test(window))
+            bad.push(`${rel}:${i2 + 1}`);
+        });
+      }
+      return bad.length ? FAILS(bad.join(", "),
+        "a registered artifact is read without AC.load and a failure becomes a bare null -- the caller cannot tell 'missing' from 'empty', which is the exact confusion this contract exists to remove")
+        : HOLDS(`no live file reads any of the ${files.length} registered artifacts outside AC.load and swallows the failure`,
+          "{ optional: true } returns a reason instead, so 'your vocabulary is missing' cannot read as 'your corpus contains no patterns'");
+    } },
+
+  { id: "R-ART-9", req: "The id spaces MUST stay disjoint: word-names keys are `w:`/`n:<16hex>` over the LZW dictionary; compose-layer leaves are `p_<8hex>`.",
+    run() {
+      let AC, CR2;
+      try { AC = require("./engine/artifact-contract"); CR2 = require("./engine/corpus-root"); }
+      catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const root = CR2.corpusRoot();
+      const wnP = AC.pathFor("word-names", root), mlP = AC.pathFor("mined-library", root);
+      if (!fs.existsSync(wnP)) return MANUAL(`no word-names at ${wnP}`, "npm run name");
+      if (!fs.existsSync(mlP)) return MANUAL(`no mined-library at ${mlP}`, "npm run mine");
+      let wn, ml;
+      try { wn = AC.load("word-names", wnP); ml = AC.load("mined-library", mlP); }
+      catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const wnKeys = Object.keys(wn.names || {});
+      const badWn = wnKeys.filter((k) => !/^[wn]:[0-9a-f]{16}$/.test(k));
+      const leaves = ml.leaves || {};
+      const leafIds = Array.isArray(leaves) ? leaves.map((l) => AC.idOf(l)) : Object.keys(leaves);
+      const badLeaf = leafIds.filter((i) => !/^p_[0-9a-f]{8}$/.test(String(i)));
+      const overlap = leafIds.filter((i) => wnKeys.includes(String(i)));
+      if (badWn.length || badLeaf.length || overlap.length)
+        return FAILS(`${badWn.length} word-names keys off-shape (e.g. ${JSON.stringify(badWn[0] || null)}), ` +
+          `${badLeaf.length} leaf ids off-shape (e.g. ${JSON.stringify(badLeaf[0] || null)}), ${overlap.length} shared`,
+          "an id read in the wrong space resolves to the wrong record, or silently to none");
+      return HOLDS(`${wnKeys.length} word-names keys all \`[wn]:<16hex>\`, ${leafIds.length} leaves all \`p_<8hex>\`, no key in both`,
+        "names key the LZW dictionary and panel surfaces key the compose layer, and the shapes make a mix-up impossible to miss");
+    } },
+
+  { id: "R-ART-10", req: "`word-names` entries MUST be the v1 shape {sym, en, sites, named} keyed by sha256(sym)[0:16] axis-prefixed; the v0 {name, hint, tier} shape is retired.",
+    run() {
+      let AC, CR2;
+      try { AC = require("./engine/artifact-contract"); CR2 = require("./engine/corpus-root"); }
+      catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const p = AC.pathFor("word-names", CR2.corpusRoot());
+      if (!fs.existsSync(p)) return MANUAL(`no word-names at ${p}`, "npm run name");
+      let wn; try { wn = AC.load("word-names", p); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const entries = Object.entries(wn.names || {});
+      if (!entries.length) return FAILS("no entries", "an empty naming artifact cannot be shown to be v1");
+      const v0 = entries.filter(([, e]) => e && (e.name !== undefined || e.hint !== undefined || e.tier !== undefined));
+      const missing = entries.filter(([, e]) => !e || typeof e.sym !== "string" || typeof e.en !== "string" || e.sites === undefined);
+      if (v0.length) return FAILS(`${v0.length} entries carry a v0 field (name/hint/tier), e.g. ${v0[0][0]}`,
+        "the retired v0 shape is still being written somewhere");
+      if (missing.length) return FAILS(`${missing.length} entries missing sym/en/sites, e.g. ${missing[0][0]}`,
+        "a consumer reading .sym or .en gets undefined and has no way to know why");
+      return HOLDS(`${entries.length} entries, all {sym, en, sites, named}, no v0 field anywhere`);
+    } },
+
+  { id: "R-ART-11", req: "A stamped artifact MUST carry a contentFingerprint equal across two runs producing the same content; wall-clock, interpreter version and the regenerate command line are excluded by a declared VOLATILE list.",
+    run() {
+      let AC;
+      try { AC = require("./engine/artifact-contract"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      if (typeof AC.contentFingerprintOf !== "function") return FAILS("no contentFingerprintOf export", "there is nothing to compare two runs with");
+      if (!Array.isArray(AC.VOLATILE) || !AC.VOLATILE.length) return FAILS("VOLATILE is empty or absent", "with nothing excluded, every run differs and the field is noise");
+      /* KNOWN LIMIT, found by mutation-checking this row rather than by reading it: dropping a key
+       * FROM the VOLATILE list leaves this green, because the check derives its test bodies from the
+       * list itself. It proves the declared exclusions are honoured; it cannot prove the list is
+       * complete. Naming the limit is the point -- a row that quietly checks less than it claims is
+       * how a green stops meaning anything.
+       *
+       * Run it. Two bodies identical but for every declared VOLATILE key MUST agree; a body whose
+       * CONTENT differs MUST NOT. Both halves matter: a fingerprint that never changes is as
+       * useless as one that always does, and only the second half can tell them apart. */
+      const base = { words: { 0: { sym: "a" } }, count: 1 };
+      const volatiles = {};
+      for (const k of AC.VOLATILE) volatiles[k] = "CHANGED-" + k;
+      const a = AC.contentFingerprintOf({ ...base, ...Object.fromEntries(AC.VOLATILE.map((k) => [k, "x"])) });
+      const b = AC.contentFingerprintOf({ ...base, ...volatiles });
+      const c = AC.contentFingerprintOf({ ...base, count: 2 });
+      if (a !== b) return FAILS(`same content, different VOLATILE fields -> ${a} vs ${b}`,
+        `one of ${AC.VOLATILE.join(", ")} is still inside the hash, so two identical runs look different`);
+      if (a === c) return FAILS(`different content -> the same ${a}`, "the hash does not cover the content it is supposed to seal");
+      /* And the shipped artifact must actually carry the field. */
+      const l = lzw();
+      const carried = l.ok ? !!l.j.contentFingerprint : null;
+      if (l.ok && !carried) return FAILS("generators-lzw.json carries no contentFingerprint", "the property holds in the library and is not stamped on the artifact");
+      return HOLDS(`stable across ${AC.VOLATILE.length} volatile fields (${a}), changes with content (${c})` +
+        (l.ok ? `; generators-lzw carries ${l.j.contentFingerprint}` : "; no dictionary on disk to check the stamp"));
+    } },
+
+  { id: "R-COMP-8", req: "Promotion MUST reject any composite whose members would introduce a cycle.",
+    run() {
+      const l = lzw();
+      if (l.absent) return MANUAL(`no dictionary at ${l.where}`, "npm run mine");
+      if (l.err) return FAILS(null, l.err);
+      /* Checked on the shipped dictionary rather than by reading the promotion code: a cycle check
+       * that exists and is wrong looks identical to one that works, from the source. A composite's
+       * members are ids into the same band, so acyclicity is decidable here by walking them. */
+      const bands = ["narrow", "wide"].filter((b) => l.j[b] && l.j[b].words);
+      if (!bands.length) return FAILS("no bands with words", "nothing to check");
+      const report = [];
+      for (const b of bands) {
+        const words = l.j[b].words;
+        let composites = 0, forward = 0, dangling = 0;
+        for (const k of Object.keys(words)) {
+          const e = words[k], id = Number(k);
+          if (!e || !e.m) continue;
+          composites++;
+          for (const m of e.m) {
+            if (words[String(m)] === undefined) dangling++;
+            else if (Number(m) >= id) forward++;   // a member at or above its own id is the only way to close a loop
+          }
+        }
+        if (forward || dangling) return FAILS(`${b}: ${forward} members at or above their own id, ${dangling} dangling`,
+          "a member that is not strictly below its parent can close a cycle, and expand() would not terminate");
+        report.push(`${b}: ${composites} composites, every member strictly below its parent`);
+      }
+      return HOLDS(report.join("; "),
+        "ids are allocated in construction order, so 'every member is below its parent' is acyclicity -- expand() must terminate");
+    } },
+
+  { id: "R-PAY-5", req: "Hole dedup via a shared fill table, and parameter hoisting, are REJECTED: both replace visible source text with an indirection a reader must resolve by hand.",
+    run() {
+      /* A rejection is verified by ABSENCE, so the check has to be specific enough to mean
+       * something and loose enough to catch a rename. Both mechanisms need a table keyed by fill
+       * text or a hoisted parameter list; neither exists under any of these spellings. */
+      const hits = liveGrep(/\b(fillTable|holeTable|dedupeHoles|dedupHoles|sharedFills|hoistParams|paramHoist|hoistedParams)\b/, { excludeTests: true });
+      const p = read("engine/payload.js");
+      const indirection = p.ok && /\b(fillTable|holeTable|sharedFills)\b/.test(p.text);
+      if (hits.length || indirection) return FAILS(hits.join(", ") || "engine/payload.js", "a rejected compression mechanism is implemented");
+      return HOLDS("no fill table and no parameter hoisting under any live spelling",
+        "every hole still shows its own source text; residual negative compression from gloss prose is the accepted cost");
+    } },
+
+  { id: "R-TEST-5", req: "Where a full-corpus assertion is too slow, a test MUST sample DETERMINISTICALLY (a fixed, evenly-spread sample) rather than narrowing its oracle.",
+    run() {
+      /* Non-determinism is the failure this row names: a random sample turns a red into a
+       * sometimes-red, which is worse than no test because it teaches people to re-run. Checked
+       * across tests AND the measure-*.js reporters, since a sampled REPORT has the same defect. */
+      /* Math.random in a TEMP FILENAME is not this row's failure: it decides where a fixture is
+       * written, never which files the oracle covers, so the verdict is identical on every run.
+       * engine/namer.test.js:24 is exactly that (`stub-${Math.random()...}.json` under mkdtemp) and
+       * reporting it would be the guard crying wolf on the first run. Excluded BY SHAPE -- the line
+       * must also build a path -- and the count is reported either way, so the exemption cannot
+       * quietly grow. */
+      const all = liveGrep(/Math\.random\s*\(/);
+      const naming = all.filter((h) => {
+        const [rel, ln] = [h.slice(0, h.lastIndexOf(":")), Number(h.slice(h.lastIndexOf(":") + 1))];
+        let t; try { t = fs.readFileSync(path.join(HERE, rel), "utf8"); } catch { return false; }
+        const line = t.split("\n")[ln - 1] || "";
+        return /path\.join|tmpdir|mkdtemp|\.json|\.ts|filename|dir/i.test(line);
+      });
+      const hits = all.filter((h) => !naming.includes(h));
+      if (hits.length) return FAILS(hits.join(", "), "a sampled assertion that cannot be reproduced from a commit is not evidence");
+      const samplers = trackedJs().filter((rel) => {
+        if (!/(\.test\.js|^measure-[^/]*\.js)$/.test(rel) || rel.includes("archive")) return false;
+        let t; try { t = fs.readFileSync(path.join(HERE, rel), "utf8"); } catch { return false; }
+        return /%\s*step|i % \w+ === 0|\bstride\b/.test(t);
+      });
+      return HOLDS(`no Math.random decides a sample on any tracked path (${naming.length} use(s) name a temp file, which does not); ` +
+        `${samplers.length} file(s) sample by a fixed stride`,
+        "the same commit yields the same sample, so a red is reproducible");
+    } },
+
   { id: "R-CFG-6", req: "`sen` MUST be spelled in exactly one place (LAYOUT.sen), never as a path literal.",
     run() {
       /* Only real PATH CONSTRUCTION counts. A "<CORPUS>/sen/..." string in a manifest or a doc
