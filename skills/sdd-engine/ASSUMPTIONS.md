@@ -3614,7 +3614,7 @@ this measurement and does not find it.
 ## A test may pin the naming MECHANISM, never the naming POLICY (2026-09-01)
 
 `engine/word-names.test.js` asserted that the shipped catalog contained the literal name
-"import one name from a module". §5D.4E's rule-coverage filter then decided — deliberately, and with
+"import one name from a module". §5D.3G's rule-coverage filter then decided — deliberately, and with
 Amir's approval — that a leaf a node-kind rule already renders is never sent to a model. Imports are
 the best-covered kind in the corpus, so that name is never authored again and the assertion went red
 without anything being broken.
@@ -4387,6 +4387,43 @@ and 27/27 ordinal collisions were already fixed by `776a0d1`. Both were on the b
 needed doing. My §5D.3G edit to `engine/chunk-naming.test.js` sits in a file the concurrent lane has
 uncommitted work in, so it rides with that lane rather than being split out.
 
+## 2026-09-01 — a NAME IS NOT A PERMANENT ASSET (`name-words.js retire`, R-LANG-24)
+
+Assumed by every part of the naming pass until tonight: that an authored name, once gated and
+applied, stays correct. It does not. A name is hole-free; a node-kind rule is hole-filled; so a name
+authored when no rule reached its skeleton becomes a **downgrade** the moment a rule does.
+
+Measured the first time it happened. R-LANG-24 (a call names its receiver) overtook 14 of the 20 leaf
+names authored earlier the same night:
+
+| | the name | what the rule now says |
+|---|---|---|
+| `‹id›.set(‹args›)` | "set a configuration value" | ``call `set` on `acc` `` |
+| `clearPartnerActivePropertiesCache();` | "clear the active properties cache" | ``call `clearPartnerActivePropertiesCache` `` |
+| `‹id›.credits.forEach(‹args›);` | "iterate over credits array" | ``call `forEach` on `creationData.credits` `` |
+
+**Keeping those 14 cost the corpus 1,768 concrete identifiers** against letting the rules speak. The
+second row is where the missing word "partner" had gone — flagged the same night as a naming defect,
+and it was a *rule* gap wearing a name's clothes.
+
+**The naming gate cannot catch this, and that is not a gap in the gate.** The gate scores a BATCH
+BEING APPLIED; these names passed it honestly and were already on disk. What changed was the world
+around them. So it is a separate command with the same discipline: re-test each authored name against
+today's rule annotations, retire what a rule now says better, keep what is still unreached (6 of 20
+stayed), measure the corpus either way, and **REFUSE to write if retiring would cost detail** — that
+outcome means the classification is wrong, not that the names should go. `retiredBy` is stamped into
+`word-names.json` so the deletion carries its reason.
+
+**The rule this establishes:** a name is a CLAIM that no rule says this better, and the claim must be
+re-tested whenever the rules change. `retire` belongs after any commit that adds or widens a
+node-kind rule. §5D.2's "a rule serves every codebase, a name serves this corpus" decides not only
+which work to do first, but which of the two gives way when they collide.
+
+Recorded in the PRD at §5D.3G §11 and R-LANG-24. **Note on section numbers:** these were written as
+§5D.4E before the resequence (C5/item 3 above); §5D.4E is now nested rendering, so every reference in
+my register rows and in `28-rule-coverage-filter.md` was corrected to §5D.3G rather than left
+pointing at the wrong section.
+
 ## C9 — the worksheet leak, and the guard that was green over it. 2026-09-01
 
 Picked up from s9's Tier C (`244450c`) as the highest-value unclaimed item: s7 holds the doc-sync
@@ -4553,3 +4590,42 @@ a violation of a numbered row — and if it should be one, that is a row someone
 the non-circular direction. Left noted, not fixed, by both of us deliberately; their
 `assert.strictEqual(r.code, 1)` pins today's behaviour so a deliberate fix fails the assertion
 instead of changing it silently.
+
+---
+
+## 2026-09-01 — the last 34 files: a stray `;` was splitting the top-level run
+
+**1. Measured before changing anything: `EmptyStatement` is the ONLY non-foldable top-level kind in
+the 34 files that fail R-ARCH-15** — 30 occurrences across 29 files. Not a guess from reading
+`isFoldable`; a sweep over the corpus printing every non-foldable top-level kind in the failing set.
+
+**2. It is ABSORBED, not made foldable.** Teaching `generators.js` to canonicalize `;` would add a
+symbol the mined dictionary has never seen, so no existing word would match and nothing would
+collapse until a re-mine — a catalog change for a whitespace-level defect. Instead an interior `;`
+is dropped from the run and its bytes survive inside the GAP hole between its neighbours, which
+`windowParts` builds from `sf.text.slice(prev.getEnd(), next.getStart(sf))`. Gap text is a hole, so
+it never enters `keyOf`: the key is exactly the one a file *without* the stray `;` produces, which
+is why the word already exists and why the refill is byte-exact.
+
+**3. A run may not start or end on one.** A trailing `;` outside the last real statement is inside
+no gap, so absorbing it would drop bytes from the span. `lastFoldable` keeps those outside the run,
+where `renderVerbatim` already handled them.
+
+**4. Result: one-word-per-file 1003 -> 1030 of 1037 (96.7% -> 99.3%), byte-identity 1037/1037, top
+review surface 1,610 -> 1,582.** The remaining 7 are now fully accounted for rather than a residue:
+2 empty files (1 and 9 bytes — so the ceiling under the current definition is 1035, not 1037), 4
+blocked by non-whitespace outside the span (the leading-comment half, refused as instructed because
+it broke byte-identity), and 1 whose two `interface` declarations no dictionary word covers.
+
+**5. The new refusal audit fired on my own change, correctly, and I did not silence it.** 28 new
+`no-word` refusals appeared: with the run no longer split, each of those files asks for a word
+covering the WHOLE top-level run, and the dictionary has none. The file still collapses — as a
+STRUCTURAL chunk (a named sentence over children, R-ARCH-19), not a lexical word. That is a true new
+fact about the corpus, not a regression, and it is exactly what the differential gate is for. The
+baseline was re-recorded only after the cause was understood and written down.
+
+**6. It cost +133 on the whole-tree read (29,260 -> 29,393) and I measured the cause rather than
+absorbing it.** The imports that used to be one atomic word became one chunk per statement, because
+a structural chunk renders one child per statement. R-ARCH-22 already ranks one-word-per-file above
+that number, so the trade was the sanctioned direction — but the cause turned out to be fixable,
+which is the next entry.

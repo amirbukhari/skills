@@ -288,7 +288,7 @@ function cmdName(args) {
 
 /**
  * retire [--apply] — DROP NAMES A RULE HAS OVERTAKEN. The counterpart of the rule-coverage filter
- * (§5D.4E), and the filter's own logic run in the other direction.
+ * (§5D.3G), and the filter's own logic run in the other direction.
  *
  * The filter decides, BEFORE a call is made, that a leaf a node-kind rule already renders is not
  * worth naming. But rules are written continuously, and a name authored when no rule reached its
@@ -350,7 +350,7 @@ function cmdRetire(args) {
     names, orphans: prior.orphans, chunks: prior.chunks,
     modelCalls: prior.modelCalls || 0,
     namedBy: prior.namedBy,
-    retiredBy: { count: covered.length, reason: "a node-kind rule now renders these skeletons (§5D.4E)", detail: `${before} -> ${after}`, at: new Date().toISOString().slice(0, 10) },
+    retiredBy: { count: covered.length, reason: "a node-kind rule now renders these skeletons (§5D.3G)", detail: `${before} -> ${after}`, at: new Date().toISOString().slice(0, 10) },
   }, { corpus: CORPUS });
   fs.writeFileSync(wnPath, JSON.stringify(body, null, 1) + "\n");
   console.log(`\nretired ${covered.length} -> ${wnPath}   (names ${Object.keys(names).length}, chunks ${Object.keys(prior.chunks).length})`);

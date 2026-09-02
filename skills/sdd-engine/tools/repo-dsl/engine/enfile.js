@@ -1206,14 +1206,34 @@ function countBodyStatements(sf) {
  * it reconstructs its range if and only if its children do. The induction bottoms out at atomic
  * chunks and verbatim text, both byte-exact, so the tree is byte-exact. */
 
-/* the maximal runs of foldable statements in a statement list: [[st,...], ...] */
+/* the maximal runs of foldable statements in a statement list: [[st,...], ...]
+ *
+ * A STRAY `;` DOES NOT BREAK A RUN (R-ARCH-15, 2026-09-01). An EmptyStatement is not foldable —
+ * there is nothing to say about it — and treating it as a wall split 29 files' top-level run in
+ * two, which is 29 files that could not collapse to one word. Measured: across the 34 files that
+ * fail R-ARCH-15, `EmptyStatement` is the ONLY non-foldable top-level kind, 30 occurrences.
+ *
+ * It is absorbed rather than folded. An interior `;` is dropped from the run, so the word is keyed
+ * on the real statements either side, and its bytes survive as part of the GAP hole between them —
+ * `windowParts` builds each gap from `sf.text.slice(stmts[j].getEnd(), stmts[j+1].getStart(sf))`,
+ * which spans the semicolon and its whitespace verbatim. Gap text is a hole, so it does not enter
+ * `keyOf`: the key is the same one a file WITHOUT the stray `;` produces, which is why the word
+ * already exists in the dictionary and why the refill is byte-exact.
+ *
+ * A run may not START or END on one — `lastFoldable` — since a trailing `;` outside the last real
+ * statement is not inside any gap, and would be lost from the span rather than carried by it. Those
+ * fall to renderVerbatim, where they were already. */
 function foldableRuns(stmts) {
   const runs = [];
   let i = 0;
   while (i < stmts.length) {
     if (!G.isFoldable(stmts[i])) { i++; continue; }
-    let j = i; while (j < stmts.length && G.isFoldable(stmts[j])) j++;
-    runs.push(stmts.slice(i, j));
+    let j = i, lastFoldable = i;
+    while (j < stmts.length && (G.isFoldable(stmts[j]) || ts.isEmptyStatement(stmts[j]))) {
+      if (G.isFoldable(stmts[j])) lastFoldable = j;
+      j++;
+    }
+    runs.push(stmts.slice(i, lastFoldable + 1).filter((st) => !ts.isEmptyStatement(st)));
     i = j;
   }
   return runs;
