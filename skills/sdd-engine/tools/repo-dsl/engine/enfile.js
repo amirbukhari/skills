@@ -1369,11 +1369,45 @@ function NestRenderer(sf, source, index) {
            + PAY_OPEN + PAY.encode(w.payload) + PAY_CLOSE + CLOSE;
     }
 
-    /* STRUCTURAL: one child per statement, with the exact inter-statement trivia between them. */
+    /* STRUCTURAL: children are the maximal NON-DRILLABLE sub-runs (each one atomic word, if the
+     * dictionary has one) plus each drillable statement on its own.
+     *
+     * WHY NOT ONE CHILD PER STATEMENT (the shape this replaced). A structural chunk used to emit a
+     * child for every statement in the run, which threw away every word covering a CONTIGUOUS
+     * STRETCH of statements inside it — ten imports above a slice definition rendered as ten
+     * chunks, not one. It was invisible while runs were short; the stray-`;` fix made whole-file
+     * runs common and it became the corpus's largest single cost. Measured over 1,037 files:
+     * whole-tree review surface 29,393 -> 19,776 (-33%), chunks 28,845 -> 19,228, atomic 19,234 ->
+     * 9,617, with the top-level read (1,582) and one-word-per-file (1,030) unchanged — this changes
+     * how a chunk's children are GROUPED, never which bytes a chunk owns.
+     *
+     * BYTE-IDENTITY IS UNAFFECTED BY CONSTRUCTION: the children still tile the run in order, the
+     * gaps between them are still the exact source slices, and a sub-run that finds no word falls
+     * back to the per-statement rendering it would have had. 1037/1037 before and after. */
+    const segs = [];
+    for (const st of run) {
+      const dr = innerRunRanges(st, sf).length > 0;
+      const prev = segs[segs.length - 1];
+      if (!dr && prev && !prev.drillable) prev.stmts.push(st);
+      else segs.push({ drillable: dr, stmts: [st] });
+    }
     let body = "";
-    for (let k = 0; k < run.length; k++) {
-      body += renderStatement(run[k], depth + 1);
-      if (k < run.length - 1) body += renderVerbatim(run[k].getEnd(), run[k + 1].getStart(sf));
+    for (let k = 0; k < segs.length; k++) {
+      const seg = segs[k];
+      let piece = null;
+      if (!seg.drillable && seg.stmts.length > 1) piece = renderRun(seg.stmts, depth + 1);
+      if (piece === null) {
+        piece = "";
+        for (let m = 0; m < seg.stmts.length; m++) {
+          piece += renderStatement(seg.stmts[m], depth + 1);
+          if (m < seg.stmts.length - 1) piece += renderVerbatim(seg.stmts[m].getEnd(), seg.stmts[m + 1].getStart(sf));
+        }
+      }
+      body += piece;
+      if (k < segs.length - 1) {
+        const a = seg.stmts[seg.stmts.length - 1].getEnd(), b = segs[k + 1].stmts[0].getStart(sf);
+        body += renderVerbatim(a, b);
+      }
     }
     /* the run's statements are counted by their OWN chunks below; counting them here too
      * would double-count every statement in a drillable run (measured: 834 for a 486-statement

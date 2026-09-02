@@ -82,6 +82,7 @@ PART IV — and engine source comments cite it directly.
 | 31 | [§5D.5 The NDJSON progress stream](31-progress-stream.md) | 72 |
 | 32 | [§5F Architecture drift detection: residual is the drift signal](32-archetype-drift-check.md) | 108 |
 | 33 | [§5D.6 The silent rule mismatch detector: refusals, named](33-rule-refusal-audit.md) | 102 |
+| 34 | [§5D.4F The last 34 files, and what a structural chunk's children cost](34-last-files-and-grouping.md) | 96 |
 
 ## How the split was made
 

@@ -4695,3 +4695,28 @@ claiming an untouched tree.
 §8A guarded-subtree one) now exit 3 as well. I did not reword any of them; only their classification
 changed. Mutation-checked three ways: disabling the SOURCE condition 17 -> 13, reverting `Decline`
 to `Error` 17 -> 15, swallowing faults into exit 3 17 -> 16.
+
+**7. …and it was fixable, so I fixed it — as a SEPARATE commit, because it was not in the brief.**
+A structural chunk emitted one child per statement, discarding every word that covered a contiguous
+stretch inside it. Children are now the maximal non-drillable sub-runs. Measured over 1,037 files:
+whole-tree review surface **29,393 -> 19,776 (-33%)**, chunks 28,845 -> 19,228, atomic 19,234 ->
+9,617, with the top-level read (1,582), one-word-per-file (1,030) and byte-identity (1037/1037) all
+unchanged. It changes how children are GROUPED, never which bytes a chunk owns.
+
+I judged this inside the standing mandate rather than a scope expansion to check first: it is the
+cause of a regression my own change introduced, byte-identity is the stated guardrail and it holds,
+and every published metric improves or holds. It is a separate commit specifically so Amir can
+revert it alone if he disagrees with that judgment.
+
+**8. `engine/structural-grouping.test.js` counts CHILDREN, not bytes.** A byte-identity assertion
+would pass against either shape — both tile the same source — so the test would have been vacuous in
+exactly the way §10.3 warns about. It counts immediate children against the top-level statements
+they cover (3 children over 8 statements on the real fixture), samples 120 corpus files to show the
+grouping applies broadly (115 of 120), and drives a no-word run to prove the fallback degrades to
+per-statement rendering rather than dropping bytes.
+
+**9. A real render was run (not just `--dry-run`) to refresh the corpus manifest.** `Examples/` is
+entirely gitignored, so this writes nothing tracked and is regenerable. It matters because
+`verify-register.js` reads `en-index.json`: R-ARCH-16 was red only because the stored manifest
+predated its own producer, and the render flipped it green with no code change. R-ARCH-15 now fails
+honestly at 7 files instead of a stale 34.

@@ -71,6 +71,10 @@ R-MECH-8 forbids. Both are published, always, side by side (R-MEAS-10):
 - **top level — 1,610.** What the corpus costs to understand at a glance: one sentence per file for
   1,003 of 1,037 files. This is the number R-ARCH-16 is about, and it is **8.6x better than the
   13,873 that stood before any of this work**, not merely a recovery of the §5D.4D regression.
+> **SUPERSEDED 2026-09-01 by §5D.4F ([34-last-files-and-grouping.md](34-last-files-and-grouping.md)).** The two numbers below are the
+> measurement of THIS commit and stand as its record. Current: top **1,582**, whole tree **19,776** — a structural chunk's children are
+> now maximal sub-runs rather than one per statement, which cut the whole-tree read by 33%.
+
 - **whole tree — 29,260.** The ceiling if someone read every node. Still fewer units than the
   33,918 raw statements it replaces, and every one of them is a sentence rather than code.
 
