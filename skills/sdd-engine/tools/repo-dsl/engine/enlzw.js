@@ -37,7 +37,25 @@ function loadLzw(catalogPath) {
  * so it only ever REMOVES candidates — every surviving candidate still passes the identical byte
  * gate, and any statement left uncovered falls back to per-statement rendering, itself byte-gated.
  * Byte-identity is therefore preserved BY CONSTRUCTION. Shared with the flat-fallback path in
- * enfile.js so a merge rejected here cannot silently reappear there. */
+ * enfile.js so a merge rejected here cannot silently reappear there.
+ *
+ * NARROWED 2026-09-01 (Amir's call, R-MINE-8-amended, PRD §5D.4D). Read the reason above again:
+ * every word in it is about the LABEL — "its label reads as several unrelated things". The rule
+ * was never about correctness (the byte gate owns that) and never about the dictionary; it was
+ * about a span whose BOUNDARIES ARE ARBITRARY. A miner-chosen window that happens to swallow
+ * `alpha` and half of `beta` has no referent in the code, so no honest name exists for it.
+ *
+ * That argument does not reach a span that covers an ENTIRE run. A whole-run span's boundaries are
+ * not chosen by the miner at all — they are the enclosing construct's: the file, for a run of
+ * top-level statements, or one function body, for a run inside a Block. The word denotes exactly
+ * one syntactic container, so "a word means one thing" still holds; the one thing is the container
+ * rather than the definition inside it. A file with three exported helpers IS one thing — a module.
+ *
+ * So the rule now binds PROPER SUB-SPANS only. Whole-run spans are exempt, and remain gated on
+ * `wholeRunOk` (chunkGloss) — they still have to be sayable. The residual cost is real and is
+ * recorded in §5D.4D §3: such a word glosses as a LIST ("define A, then define B, then define C"),
+ * which is a description, not a concept. The instrument for that is a NAME (§5D.3D chunk naming),
+ * which is precisely the mechanism whose absence this rule was standing in for. */
 function isUnit(st) {
   if (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) return true;
   if (ts.isVariableStatement(st)) {
@@ -75,6 +93,11 @@ const W_GAP = W.GAP;
  * emitted span is byte-gated by `wp.fill === source.slice(...)` regardless. */
 const LIFT_TOP = process.env.LIFT_TOP !== "0";
 
+/* ONE_WORD_FIRST=0 restores the pure weight-maximising objective, for MEASUREMENT ONLY — it is how
+ * the cost of the R-ARCH-15-first ordering below was quantified, and how it can be re-quantified
+ * later. It is not a supported production mode: with it off, R-ARCH-15 is 30.6%, with it on, 93.1%. */
+const ONE_WORD_FIRST = process.env.ONE_WORD_FIRST !== "0";
+
 /* ALL kept words starting at run position p over symbol strings syms[], walking the prefix+symbol
  * automaton (leaf then ext). Returns [{ id, len }] for len 1..Lmax (kept words are prefix-closed,
  * so lengths are contiguous). Empty if syms[p] never recurred. */
@@ -105,17 +128,21 @@ function genSpans(sf, source, cat, opts) {
    * gloss (a test, a measurement harness) must not silently start emitting whole-file words. */
   const wholeRunOk = (opts && opts.wholeRunOk) || (() => false);
   const blocks = [];
-  const collect = (n) => { if ((ts.isBlock(n) || ts.isSourceFile(n)) && n.statements.length) blocks.push([...n.statements]); ts.forEachChild(n, collect); };
+  /* `top` marks the SourceFile's own statement list — the run whose whole-run word, if one is
+   * chosen and it covers every top-level statement, IS the file's single word (R-ARCH-15). */
+  const collect = (n) => { if ((ts.isBlock(n) || ts.isSourceFile(n)) && n.statements.length) blocks.push({ stmts: [...n.statements], top: n === sf }); ts.forEachChild(n, collect); };
   collect(sf);
 
   // 1) gather all byte-gated candidate words (len>=2, both axes) across every run.
   const cands = []; // { start, end, weight, stmts, payload, depth }
-  for (const stmts of blocks) {
+  for (const blk of blocks) {
+    const stmts = blk.stmts;
     let i = 0;
     while (i < stmts.length) {
       if (!G.isFoldable(stmts[i])) { i++; continue; }
       let j = i; while (j < stmts.length && G.isFoldable(stmts[j])) j++;
       const run = stmts.slice(i, j);
+      const topRun = blk.top;
       const nsym = run.map((st) => { const p = G.generalStmtParts(st, sf, false); return p ? G.keyOf(p) : null; });
       const wsym = run.map((st) => { const p = G.generalStmtParts(st, sf, true); return p ? G.keyOf(p) : null; });
       let _glossable; const runGlossable = () => (_glossable === undefined ? (_glossable = !!wholeRunOk(run, sf)) : _glossable);
@@ -137,13 +164,19 @@ function genSpans(sf, source, cat, opts) {
              * Byte-identity is untouched: this only removes a candidate. Every emitted span is
              * still byte-gated, and any statement left uncovered falls back to per-statement
              * rendering, itself byte-gated. */
-            if (LIFT_TOP && w.len >= run.length && run.length >= 2 && !runGlossable()) continue;
+            const wholeRun = p === 0 && w.len >= run.length && run.length >= 2;
+            if (LIFT_TOP && wholeRun && !runGlossable()) continue;
             const win = run.slice(p, p + w.len);
-            if (win.filter(isUnit).length >= 2) continue; // meaning-aware boundary: never straddle >=2 units
+            /* meaning-aware boundary (R-MINE-8-amended): a PROPER SUB-SPAN may not straddle >=2
+             * units, because its edges are the miner's choice and nothing in the code names it.
+             * A whole-run span is exempt — its edges are the enclosing file's or function's, and
+             * it has already passed `wholeRunOk`. See the note on isUnit above. */
+            if (!wholeRun && win.filter(isUnit).length >= 2) continue;
             const start = win[0].getStart(sf), end = win[win.length - 1].getEnd();
             const wp = G.windowParts(win, sf, wide);
             if (wp && wp.fill === source.slice(start, end)) {
               cands.push({ start, end, weight: w.len - 1, stmts: w.len, wide, depth: cat[axis].words[w.id].d,
+                topRun, wholeRun,
                 payload: { d: "lzw", a: wide ? "w" : "n", w: w.id, h: wp.holes } });
             }
           }
@@ -156,7 +189,35 @@ function genSpans(sf, source, cat, opts) {
   }
   if (!cands.length) return [];
 
-  // 2) weighted-interval scheduling: max total weight over non-overlapping byte ranges.
+  /* 2) R-ARCH-15 FIRST (Amir's call, 2026-09-01, PRD §5D.4D §4). The objective below maximises
+   * total weight (= statements removed). That objective and R-ARCH-15 ("every file should be able
+   * to be one word") genuinely conflict: because `weight = w.len - 1`, k nested words covering the
+   * same bytes score `n - k` against a single whole-file word's `n - 1`, so the scheduler PREFERS
+   * fragments — measured, 306 of 941 files had a whole-file word available and did not take it
+   * (`src/build-react-index.ts`: whole-file weight 5 vs two nested spans totalling 8).
+   *
+   * Weight maximisation was never the goal; it was a proxy for "least left to read", and it is the
+   * wrong proxy — one word is less to read than three, whatever the arithmetic says. So the
+   * ordering is now stated rather than implied: WHERE A SINGLE WORD COVERS THE WHOLE FILE, IT WINS,
+   * and the weighted-interval scheduler decides everything else. Lexicographic, not a tuned bonus:
+   * no weight is adjusted, so the fallback objective is bit-for-bit the one it always was.
+   *
+   * Admissibility is unchanged, so this cannot break byte-identity — the candidate returned here
+   * passed the same `wp.fill === source.slice(...)` gate as every other, and it is a candidate the
+   * DP was free to choose already. */
+  const first = sf.statements[0], last = sf.statements[sf.statements.length - 1];
+  if (ONE_WORD_FIRST && first) {
+    const fs_ = first.getStart(sf), fe = last.getEnd();
+    const whole = cands.filter((c) => c.topRun && c.wholeRun && c.start === fs_ && c.end === fe);
+    if (whole.length) {
+      /* Same deterministic tie-break the sort below uses: most statements, then narrow axis. */
+      whole.sort((a, b) => (b.stmts - a.stmts) || (a.wide - b.wide));
+      const c = whole[0];
+      return [{ start: c.start, end: c.end, payload: c.payload, stmts: c.stmts, depth: c.depth }];
+    }
+  }
+
+  // 3) weighted-interval scheduling: max total weight over non-overlapping byte ranges.
   //    Sort by end; tie-break so the deterministic winner is stable (wider, then narrow axis).
   cands.sort((a, b) => a.end - b.end || a.start - b.start || (b.stmts - a.stmts) || (a.wide - b.wide));
   const ends = cands.map((c) => c.end);

@@ -2924,3 +2924,58 @@ unanticipated reason). What I changed, and the judgment calls inside it:
 77-statement longest stream − 1, so corpus-bound not parameter-bound); re-render byte-identity
 1037/1037, one-word-per-file 316 → 317, review surface 13,874 → 13,873, 0 model calls. No guardrail
 tripped.
+
+---
+
+## 2026-09-01 — §5D.4D, relaxing the two blockers on one-word-per-file (Amir's call)
+
+Amir asked for both remaining blockers on R-ARCH-15 to be relaxed, and told me to work out what the
+units-rule relaxation *should* be from why the rule existed, rather than deleting the check. The
+judgment calls:
+
+1. **I narrowed R-MINE-8 to proper sub-spans rather than deleting it.** Reading its own comment, the
+   rule is entirely about the LABEL — a span whose boundaries are the miner's has no referent in the
+   code and so no honest name. That argument does not reach a whole-run span, whose boundaries are
+   the enclosing file's or function body's. So the rule keeps its force where the reason applies
+   (827 spans still bound, 0 violations) and yields where it does not (309 whole-run spans exempt).
+   Deleting the check would have thrown away a constraint that is still doing real work.
+
+2. **I kept the exemption gated on `wholeRunOk`.** An exempt word must still be sayable. This is the
+   difference between "the rule is narrowed" and "the rule is gone", and there is a control test for
+   exactly that: with no predicate, 0 cross-unit whole-run spans are admitted over 120 files.
+
+3. **I implemented the scheduler priority lexicographically, not as a weight bonus.** Amir asked for
+   "an explicit priority", and a bonus large enough to always win is a magic number that also
+   perturbs every other decision. Returning the whole-file candidate before the DP runs leaves the
+   fallback objective bit-for-bit unchanged, which is also what makes the change cleanly reversible.
+
+4. **I added `ONE_WORD_FIRST=0` as a measurement-only escape hatch**, parallel to `LIFT_TOP=0`. Not
+   asked for. R-ARCH-18 would otherwise be a row no one could show binding (§10.3), and it is how
+   the 30.6%-vs-93.1% pair and the per-file `1 span / 76 stmts` vs `68 spans / 365 stmts` breakdown
+   were obtained at all. It is documented as not a supported production mode.
+
+5. **I found and fixed a pre-existing vacuity rather than reporting around it.** `unit-boundary.test.js`
+   asserted its invariant over a synthetic fixture whose symbols are absent from the mined
+   dictionary, so `genSpans` returned zero spans and the loop iterated nothing. It had been passing
+   by having nothing to check since before this change. Rebuilt on real corpus source with published
+   population counts. I record this because my first run of the *unmodified* test passed and I very
+   nearly took that as evidence the narrowing was safe — a green test over an empty set is not
+   evidence of anything, and it looked exactly like evidence.
+
+**The cost I did not anticipate at this magnitude, and did not hide:** review surface 13,873 ->
+23,784, collapse ratio 59.1% -> 29.9%. The direction was anticipated — Amir explicitly chose
+R-ARCH-15 over compression weight — but the size was not. The mechanism turns out to be sharp and
+worth knowing: a whole-file word covers the top-level statements, while the words that used to be
+chosen live *inside its holes*, which R-MINE-9 keeps as verbatim TypeScript. Under a flat,
+non-overlapping span model the two sets are mutually exclusive by construction. I judged this to be
+the anticipated kind of cost at an unanticipated magnitude rather than a guardrail trip, so I
+implemented, measured, and reported it prominently instead of stopping — the change is one env var
+from reverting, and the number is now stated in the register row itself so it cannot be quietly lost.
+
+**The real fix, identified and not attempted:** nested rendering — a word's holes rendering as
+English recursively, so whole-file words and body words coexist at different depths instead of
+competing for the same byte range. That is R-ARCH-15's own "words made of words ... editable at
+every level" applied to holes.
+
+**Measured:** byte-identity 1037/1037; one word per file 317 -> 965 (30.6% -> 93.1%); spans 4,787 ->
+1,135; register 38 hold, 0 fail, 3 manual; 0 model calls.
