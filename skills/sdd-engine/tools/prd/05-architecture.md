@@ -29,7 +29,9 @@ never invoked by the mine, so its catalog froze at its last manual run and **no 
 take could move the count it published** — and nothing on the `.en` compile path ever read it. Two
 rules follow. **A number no mine can move is not a measurement, and the engine must not publish
 one.** And a catalog with no consumer on the byte-exact path is not a layer; it is drift waiting for
-an audience.
+an audience. *(That is drift in the sense of an unread catalog. For drift of a file away
+from the shape its own archetype claims — a different mechanism, residual over the top-level tiling —
+see §5F, R-ARCH-20.)*
 
 **The fold (universal invariant).** At every tier a construct is only replaced by a higher-tier form when the higher-tier form refills to the **exact source span**. Segment lists tile `[0, len)` exactly (`checkTiling`), each segment reproduces its own bytes, so `reconstruct === source` by construction. This is what makes byte-identity a property of the *design*, not of any particular file.
 
@@ -395,7 +397,9 @@ rewrite. Each of these disagreed with §5D.0 and has been changed to agree with 
    **worksheet only** and the apply step is Amir's hand-authoring. **Statement 5 overrides this for
    naming**: the step is a script that names. The narrower claim it was really protecting —
    that an **orphaned** name must not silently re-attach to a skeleton it merely *resembles* — is
-   preserved, because that is a drift bug rather than a naming policy (§10).
+   preserved, because that is a drift bug rather than a naming policy (§10). *This is name-vs-skeleton drift,
+   detected by edit-distance proposals; it is **not** the architecture drift check of §5F, which
+   compares a file against its archetype's slot schema. §5F §5 tabulates the three.*
 5. **"A file is never one word" (R-MINE-7, THE LIFT)** — *used to say* the renderer must refuse any
    whole-run word outright. Superseded by statements 6 and 7; amended to refuse an **opaque**
    whole-run word while requiring a compositional one (§5D.4).

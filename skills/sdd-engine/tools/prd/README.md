@@ -79,6 +79,7 @@ PART IV — and engine source comments cite it directly.
 | 27 | [§5D.4E The rule-coverage filter — the leaf tier is 98% already done](27-rule-coverage-filter.md) | 118 |
 | 27 | [§5D.4D One word per file, chosen over compression](27-one-word-first.md) | 133 |
 | 28 | [§5D.4E Nested rendering: words made of words, to leaves](28-nested-rendering.md) | 108 |
+| 29 | [§5F Architecture drift detection: residual is the drift signal](29-archetype-drift-check.md) | 108 |
 
 ## How the split was made
 
