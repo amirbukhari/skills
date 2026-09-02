@@ -317,6 +317,24 @@ is the mechanics, and the current code is on the far side of the change:
   and names must be assigned leaves-first. R-LANG-20 is FAILING as written.
 - **Still open, still Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words are
   used exactly once, so leaf names barely amortise while rules and chunk names do).
+- **THE PASS IS BUILT, and the three remaining mechanics are PROPOSED, not ruled — §5D.3F
+  ([26-naming-pass-mechanics.md](26-naming-pass-mechanics.md)), 2026-09-01.** `name-words.js`
+  (`plan` + `name --tier N [--apply]`) over `engine/naming-plan.js` (the order), `engine/namer.js`
+  (the only place a model is spoken to) and `engine/naming-gate.js` (byte-identity + payload
+  identity + coverage invariance, each shown FAILING against an injected renderer). 36 unit
+  assertions, zero model calls, `word-names.json` still at 0 names. **Amir's to overrule:**
+  transport = in-repo `namer` module shelling to the `claude` CLI (what `refine-language.js`
+  already does); batch = **40 rows per call, never spanning a depth tier** (a tier boundary is
+  R-LANG-20, not a tuning knob); retry = **one re-ask carrying the rejection reason, then leave
+  the word UNNAMED** — unnamed falls back to `spanProse`, which renders and compiles correctly,
+  so giving up on a name costs one word reading as it reads today and the run stays resumable.
+  The worksheet survives as the default DRY RUN, as recommended: `--apply` is the flag that writes.
+- **And the R-LANG-22 target figures need re-stating (§5D.3F §2).** Reproducing §5D.3E's method
+  against the render's own span set — 4,788 spans, matching `en-index.json`'s `generators.calls`
+  exactly — gives **2,767 leaves + 3,095 shallow = 5,862**, not 2,619 + 2,789 = 5,408, against
+  **3,576** used words rather than 3,237. Part is the conditional LIFT; the rest is the file set
+  (943 in the earlier sweep against `en-index`'s own `totalFiles: 1037`). The DIRECTION is
+  unchanged — still MORE names than today, at essentially the same 1.64x ratio.
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the

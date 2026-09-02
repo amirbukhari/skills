@@ -95,6 +95,15 @@ const ARTIFACTS = Object.freeze({
     corpusPinned: false, requires: ["names", "orphans", "chunks"],
     role: "hand-authored names, keyed by content hash and never by word id. `names` names ONE leaf skeleton (key w:/n: + sha256(sym)[0:16], entries {sym,en,sites,named}); `chunks` names a WHOLE multi-statement word as one clause (key wc:/nc: + sha256 of its ordered leaf skeletons, entries {en,len,note}) per PRD §5D.3D / R-LANG-19",
   },
+  /* naming-plan.json is the DETERMINISTIC input to stage 2 (PRD §5D.2): which words are asked
+   * about, in what order, with what evidence. It is regenerable by one sweep, so `cache`. It is
+   * registered rather than hand-written because it publishes the R-LANG-20 order and the R-LANG-22
+   * target figures, and a consumer reading an unversioned plan is the incident-5 shape again. */
+  "naming-plan": {
+    schema: "sdd-repo-dsl/naming-plan/1", home: "cache", file: "naming-plan.json",
+    corpusPinned: true, requires: ["tiers", "summary", "order"],
+    role: "the bottom-up naming work order — tiers ascending from d=0 with per-row evidence and the content key each name will be written under (R-LANG-20/21/22)",
+  },
   "corpus-coverage": {
     schema: "sdd-repo-dsl/corpus-coverage/1", home: "cache", file: "corpus-coverage.json",
     corpusPinned: true, requires: ["rollup", "files"],

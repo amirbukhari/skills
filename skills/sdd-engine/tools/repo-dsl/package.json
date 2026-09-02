@@ -20,6 +20,8 @@
     "sdd-run": "node sdd-run.js",
     "mine": "node build-lzw-generators.js",
     "name": "node name-words-lzw.js worksheet",
+    "name:plan": "node --max-old-space-size=3072 name-words.js plan",
+    "name:tier": "node --max-old-space-size=3072 name-words.js name",
     "reconcile": "node reconcile-names.js",
     "render": "node write-en-files.js",
     "measure": "node measure-english.js",
