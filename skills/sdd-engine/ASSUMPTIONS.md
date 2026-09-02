@@ -3185,3 +3185,70 @@ So the numbers held across that edit — but they are a reading of one working t
 not of a commit.
 
 **No code changed.** The task was to investigate and report.
+
+## 2026-09-01 — the 2 whitespace-only files leave the one-word-per-file denominator
+
+**Decided (autonomy grant, Amir asleep):** `src/hydra-api/chatbot/chatbot.ts` (9 bytes, all
+newlines) and `src/rentsync-api/invoicing/freshbooks/index.ts` (1 byte, a newline) are **excluded
+from the R-ARCH-15 denominator** going forward. Both have **zero top-level statements**.
+
+**Why:** `oneWord` is `topSpans === 1 && outsideNonWs === 0`. A file with no statements can never
+have one top-level word, so it is not a rendering failure the metric caught — it is a degenerate
+input the metric was never meant to cover, scoring 0 forever no matter how good the renderer gets.
+Leaving them in makes the ceiling **1035/1037, not 1037/1037**, which quietly misprices every future
+result against a target that cannot be reached.
+
+**The honest cost, stated because a denominator change always flatters:** this moves the rate from
+1003/1037 (96.7%) to **1003/1035 (96.9%)** on its own. That is a **+0.2pp bookkeeping gain and not
+an improvement**, and it must never be reported as one. The number that moves for real is the
+32-file fix below.
+
+**Not implemented here.** The denominator lives in `write-en-files.js:166-168`, which is currently
+another lane's file. Specified, not applied.
+
+## 2026-09-01 — SPEC (not applied): the fix for the stray `;`, and why the leading-comment half is NOT safe
+
+Written up rather than applied because `engine/enfile.js` is s16's active file (naming rebuild).
+Both halves were measured **in memory** — a monkey-patch for one, a throwaway patched COPY for the
+other — so the real file was never edited and no probe file was left behind.
+
+### Half 1 — the stray `;`. PROVEN SAFE, +28 files, take this one.
+
+**Mechanism, confirmed at the line:** `generators.js:175`
+`isFoldable = isSimpleStmt || isCFStmt || isDeclStmt` returns **false** for `EmptyStatement`.
+`enfile.js:1140 foldableRuns` therefore *breaks the run* at a stray top-level `;`, so a file with
+one gets two top-level chunks and the `;` itself is the single non-whitespace byte outside them.
+
+**The change:** treat `EmptyStatement` as foldable so it is absorbed into the surrounding run
+instead of splitting it. Scope it to the run-splitting decision, **not** to a blanket
+`isFoldable` edit — `enlzw.js:142-143` uses the same predicate for dictionary keying, and a
+different key set is a byte-identity risk for no gain.
+
+**MEASURED over the whole corpus, both numbers together:**
+
+    one word per file   1003/1037 (96.7%)  ->  1031/1037 (99.4%)
+    byte-identical      1037/1037          ->  1037/1037   FLOOR HELD
+
+### Half 2 — the leading `/* eslint-disable */` comment. DO NOT SHIP AS WRITTEN.
+
+The obvious fix is to start the first run's chunk at byte 0 instead of `run[0].getStart(sf)`
+(`getStart` skips leading trivia, which is why the comment lands outside). It reaches
+**1034/1037 (99.7%)** — and **breaks byte-identity to 996/1037, 41 files.**
+
+**That is a regression, not a tradeoff** (CLAUDE.md §8: byte-identity is the hard floor). The
+compile side does not know a chunk's range may begin before its first statement, so it cannot
+restore those bytes. Anyone taking this half must change `compileFileEn` to match, and re-run the
+full round-trip — the +3 files are worth far less than the floor. **I would ship Half 1 alone.**
+
+**Gate for whoever applies this:** `npm run test:slow` (the isolated full-corpus round-trip, ~24s
+each) plus the rendered `1037/1037`. Byte-identity is necessary and not sufficient on its own —
+also re-read `oneWordFiles` from the render's own manifest rather than a side script (R-MEAS-6).
+
+**Left open, deliberately:** `promotedListings/interfaces.ts` is unexplained and stays that way.
+Under Half 1 it does not collapse (removing its `;` makes the renderer claim nothing at all,
+`topSpans 0`). Two candidate rules were tested and both refuted — type-only files collapse (84 do,
+1 does not) and so do type-only files with no imports (30 do, 1 does not). It needs its own look;
+a rule invented to fit one file is worse than an open case.
+
+**Expected end state if Half 1 and the denominator change both land: 1031/1035 = 99.6%**, with 4
+known non-collapsing files — 3 leading-comment, 1 unexplained.
