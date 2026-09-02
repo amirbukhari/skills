@@ -14,11 +14,37 @@
  *   MISSING   provenance claims an artifact that no longer exists
  *   UNBUILT   module has a spec but no provenance entry (never generated)
  *   ORPHAN    a file in generated/ that provenance does not claim
+ *   UNVERIFIED the example ships no tools/verify.js, so no fixture was ever run
+ *              against this artifact and its validity is UNKNOWN -- see below
  *
  * (STALE and ORPHAN are carried over from the deterministic checker; DIVERGED is
  * replaced by INVALID, which is fixtures-pass rather than byte-hash.)
  *
  * Exit 0 iff every module is OK and there are no orphans; else exit 1.
+ * Exit 2 when the question could not be asked at all (no modules) -- see below.
+ *
+ * TWO FALSE GREENS FIXED, 2026-09-01. Both reported success for a run that had
+ * verified nothing, which is the failure mode this whole tool exists to prevent:
+ * a confident verdict about an artifact nobody checked.
+ *
+ *   (1) EMPTY MODULE SET. `results.every(...)` is vacuously TRUE for an empty
+ *       array, so an example with no `spec/modules` at all printed "=> in sync"
+ *       and exited 0. Measured against Examples/hydra-source, which has no
+ *       spec/ directory: listModules -> [], and the tool reported in sync.
+ *       A consumer polling this cannot tell "everything is fine" from "there is
+ *       nothing here". Now: exit 2 and say which it is. 2 rather than 1 because
+ *       1 means "drift detected", which would be an equally false claim -- no
+ *       drift was found, no drift COULD have been found.
+ *
+ *   (2) MISSING VERIFY TOOL READ AS PASS. runVerify is deliberately tri-state --
+ *       true / false / null, where null means "this example ships no
+ *       tools/verify.js". Only `v.ok === false` was handled, so null fell
+ *       through to OK with the detail "fixtures pass". No fixture had run. This
+ *       tool DEFINES validity as fixtures-pass, so an artifact with no fixture
+ *       runner is precisely the case it cannot answer, and it was answering OK.
+ *       Its two sibling callers already got this right (sdd-spec-from-intent
+ *       reports `verify=n/a`; sdd-generate fails closed on a falsy ok), which is
+ *       what made this one the outlier rather than the convention.
  *
  * Usage: node tools/sdd-check.js <exampleDir> [--lang ts]
  */
@@ -75,6 +101,12 @@ function main() {
       results.push({ module: m, state: "INVALID", detail: "generated artifact fails fixtures" });
       continue;
     }
+    /* null, not false: the example ships no tools/verify.js. Validity here IS fixtures-pass, so
+     * with no fixture runner the answer is unknown -- and unknown must not be spelled OK. */
+    if (v.ok === null) {
+      results.push({ module: m, state: "UNVERIFIED", detail: `${v.output.trim()} — validity is fixtures-pass, so nothing established it` });
+      continue;
+    }
     const fxNow = lib.fixturesHash(cfg.exampleDir, m);
     const note = fxNow !== entry.fixturesHash ? " (fixtures changed since gen — re-verified, still pass)" : "";
     results.push({ module: m, state: "OK", detail: `fixtures pass${note}` });
@@ -91,9 +123,19 @@ function main() {
     }
   }
 
-  const label = { OK: "OK     ", STALE: "STALE  ", INVALID: "INVALID", MISSING: "MISSING", UNBUILT: "UNBUILT", ORPHAN: "ORPHAN " };
+  const label = { OK: "OK     ", STALE: "STALE  ", INVALID: "INVALID", MISSING: "MISSING", UNBUILT: "UNBUILT", ORPHAN: "ORPHAN ", UNVERIFIED: "UNVERIF" };
   console.log(`sdd-check — ${lib.relTo(process.cwd(), cfg.exampleDir)} (validity = fixtures-pass)`);
   for (const r of results) console.log(`  ${label[r.state]}  ${r.module.padEnd(16)} ${r.detail}`);
+
+  /* REFUSE before reporting. An empty result set satisfies every() and would print a green. */
+  if (results.length === 0) {
+    console.log(`  => NOTHING CHECKED — this example declares no modules`);
+    console.log(`     looked in: ${path.join(cfg.exampleDir, "spec", "modules")} (no module found there)`);
+    console.log(`     This is not "in sync": no artifact was examined and no fixture was run.`);
+    console.log(`     If this directory is a MINING CORPUS rather than an SDD example, it has no`);
+    console.log(`     spec/modules by design and this tool is the wrong question to ask of it.`);
+    process.exit(2);
+  }
 
   const clean = results.every((r) => r.state === "OK");
   console.log(clean ? "  => in sync" : "  => drift detected");

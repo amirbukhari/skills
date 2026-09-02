@@ -3639,3 +3639,97 @@ non-evidence; the revert was in fact real, but it was established by re-measurin
 **The rule:** a claim that a catalog or a rendered artifact "matches its committed state" must come
 from a hash or a measurement. For tracked files `git diff --numstat` is fine; for anything under
 `Examples/` it is meaningless.
+
+---
+
+## 2026-09-01 — DECISION: `Examples/hydra-source` should NOT ship a `tools/verify.js`
+
+Asked to decide whether the corpus's missing `tools/verify.js` (which makes Kraken's `hasVerifyTool`
+read false and its fixtures lane dark) is deliberate for a whole-repo corpus or a real gap.
+
+**Decision: it is deliberate, and building one would be a mistake. But the investigation found a
+real defect next to it, and that defect — not the missing file — is what makes the lane dark.**
+
+### Why no verify.js — four reasons, each measured
+
+1. **`hydra-source` is not an example; it is the mining corpus.** `tools/sdd-lib.js` defines an
+   `exampleDir` by structure: `spec/modules/<m>/{spec.md,constants.md,fixtures/}`, `spec/standards`,
+   `spec/contracts`, `generated/`, `.sdd-provenance.json`. Measured: `Examples/hydra-source/spec`
+   **does not exist**; `lib.listModules(corpus)` returns `[]`; `lib.readProvenance(corpus)` returns
+   `null`. It holds `src/`, `packages/`, `tests/`, `catalog/`, `sen/` — a whole real TypeScript repo
+   that the repo-dsl pipeline walks read-only. Different lane entirely.
+2. **There would be nothing for it to verify.** `runVerify(exampleDir, generatedPath)` runs fixtures
+   against **one generated module**. With zero modules and zero fixtures, a `verify.js` here would be
+   a tool with no possible input — it could only ever return a vacuous pass, which is the exact
+   failure mode this session then found and fixed below.
+3. **It could not ship even if written.** `Examples/` is gitignored — measured with
+   `git check-ignore -v` (not `-q`, per CLAUDE.md §9): `.gitignore:32:skills/sdd-engine/Examples/`,
+   a positive rule with no leading `!`. A `tools/verify.js` placed there is **untracked**, so nobody
+   cloning this repo would receive it. This is the §5 `word-names.json` trap in a new location:
+   a file put somewhere gitignored, silently not shipping, defeating its own purpose.
+4. **It would put engine-owned tooling inside `SOURCE`.** `SOURCE` is the READ root and is never
+   written (§2, §4). Placing a tool inside the tree it operates on is precisely the `sdd-clean.js`
+   mistake recorded in §9 — that tool lived at `<corpus>/sdd-clean.js` until the corpus was wiped by
+   hand and the cleaner went into the bin along with the tree it existed to clean.
+
+**Searched the whole tree for any real example to check this against: there is none.**
+No `spec/modules` directory exists anywhere under the skills root. So the fixtures lane is not dark
+because one file is missing from one corpus — it is dark because **no SDD example exists at all**.
+`hasVerifyTool: false` is therefore *correct* for this directory but *misleading* as a signal, since
+it implies "add a verify tool and the lane lights up". It would not.
+
+### The real defect, which the decision exposed: two false greens in `sdd-check.js`
+
+`sdd-check` is the drift detector a UI polls, and it **defines validity as fixtures-pass**. Both bugs
+reported success for a run that had verified nothing.
+
+**(1) The empty module set.** `results.every(...)` is vacuously **true** for an empty array. Measured
+before the fix: `node tools/sdd-check.js Examples/hydra-source` printed **`=> in sync`** and exited
+**0**. A confident all-clear about a directory the tool cannot answer questions about at all. A
+consumer polling this cannot distinguish "everything is fine" from "there is nothing here".
+
+**(2) A missing verify tool read as a pass.** `runVerify` is deliberately tri-state —
+`true`/`false`/`null`, where `null` means "this example ships no `tools/verify.js`". `sdd-check`
+handled only `v.ok === false`, so **`null` fell through to `OK` with the detail "fixtures pass"**
+when no fixture had run. This is the `catch { return null }` class the engine exists to eliminate,
+in its exact canonical form: "I could not check" rendered as "I checked and it is fine".
+
+Its two sibling callers already got this right, which is what makes `sdd-check` the outlier rather
+than the convention: `sdd-spec-from-intent.js:357` reports `verify=n/a` for the null case, and
+`sdd-generate.js:68` uses `if (v.ok)` so null is falsy and it fails closed.
+
+**Fixed:** a new `UNVERIFIED` state for the null case (distinct from `INVALID` — "ship a verify tool"
+and "fix the artifact" are opposite responses), and an explicit refusal with **exit 2** for the empty
+set. Exit 2 rather than 1 because 1 means *drift detected*, which would be an equally false claim: no
+drift was found and none could have been. The refusal names the directory it searched and says that a
+mining corpus has no `spec/modules` by design.
+
+**Tests:** `tools/repo-dsl/engine/sdd-check.test.js`, 9 assertions, no corpus prerequisite — each
+case builds a purpose-made example in a tmpdir and **spawns the CLI**, so the assertions are about
+observed stdout and exit codes rather than an internal. This is the first test of any kind for the
+`tools/sdd-*.js` lane, which had none.
+
+**Mutation-tested,** each fix reverted independently in place: dropping the empty-set refusal fires
+4 guards (including the real-corpus one, back to exit 0); dropping the null branch fires 3. No
+overlap between the two sets, so each guard targets its own property rather than both passing on one
+symptom. A control case is included — a *passing* verify tool must still exit 0 — because without it
+these guards would be satisfied by a checker that never reports OK at all.
+
+**One assertion of mine was wrong and the run caught it:** I asserted `doesNotMatch(/in sync/)` on
+the refusal output, but my own refusal text contains the sentence `This is not "in sync"`. Narrowed
+to the verdict line, `/^\s*=> in sync/m`. That is a narrowing, not a weakening — the difference
+between testing the tool's verdict and testing its prose.
+
+### Left for Amir, not decided here
+
+If an SDD example is ever wanted, it belongs in a **tracked** directory (not under gitignored
+`Examples/`) with a real `spec/modules/<m>/fixtures/` tree, and `tools/verify.js` would be written
+against those fixtures. That is a new example, not a patch to the corpus — and it is a design
+question about what the fixtures lane is for, which is his call rather than an overnight one.
+
+Also noted while here, unfixed: **`verify-dsl.js` has been dead since the skill extraction** — it
+reads `compositions/activeFeatureCostCalculator.json` and `tools/repo-dsl/compositions/` does not
+exist, so it dies with ENOENT at load. It is the guard for the DSL's own print/parse/expand
+byte-identity (the three guarantees named in `dsl.js`'s header), so that property currently has no
+running test. Same shape as the `test-lzw-roundtrip.js` TDZ find. Not fixed here because restoring it
+needs its fixture back, and I do not know whether those compositions were deleted deliberately.
