@@ -1200,4 +1200,7 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim };
+module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
+  /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,
+   * and it is this one — the renderer's. A second copy in the consumer would drift from it silently. */
+  SAYS_NOTHING };

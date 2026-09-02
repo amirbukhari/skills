@@ -41,6 +41,7 @@ const AC = require("./engine/artifact-contract");
 const NP = require("./engine/naming-plan");
 const NM = require("./engine/namer");
 const GATE = require("./engine/naming-gate");
+const RC = require("./engine/rule-coverage");
 const { SKIP } = require("./engine/walk-skip");
 
 const CORPUS = CR.corpusRoot();
@@ -70,10 +71,12 @@ function sweep() {
   }
   const files = walk(SRC);
   const entries = [];
+  const sources = [];
   let parsed = 0, skipped = 0;
   for (const abs of files) {
     let source;
     try { source = fs.readFileSync(abs, "utf8"); } catch (_) { skipped++; continue; }
+    sources.push({ rel: path.relative(SRC, abs), source });
     const sf = ts.createSourceFile(abs, source, ts.ScriptTarget.Latest, true);
     let spans;
     try { spans = EL.genSpans(sf, source, cat, { wholeRunOk: (run, rsf) => !!EN.chunkGloss(run, rsf) }); }
@@ -87,16 +90,35 @@ function sweep() {
       });
     }
   }
-  return { cat, entries, files: files.length, parsed, skipped };
+  return { cat, entries, sources, files: files.length, parsed, skipped };
 }
 
 function cmdPlan(args) {
   const toIx = args.indexOf("--to");
   const to = toIx >= 0 ? parseInt(args[toIx + 1], 10) : NP.DEFAULT_TO;
   const t0 = Date.now();
-  const { cat, entries, files, parsed, skipped } = sweep();
+  const { cat, entries, sources, files, parsed, skipped } = sweep();
   const used = NP.usedWordsFromSpans(entries);
   const tiers = NP.tiersOf(cat, used, { to });
+
+  /* RULE COVERAGE (§5D.3F §2d, §5D.4E). The 80-leaf pilot named leaves a node-kind rule already
+   * rendered and cost the corpus 72% of its concrete identifiers. So the plan no longer asks the
+   * model about a leaf without first MEASURING whether a rule reaches it. Leaves only: a composite's
+   * name is a whole-chunk name (R-LANG-19), which outranks per-statement rules by design and is not
+   * in competition with them. */
+  const leafKeys = new Set(tiers[0].rows.map((r) => r.key));
+  const scan = RC.scanClauses(EN, sources);
+  const cov = RC.summarize(scan, EN, leafKeys);
+  for (const row of tiers[0].rows) {
+    const c = cov.perKey.get(row.key) || RC.classify([], EN.SAYS_NOTHING);
+    const seen = scan.get(row.key);
+    row.rule = { klass: c.klass, namable: c.name, reason: c.reason, distinctClauses: c.distinct, instances: c.instances,
+      sampleClause: seen && seen.clauses.find(Boolean) ? String(seen.clauses.find(Boolean)).slice(0, 120) : null };
+  }
+  /* Namable first, then by sites — the order the model is spent in. Rule-covered rows STAY IN THE
+   * PLAN (R-LANG-21: d=0 is in scope; they are accounted for by code rather than by a name). */
+  tiers[0].rows.sort((a, b) => (Number(b.rule.namable) - Number(a.rule.namable)) || (b.sites - a.sites)
+    || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 
   /* R-LANG-20 IS CHECKED, NOT ASSUMED. A plan that cannot be shown to be groundable is refused
    * here, before any model call — the cheapest possible place to find out. */
@@ -118,6 +140,14 @@ function cmdPlan(args) {
       checkedBy: "engine/naming-plan.js orderViolations",
     },
     sweep: { files, parsed, skipped, spans: entries.length, distinctUsedWords: used.size, to },
+    ruleCoverage: {
+      measuredOver: "every foldable statement in the corpus, clause by clause, through enfile.spanActions",
+      criterion: "a clause that VARIES across instances is one no single name can reproduce (§5D.3F §2d)",
+      byKlass: cov.byKlass,
+      leafSkeletons: cov.total,
+      namable: cov.namable,
+      ruleCovered: cov.total - cov.namable,
+    },
   };
   const out = AC.stamp("naming-plan", body, { corpus: CORPUS });
   const dest = AC.pathFor("naming-plan", CORPUS);
@@ -126,6 +156,12 @@ function cmdPlan(args) {
 
   console.log(`plan: swept ${parsed}/${files} files (${skipped} skipped), ${entries.length} spans, ${used.size} distinct used words   [${((Date.now() - t0) / 1000).toFixed(1)}s]`);
   for (const t of summary.perTier) console.log(`  d=${t.depth}  ${String(t.names).padStart(5)} names`);
+  console.log(`  ---------------------`);
+  console.log(`  LEAF RULE COVERAGE (d=0), measured over ${cov.total} skeletons:`);
+  for (const [k, v] of Object.entries(cov.byKlass).sort((a, b) => b[1].skeletons - a[1].skeletons)) {
+    console.log(`    ${k.padEnd(24)} ${String(v.skeletons).padStart(5)} skeletons  ${String(v.sites).padStart(6)} sites   ${k.startsWith("unreached") ? "-> NAME" : "-> skip (a rule already renders it)"}`);
+  }
+  console.log(`    ${"".padEnd(24)} ${String(cov.namable).padStart(5)} namable, ${cov.total - cov.namable} left to the rules`);
   console.log(`  ---------------------`);
   console.log(`  TARGET ${summary.namingTarget} names (R-LANG-22)`);
   console.log(`  ${summary.statedAsCost}`);
@@ -166,7 +202,16 @@ function cmdName(args) {
     }
   }
 
-  const todo = tier.rows.filter((r) => !(r.depth === 0 ? existing.names[r.key] : existing.chunks[r.key])).slice(0, limit);
+  /* THE FILTER (§5D.3F §2d). A leaf a node-kind rule already renders is NOT asked about: the pilot
+   * measured that naming those costs 72% of the corpus's concrete identifiers. `--include-rule-covered`
+   * exists to re-measure that claim, not to be used in a production run. */
+  const includeCovered = args.includes("--include-rule-covered");
+  const notYetNamed = tier.rows.filter((r) => !(r.depth === 0 ? existing.names[r.key] : existing.chunks[r.key]));
+  const ruleCovered = notYetNamed.filter((r) => r.rule && !r.rule.namable);
+  const todo = (includeCovered ? notYetNamed : notYetNamed.filter((r) => !r.rule || r.rule.namable)).slice(0, limit);
+  if (tierN === 0 && ruleCovered.length && !includeCovered) {
+    console.log(`d=0: ${ruleCovered.length} of ${notYetNamed.length} unnamed leaves are already rendered by a node-kind rule — NOT asking about them (§5D.3F §2d).`);
+  }
   if (!todo.length) { console.log(`d=${tierN}: nothing to name — all ${tier.rows.length} rows already have names.`); return; }
 
   /* Leaf names already on disk, so a chunk ask can show the model what its parts are called. This

@@ -76,6 +76,7 @@ PART IV — and engine source comments cite it directly.
 | 25 | [§5D.3E Depth-bounded naming — rejected as a boundary, adopted as an order](25-depth-naming-evaluated.md) | 189 |
 | 26 | [§5D.4C The arbitrary ceilings removed — and what actually blocks one word per file](26-ceiling-removed.md) | 159 |
 | 26 | [§5D.3F The naming pass — built, and the three Q-9 mechanics proposed](26-naming-pass-mechanics.md) | 156 |
+| 27 | [§5D.4E The rule-coverage filter — the leaf tier is 98% already done](27-rule-coverage-filter.md) | 118 |
 | 27 | [§5D.4D One word per file, chosen over compression](27-one-word-first.md) | 133 |
 
 ## How the split was made
