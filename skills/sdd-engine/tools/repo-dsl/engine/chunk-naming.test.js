@@ -192,7 +192,13 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   eq(WN.chunkNameFor(cat, payload, { [key]: { en: "set up the request context" } }), "set up the request context",
     "a whole-chunk name is returned for the whole word");
 
-  /* PRECEDENCE: with BOTH a chunk name and leaf names present, the chunk name must win. */
+  /* PRECEDENCE, AS AMENDED 2026-09-01 (R-LANG-19). With BOTH a chunk name and leaf names present,
+   * the chunk name comes FIRST — it is what the reader sees, so a recurring run still reads as one
+   * recognised pattern (§5D.3D). It does NOT come instead. The assertion here used to be
+   * `=== "set up the request context"`, i.e. one hole-free string replacing every clause the rules
+   * had filled with the code's own identifiers; s11 measured that 63% of the corpus's concrete
+   * identifiers live in d>=1 chunk labels, so that reading would have deleted ~23,000 of them the
+   * first time composite naming ran. A name is a label ALONGSIDE the content, never a replacement. */
   const names = { [WN.hashOf("wide", "SYM_A")]: { en: "first thing" }, [WN.hashOf("wide", "SYM_B")]: { en: "second thing" } };
   const composed = WN.clausesFor(cat, payload, names);
   eq(composed && composed.join("|"), "first thing|second thing", "member composition still works on its own");
@@ -200,8 +206,24 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
    * leg needs a slice whose statement count matches the leaf count (2). */
   const src2 = "a();\nb();\n";
   const span = { payload, start: 0, end: src2.length, stmts: 2 };
-  eq(EN.namedLabel(span, src2, cat, names, { [key]: { en: "set up the request context" } }), "set up the request context",
-    "R-LANG-19: the whole-chunk name OUTRANKS member composition");
+  eq(EN.namedLabel(span, src2, cat, names, { [key]: { en: "set up the request context" } }),
+    "set up the request context: first thing then second thing",
+    "R-LANG-19: the chunk name LEADS, and the hole-filled content survives behind it");
+  {
+    const withChunk = String(EN.namedLabel(span, src2, cat, names, { [key]: { en: "set up the request context" } }));
+    const noChunk = String(EN.namedLabel(span, src2, cat, names, {}));
+    ok(withChunk.endsWith(noChunk), "a chunk name is PURELY ADDITIVE — it prefixes, it never edits");
+    ok(withChunk.length > noChunk.length, "and it can only make a label say more, never less");
+  }
+  /* A chunk name with NO leaf names still keeps the rules' content, which is the case that carries
+   * the identifiers: composite naming is expected to run against a corpus whose leaves are almost
+   * entirely rule-covered (§5D.4E: 1,394 of 1,414), so this is the COMMON path, not the corner. */
+  {
+    const only = String(EN.namedLabel(span, src2, cat, {}, { [key]: { en: "set up the request context" } }));
+    ok(/^set up the request context: /.test(only), "the name leads");
+    eq(only, "set up the request context: call a then call b",
+      "and the rules' own clauses are still there behind it, both of them");
+  }
   ok(/first thing/.test(String(EN.namedLabel(span, src2, cat, names, {}))),
     "with no chunk name, composition is still the fallback — the override is purely additive");
   ok(EN.namedLabel(span, src2, cat, {}, {}) === null,

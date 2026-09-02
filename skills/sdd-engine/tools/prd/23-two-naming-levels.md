@@ -119,3 +119,52 @@ is a separate, unopened question.
   member composition remains the fallback for words with no whole-chunk name. Check: `enfile.js:799`
   no longer asserts *"never invented whole"*, and an unnamed word still renders via composition.
   **Blocked on §4a and §4b — recorded, not yet holding.**
+
+---
+
+## 6. AMENDMENT 2026-09-01 — the chunk name leads, it does not replace
+
+§1's decision is unchanged: a recurring run must be recognised as **one pattern**, not rendered as N
+separate sentences. What is amended is what "one name for the chunk" was taken to mean in code.
+
+`namedLabel` implemented it as `if (whole) return sanitizeLabel(whole)` — the chunk name became the
+*entire* label, and every clause the node-kind rules had filled with the code's own identifiers was
+discarded. §3's phrasing invited this: *"a word that spans N statements gets one name, not N clauses
+joined by then"* is a statement about READING ORDER that reads like a statement about SUBSTITUTION.
+
+**Measured at `a736295`,** by giving every composite in the dictionary a name at once — the upper
+bound on composite naming, not a pilot:
+
+| all 233,248 composites named | concrete identifiers | clauses emitted | byte-identical |
+|---|---|---|---|
+| no chunk names (baseline) | 77,766 | 45,768 | 1037/1037 |
+| **name REPLACES content** (as implemented) | **33,229 — 44,537 gone, 57%** | 45,767 | 1037/1037 |
+| **name LEADS content** (amended) | **77,766 — none lost** | 45,768 | 1037/1037 |
+
+The middle row is the leaf-tier pilot's defect (27,673 -> 7,644) one level up, and it is larger
+there: s11 measured that **63% of the corpus's concrete identifiers live in d>=1 chunk labels**, so
+composite naming is where most of the corpus's specificity actually is. Byte-identity holds in every
+row, which is the point — nothing here is a correctness failure, and no gate that only checks bytes
+can see any of it.
+
+The amended render is a heading and its content:
+
+    charge the partner's commission: get `rate` from `getRate`, then call `chargeAccount`
+    ^ the name — recognition, one pattern    ^ the holes, still filled by the mine — the specifics
+
+The reader still meets the pattern first, which is what §1 asked for. The content behind it is
+composed exactly as it would be with no chunk name at all, so R-LANG-23's fold invariance holds
+through this path unchanged and the gate's detail check has something to count.
+
+**§4a is now closed, and closed the other way round.** It recorded a CONFLICT between the decision
+and `enfile.js`'s *"composed from its members, never invented whole"*. There is no conflict: the
+composition was right and the name sits in front of it. What was wrong was reading precedence as
+erasure.
+
+### 6a. One consequence worth stating separately
+
+A chunk name can no longer FIX a bad clause — it can only introduce one. If the rules render a run
+badly, naming the chunk now leaves the bad rendering visible behind the name. That is the intended
+trade and it matches §5D.2's priority: the fix for a bad clause is a node-kind RULE, which serves
+every codebase, not a name, which serves this corpus. Naming was never the instrument for that and
+the old behaviour was concealing the need for it.

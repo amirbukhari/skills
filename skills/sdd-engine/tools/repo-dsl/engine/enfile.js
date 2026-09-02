@@ -26,6 +26,7 @@ const cnl = require("./cnl");
 const DATA = require("./data-english");
 const G = require("./generators");
 const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
+const REF = require("./refusals");
 const P = require("./prose"); // reuse deterministic humanisation helpers (words/list/a) for labels
 
 const OPEN = "«", CLOSE = "»";
@@ -636,9 +637,18 @@ function spanActions(win, sf) {
     const rule = chunkRuleFor(win[wi]);
     if (rule) {
       let wj = wi; while (wj < win.length && rule.match(win[wj])) wj++;
-      const one = rule.render(win.slice(wi, wj), sf);
+      const sub = win.slice(wi, wj);
+      const one = rule.render(sub, sf);
       cover = [wi, wj];
       if (one) { actions.push(one); wi = wj; continue; }
+      /* The rule matched the KIND and then refused the run — the one refusal in this engine that
+       * names a hand-written rule rather than a mined word. Recorded so an unwritten case (a mixed
+       * export run, an import shape importPhrase cannot say) is a counted, named backlog item. */
+      if (REF.active()) {
+        REF.record({ reason: "rule-declined", rule: "chunkRule:" + rule.kind, stmts: sub.length,
+                     start: sub[0].getStart(sf), end: sub[sub.length - 1].getEnd(),
+                     detail: "run of " + sub.length + " " + rule.kind });
+      }
     }
     const st = win[wi++];
     cover = [wi - 1, wi];
@@ -942,11 +952,21 @@ function spanProse(win, sf) {
  * whole-file word through the gate. */
 const SAYS_NOTHING = /^(run a step|call a step|await a step|compute a value|branch on a condition|switch on a value|run a try\/catch|compose \d+ statements)$/;
 function chunkGloss(win, sf) {
-  let r; try { r = spanActions(win, sf); } catch (_) { return null; }
-  if (!r.actions.length) return null;
-  if (r.raw.some((x) => !x || SAYS_NOTHING.test(x))) return null; // pre-collapse: see spanActions
-  if (r.actions.some((x) => !x)) return null;
-  if (new Set(r.actions).size !== r.actions.length) return null; // mechanical repetition — rule missing
+  /* Each `return null` below is a refusal worth NAMING (refusals.js): this gate is what stands
+   * between a mined word and a chunk the reader ever sees, so a rule that quietly stops passing it
+   * shows up as lost collapse and nothing else. `no` records why and declines unchanged. */
+  const no = (detail) => {
+    if (REF.active() && win.length) {
+      REF.record({ reason: "gloss-refused", rule: "chunkGloss:" + detail, detail,
+                   start: win[0].getStart(sf), end: win[win.length - 1].getEnd(), stmts: win.length });
+    }
+    return null;
+  };
+  let r; try { r = spanActions(win, sf); } catch (_) { return no("threw"); }
+  if (!r.actions.length) return no("no-clauses");
+  if (r.raw.some((x) => !x || SAYS_NOTHING.test(x))) return no("says-nothing"); // pre-collapse: see spanActions
+  if (r.actions.some((x) => !x)) return no("empty-clause");
+  if (new Set(r.actions).size !== r.actions.length) return no("repetition"); // mechanical repetition — rule missing
   let out = P.list(r.actions, "then");
   if (r.guards.length) out += " — failing when " + P.list(r.guards);
   return out;
@@ -988,18 +1008,34 @@ const WN = require("./word-names");
 const NAMES = WN.load(AC.pathFor("word-names"));
 
 function namedLabel(s, source, cat, names, chunks) {
-  /* R-LANG-19: a WHOLE-CHUNK name outranks member composition. Amir's "No" (§5D.3D): a recurring
-   * run is one named pattern, not N clauses joined by "then". Composition below remains the
-   * fallback for every word that has no whole-chunk name, so this is purely additive. */
+  /* R-LANG-19 AS AMENDED 2026-09-01: a whole-chunk name is a HEADING OVER the content, never a
+   * REPLACEMENT FOR it. The original rule ("a whole-chunk name outranks member composition") was
+   * implemented as `if (whole) return whole` — one hole-free string standing in for every clause
+   * the rules had filled with the code's own identifiers. That is the leaf-tier pilot's defect one
+   * level up, and s11 measured the blast radius: 63% of the corpus's concrete identifiers live in
+   * d>=1 chunk labels, so an 80-name composite pilot would have deleted ~23,000 of them.
+   *
+   * A chunk name still does the job Amir asked it to do in §5D.3D — a recurring run reads as ONE
+   * recognised pattern rather than N clauses joined by "then" — because it is what the reader sees
+   * FIRST. What it no longer does is take the identifiers away with it:
+   *
+   *     charge the partner's commission: get `rate` from `getRate`, then call `chargeAccount`
+   *     ^ the name (recognition)          ^ the holes, still filled by the mine (the specifics)
+   *
+   * The content is composed exactly as it would be with no chunk name at all, so R-LANG-23's fold
+   * invariance holds through this path unchanged and the gate's detail check has something to
+   * count. A chunk name is now purely ADDITIVE — it can only ever make a label say more. */
   const whole = WN.chunkNameFor(cat, s.payload, chunks);
-  if (whole) return sanitizeLabel(whole);
   const clauses = WN.clausesFor(cat, s.payload, names);
-  if (!clauses) return null;
+  if (!clauses && !whole) return null;
   let frag;
   try { frag = ts.createSourceFile("s.ts", source.slice(s.start, s.end), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS); }
   catch (_) { return null; }
   const stmts = [...frag.statements];
-  if (stmts.length !== clauses.length) return null; // leaf/statement alignment broken — do not guess
+  // leaf/statement alignment broken — do not guess. A chunk name alone needs no alignment: it is a
+  // heading over whatever the rules say, so it survives a mismatch that would void a leaf name.
+  if (clauses && stmts.length !== clauses.length) { if (!whole) return null; }
+  const leafClauses = (clauses && stmts.length === clauses.length) ? clauses : null;
 
   /* A NAME IS A LABEL, NOT A STRUCTURE (§5D.3A as amended 2026-09-01, R-LANG-23). Amir's ruling:
    * structure is computed from the UNNAMED dictionary first and names are applied afterwards,
@@ -1019,10 +1055,10 @@ function namedLabel(s, source, cat, names, chunks) {
   let r;
   try { r = spanActions(stmts, frag); } catch (_) { return null; }
   if (!r.raw.length) return null;
-  let reached = false;
+  let reached = !!whole;
   const pieces = r.raw.map((a, i) => {
     const [from, to] = r.covers[i] || [0, 0];
-    if (to - from === 1 && clauses[from]) { reached = true; return clauses[from]; }
+    if (to - from === 1 && leafClauses && leafClauses[from]) { reached = true; return leafClauses[from]; }
     return a;
   }).filter(Boolean);
   if (!pieces.length) return null;
@@ -1042,7 +1078,8 @@ function namedLabel(s, source, cat, names, chunks) {
    * value because every existing caller consumes a bare string, and a gate that requires its
    * subject to be rewritten to accommodate it tends not to get adopted. */
   namedLabel.lastClauses = runs.length;
-  return sanitizeLabel(out);
+  /* the heading, then the content it is a heading FOR. Never one or the other. */
+  return sanitizeLabel(whole ? whole + ": " + out : out);
 }
 
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
@@ -1248,7 +1285,17 @@ function NestRenderer(sf, source, index) {
      * the gate is in a position to do. This is what would have caught the defect that unfolded 283
      * import runs while passing all four existing checks. */
     if (s && namedLabel.lastClauses !== null) stats.labelClauses += namedLabel.lastClauses;
-    else { try { stats.labelClauses += spanActions(run, sf).actions.length; } catch (_) { /* unruled */ } }
+    else {
+      /* Counted off the RE-PARSED SLICE, because that is what genLabel actually renders from
+       * (`ts.createSourceFile` over `source.slice(start, end)`). Counting the original `run` nodes
+       * here instead made the two branches disagree by a handful of clauses on spans where a name
+       * merely CHANGED WHICH BRANCH RAN — a measurement artifact that reads exactly like a name
+       * splitting a fold, and would have failed check 5 on a batch that had done nothing wrong. */
+      try {
+        const frag = ts.createSourceFile("s.ts", source.slice(start, end), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+        stats.labelClauses += spanActions([...frag.statements], frag).actions.length;
+      } catch (_) { /* unruled */ }
+    }
     return sanitizeLabel(s || genLabel(start, end, source, run.length));
   };
 
