@@ -4794,3 +4794,23 @@ proof"*, which is the part I can settle; the act of publishing is his. **Recomme
 last-match-wins, per §5), leave the other three ignored, and correct R-CFG-12 to name the repo that
 actually exists. Until then the honest statement is that §8B's protection is a `PROTECTED` list in a
 cleaner, not version control.
+
+**10. UNCLAIMED FOLLOW-UP, logged not taken: the miner and the renderer now disagree about `;`.**
+`build-lzw-generators.js symbolStreams` (line ~102) splits a symbol stream at any statement with no
+parts, and an `EmptyStatement` has none — so the miner still treats a stray `;` as a wall, while
+`enfile.js foldableRuns` now absorbs it. Verified by reading both, not inferred.
+
+The consequence is measured and visible today: **27 `no-word` refusals**, one per affected file, in
+`audit-rules.js` — those files' whole top-level runs were never mined as one stream, so no word
+exists to cover what the renderer now asks about. They collapse structurally instead, which is why
+one-word-per-file still reached 99.3%; the cost is that the collapse is a name over children rather
+than a lexical word, and `chunksAtomic` is lower than it could be.
+
+Closing it means teaching the miner the same absorption and re-mining, which changes the catalog
+artifact — a bigger blast radius than the renderer-side fix, and it needs its own before/after on
+byte-identity, `composites`, `maxDepth` and the refusal baseline. **Not started, not claimed.** It is
+a real §8B producer/consumer divergence, it is a *known* one rather than a silent one, and the
+audit already names every file it affects.
+
+*(Two other things stay deliberately open and are Amir's design calls, not backlog: the `.en` -> `.ts`
+writer question and the whole-codebase mechanism question.)*
