@@ -1360,6 +1360,36 @@ const ROWS = [
         exists("engine/sdd-clean.test.js") ? "pinned by engine/sdd-clean.test.js (11 assertions, throwaway tmp roots), mutation-checked"
                                            : "NO TEST — the guard is asserted by reading the source only");
     } },
+
+  { id: "R-REND-6", req: "THE SENTENCE IS AUTHORITATIVE: a hand-edit to a clause's English MUST change the compiled TypeScript.",
+    run() {
+      const f = read("engine/enfile.js");
+      if (!f.ok) return FAILS(null, f.why);
+      /* CUT 1 — detection. The register says it shipped 2026-08-31: deriveGloss re-derives the
+       * gloss from the payload and THROWS on disagreement, opt-in via SDD_DERIVE_CHECK. Checked
+       * structurally, because running it needs a corpus and this row must be decidable without one. */
+      const derive = /function deriveGloss\(/.test(f.text);
+      const wired = /const derived = deriveGloss\(/.test(f.text) && /deriveCheck\b/.test(f.text);
+      const knob = /DERIVE_CHECK = process\.env\.SDD_DERIVE_CHECK === "1"/.test(f.text);
+      if (!derive || !wired) return FAILS(`deriveGloss:${derive} wired:${wired}`,
+        "CUT 1 is gone — a hand-edit is not even DETECTED, which the register records as shipped");
+      if (!knob) return FAILS("no SDD_DERIVE_CHECK knob",
+        "the check cannot be turned on, so its 1037/1037 zero-false-positive measurement is unreproducible");
+      /* CUT 2 — effect. The register states plainly that it "needs the §5E.3.2 grammar parser and
+       * is NOT BUILT". So the row's own MUST does not hold, and this is red on purpose, exactly as
+       * R-ARCH-15 is: the register's known gap, made visible where the register is read.
+       *
+       * MEASURED 2026-09-01 by `measure-hand-edit.js` over 154 evenly-sampled .en files: of 580
+       * hand edits to the English, 0 changed the compiled .ts. With the check OFF all 580 were
+       * SILENT — the file still compiled and the author's edit was gone. With SDD_DERIVE_CHECK=1
+       * the 460 edits on ATOMIC chunks all became loud refusals (0 silent), and the 120 on
+       * STRUCTURAL chunks stayed silent because a ▷ chunk has children instead of a payload, so
+       * there is nothing to derive a gloss from — a documented boundary of the guard, not a hole.
+       * Controls landed in the same run: payload-hole 150/150 and verbatim 4/4 took effect. */
+      return FAILS("CUT 1 (detection) shipped; CUT 2 (the edit takes effect) not built — 0 of 580 sampled English edits changed the .ts",
+        "with the check off all 580 were SILENT; with it on, 460 atomic became refusals and 120 structural stayed silent (▷ has no payload to derive from). " +
+        "Reproduce: node measure-hand-edit.js. Closing it needs the §5E.3.2 grammar parser (§18 Q-1)");
+    } },
 ];
 
 /* ---------- evaluate ---------- */
