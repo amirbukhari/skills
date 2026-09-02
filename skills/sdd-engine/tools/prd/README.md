@@ -74,6 +74,7 @@ PART IV — and engine source comments cite it directly.
 | 23 | [§5D.3D Naming has two levels — the chunk and the leaf](23-two-naming-levels.md) | 121 |
 | 24 | [§5D.4A One word per file — the mechanism, the measurement, and the implementation](24-one-word-per-file-measured.md) | 238 |
 | 25 | [§5D.3E Depth-bounded naming — rejected as a boundary, adopted as an order](25-depth-naming-evaluated.md) | 189 |
+| 26 | [§5D.4C The arbitrary ceilings removed — and what actually blocks one word per file](26-ceiling-removed.md) | 159 |
 | 26 | [§5D.3F The naming pass — built, and the three Q-9 mechanics proposed](26-naming-pass-mechanics.md) | 156 |
 
 ## How the split was made

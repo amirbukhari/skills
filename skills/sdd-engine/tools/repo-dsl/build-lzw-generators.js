@@ -67,7 +67,19 @@ const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus wa
 // the bound bound, never whether relaxing it would help.
 // Mine wall-clock was 1-2s at every value, so cost was never the constraint.
 // WHOLE-FILE WORDS DID NOT MOVE: 74/1037 at every value. MAXWIN was never what blocked them.
-const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 64);
+// AMIR'S DECISION, 2026-09-01 — THE CEILING IS GONE, AND IT WAS FREE TO REMOVE.
+// MAXWIN was an arbitrary bound, and the sweep above concluded "the default stays 64" on the
+// ground that a higher ceiling bought no review surface. That conclusion was measured against the
+// OLD renderer, which refused every whole-run word unconditionally (the original R-MINE-7). With
+// the LIFT now conditional (R-ARCH-17, §5D.4A) a whole-file word is something the renderer will
+// actually emit, so the ceiling had to be re-examined rather than inherited.
+//
+// COST OF REMOVING IT: measured as zero. The K loop in buildSaturated is bounded by the LONGEST
+// STREAM, not by MAXWIN, so windows enumerated are 152,844 at 64, 153,015 at 128, and 153,015 at
+// both 256 and 1024 — identical, because the longest stream in the corpus is 77 statements. A
+// ceiling below 77 does not save work; it only forbids words.
+// The default is now effectively unbounded. Set MAXWIN explicitly to restore a ceiling.
+const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 100000);
 
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 function blocks(sf) { const out = []; const visit = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) { if (n.statements.length) out.push([...n.statements]); } ts.forEachChild(n, visit); }; visit(sf); return out; }

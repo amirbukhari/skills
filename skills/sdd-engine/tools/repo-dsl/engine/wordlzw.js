@@ -99,9 +99,25 @@ function build(streams, opts = {}) {
  */
 function buildSaturated(streams, opts = {}) {
   const maxWin = opts.maxWin || 8, minCount = opts.minCount || 2;
+  /* STRUCTURE IS NOT GATED ON RECURRENCE (Amir, 2026-09-01). Textbook LZW creates an entry from
+   * `prefix + one new symbol` on every step of a single pass; whether that entry is ever REUSED is
+   * a separate question. This builder is a saturating window enumeration rather than a single
+   * pass, but the same principle now applies: every window becomes an entry, and any frequency
+   * judgement belongs downstream — to `promote` (what the renderer may use) and to naming (whether
+   * a word is worth a human or model name). Creating the structural record is free of that
+   * decision, which is what lets "can we represent this as one word" be answered independently of
+   * "is it worth naming". `createGate` is retained ONLY so a caller can deliberately restore the
+   * old behaviour for measurement. */
+  const createGate = opts.createMinCount != null ? opts.createMinCount : 1;
   const idOfSym = new Map(), symOfId = [], symCounts = new Map();
   function sym(s) { if (!idOfSym.has(s)) { idOfSym.set(s, symOfId.length); symOfId.push(s); } symCounts.set(s, (symCounts.get(s) || 0) + 1); return idOfSym.get(s); }
   const symStreams = streams.map((st) => st.map(sym));
+  /* The K loop below is bounded by the longest stream, never by maxWin alone: a window longer than
+   * the longest stream cannot exist, so iterating past it is pure waste. This is what makes an
+   * effectively-unbounded maxWin cost the same as a tight one — MEASURED on this corpus: 152,844
+   * windows at maxWin=64, 153,015 at 128, and 153,015 at 256 and at 1024. The ceiling stopped
+   * buying anything at 128 because the longest stream is 77 statements. */
+  const longestStream = symStreams.reduce((m, s) => (s.length > m ? s.length : m), 0);
   const keyOf = (syms) => syms.join(",");
 
   const dict = [], byKey = new Map();
@@ -109,14 +125,14 @@ function buildSaturated(streams, opts = {}) {
   // length-1 alphabet (kept-by-recurrence decided in promote via symCounts)
   for (let s = 0; s < symOfId.length; s++) add([s], null, s, symCounts.get(symOfId[s]) || 0);
   // lengths 2..maxWin: count windows of exactly length K, then add the recurring ones (prefix-first).
-  for (let K = 2; K <= maxWin; K++) {
+  for (let K = 2; K <= Math.min(maxWin, longestStream); K++) {
     const win = new Map(); // csv -> { count, symbols }
     for (const syms of symStreams) for (let s = 0; s + K <= syms.length; s++) {
       const seg = syms.slice(s, s + K), csv = keyOf(seg);
       let e = win.get(csv); if (!e) { e = { count: 0, symbols: seg }; win.set(csv, e); } e.count++;
     }
     for (const [, e] of win) {
-      if (e.count < minCount) continue;
+      if (e.count < createGate) continue; // NOT minCount — see the note at the top of this function
       const prefixId = byKey.get(keyOf(e.symbols.slice(0, K - 1)));
       if (prefixId == null) continue; // prefix didn't clear the bar (only if minCount>window-count, impossible)
       add(e.symbols, prefixId, e.symbols[K - 1], e.count);

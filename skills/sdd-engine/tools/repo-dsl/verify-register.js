@@ -238,11 +238,23 @@ const ROWS = [
       return c.got === "1" ? HOLDS(`${c.got} at ${c.where}${note}`) : FAILS(`${c.got} at ${c.where}`, "expected 1");
     } },
 
-  { id: "R-MINE-2", req: "MAXWIN is 64, a ceiling and not a tuned value.",
+  { id: "R-MINE-12", req: "No fixed depth/window ceiling may bind below what the corpus needs. MAXWIN is not a tuned value (supersedes R-MINE-2's `MAXWIN is 64`).",
     run() {
       const c = constValue("build-lzw-generators.js", "MAXWIN");
       if (!c.ok) return FAILS(null, c.why);
-      return c.got === "64" ? HOLDS(`${c.got} at ${c.where}`) : FAILS(`${c.got} at ${c.where}`, "expected 64");
+      const maxWin = Number(c.got);
+      const i = enIndex();
+      if (i.absent) return MANUAL(`MAXWIN ${maxWin} at ${c.where}, but no manifest to compare against`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const d = i.j.generators && i.j.generators.dictionaryMaxDepth;
+      if (typeof d !== "number") return FAILS(null, "no generators.dictionaryMaxDepth to compare the ceiling against");
+      // The signature of a BINDING ceiling is dictionaryMaxDepth === maxWin - 1: the mine stopped
+      // because the parameter said to, not because the corpus ran out. That is the failure.
+      if (d === maxWin - 1)
+        return FAILS(`dictionaryMaxDepth ${d} === MAXWIN ${maxWin} - 1`,
+          "the ceiling is PINNING the mine -- depth is parameter-bound, not corpus-bound (this is exactly what MAXWIN=64 did at depth 63)");
+      return HOLDS(`MAXWIN ${maxWin} at ${c.where}; dictionaryMaxDepth ${d}, ${maxWin - 1 - d} below the ceiling`,
+        "depth is bound by the longest statement stream in the corpus, not by the parameter");
     } },
 
   { id: "R-MINE-3", req: "MIN_SKEL MUST stay 8.",

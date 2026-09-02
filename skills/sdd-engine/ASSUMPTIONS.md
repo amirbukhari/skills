@@ -2878,3 +2878,49 @@ missing was three things, now added:
 **Nothing was re-measured for this pass** — the numbers are the ones produced earlier tonight and
 already committed in `aada578`. I checked each of Amir's four asks against what was on disk before
 writing, and added only the three gaps rather than restating work that was already there.
+
+---
+
+## 2026-09-01 — §5D.4C, removing the mining ceilings (Amir's explicit go-ahead)
+
+Amir's challenge was that textbook LZW creates an entry from prefix + one new symbol, with no
+recurrence requirement and no window ceiling, so any such limit in our miner is ours, not LZW's.
+He then gave an explicit go-ahead to remove them, with three stop-and-report guardrails
+(byte-identity break, a real measured perf/memory blowup, or a constraint existing for an
+unanticipated reason). What I changed, and the judgment calls inside it:
+
+1. **I separated the creation gate from `MIN_COUNT` rather than deleting it**
+   (`wordlzw.js` `buildSaturated`, new `createMinCount`, default 1). `MIN_COUNT` is still read on
+   the *selection* side. Deleting the parameter outright would have been the literal reading of
+   "remove the constraint", but it would also have removed the ability to ever gate creation again,
+   and the operative fact is that the default was already 1 — **R-MINE-1 had required exactly that
+   all along**, so the gate never fired in practice. The change makes the decoupling structural and
+   nameable (R-MINE-11) instead of incidental.
+
+2. **I clamped the window loop to the longest stream** instead of leaving `maxWin` unbounded to
+   iterate freely. With `MAXWIN` now effectively unbounded (100000), an unclamped `K` loop would
+   have spun through ~99,900 empty iterations per axis. The clamp is what makes "no ceiling" free
+   rather than merely survivable, and it is why windows measured 153,015 at 128, 256 and 1024
+   *alike* — enumeration is bounded by the data, not the parameter.
+
+3. **I did not touch the units rule** (`enlzw.js:123`), even though it is now the single largest
+   blocker of one-word-per-file (294 of 941 files). It is **R-MINE-8**, filed in §4B as Amir's own
+   call — "a word means one thing" — and pinned by `unit-boundary.test.js`. That is guardrail 3:
+   a constraint that exists for a stated reason. Reported, not removed.
+
+4. **I did not touch the scheduler objective** (`weight = w.len - 1`), which blocks 306 files that
+   pass every other gate. Changing what the scheduler maximises is a change to R-ARCH-16 vs
+   R-ARCH-15, a design decision, not a ceiling removal. Reported for Amir.
+
+5. **Correction to my own earlier reporting.** In §5D.4A, in a prior ASSUMPTIONS entry, and in
+   commit `4edebd3`'s message I claimed that recreating `word-names.json` made `word-names.test.js`
+   pass rather than being red by decision. **That was wrong.** I had read the run with `tail -4` and
+   missed a `FAIL` earlier in the output. The test is still red, for the right reason: its
+   non-vacuity assertion needs a hand-authored leaf name to reach a label, and the file has zero
+   authored names of either kind. The correction is written into §5D.4C §7 and applied to §5D.4A.
+   The lesson I am recording rather than the slip: never read a test result off a tail.
+
+**Measured, not assumed:** re-mine 3.96 s / 591 MB peak, `maxDepth` 63 → 76 (= the corpus's
+77-statement longest stream − 1, so corpus-bound not parameter-bound); re-render byte-identity
+1037/1037, one-word-per-file 316 → 317, review surface 13,874 → 13,873, 0 model calls. No guardrail
+tripped.

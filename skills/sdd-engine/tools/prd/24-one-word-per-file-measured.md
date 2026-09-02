@@ -152,9 +152,13 @@ modelCalls .................... 0
    before) and **`chunks`** (a whole multi-statement word, named as one clause). `chunks` is
    **declared in the registry's `requires`**, so a consumer cannot read a file that lacks it. Chunk
    keys are `wc:`/`nc:` + sha256 of the word's **ordered leaf skeletons** — content-addressed for the
-   same reason leaf names are: word ids are array indices and move on every re-mine. *This also
-   clears the §8A / R-LANG-5 contradiction: the registered artifact exists again, and
-   `word-names.test.js` passes rather than being red by decision.*
+   same reason leaf names are: word ids are array indices and move on every re-mine. *This clears the §8A / R-LANG-5 contradiction: the registered artifact exists again, validates, and
+   declares `chunks`, so R-LANG-19's mechanism has a home.* **CORRECTION (§5D.4C §7): an earlier
+   draft of this line also claimed `word-names.test.js` now passes "rather than being red by
+   decision". That was wrong — a reporting error, the failing assertion sits early in the output and
+   only the tail was read. The test is still red, for the right reason: its non-vacuity assertion
+   needs a hand-authored leaf name to reach a label, and the file holds 0 authored names of either
+   kind. Authoring is still Amir's pass.**
 
 2. **Whole-chunk names outrank member composition (R-LANG-19).** `namedLabel` consults
    `WN.chunkNameFor` **first** and returns that one name; member composition is now the *fallback*
