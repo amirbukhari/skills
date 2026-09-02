@@ -230,6 +230,37 @@ const ROWS = [
         : HOLDS("no live reader of generators.json", "the flat producer does not exist at all");
     } },
 
+  { id: "R-DRIFT-1", req: "Every rule refusal on the byte-exact path MUST be recordable, naming which rule, which file/span, and why.",
+    run() {
+      /* The recorder is worthless if it is not WIRED. Checked as the set of recording sites rather
+       * than as "refusals.js exists": a refactor that drops the call in runWord leaves the module
+       * present, the audit reporting a tidy zero, and the drift invisible again. */
+      const need = [[/REF\.record\(/, "engine/enlzw.js"], [/REF\.record\(/, "engine/enfile.js"]];
+      const missing = need.filter(([re, rel]) => !re.test(fs.readFileSync(path.join(HERE, rel), "utf8")));
+      if (missing.length) return FAILS(missing.map((m) => m[1]).join(", "), "a refusal site stopped recording");
+      const R = require("./engine/refusals");
+      const reasons = R.REASON_NAMES.length;
+      return reasons >= 6 ? HOLDS(`${reasons} named reasons, recorded in enlzw.js and enfile.js`,
+                                  "audit-rules.js is the consumer; 295 refused spans on the corpus at 2026-09-01")
+                          : FAILS(String(reasons), "the refusal vocabulary shrank below the six recorded reasons");
+    } },
+
+  { id: "R-DRIFT-2", req: "Catalog drift MUST be gated differentially against a baseline, never on a refusal counter that cannot fire.",
+    run() {
+      const audit = fs.readFileSync(path.join(HERE, "audit-rules.js"), "utf8");
+      const R = require("./engine/refusals");
+      const dead = Object.keys(R.UNREACHABLE);
+      if (!dead.length) return FAILS("none", "refusals.js no longer declares which reasons cannot fire (R-DRIFT-3)");
+      /* The failure mode this row exists to catch: someone reinstating `drift = sum(dead reasons)`
+       * and gating on it — a zero that cannot move, published as a passing guard (R-MECH-8). */
+      const tautology = dead.some((r) => new RegExp("drift[\\s\\S]{0,120}" + r).test(audit));
+      if (tautology) return FAILS("audit-rules.js", "the drift gate reads a counter that cannot fire");
+      return /--write-baseline/.test(audit) && /refuse MORE than at baseline/.test(audit)
+        ? HOLDS("baseline differential, " + dead.length + " reasons declared unreachable",
+                "a rule whose refusal count ROSE is one that used to match this corpus and stopped")
+        : FAILS("audit-rules.js", "no baseline comparison found — drift would be unobservable");
+    } },
+
   { id: "R-MINE-1", req: "MIN_COUNT MUST be 1.",
     run() {
       const c = constValue("build-lzw-generators.js", "MIN_COUNT");

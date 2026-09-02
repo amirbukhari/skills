@@ -18,6 +18,7 @@ const AC = require("./artifact-contract");
 const ts = require("typescript");
 const G = require("./generators");
 const W = require("./wordlzw");
+const REF = require("./refusals");
 
 function loadLzw(catalogPath) {
   /* Contract-checked (PRD §8B): a dictionary whose shape we cannot verify is REFUSED, never
@@ -261,21 +262,44 @@ function genSpans(sf, source, cat, opts) {
  * NARROW IS PREFERRED, as everywhere else (§5A arbitration): wide only where narrow has no word.
  * The byte gate is the same one genSpans uses, on the same bytes, so admitting a word here can no
  * more break byte-identity than admitting it there. */
+const kindName = (n) => (n && ts.SyntaxKind[n.kind]) || "Unknown";
+
 function runWord(run, sf, source, cat) {
   if (!cat || !run.length) return null;
   const start = run[0].getStart(sf), end = run[run.length - 1].getEnd();
   const slice = source.slice(start, end);
+  /* REFUSAL RECORDING (observational — see refusals.js). Both axes are tried, so a run that fails
+   * twice would count twice; instead we keep only the FURTHEST point reached across axes and record
+   * one event per run. Furthest is the informative one: "no word existed on either axis" and "a
+   * word existed and its skeleton no longer refills these bytes" are different facts, and the
+   * second is drift. Nothing is recorded when either axis succeeds. */
+  let far = null;
+  const reach = (rank, reason, rule, axis, detail) => {
+    if (!REF.active()) return;
+    if (!far || rank > far.rank) far = { rank, reason, rule, axis, detail };
+  };
   for (const wide of [false, true]) {
+    const ax = wide ? "wide" : "narrow";
     const axis = wide ? cat.wide : cat.narrow;
-    const syms = run.map((st) => { const p = G.generalStmtParts(st, sf, wide); return p ? G.keyOf(p) : null; });
-    if (syms.some((s) => s == null)) continue;
+    let bad = -1;
+    const syms = run.map((st, i) => { const p = G.generalStmtParts(st, sf, wide); if (!p && bad < 0) bad = i; return p ? G.keyOf(p) : null; });
+    if (syms.some((s) => s == null)) {
+      /* The rule that declined is the canonicalizer for THAT node kind — the actionable name, since
+       * fixing it means teaching generalStmtParts this shape. */
+      reach(1, "no-symbol", "generalStmtParts:" + kindName(run[bad]), ax, "statement " + (bad + 1) + " of " + run.length);
+      continue;
+    }
     const w = wordsAt(axis, syms, 0).filter((x) => x.len >= run.length)[0];
-    if (!w) continue;
+    if (!w) { reach(2, "no-word", "dictionary:" + kindName(run[0]), ax, "run of " + run.length + " starting " + kindName(run[0])); continue; }
     const wp = G.windowParts(run, sf, wide);
-    if (!wp || wp.fill !== slice) continue;
+    /* From here the rule that declined is a NAMED CATALOG ENTRY: word #id was mined from source that
+     * looked like this and no longer refills it. This is the drift the audit exists to surface. */
+    if (!wp) { reach(3, "parts-inexact", "word#" + w.id + "@" + ax, ax, "len " + w.len + ", d " + axis.words[w.id].d); continue; }
+    if (wp.fill !== slice) { reach(4, "byte-gate", "word#" + w.id + "@" + ax, ax, "refilled " + wp.fill.length + " B vs " + slice.length + " B of source"); continue; }
     return { start, end, stmts: run.length, depth: axis.words[w.id].d,
              payload: { d: "lzw", a: wide ? "w" : "n", w: w.id, h: wp.holes } };
   }
+  if (far) REF.record({ reason: far.reason, rule: far.rule, axis: far.axis, detail: far.detail, start, end, stmts: run.length });
   return null;
 }
 

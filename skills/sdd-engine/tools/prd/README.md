@@ -81,6 +81,7 @@ PART IV — and engine source comments cite it directly.
 | 30 | [§5D.4E Nested rendering: words made of words, to leaves](30-nested-rendering.md) | 108 |
 | 31 | [§5D.5 The NDJSON progress stream](31-progress-stream.md) | 72 |
 | 32 | [§5F Architecture drift detection: residual is the drift signal](32-archetype-drift-check.md) | 108 |
+| 33 | [§5D.6 The silent rule mismatch detector: refusals, named](33-rule-refusal-audit.md) | 102 |
 
 ## How the split was made
 
