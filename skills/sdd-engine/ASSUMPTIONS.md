@@ -3140,3 +3140,48 @@ fields). Renumbering would break cross-references, so this needs Amir's call on 
 
 **Not touched:** `tools/repo-dsl/engine/enfile.js` is modified in the working tree and is not mine —
 5f misattributed it to me earlier. Left unstaged for its real owner.
+
+## 2026-09-01 — the 34 files that do not collapse: three causes, none of them "multiple exports"
+
+**Measured, not inferred.** Read-only in-memory renders over the whole corpus; nothing written to
+the corpus, no engine file changed. Reproduced the headline first: **1003/1037 (96.7%), 34 not
+collapsed, 0 threw** — matching 3df26f8 exactly.
+
+`oneWord` is `topSpans === 1 && outsideNonWs === 0` (`enfile.js:1476`), so there are two ways to
+fail. All 34 fall into three causes, each with **perfect separation** across the corpus:
+
+| cause | files | collapse / do not, corpus-wide |
+|---|---|---|
+| a stray top-level `EmptyStatement` (`;`) | **29** | 0 collapse / 29 do not |
+| a leading `/* eslint-disable … */` file comment | **3** | 0 collapse / 3 do not |
+| zero top-level statements (whitespace-only file) | **2** | n/a — nothing to collapse |
+
+29 + 3 + 2 = 34. Not one of the 34 fails for having multiple top-level exports.
+
+**The 29 are one shape, not 29 cases:** 28 are `redux/features/*/xxxSlice.ts`, each with a stray `;`
+after an interface declaration. A no-op token splits the file's top-level run in two, so
+`topSpans` is 2 and the `;` itself is the single character outside any word.
+
+**Causality was tested, not assumed** — removing the cause in memory and re-rendering:
+**28/29** stray-`;` files then collapse to one word; **3/3** leading-comment files do.
+
+**This says the renderer already handles multiple top-level exports.** `authSlice.ts` statements
+5–7 are `export const authSlice`, `export const { setUserToken }` and `export default` — all three
+render into ONE chunk. The blocker is the semantically-empty `;`, not the export count.
+
+**So: 32 of 34 are a fixable gap, 2 are a metric-definition question, 0 are genuine edge cases.**
+The two whitespace-only files (1 byte and 9 bytes, both only newlines) cannot have one top-level
+word; whether they belong in the denominator is a definition call for Amir, not a rendering fix.
+
+**The one file I cannot explain, stated as unexplained:** `promotedListings/interfaces.ts`. Removing
+its `;` takes it to `topSpans 0, outsideNonWs 196` — the renderer then claims nothing at all. Two
+candidate rules were tested and **both refuted**: type-only files collapse fine (84 do, 1 does not),
+and so do type-only files with no imports (30 do, 1 does not). No clean rule covers it; it needs its
+own look rather than an invented explanation.
+
+**Integrity caveat, and it matters.** Another lane modified `engine/enfile.js` (+66/−9) DURING these
+measurements. I re-ran the full probe afterwards: still 1003/1037, still the same 34 files by path.
+So the numbers held across that edit — but they are a reading of one working tree at one moment,
+not of a commit.
+
+**No code changed.** The task was to investigate and report.
