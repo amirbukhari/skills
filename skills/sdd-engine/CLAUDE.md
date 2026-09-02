@@ -210,6 +210,26 @@ This gap was silently forgotten once already.
       of the day was made, on `test-lzw-roundtrip.js`. Everything else was caught after the fact.
     - For a file several lanes append to (`ASSUMPTIONS.md`), diff the added hunks and confirm they
       are yours: `git diff -- <file> | grep '^+## '`.
+    - **Read the minus lines, not just the count.** The numstat gap tells you *something* is wrong;
+      `git diff -- <path> | grep '^-'` tells you *what*. *2026-08-31* — `enfile.js` reported 70
+      insertions where ~56 were written, and reading the removals identified four deletions as
+      another lane's, which the count alone could never have said. A gap is a signal; the minus
+      lines are the diagnosis.
+    - **An EMPTY numstat on a file you just edited means someone else COMMITTED your work — not
+      that you lost it.** *2026-08-31* — six new register rows showed a clean numstat and were
+      briefly read as vanished; they were on `HEAD` inside another lane's commit, whose message
+      described none of them. Check `git log -S'<a distinctive string you wrote>' -- <path>` before
+      assuming anything, and expect the answer to be a commit, not a loss.
+    - **Two lanes in the SAME FILE cannot be separated by path, so `-o` offers nothing.** This is
+      the case the rule above does not cover. Do not ask the other lane to commit first and wait,
+      and do not sweep their hunk in. Build the commit from the index instead: `git show
+      HEAD:<path>` to a temp file, re-apply only your own edits, `node --check` it, `git
+      hash-object -w`, `git update-index --cacheinfo 100644,<sha>,<path>`, assert their hunk is
+      absent from `git diff --cached`, then commit **from the index** (no paths, no `-a`).
+      *Verified 2026-08-31* — staged diff went 70/9 → 56/5 with zero hits for their marker, and
+      after the commit the marker was still in the working tree, so their change survived and
+      stayed theirs to commit. Check `git diff --cached --numstat` is empty first, or you will
+      sweep at the index instead of at the path.
   - **Never stage a deletion you cannot account for.** If `git status` shows a file gone that you did
     not remove, leave it unstaged and ask. Deletions in this repo have been deliberate manual wipes
     more than once.
