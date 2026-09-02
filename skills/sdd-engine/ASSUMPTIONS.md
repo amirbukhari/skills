@@ -4386,3 +4386,66 @@ neighbour (`R-ARCH-16`) instead of claiming a check that does not exist.
 and 27/27 ordinal collisions were already fixed by `776a0d1`. Both were on the batch list; neither
 needed doing. My §5D.3G edit to `engine/chunk-naming.test.js` sits in a file the concurrent lane has
 uncommitted work in, so it rides with that lane rather than being split out.
+
+## C9 — the worksheet leak, and the guard that was green over it. 2026-09-01
+
+Picked up from s9's Tier C (`244450c`) as the highest-value unclaimed item: s7 holds the doc-sync
+batch (C3/C4/C5/C6/C7), s9 holds R-ARCH-16 and the register dedup, 5f took `write-en-files.js`,
+A3 and B1 are reserved for Amir, `enfile.js` is s16's. C9 was unclaimed, is code not docs, and is
+security-shaped. Remaining unclaimed after this: **C1** and **C11**.
+
+### What was actually true
+
+`name-words-lzw.js:32` wrote its worksheet to `path.join(__dirname, ...)`. On disk in the engine
+tree: **2,441,332 bytes**, containing **2,989 `hydra`, 731 `rentsync`, 400 `jamesgmarks`, 358
+`Xero`, 149 `BillingAccount`** — verbatim corpus identifiers and real source snippets, in a repo
+with a **public remote**. The only control was root `.gitignore:25` naming that one filename.
+
+**And `engine/artifact-location.test.js` — the guard written for exactly this — printed
+`ok  the engine tree holds no corpus-derived file on disk` while the file sat there.** That is a
+false green of the same class 5a fixed in `sdd-check.js` tonight, in the one test whose header says
+*"the point of this test is that 'none of it had been pushed' stops being luck."*
+
+Two independent reasons it missed:
+
+- **(c)** sweeps a hardcoded `DERIVED` filename list. The worksheet was invisible because nobody had
+  added its name. An allowlist guard can only catch a leak someone has already met.
+- **(d)** grepped for `__dirname` joined to `"catalog"` or `"results"`. The offending line was a bare
+  filename, so the pattern never saw it.
+
+### The fix, and the judgment calls in it
+
+1. **Producer repointed** to `<corpus>/.cache/spec-derived/` via `AC.HOMES.cache`. *Judgment call:*
+   used `AC.HOMES.cache` rather than the `path.join(CORPUS, ".cache", "spec-derived", …)` spelling
+   that five other call sites use, because `repo-dsl.js:56` states the rule outright — *"AC.HOMES
+   owns 'sen/catalog' and '.cache/spec-derived'; a second spelling of either is how two producers end
+   up writing one kind to two places."* Cache home, not tracked, because a re-run rebuilds it.
+2. **The 2.4MB file was MOVED, not deleted** — CLAUDE.md §7 forbids deletions without Amir's word.
+   `md5 a013dbdb9b6dc155955e7cce2e94c045` before and after.
+3. **New assertion (c2), deliberately with no allowlist.** Corpus-derived output is *by definition*
+   not tracked — that is what makes it dangerous and what makes it gitignored. So: every `.json` on
+   disk in the engine tree must be tracked by git. Content-independent on purpose, so it cannot be
+   fooled by a leak carrying no identifier we thought to grep for.
+4. **(d) broadened** to any `.json` anchored to `__dirname`.
+5. *Judgment call:* **left `.gitignore:25` and its siblings in place.** They are now redundant, but
+   removing them is a change Amir did not ask for and they are harmless defence in depth.
+
+### The mutation test earned its keep — it broke my own first version
+
+`git ls-files --others --ignored` does **not** add ignored files to the untracked listing, it
+**restricts** the listing to only the ignored ones. So my first (c2) caught the worksheet and would
+have silently missed any *plain-untracked* corpus spill. Found by dropping an un-ignored `.json` in
+the tree and watching the guard stay green — **not** by reading the code, which read correctly. Now
+two queries, unioned.
+
+Verified by running: ignored case fails and names the file; untracked case fails and names the file;
+a new engine source doing `path.join(__dirname, "x.json")` fails (d) and names the line; clean tree
+passes **7/7**; `corpus-root.test.js` **11/11**.
+
+### Not done, stated plainly
+
+I did **not** run `name-words-lzw.js worksheet` end-to-end. It renders the full corpus, and CLAUDE.md
+§7 records that this shared machine has OOM-killed on that class of run — three other lanes were
+active. The path is verified by resolving the same expression the source uses, and the directory is
+created before the write; **the write itself is unexercised.** Whoever next runs `npm run name`
+is the first to exercise it.
