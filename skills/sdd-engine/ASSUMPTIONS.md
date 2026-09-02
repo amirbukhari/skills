@@ -4868,3 +4868,65 @@ reads `⟪lzw1 n1414⟨…` — so a re-mine changes the bytes of every `.en` by
 A5 *"if I mine the codebase again I should see no change to the .en file"* strictly blocked on
 A1/R-PAY-6 (content-derived ids, or a dictionary fingerprint stamped on the `.en`), exactly as s9
 suspected. Building the A5 gate before A1 lands would produce a red that no one can clear.
+
+## A2 — 580 hand edits to the English, 0 reached the `.ts`, 580 silent. 2026-09-01
+
+**Lane `sdd-engine-5f`.** §18 Q-1 states one flip blocker as prose: *"compileChunk must derive the
+payload from the sentence rather than only reading it"*. My PRD sweep called it the largest single
+gap. Nothing in the tree measured its **surface** — "editing the English does nothing" is one
+sentence covering six different edits with three different outcomes, and whoever closes it needs to
+know which is which before they start. New reporter: `tools/repo-dsl/measure-hand-edit.js`
+(commit `b991468`), 1.3s over 154 evenly-sampled `.en` files.
+
+**Verified by running it.**
+
+```
+                          sites   CHECK off              CHECK on
+                                  effect refuse SILENT   effect refuse SILENT
+  gloss-plain-word         153      0     0     153        0    153     0
+  gloss-identifier         153      0     0     153        0    153     0
+  gloss-literal              1      0     0       1        0      1     0
+  gloss-truncate           153      0     0     153        0    153     0
+  gloss-structural-name    120      0     0     120        0      0   120
+» CONTROL-payload-hole     150    150     0       0        0    150     0
+» CONTROL-verbatim           4      4     0       0        4      0     0
+```
+
+**Zero of 580 English edits changed the compiled `.ts`.** With `SDD_DERIVE_CHECK` off, all 580 were
+SILENT — the file still compiles and the author's edit is simply gone. That is the
+`catch { return null }` defect class this engine exists to eliminate, at the level of the source
+language itself. With the check on, all 460 edits on ATOMIC chunks became loud refusals; the 120 on
+STRUCTURAL chunks stayed silent, because a `▷` chunk has children instead of a payload and there is
+nothing to derive a gloss FROM. That is a documented boundary of the guard, not a hole in it, and
+the report says so in place — `skills-bb` flagged it before I ran anything, and it would otherwise
+have read as alarming and been wrong. So the guard converts SILENT into refused where it can reach,
+and still makes no edit **take effect**: cut 2, which R-REND-6 records as needing the §5E.3.2
+grammar parser.
+
+**Judgment call — a reporter, not a `.test.js`, deliberately.** An honest test for this capability
+goes red by design, and a permanently-failing file in a tree several sessions share trains people
+to ignore a red. This follows the existing `measure-*.js` reports / `*.test.js` asserts split, and
+`skills-27` independently agreed it was the right call. Read-only: reads `.en`, compiles in memory,
+writes nothing, needs no mine or render, cannot move byte-identity.
+
+**Two things the controls caught**, both of which would have made the English figures untrustworthy:
+
+1. `CONTROL-verbatim` first reported **0 applicable sites**. Not the locator — measured corpus-wide,
+   only **4 of 1037** `.en` files contain any identifier text at chunk depth 0 at all, three of them
+   `eslint-disable` comments. Verbatim TypeScript outside every chunk has all but disappeared, which
+   is what one-word-per-file at 99.3% plus maximal-run structural children (`a565df0`) MEAN seen
+   from the other side. The sample is now **seeded** with those four files — appended, never
+   substituted, so every English figure stays on the unbiased even sample.
+2. It then *still* reported 0, because the scan's skip-ahead ran unconditionally: standing on the
+   space before `eslint` it consumed the whole word and the loop's `i++` landed past it. Every
+   depth-0 identifier was stepped over. Found only because a dead control is an **assertion** in
+   this file rather than a footnote.
+
+**R-REND-6 is mechanized for the first time, and it is RED ON PURPOSE** — same treatment as
+R-ARCH-15. The register itself states cut 2 is "not built", so the row's MUST does not hold; this
+makes the known gap visible where the register is read, not only in a Check column. Runner goes
+48 hold / 1 fail / 4 manual of 53 → **48 / 2 / 4 of 54**. Cut 1 is checked structurally so the row
+stays decidable without a corpus. Mutation-checked both ways: unwiring `deriveGloss` reports
+*"CUT 1 is gone — a hand-edit is not even DETECTED"*; removing the `SDD_DERIVE_CHECK` knob reports
+the check cannot be turned on. `engine/enfile.js` restored byte-identical after both, verified
+against HEAD.
