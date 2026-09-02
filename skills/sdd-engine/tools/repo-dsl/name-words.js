@@ -237,11 +237,13 @@ function cmdName(args) {
   const gate = GATE.gateNames(EN, index, SRC, affected, accepted);
 
   console.log(`\nd=${tierN}: ${todo.length} asked, ${accepted.length} accepted, ${rejected.length} rejected, ${unnamed.length} left unnamed, ${calls} model call(s)`);
-  console.log(`gate: ${gate.passed ? "PASSED" : "FAILED"} — byte-identity + payload identity + coverage invariance + detail retention over ${gate.checked} affected file(s); ${gate.proseChanged} of them read differently`);
+  console.log(`gate: ${gate.passed ? "PASSED" : "FAILED"} — byte-identity + payload identity + coverage invariance + detail retention + fold invariance over ${gate.checked} affected file(s); ${gate.proseChanged} of them read differently`);
   /* The pilot gated clean on the first three checks and still cost the corpus 20,029 identifiers,
    * so this figure is printed on every run, pass or fail — it is the one a reader must see. */
   console.log(`      concrete identifiers in the prose: ${gate.detailBefore} -> ${gate.detailAfter}` +
     (gate.detailAfter < gate.detailBefore ? `  (LOST ${gate.detailBefore - gate.detailAfter})` : "  (none lost)"));
+  console.log(`      clauses the labels emitted:        ${gate.clausesBefore} -> ${gate.clausesAfter}` +
+    (gate.clausesAfter > gate.clausesBefore ? `  (a name SPLIT a fold)` : gate.clausesAfter < gate.clausesBefore ? "  (adjacent identicals collapsed — cardinality, R-LANG-16)" : "  (structure unchanged)"));
   if (gate.passed && accepted.length && gate.proseChanged === 0) console.log("  WARNING: not one file reads differently — the names did not reach any label. Accepting them would be vacuous.");
   for (const f of gate.failures.slice(0, 5)) console.log(`  FAIL ${f.rel}: ${f.why}`);
 

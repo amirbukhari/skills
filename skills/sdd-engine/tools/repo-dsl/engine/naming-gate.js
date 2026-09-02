@@ -12,7 +12,8 @@
  *                         of §5D.3A: a name that moved a payload touched something that is not a
  *                         name, and no amount of "but the bytes came back" makes that acceptable;
  *   3. COVERAGE INVARIANCE  the same spans collapse the same statements as before;
- *   4. DETAIL RETENTION   no file's prose loses a concrete identifier.
+ *   4. DETAIL RETENTION   no file's prose loses a concrete identifier;
+ *   5. FOLD INVARIANCE    no file's prose gains a clause.
  *
  * CHECK 4 EXISTS BECAUSE CHECKS 1-3 ALL PASSED WHILE THE PROSE WAS DESTROYED. The 80-leaf pilot
  * gated clean and took the corpus from 27,673 quoted identifiers to 7,644 across 982 files. Nothing
@@ -29,6 +30,27 @@
  * vacuous — the failure mode word-names.test.js calls out by name ("otherwise 3-5 would pass
  * vacuously"). It is reported, not enforced, because a legitimately tiny batch can be swamped by a
  * larger chunk name that outranks it (R-LANG-19).
+ *
+ * CHECK 5 EXISTS BECAUSE CHECK 4 DID NOT CATCH THE SECOND ONE EITHER. Twenty names, all four
+ * checks green, and applying them took import repeats inside a single clause from 1 to 284: a rule
+ * that folds a run of imports into ONE clause was dissolved into one clause per statement wherever
+ * a single leaf in that run had been named. Every identifier survived — each was simply quoted in
+ * its own clause instead of in a shared one — so check 4 saw nothing. §5D.3A as amended
+ * (2026-09-01, Amir): STRUCTURE IS COMPUTED FROM THE UNNAMED DICTIONARY AND NAMES ARE APPLIED
+ * AFTERWARDS, PURELY AS LABELS. `stats.labelClauses` is the renderer publishing how many clauses it
+ * emitted; the gate re-renders WITHOUT the batch and compares.
+ *
+ * An INCREASE fails: a name split a fold, which is a structural decision a name may not take.
+ * A DECREASE is reported and allowed, because it can only come from the adjacent-identical collapse
+ * that gives cardinality its parameter (R-LANG-16) — "declare a test suite 5 times". Two adjacent
+ * clauses can only become identical if the two statements share a skeleton, since namer.js's
+ * injectivity ledger refuses to spend one name on two different keys in an axis.
+ *
+ * NOTE ON THE CHECK AMIR ASKED FOR — "the word-id sequence must be identical with and without
+ * names". It already was, and check 2 is it: a payload is `lzw1 n<id>⟨holes⟫`, so payload identity
+ * IS word-id-sequence identity, and it passed throughout. Segmentation was never name-sensitive —
+ * `enlzw.genSpans` consults names nowhere, and its `wholeRunOk` hook is `chunkGloss`, which reads
+ * the AST and the rules. The defect was one level up, in the LABEL, so the new check is there.
  *
  * WHY THE GATE EXISTS AT ALL WHEN NAMES ARE COSMETIC BY CONSTRUCTION. compileChunk finds the
  * payload with lastIndexOf(PAY_OPEN) and never reads the label, so on paper none of this can fail.
@@ -74,7 +96,7 @@ function gateNames(EN, index, srcRoot, files, applied) {
   for (const a of applied) { const { map, rec } = recordFor(a); NAMES[map][a.key] = rec; }
 
   const failures = [];
-  let checked = 0, proseChanged = 0, detailBefore = 0, detailAfter = 0;
+  let checked = 0, proseChanged = 0, detailBefore = 0, detailAfter = 0, clausesBefore = 0, clausesAfter = 0;
   try {
     for (const [rel, b] of before) {
       const r = EN.renderFileEn(b.src, index);
@@ -95,13 +117,19 @@ function gateNames(EN, index, srcRoot, files, applied) {
       detailBefore += b.detail; detailAfter += dAfter;
       if (dAfter < b.detail) {
         failures.push({ rel, why: `detail lost: ${b.detail} -> ${dAfter} concrete identifiers — a name replaced a rule that was saying more` });
+        continue;
+      }
+      const cBefore = b.stats.labelClauses || 0, cAfter = as.labelClauses || 0;
+      clausesBefore += cBefore; clausesAfter += cAfter;
+      if (cAfter > cBefore) {
+        failures.push({ rel, why: `fold broken: ${cBefore} -> ${cAfter} clauses — a name split a clause the rules had folded` });
       }
     }
   } finally {
     restore(NAMES.names, savedNames);
     restore(NAMES.chunks, savedChunks);
   }
-  return { passed: failures.length === 0, checked, proseChanged, detailBefore, detailAfter, failures };
+  return { passed: failures.length === 0, checked, proseChanged, detailBefore, detailAfter, clausesBefore, clausesAfter, failures };
 }
 
 function payloadsOf(en) { return String(en).match(/⟪[^⟫]*⟫/g) || []; }

@@ -163,17 +163,47 @@ name changed structure, which §5D.3A says only code may do.** It is invisible t
 bytes round-trip, payloads hold, coverage holds, and every identifier is still quoted — they are just
 quoted three times in three clauses instead of once in one.
 
-The cause is not the names. It is that nested rendering (`3df26f8`, landed mid-run) makes segmentation
-**name-sensitive**: a named word is preferred as a unit, so naming a leaf moves the word boundaries
-around it. That is a defensible design for chunk naming and a direct contradiction of "a name is a
-spelling" for leaves. The 20 names were reverted (`word-names.json` is byte-identical to its committed
-state) and this is recorded as a DECISION, not a bug report:
+~~The cause is not the names. It is that nested rendering makes segmentation name-sensitive.~~
+**THAT DIAGNOSIS WAS WRONG — struck rather than deleted, because the ruling below was made on it.**
+Segmentation never moved. `enlzw.genSpans` reads no names; its `wholeRunOk` hook is `chunkGloss`,
+which consults the AST and the rules only; and word ids ride in the payloads, which gate check 2 was
+comparing successfully throughout. The clause-marker count was *identical* across both renders
+(28,714) and that should have been read as the tell rather than passed over.
 
-> **Open — for Amir.** Under nested rendering, does a leaf name participate in segmentation? If yes,
-> §5D.3A needs amending and the gate needs a fold-invariance check (the word-id sequence must be
-> identical with and without a name) so the trade is at least measured. If no, segmentation must be
-> computed from the unnamed dictionary and names applied afterwards. Naming cannot proceed past d=0
-> until this is settled — every tier above compounds it.
+The real cause was one level up, in the LABEL. `namedLabel` composed one clause per statement —
+`clauses.map((c, i) => c || spanProse([stmts[i]], frag))` — so it asked the renderer about each
+statement in isolation and dissolved any rule that folds a run, wherever that run contained one named
+leaf. Confirmed by building the pre-fix composition as a throwaway module and reproducing the exact
+unfolded line, then confirming the fix removes it.
+
+**Amir's ruling (2026-09-01), which stands and is now §5D.3A + R-LANG-23:** a leaf name must NOT
+participate in segmentation; structure is computed from the unnamed dictionary first and names are
+applied afterwards, purely as labels. Implemented one level up from where it was asked for, since
+that is where the violation was:
+
+| at commit `3df26f8`, toggling ONLY word-names.json | no names | 20 names, pre-fix | 20 names, fixed |
+|---|---|---|---|
+| unfolded import repeats | 1 | **284** | **1** |
+| clauses the labels emitted | 45,767 | **46,055** | **45,764** |
+| files byte-identical | 1037 | 1037 | 1037 |
+
+The -3 is the adjacent-identical collapse (`declare a test suite 5 times`) — cardinality doing its
+job, R-LANG-16 — which is why gate check 5 fails on an INCREASE and merely reports a decrease. Two
+adjacent clauses can only become identical if the statements share a skeleton, because namer.js's
+injectivity ledger refuses to spend one name on two keys in an axis.
+
+**The check Amir specified — "word-id sequence identical with and without names" — already existed**
+as gate check 2: a payload is `lzw1 n<id>⟨holes⟫`, so payload identity IS word-id-sequence identity,
+and it was green the whole time. The new check 5 is the clause-level analogue, and is the one that
+catches this.
+
+The 20 names are applied and the corpus is re-rendered (1037/1037 byte-identical; `enfile.test.js`'s
+corpus assertion, which had been failing against the stale `.en`, passes again).
+
+**A note on evidence, since it was nearly recorded wrong.** `Examples/` is gitignored, so
+`word-names.json` and every `.en` are UNTRACKED: a silent `git status` on them means nothing, and the
+revert above was verified by re-measuring the corpus (284 -> 1), not by git. Any future claim that a
+catalog "matches its committed state" has to come from a hash or a measurement.
 
 Also worth Amir's eye independent of that: three of the 20 (`clearPartnerActivePropertiesCache` and
 friends) came back WITHOUT the word "partner", and `‹id›.set(‹args›)` was named "set a configuration

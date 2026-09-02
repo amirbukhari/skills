@@ -5,7 +5,7 @@
  * chunk-naming.test.js states the standard this file is held to: "a gate that cannot be shown to
  * FIRE is not a gate". Names are cosmetic by construction, so against the real renderer this gate
  * passes unconditionally — which means a broken comparison would look exactly like a working one.
- * The renderer is therefore INJECTED, and each of the four checks is shown failing against a
+ * The renderer is therefore INJECTED, and each of the five checks is shown failing against a
  * renderer that breaks precisely that one property, and passing against one that does not.
  *
  * UNIT tier: a fake renderer, a temp file, no corpus, no artifacts.
@@ -38,6 +38,9 @@ function fakeEN(mode) {
        * one hole-free name stands in its place and the two identifiers are simply gone. */
       const detail = mode === "detail" && !named ? " calling `getManager` on `partnerRepo`" : "";
       if (mode === "detail") return { en: `▶ ${label}${detail} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: 3 } };
+      /* THE SECOND REGRESSION: one folded clause becomes three, every identifier still quoted. */
+      if (mode === "fold") return { en: `▶ ${label} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: 3, labelClauses: named ? 3 : 1 } };
+      if (mode === "cardinality") return { en: `▶ ${label} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: 3, labelClauses: named ? 1 : 3 } };
       return { en: `▶ ${label} ${payload}`, stats: { genSpans: 1, genStmtsCollapsed: mode === "coverage" && named ? 2 : 3 } };
     },
     compileFileEn(en, _index) { return mode === "bytes" && /hold a constant/.test(en) ? "DIFFERENT BYTES" : "const x = 1;\n"; },
@@ -85,6 +88,21 @@ ok("... while a name that leaves the rule's identifiers alone still PASSES", () 
 /* Payloads are verbatim SOURCE. Counting them would let an untouched payload mask a real loss. */
 ok("detailOf ignores identifiers inside a payload and counts only what the PROSE supplies", () => {
   assert.strictEqual(GATE.detailOf("says `a` and `b` ⟪const x = `c` + `d`;⟫"), 2);
+});
+
+ok("FOLD INVARIANCE: a name that splits a clause the rules had folded FAILS", () => {
+  const r = GATE.gateNames(fakeEN("fold"), {}, dir, FILES, applied);
+  assert.strictEqual(r.passed, false, "this is the 1 -> 284 import unfolding, green on all four earlier checks");
+  assert.match(r.failures[0].why, /fold broken: 1 -> 3 clauses/);
+});
+
+/* A DECREASE is the cardinality parameter doing its job, not a loss — see the header. Failing it
+ * would forbid "declare a test suite 5 times", which is the shape R-LANG-16 is asking for. */
+ok("... while clauses COLLAPSING is allowed, and reported", () => {
+  const r = GATE.gateNames(fakeEN("cardinality"), {}, dir, FILES, applied);
+  assert.strictEqual(r.passed, true);
+  assert.strictEqual(r.clausesBefore, 3);
+  assert.strictEqual(r.clausesAfter, 1);
 });
 
 ok("a batch that reaches no label is reported as VACUOUS rather than passing quietly", () => {

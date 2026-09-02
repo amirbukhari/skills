@@ -211,6 +211,44 @@ it sharply enough on its own:
 | which alternative of a production applies at a site | code, from the mined structure | **no** |
 | hole fills (the file's actual bytes) | the mine, byte-gated | **no** |
 | **the SPELLING of a nonterminal** — `g_412_a1b2c3` → `chargeCommission` | **the model** | **yes, and only this** |
+| **how many clauses a label has, and which statements each covers** | code, from the rules (`spanActions`) | **no** — see the amendment below |
+
+**AMENDED 2026-09-01 (Amir's ruling, R-LANG-23).** The table above was necessary and not sufficient.
+It constrains what a model may *supply*; it says nothing about what an already-supplied name may
+*displace*, and a name that displaces a rule has taken a structural decision as surely as if the
+model had written the sentence itself. Measured, twice, both times passing every gate then in force:
+
+> **SEGMENTATION AND CLAUSE STRUCTURE ARE COMPUTED FROM THE UNNAMED DICTIONARY FIRST. NAMES ARE
+> APPLIED AFTERWARDS, PURELY AS LABELS.** A name may change how a clause READS. It may never change
+> how many clauses there are, which statements each one covers, or where a word begins and ends.
+
+Concretely, this binds `enfile.namedLabel`, which is the only code that turns names into prose:
+
+1. it takes its clause list from `spanActions` over the WHOLE run — the same call `spanProse` and
+   `genLabel` make, so the unnamed shape is identical by construction rather than by agreement;
+2. it substitutes a name only where a clause covers **exactly one** statement. A clause covering
+   two or more is a chunk rule speaking about a pattern (R-LANG-16/17); a leaf name is one
+   statement's spelling and has no standing to replace it;
+3. `spanActions` publishes `covers[i]`, the `[from, to)` range each clause was built from, so (2)
+   is a check rather than an assumption.
+
+**What was measured, and why the ruling is stated as a boundary rather than a bug fix.** Before
+this, `namedLabel` composed ONE CLAUSE PER STATEMENT (`clauses.map((c, i) => c || spanProse([stmts[i]]))`),
+asking the renderer about each statement in isolation. So naming a single leaf in a run dissolved
+every fold in it: naming `dotenv.config()` unfolded the IMPORT run beside it, and corpus-wide,
+import repeats inside one clause went **1 -> 284** and emitted clauses **45,767 -> 46,055**. Bytes
+round-tripped, payloads held, coverage held, and every identifier was still quoted — three times in
+three clauses instead of once in one — so none of the four gate checks saw it. With the boundary in
+place the same 20 names give **1** and **45,764** (the -3 is the adjacent-identical collapse, which
+is cardinality doing its job, R-LANG-16).
+
+**A correction to the record.** This was first reported as *segmentation* becoming name-sensitive
+under nested rendering. That was wrong, and the ruling above is right for a different reason than
+the one given. Segmentation never moved: `enlzw.genSpans` reads no names, its `wholeRunOk` hook is
+`chunkGloss` (AST and rules only), and word ids are carried in the payloads, which gate check 2 was
+comparing successfully the whole time. The clause-marker count was identical across both renders and
+should have been read as the tell. The defect was one level up, in the label.
+
 
 **This is not a new mechanism; it is the one `refine-language.js` already implements.** That script
 is the working precedent and it is stricter than the prose that describes it:

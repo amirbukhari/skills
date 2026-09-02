@@ -104,6 +104,28 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   ok(/re-export `Y` from `\.\/y`/.test(g), "and the export rule fires on its own kind");
 }
 
+/* ---- 1c. A CLAUSE PUBLISHES WHICH STATEMENTS IT COVERS (R-LANG-23) -------------------------
+ * This is what makes "a name is a label, not a structure" enforceable rather than aspirational.
+ * namedLabel substitutes a name ONLY into a clause covering exactly one statement; a clause
+ * covering two or more is a rule speaking about a pattern, and a leaf name — one statement's
+ * spelling — has no standing to replace it. Before this existed, namedLabel composed one clause
+ * per statement and DISSOLVED every fold in any run containing a named leaf: measured at 1 -> 284
+ * unfolded import repeats corpus-wide, with byte-identity, payloads, coverage and every quoted
+ * identifier intact, which is why nothing caught it. */
+{
+  const [st, sf] = stmts("import { A } from './a';\nimport { B } from './b';\nconst x = 1;\n");
+  const r = EN.spanActions(st, sf);
+  eq(r.covers.length, r.raw.length, "every clause reports its range — one definition, not a parallel guess");
+  eq(JSON.stringify(r.covers[0]), "[0,2]", "the folded import clause covers BOTH import statements");
+  eq(JSON.stringify(r.covers[1]), "[2,3]", "and the variable statement covers only itself");
+  ok(r.covers[0][1] - r.covers[0][0] > 1, "so a name is refused on it, by the width alone");
+}
+{ // a fold is not special-cased: an unruled run reports one statement per clause, all nameable
+  const [st, sf] = stmts("const a = 1;\nconst b = 2;\n");
+  const r = EN.spanActions(st, sf);
+  ok(r.covers.every(([f, t]) => t - f === 1), "no rule fired, so every clause is one statement wide");
+}
+
 /* ---- 2. GENERIC CARDINALITY --------------------------------------------------------------- */
 {
   const [st, sf] = stmts("res.set('a', 1);\nres.set('a', 1);\n");

@@ -618,6 +618,15 @@ const chunkRuleFor = (st) => CHUNK_RULES.find((r) => r.match(st)) || null;
  * surfacing the real throw messages. DISPLAY ONLY; deterministic; zero model. */
 function spanActions(win, sf) {
   const actions = [], guards = [];
+  /* WHICH STATEMENTS EACH CLAUSE COVERS (R-LANG-23). `covers[i]` is the [from, to) range of `win`
+   * that produced `raw[i]`. It exists so namedLabel can substitute a NAME INTO this structure
+   * instead of recomputing a structure of its own: a chunk rule that folds three imports into one
+   * clause covers [0,3), and a name — which is one statement's spelling — may not replace it.
+   * Recorded by wrapping push rather than by editing ~40 call sites, so a production added later
+   * is covered automatically and cannot silently forget to report its range. */
+  const covers = [];
+  let cover = [0, 0];
+  actions.push = function (a) { covers.push([cover[0], cover[1]]); return Array.prototype.push.call(this, a); };
   const isAwait = (st) => /\bawait\b/.test(st.getText(sf).slice(0, 80));
   let wi = 0;
   while (wi < win.length) {
@@ -628,9 +637,11 @@ function spanActions(win, sf) {
     if (rule) {
       let wj = wi; while (wj < win.length && rule.match(win[wj])) wj++;
       const one = rule.render(win.slice(wi, wj), sf);
+      cover = [wi, wj];
       if (one) { actions.push(one); wi = wj; continue; }
     }
     const st = win[wi++];
+    cover = [wi - 1, wi];
     if (isGuardThrow(st)) {
       const msg = throwMessage(throwStmtOf(st.thenStatement));
       if (msg) guards.push('“' + msg + '”');
@@ -896,7 +907,7 @@ function spanActions(win, sf) {
    * "run a step" twice collapses to "run a step twice", which is not in the says-nothing set and
    * would have slipped a meaningless whole-file word past the R-ARCH-17 gate. Caught by
    * chunk-naming.test.js rather than by reading the code. */
-  return { actions: merged.map((m) => (m.n === 1 ? m.a : m.a + (m.n === 2 ? " twice" : " " + m.n + " times"))), guards, raw: actions };
+  return { actions: merged.map((m) => (m.n === 1 ? m.a : m.a + (m.n === 2 ? " twice" : " " + m.n + " times"))), guards, raw: actions, covers };
 }
 
 /* The joined sentence. Kept as its own function so ONE-CLAUSE-NESS is testable without re-deriving
@@ -989,16 +1000,49 @@ function namedLabel(s, source, cat, names, chunks) {
   catch (_) { return null; }
   const stmts = [...frag.statements];
   if (stmts.length !== clauses.length) return null; // leaf/statement alignment broken — do not guess
-  const filled = clauses.map((c, i) => c || spanProse([stmts[i]], frag) || null).filter(Boolean);
-  if (!filled.length) return null;
-  // collapse runs of the identical clause — names are per-skeleton, so seven identical imports
-  // should say it once with a count rather than seven times.
+
+  /* A NAME IS A LABEL, NOT A STRUCTURE (§5D.3A as amended 2026-09-01, R-LANG-23). Amir's ruling:
+   * structure is computed from the UNNAMED dictionary first and names are applied afterwards,
+   * purely as labels. This function used to compose ONE CLAUSE PER STATEMENT — `clauses.map((c, i)
+   * => c || spanProse([stmts[i]], frag))` — which asked the renderer for each statement in
+   * isolation and so DISSOLVED every rule that folds a run. Measured: naming one leaf in a run
+   * (`dotenv.config()`) unfolded the IMPORT run beside it, taking import repeats inside a single
+   * clause from 1 to 284 corpus-wide. Three statements that were one clause became three. The
+   * bytes still round-tripped and every identifier was still quoted, so nothing in the gate saw it.
+   *
+   * So the clause STRUCTURE now comes from spanActions over the whole run — the same call
+   * spanProse/genLabel make, so the unnamed shape is identical by construction — and a name is
+   * substituted only where a clause covers EXACTLY ONE statement. A clause covering two or more is
+   * a chunk rule speaking about a pattern (R-LANG-16/17), and a leaf name, which is one statement's
+   * spelling, has no standing to replace it. Guard-consumed statements produce no clause and so
+   * take no name; they keep the "failing when" suffix spanProse gives them. */
+  let r;
+  try { r = spanActions(stmts, frag); } catch (_) { return null; }
+  if (!r.raw.length) return null;
+  let reached = false;
+  const pieces = r.raw.map((a, i) => {
+    const [from, to] = r.covers[i] || [0, 0];
+    if (to - from === 1 && clauses[from]) { reached = true; return clauses[from]; }
+    return a;
+  }).filter(Boolean);
+  if (!pieces.length) return null;
+  if (!reached) return null; // no name reached this span — let genLabel own it, one path not two
+
+  /* the same adjacent-identical collapse spanActions applies, for the same reason (cardinality is
+   * a parameter): substituting a name can create the repetition, so it is re-run after. */
   const runs = [];
-  for (const c of filled) {
+  for (const c of pieces) {
     const last = runs[runs.length - 1];
-    if (last && last.c === c) last.n++; else runs.push({ c, n: 1 });
+    if (last && last.a === c) last.n++; else runs.push({ a: c, n: 1 });
   }
-  return sanitizeLabel(P.list(runs.map((r) => (r.n > 1 ? r.c + " (×" + r.n + ")" : r.c)), "then"));
+  let out = P.list(runs.map((x) => (x.n === 1 ? x.a : x.a + (x.n === 2 ? " twice" : " " + x.n + " times"))), "then");
+  if (r.guards.length) out += (out ? " — " : "") + "failing when " + P.list(r.guards);
+  /* HOW MANY CLAUSES THIS LABEL EMITTED, published so the renderer can check it against how many
+   * the RULES said there were (see `label`). Reported on the function rather than in the return
+   * value because every existing caller consumes a bare string, and a gate that requires its
+   * subject to be rewritten to accommodate it tends not to get adopted. */
+  namedLabel.lastClauses = runs.length;
+  return sanitizeLabel(out);
 }
 
 /* Pass 0 — collapse runs of straight-line statements into ONE multi-line generator call.
@@ -1130,7 +1174,7 @@ function innerRunRanges(st, sf) {
 
 function NestRenderer(sf, source, index) {
   const cat = index && index._lzw;
-  const stats = { atomic: 0, structural: 0, atomicStmts: 0, structuralStmts: 0, maxDepth: 0, verbatimStmts: 0, depthHist: {}, stmtSpans: 0, dataSpans: 0 };
+  const stats = { atomic: 0, structural: 0, atomicStmts: 0, structuralStmts: 0, maxDepth: 0, verbatimStmts: 0, depthHist: {}, stmtSpans: 0, dataSpans: 0, labelClauses: 0 };
 
   /* THE LEAF LAYERS STILL APPLY (passes 1 and 2 of the flat renderer). A structural chunk emits the
    * bytes it owns — a function's signature, a class's members, an `if`'s condition — and those
@@ -1193,7 +1237,18 @@ function NestRenderer(sf, source, index) {
    * shape §8B is about — so this calls exactly what deriveGloss calls, in the same order. */
   const label = (run, start, end, payload) => {
     let s = null;
+    namedLabel.lastClauses = null;
     if (payload && cat) { try { s = namedLabel({ start, end, payload }, source, cat, NAMES.names, NAMES.chunks); } catch (_) { s = null; } }
+    /* FOLD INVARIANCE (§5D.3A as amended, R-LANG-23). A name is a label: it may change how a clause
+     * READS and never HOW MANY clauses there are. That number is decided by the rules from the
+     * unnamed dictionary — `spanActions` never consults NAMES — so the renderer publishes the count
+     * it actually emitted and naming-gate.js compares it across a render with names and one
+     * without. Comparing the two HERE would be vacuous now that namedLabel derives its clause list
+     * from spanActions: the check has to be a differential against an unnamed render, which only
+     * the gate is in a position to do. This is what would have caught the defect that unfolded 283
+     * import runs while passing all four existing checks. */
+    if (s && namedLabel.lastClauses !== null) stats.labelClauses += namedLabel.lastClauses;
+    else { try { stats.labelClauses += spanActions(run, sf).actions.length; } catch (_) { /* unruled */ } }
     return sanitizeLabel(s || genLabel(start, end, source, run.length));
   };
 
@@ -1318,6 +1373,8 @@ function renderFileNested(source_sf, source, index) {
     /* tree shape */
     chunks, chunksAtomic: s.atomic, chunksStructural: s.structural,
     nestMaxDepth: s.maxDepth,
+    /* the number of CLAUSES the labels emitted — the fold-invariance subject (R-LANG-23) */
+    labelClauses: s.labelClauses,
     maxDepth: s.maxDepth, depthHist: s.depthHist,
   } };
 }
