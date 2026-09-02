@@ -3995,3 +3995,165 @@ longer `chunks: 0`.
 The caveat that replaces the old one: this is 20 of 86 rows at d=1 and nothing at d>=2, so what is
 validated is the MECHANISM at one depth, not the quality of composite names where a chunk name
 summarises other chunk names.
+
+## 2026-09-01 — ITEMS 6, 9, 14, 16: the destructive tool, the flip gate, the headline rows, the thresholds
+
+Four items worked in the order they were handed to me. Every claim below is labelled *measured* or
+*read*; where I made a call rather than asking, the call and its reason are stated.
+
+### Item 9 — `--wipe-sen --go` deleted the §8A authored names (a real data-loss bug). FIXED, `76e8baa`
+
+*Measured.* `plan(SEN)` planned `sen/` as **one** target and `fs.rmSync(..., {recursive:true})`'d
+it, so it took `sen/catalog/word-names.json` with it — the artifact §8A calls *"hand-authored and
+NOT reproducible by a re-mine: the mine rebuilds the words, never their names"*, carrying the
+`orphans` ledger. On disk: **20 authored names**, and `git ls-files sen/catalog` → **0 files**,
+because the whole corpus is gitignored one scope up (`.gitignore: skills/sdd-engine/Examples/`).
+So the loss was **unrecoverable**, not merely expensive. R-CFG-12 (*"never deleted in any
+cleanup"*) and R-CFG-7 (*"sen/ is wipable"*) contradict, and the code followed R-CFG-7 in silence.
+
+`PROTECTED` **structurally could not express this**: it only ever matches a path's first segment,
+so it can say `catalog/` and never `sen/catalog/`. That is why the hole was not a missing name.
+
+**My call: a third token, not a blanket protection.** Amir's verbatim words are *"the SEN folder
+with the catalog is supposed to be wipable"* — his words name the catalog. Making it undeletable
+would contradict him; making it deletable by the same token that clears the rendered English prices
+an unrecoverable loss at the same rate as a re-derivable one. So `--wipe-catalog` releases it, and
+the refusal prices the loss in **authored names**, not files and bytes.
+
+Also: scope 2 now enumerates `sen/`'s children instead of planning the directory, `assertRemovable`
+refuses a target that **is or contains** a guarded subtree (the hole was an **ancestor**, which an
+equality test never sees), and the no-flag cost line no longer claims the authored names are
+*"a full mine + render"* away — they are not reproducible at all.
+
+The one destructive tool in the tree **had no test**. It has one now: `engine/sdd-clean.test.js`,
+every case against a throwaway `os.tmpdir()` root passed with `--corpus`.
+
+### Item 6 — §1B.3's flip gate, implemented. `c3a6ba0`
+
+*Read, then measured.* §1B.3 has always carried the condition on its own permission: *"What makes
+the gated wipe acceptable **today** is that `sen/` is entirely re-derivable from SOURCE… If that
+ever inverts (§1B.5), this gate must harden from 'explicit flag' to 'refuse'."* §18 Q-1 repeats it
+as a flip blocker. **Nothing implemented that sentence** — the tokens would have kept working
+straight across the flip, at which point `--wipe-sen --go` deletes human-authored source while the
+refusal text still prices it as a mine away.
+
+**My call: a refusal, not a fourth token.** §1B.3 says *refuse*, and a refusal a flag releases is a
+gate. Once the English is authoritative there is no engine command that can responsibly delete it;
+a human who means it still has `rm`, and will have typed it themselves.
+
+Two signals, and the second is the one that will actually fire first:
+
+- **DECLARED** — `<CORPUS>/sen/DIRECTION`, first non-comment line `en-authoritative`. *My call:
+  corpus-local, **not** a third `.env` var.* The direction is a property of the tree, so a forked
+  corpus rendered into a fresh root carries its own answer instead of inheriting the engine's — and
+  CLAUDE.md holds `.env` to exactly the two roots.
+- **DETECTED** — any `.en` under `sen/files/` with **no counterpart in SOURCE**. A render cannot
+  produce one; every `.en` is written from a `.ts` that was walked. The flip will arrive in practice
+  before anyone remembers to declare it.
+
+*Measured against the real corpus, read-only:* **1037 `.en`, zero orphans**, and `sdd-clean.js`
+with no flags prints exactly what it printed before. **The gate refuses nothing today.**
+
+One conservative case, stated rather than papered over: repoint SOURCE at a different tree while an
+old `CORPUS/sen/` remains and every `.en` reads as an orphan, so the run is refused. That is not a
+false positive in the sense that matters — `sen/` genuinely is not re-derivable from the SOURCE now
+configured — and the failure mode is a refusal, not a delete.
+
+`engine/sdd-clean.test.js` 8 → **11 assertions**. Mutation-checked per §10.3: `FLIPPED=false` turns
+2 red, dropping the `process.exit(3)` turns 2 red, dropping the orphan signal turns 1 red,
+reverting scope 2 to `plan(SEN)` turns 3 red, weakening the guard to equality turns 1 red, dropping
+the authored-count from the refusal turns 1 red.
+
+**One mutation was NOT caught, and it is worth knowing why.** Defaulting `--wipe-catalog` to true
+turns nothing red, because scope 2 gates the catalog independently of `GUARDED`. The two controls
+are **layered**, and only the enumeration is reachable from the CLI. The `GUARDED` check is
+defence-in-depth against a future edit, which is exactly what it is for — but a reader should not
+mistake it for the control that is doing the work today.
+
+### Item 16 — the thresholds: THREE knobs, not one. `4a43855`
+
+*Measured.* The question was whether `--min 80` / `minCount 2` are the same knob as R-MINE-1's `1`.
+They are not, and two of them sit on **adjacent lines**, which is how they got conflated:
+
+| | where | default | unit | row |
+|---|---|---|---|---|
+| `MIN_COUNT` | `build-lzw-generators.js:90` | 1 | occurrences | R-MINE-1 — the **live** `.en` path |
+| `minCount` | `engine/pipeline.js:36` | 2 (fallback) | occurrences | R-WIDE-3 — the **legacy** mined-library path |
+| `--min` | `repo-dsl.js:249` | 80 | **percent** | the coverage **gate** verdict |
+
+`--min` is not a count at all — it is a percentage of corpus coverage — and `repo-dsl.js:252`
+carries its **own** `--min-count` (2) one line below it.
+
+**Q-5 now has its consequence attached, not just its contradiction.** *Measured* on the persisted
+`corpus-coverage.json` (**41.4%**): `node repo-dsl.js gate --no-mine` prints **GATE: FAIL** at the
+code default 80 and **GATE: PASS** at §8's 20. **The two values give opposite verdicts on today's
+corpus**, so Q-5 is not cosmetic. Left as a decision — mechanized **MANUAL, not FAILS**, because
+§18 Q-5 names three ways to close it and a runner must not cast that vote by turning one red.
+*Note:* `gate.json` did not exist before I ran it; the gate has never been published since the §8B
+contract landed. It now holds the code default's verdict (FAIL at 80), which is what an unprompted
+run would produce. It is scope-1 cache.
+
+**And the answer changes what R-MINE-1 means.** `buildSaturated` carried
+`minCount = opts.minCount || 2`, assigned and **never read** since `createGate` took over the one
+comparison. *Measured before removing it:* `opts.minCount` of `undefined | 1 | 2 | 3` returns the
+**identical** dictionary — 33 entries, sha256 `f9c6148605369d1f`, all four. So of the two calls
+`build-lzw-generators.js` makes, **only `promote` binds**: *"MIN_COUNT MUST be 1" is a rule about
+SELECTION — what the renderer may use — not about which structural records exist.* The register does
+not say that, and a reader who assumes otherwise fixes the wrong call site.
+
+**My call: delete the dead binding, keep the inert call site.** Deleting matches the Q-6 precedent
+(the dead `MAXWIN = 8` in `enfile.js` was deleted rather than documented) and a dead constant that
+shadows a live one **by name** is the worse of the two failures. The call site is kept with a
+comment so a future re-gating already says which threshold it means, and `R-MINE-1-binding` fails
+loudly if either half moves. Byte-identity is untouched by construction — the binding was dead.
+
+This is the same **creation-gate vs selection** split as tonight's `MAXWIN`/`createMinCount` work,
+one layer down, and there is a **third** axis beyond both: naming-worth. Three questions, three
+thresholds — "can this be one word", "may the renderer use it", "is it worth a name".
+
+### Item 14 — the headline rows, mechanized. `4a43855`
+
+*Measured.* §R's headline metrics were **published and never checked** — the numbers lived in a
+42 MB artifact nobody diffed. Nine rows added to `verify-register.js`; **41 → 52** mechanized rows,
+now **45 hold / 3 fail / 4 manual**.
+
+**Two are red on purpose, and the runner now exits 1.** Flagging this loudly because other lanes
+run it:
+
+- **R-ARCH-15 FAILS** — 1003 of 1037 files (96.7%), **34 not collapsed**. The row says MUST. This
+  is not a regression the runner introduced; it is §5D.4's THE RESIDUAL becoming visible where the
+  register is read. R-ARCH-18's own Check column already treats R-ARCH-15 as unmet (*"30.6% with it
+  off and 93.1% with it on, so the row can be shown to bind"*).
+- **R-ARCH-16 FAILS** — the corpus total is published beside byte-identity, but **per-file review
+  surface exists for only 30 of 1037 files**. `write-en-files.js` computes a full `perFile[]` and
+  publishes three top-15 **slices** of it (`topEnglishFiles`, `worstFiles`, `worstBySpans`); the
+  top-level `perFile` key is **absent** from the artifact. R-MEAS-6's Check column cites
+  `perFile[].topSpans` / `.oneWord` as though the whole array were on disk. *It is not.* That is a
+  new gap, not one of the 17 from the sweep.
+
+`R-MECH-4` was already red before this commit (`word-names declares modelCalls 2`) and is
+untouched — it is another lane's row.
+
+**Ids are not unique in the register.** *Measured:* 140 rows, **136 distinct ids** — `R-ARCH-18`,
+`R-MEAS-6` and `R-MEAS-7` each appear **twice with different requirements**, so `--id R-MEAS-6`
+could not say which was meant. The new rows carry a suffix naming the meaning mechanized
+(`R-ARCH-18-ordering`, `R-MEAS-6-onewordrate`, `R-MEAS-7-bothreads`), following the existing
+`R-CFG-roots` / `R-ART-stamp` / `R-ART-4-runtime` convention. **I did not touch the register text** —
+the wording is Amir's, and the duplicate ids are his to reconcile.
+
+Green, with the population each publishes: **R-ARCH-19** (19,102 atomic + 9,612 structural = 28,714,
+deepest nest 14), **R-ARCH-18-ordering** (`ONE_WORD_FIRST` defaults on *and is read* — a declared,
+unread knob would be the dead-`MAXWIN` shape again, and the row says so), **R-MEAS-6-onewordrate**,
+**R-MEAS-7-bothreads** (1,610 beside 29,260, 18.2x — and it fails if a producer ever writes one
+number under both keys, the R-COMP-6 conflation one metric over), **R-MINE-1-binding**, **R-CFG-12**.
+
+### Still Amir's, not mine
+
+**Item 3 — the `.en → .ts` writer and where it lives.** Untouched, as instructed. It is the one
+gap the PRD files nowhere: the two-root model has **no root for compiled output**, and §1A — the
+`EN_ROOT`/`TS_ROOT`/`BUILD_ROOT` proposal that would have provided one — was cut on 2026-08-31 at
+Amir's word. The flip gate above makes the *deletion* side of that safe; it does not create the
+writer, and it does not decide where its output goes.
+
+**Q-5's losing number.** One decision, then §18's own instruction: *delete* the loser rather than
+annotate it. *A constant with two values is not a constant.*
