@@ -14,6 +14,8 @@
     "test:all": "node run-tests.js --tier=all",
     "roots": "node roots.js",
     "register": "node verify-register.js",
+    "report": "node report-server.js",
+    "report:once": "node report-server.js --once",
     "register:json": "node verify-register.js --json",
     "steps": "node sdd-run.js --list",
     "status": "node sdd-run.js --status",

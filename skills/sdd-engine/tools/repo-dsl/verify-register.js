@@ -665,7 +665,13 @@ const ROWS = [
         : FAILS(`only ${throws} throw sites`, "expected a throw per named failure mode");
     } },
 
-  { id: "R-PAY-6", req: "A word id is not stable across a re-mine and payloads reference word ids, so a `.en` is decodable only against the dictionary it was rendered with. The engine MUST close this by (a) each `.en` naming the dictionary `fingerprint`, with `compileFileEn` REFUSING on mismatch, or (b) content-addressed ids.",
+  { id: "R-PAY-6",
+    /* A RED ON PURPOSE. This field is metadata, never a verdict: a FAILS carrying it is a known,
+     * argued gap; a FAILS carrying NONE is a regression. The distinction lived only in prose until
+     * now, so any reader of the counts had to know the four ids by heart -- and a reader who did
+     * not know them read four regressions. */
+    deliberate: "priced 2026-09-01 (measure-id-stability.js), NEITHER closure chosen: (b) content-addressed ids is entangled with the reserved direction-of-truth call (CLAUDE.md §6, Q-1).",
+    req: "A word id is not stable across a re-mine and payloads reference word ids, so a `.en` is decodable only against the dictionary it was rendered with. The engine MUST close this by (a) each `.en` naming the dictionary `fingerprint`, with `compileFileEn` REFUSING on mismatch, or (b) content-addressed ids.",
     run() {
       /* RED ON PURPOSE, same treatment as R-ARCH-15. Neither closure is built, and the row says
        * MUST, so the honest verdict is FAILS -- not MANUAL and not absence from this runner, which
@@ -1744,7 +1750,13 @@ const ROWS = [
    * with the collision. The R-CFG-roots / R-ART-stamp / R-ART-4-runtime suffixes remain — those
    * name which ASPECT of one row is mechanized, which is a different thing. */
 
-  { id: "R-ARCH-15", req: "A file MUST be accounted for by ONE top-level word. An opaque whole-file token is forbidden.",
+  { id: "R-ARCH-15",
+    /* A RED ON PURPOSE. This field is metadata, never a verdict: a FAILS carrying it is a known,
+     * argued gap; a FAILS carrying NONE is a regression. The distinction lived only in prose until
+     * now, so any reader of the counts had to know the four ids by heart -- and a reader who did
+     * not know them read four regressions. */
+    deliberate: "the register records the measured gap: 1030 of 1037 files carry one top word, ceiling 1035 (2 empty files). The 7 are classified, not unknown.",
+    req: "A file MUST be accounted for by ONE top-level word. An opaque whole-file token is forbidden.",
     run() {
       const i = enIndex();
       if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
@@ -1846,7 +1858,13 @@ const ROWS = [
         "lexicographic, not weighted — and the control that measures it exists (§10.3: a guard that cannot be shown to fire is not a guard)");
     } },
 
-  { id: "R-ARCH-23", req: "A re-mine MUST NOT change a `.en`. §5D.0 statement 2, Amir's words: \"if I mine the codebase again I should see no change to the .en file because it backwards builds the .en file back into exactly what was written anyways\".",
+  { id: "R-ARCH-23",
+    /* A RED ON PURPOSE. This field is metadata, never a verdict: a FAILS carrying it is a known,
+     * argued gap; a FAILS carrying NONE is a regression. The distinction lived only in prose until
+     * now, so any reader of the counts had to know the four ids by heart -- and a reader who did
+     * not know them read four regressions. */
+    deliberate: "sdd-engine-e2s row: the .en does not pin the dictionary it was rendered against, so a re-mine cannot be shown not to move it. Same root cause as R-PAY-6.",
+    req: "A re-mine MUST NOT change a `.en`. §5D.0 statement 2, Amir's words: \"if I mine the codebase again I should see no change to the .en file because it backwards builds the .en file back into exactly what was written anyways\".",
     run() {
       /* RED ON PURPOSE, and for a reason no other row states. This is the ONLY row about the
        * stability of the `.en` ITSELF. Every other gate in this engine asks `compile(.en) === .ts`
@@ -2022,7 +2040,13 @@ const ROWS = [
                                            : "NO TEST — the guard is asserted by reading the source only");
     } },
 
-  { id: "R-REND-6", req: "THE SENTENCE IS AUTHORITATIVE: a hand-edit to a clause's English MUST change the compiled TypeScript.",
+  { id: "R-REND-6",
+    /* A RED ON PURPOSE. This field is metadata, never a verdict: a FAILS carrying it is a known,
+     * argued gap; a FAILS carrying NONE is a regression. The distinction lived only in prose until
+     * now, so any reader of the counts had to know the four ids by heart -- and a reader who did
+     * not know them read four regressions. */
+    deliberate: "CUT 1 (detection) shipped; CUT 2 (the edit takes effect) needs the §5E.3.2 grammar parser. Measured: 0 of 580 sampled English edits reached the .ts.",
+    req: "THE SENTENCE IS AUTHORITATIVE: a hand-edit to a clause's English MUST change the compiled TypeScript.",
     run() {
       const f = read("engine/enfile.js");
       if (!f.ok) return FAILS(null, f.why);
@@ -2447,12 +2471,17 @@ const results = selected.map((r) => {
   let o;
   try { o = r.run(); }
   catch (e) { o = FAILS(null, `check threw: ${e.message.split("\n")[0]}`); }
-  return { id: r.id, requirement: r.req, ...o };
+  /* `deliberate` rides along as metadata so a CONSUMER (npm run register:json, the report page)
+   * can separate a known gap from a regression without hard-coding four ids of its own -- a copy
+   * that would rot the first time a red is closed or a new one is argued for. */
+  return { id: r.id, requirement: r.req, ...o, ...(r.deliberate ? { deliberate: r.deliberate } : {}) };
 });
 
 const n = (v) => results.filter((r) => r.verdict === v).length;
 const summary = { holds: n("HOLDS"), fails: n("FAILS"), manual: n("MANUAL"), total: results.length,
-                  mechanizedRows: ROWS.length };
+                  mechanizedRows: ROWS.length,
+                  failsDeliberate: results.filter((r) => r.verdict === "FAILS" && r.deliberate).length,
+                  failsRegression: results.filter((r) => r.verdict === "FAILS" && !r.deliberate).length };
 
 if (JSON_OUT) {
   process.stdout.write(JSON.stringify({ tool: "verify-register", generated: new Date().toISOString(),
@@ -2464,8 +2493,10 @@ if (JSON_OUT) {
     console.log(`  ${mark}  ${r.id.padEnd(15)} ${r.got || r.why || ""}`);
     if (r.got && r.why) console.log(`          ${" ".repeat(15)} ${r.why}`);
     if (r.how) console.log(`          ${" ".repeat(15)} -> ${r.how}`);
+    if (r.deliberate) console.log(`          ${" ".repeat(15)} RED ON PURPOSE: ${r.deliberate}`);
   }
-  console.log(`\n  ${summary.holds} hold, ${summary.fails} fail, ${summary.manual} manual ` +
+  console.log(`\n  ${summary.holds} hold, ${summary.fails} fail (${summary.failsDeliberate} red on purpose, ` +
+              `${summary.failsRegression} unexplained), ${summary.manual} manual ` +
               `(of ${summary.mechanizedRows} mechanized rows)`);
   console.log(`  MANUAL is not a pass. A row absent from this runner is not a row that holds.\n`);
 }

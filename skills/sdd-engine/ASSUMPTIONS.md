@@ -5478,3 +5478,63 @@ makes that visible rather than a matter of trust.
   structural: `spans.sort(...)` **and** the `sp.start < pos` cursor drop. Either alone is meaningless.
 - **R-MEAS-5's ratchet reads git rather than a baseline copied into the runner.** A copy is the thing
   that would rot, and this runner exists because pointers rot.
+
+## The reporting-layer frontend — `report-server.js` (2026-09-02)
+
+Amir's task: *"build a reporting-layer FRONTEND for sdd-engine"*, and his constraint in his own
+words — it is **"READ-ONLY reporting, not a control surface"**, because *"the .en→.ts writer
+direction-of-truth question (R-PAY-6/A1) is still unresolved and a frontend that could act would
+bake in an assumption only Amir can make."* Delivered as one file, `tools/repo-dsl/report-server.js`,
+plus `npm run report` / `npm run report:once`. Dependency-free (built-in `http`), no client-side JS,
+no external fonts or CDN — the page renders offline.
+
+**READ-ONLY IS STRUCTURAL, NOT A PROMISE.** The server answers `GET`/`HEAD` on exactly three paths
+(`/`, `/api.json`, `/health`); every other method returns **405** with the reason (*"this is a
+reporting surface. It has no write path: mine, render, name and clean run from the CLI"*), and every
+other path returns 404. There is no code in the file that writes to `SOURCE` or `CORPUS` at all.
+Verified by running it: `POST /` → 405, `/nope` → 404, `/health` → `{"ok":true,"readOnly":true}`.
+
+**Judgment calls, logged rather than asked:**
+
+- **The register has no on-disk artifact, so "reading the register" means RUNNING
+  `verify-register.js --json`** (~5s, cached 60s in memory). That is the one place this page executes
+  anything, so it is bounded and stated on the page itself. Measured before wiring it: every
+  `writeFileSync`/`mkdirSync` site in that runner is under an `os.tmpdir()` `mkdtempSync` root, and
+  the one destructive tool it exercises (`sdd-clean.js`) is pointed at a throwaway tree — so the run
+  touches neither root. `--no-register` skips it, and the panel then says *skipped*, not zero.
+- **The 1035 ceiling is DERIVED, and the recorded value is shown beside it.** Quoting `1035/1037`
+  from the register would make the dashboard a second copy of a number — and the copy is what rots
+  (the same argument as R-MEAS-5's git ratchet). So the page computes the ceiling from `perFile`
+  (files with no statements and no spans: `chatbot.ts` at 9 bytes, `freshbooks/index.ts` at 1) and
+  compares it with the recorded `1035/1037` from R-ARCH-15 / PRD §5D.4. Agreement today; on
+  disagreement the page says so **in red and picks neither**. Both branches exercised: real artifact
+  → agrees; a re-stamped copy in a temp corpus with one empty file given a statement → *"the derived
+  ceiling (1036 of 1037) DISAGREES with the recorded 1,035/1,037"*.
+- **The residue is classified from the artifact, not from a list kept in the frontend.** The 7
+  non-one-word files come out as 2 empty · 4 non-whitespace outside the top span · 1 with no
+  top-level word — which reproduces the register's own split at R-ARCH-15 exactly, from each file's
+  own counts.
+- **An absent artifact is a named miss, never a zero** — the `{ optional: true }` rule at the
+  presentation layer. Verified against an empty temp corpus: each panel names the artifact, the
+  absolute path it looked for, and the command that produces it (`npm run render` / `npm run gate` /
+  `npm run mine`). A dashboard rendering 0% for "not yet rendered" is the bug class this engine
+  exists to eliminate, one layer up. One bug found by that test and fixed: the review-surface panel
+  returned early on an absent `en-index` and **swallowed the `corpus-coverage` miss entirely** — two
+  artifacts feed that panel and one being absent must not hide the other's report.
+- **`deliberate` metadata went into the ROWS, not into the frontend.** The four reds are red on
+  purpose, and that fact lived only in prose, so any reader of "4 fail" had to know the four ids by
+  heart — and a reader who did not know them read four regressions. Each of R-ARCH-15, R-PAY-6,
+  R-REND-6 and R-ARCH-23 now carries a one-line `deliberate:` note next to its own reason;
+  `summary` gained `failsDeliberate` / `failsRegression`; the CLI prints `4 fail (4 red on purpose,
+  0 unexplained)`. A red with **no** note is a regression, and the page banners it. (R-ARCH-23 is
+  `sdd-engine-e2`'s row — I added the note, using their own recorded reason, and left the check
+  itself untouched.)
+- **Loopback by default, and NOT published anywhere.** `--host` defaults to `127.0.0.1`, which is
+  why there is no auth to configure. The page shows corpus-derived numbers and the corpus is not
+  public (PRD §8B, R-ART-1) — so it is deliberately not published as a hosted artifact and not bound
+  to `0.0.0.0` without someone typing the override.
+- **The dictionary panel reads the HEADER ONLY** — the first 8 KB of a **39.9 MB** file. `AC.stamp`
+  writes the header keys first, so the fingerprint, corpus and mine date are all in reach; parsing
+  the body to print a fingerprint would make the page cost more than what it describes.
+- **Not wired into `sdd-run.js`.** That manifest is the pipeline steps a UI drives; a reporting
+  server is not a step, and adding it there would put it one keystroke from the things that are.

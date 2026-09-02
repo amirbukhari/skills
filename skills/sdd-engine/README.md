@@ -62,6 +62,8 @@ produce them.
 | `npm run gate` | the measurement gate |
 | `npm run clean` | dry-run: names what a wipe *would* delete, deletes nothing. **Exits 3** |
 | `npm run clean:sen` | still a dry-run. Deleting `sen/` also requires `--go`, typed by hand. **Exits 3** |
+| `npm run report` | the **reporting layer** on `http://127.0.0.1:8787` — one-word-per-file %, the register, review surface, all read-only |
+| `npm run report:once` | the same page printed to stdout, so you can redirect it yourself |
 | `npm run steps` | the step manifest as JSON — what a UI renders as the pipeline |
 | `npm run status` | resolved roots + artifact state as JSON |
 | `npm run sdd-run -- <step>` | run one step and get a structured JSON result envelope |
