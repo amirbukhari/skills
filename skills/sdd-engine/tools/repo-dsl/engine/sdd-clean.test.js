@@ -193,4 +193,99 @@ ok("with every .en backed by a source file the gate is silent and the wipe proce
   assert.strictEqual(has(root, "sen/files/src/a.ts.en"), false, "the ordinary wipe still works");
 });
 
+/* ─── SOURCE SEPARATION (CLAUDE.md §2, §4). Added 2026-09-01 by a second lane.
+ *
+ * THE GAP THIS FILLS. Every case above calls run(), which passes `--source root --corpus root` —
+ * the self-hosting default, where SOURCE === CORPUS. So the third condition in assertRemovable,
+ * the one whose own comment says it "is the one that matters when SOURCE !== CORPUS", was never
+ * executed by any test. CLAUDE.md §4 records it verified BY HAND on 2026-08-31 and left there,
+ * which is the same shape this file's own header calls out: a hand check that was never pinned.
+ *
+ * It is the most expensive branch in the tool to get wrong — deleting a read-only source tree is
+ * unrecoverable — and §4 records that its sibling bug was found only by WRITING the test, never by
+ * reading the code: `inside(abs, SOURCE)` is trivially true for every path when SOURCE === CORPUS,
+ * so the first version could not have deleted anything at all.
+ *
+ * These cases pass the two roots SEPARATELY rather than through run().
+ */
+
+/* Two trees, arranged by the caller. `nested` puts CORPUS inside SOURCE — the dangerous shape. */
+function makeTwoRoots({ nested }) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-clean-roots-"));
+  const src = path.join(base, "source");
+  const cor = nested ? path.join(src, "rendered") : path.join(base, "corpus");
+  const w = (root, rel, body) => { fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), body); };
+  w(src, "src/a.ts", "export const a = 1;\n");
+  /* The .en's counterpart MUST exist in SOURCE. Without it the flip gate refuses first and every
+   * assertion below would pass for the wrong reason — a refusal, yes, but not this one. */
+  w(cor, "sen/files/src/a.ts.en", "«some english»\n");
+  w(cor, "sen/catalog/word-names.json", JSON.stringify({ names: {}, chunks: {}, orphans: {} }) + "\n");
+  return { src, cor };
+}
+function runRoots(src, cor, args) {
+  try {
+    const out = execFileSync(process.execPath, [CLEAN, "--corpus", cor, "--source", src, ...args],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return { code: 0, out };
+  } catch (e) { return { code: e.status, out: (e.stdout || "") + (e.stderr || "") }; }
+}
+
+ok("SOURCE separate with CORPUS NESTED INSIDE it: --wipe-sen --go is refused, nothing deleted", () => {
+  const { src, cor } = makeTwoRoots({ nested: true });
+  const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
+  assert.notStrictEqual(r.code, 0, "the wipe must not succeed when the target lies inside SOURCE");
+  assert.ok(fs.existsSync(path.join(cor, "sen/files/src/a.ts.en")), "it deleted from a tree inside SOURCE");
+  assert.ok(fs.existsSync(path.join(src, "src/a.ts")), "it touched SOURCE itself");
+  assert.ok(fs.existsSync(path.join(cor, "sen/catalog/word-names.json")), "it took the authored names");
+});
+
+ok("...and it is refused for the RIGHT reason — the SOURCE guard, not the flip gate", () => {
+  /* Without this, the case above passes on ANY refusal. Two different gates can decline this tree
+   * (the flip gate fires on an .en with no counterpart in SOURCE), and only one of them is the
+   * property under test. Twice tonight a guard elsewhere in this repo was green for the wrong
+   * reason; asserting the refusal's own words is what separates them. */
+  const { src, cor } = makeTwoRoots({ nested: true });
+  const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
+  assert.match(r.out, /lies inside SOURCE/, `expected the SOURCE guard's refusal, got:\n${r.out}`);
+  assert.match(r.out, /read-only input, full stop/, "the refusal must say why SOURCE is untouchable");
+  assert.ok(r.out.includes(src), "the refusal must name the SOURCE root it is protecting");
+});
+
+ok("the refusal happens at PLAN time, before any removal is attempted", () => {
+  /* §4: "refused at plan time, before any `rm` ran". A guard that fires DURING the walk would have
+   * deleted whatever it reached first, and the surviving-files assertions above cannot tell the
+   * difference on a one-file tree. The stack names the frame. */
+  const { src, cor } = makeTwoRoots({ nested: true });
+  const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
+  assert.match(r.out, /at plan \(/, `the refusal did not come from plan():\n${r.out}`);
+  assert.doesNotMatch(r.out, /^removed/m, "something was reported removed before the refusal");
+});
+
+ok("CONTROL: with the roots DISJOINT the same wipe proceeds, and SOURCE is untouched", () => {
+  /* Without this the three cases above are satisfied by a guard that refuses everything — which is
+   * safe and useless. This is the case that proves the guard discriminates. */
+  const { src, cor } = makeTwoRoots({ nested: false });
+  const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 0, `a disjoint corpus should wipe cleanly:\n${r.out}`);
+  assert.ok(!fs.existsSync(path.join(cor, "sen/files")), "sen/files should be gone in the disjoint case");
+  assert.ok(fs.existsSync(path.join(src, "src/a.ts")), "SOURCE must be untouched by a legitimate wipe");
+  assert.ok(fs.existsSync(path.join(cor, "sen/catalog/word-names.json")), "the authored names must survive");
+});
+
+ok("NOTED, NOT FIXED: the SOURCE refusal exits 1 with a stack, where a decline exits 3", () => {
+  /* This file's header states the convention: "It exits 3 on a decline, which is not a crash."
+   * The SOURCE guard throws instead, so the tool's MOST safety-critical refusal is the one a caller
+   * distinguishing decline-from-crash will misclassify. The message itself is good and the refusal
+   * is correct — this is presentation, not safety, which is why it is pinned rather than changed:
+   * altering the exit code of the one destructive tool in the tree belongs to whoever owns the
+   * decline convention, not to a passing lane at night.
+   *
+   * Pinned so the day it IS fixed, this assertion fails and gets updated deliberately (R-TEST-4). */
+  const { src, cor } = makeTwoRoots({ nested: true });
+  const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 1, "if this now exits 3, the inconsistency was fixed — update this case and delete the note");
+  assert.match(r.out, /Error: sdd-clean: REFUSING/, "still an uncaught throw rather than a formatted decline");
+});
+
 console.log(`\n${pass} assertions passed`);
