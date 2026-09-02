@@ -168,3 +168,35 @@ badly, naming the chunk now leaves the bad rendering visible behind the name. Th
 trade and it matches §5D.2's priority: the fix for a bad clause is a node-kind RULE, which serves
 every codebase, not a name, which serves this corpus. Naming was never the instrument for that and
 the old behaviour was concealing the need for it.
+
+
+## 7. The amendment validated on a REAL batch, not only synthetically (2026-09-01)
+
+§6's table is the upper bound with every composite named at once, which proves the property but not
+that a model can produce usable chunk names. A real batch was run under the same discipline as every
+other pilot: **20 chunk names at d=1, one model call**, gated and applied.
+
+| corpus-wide, 1,037 files | 20 leaf names only | + 20 REAL chunk names |
+|---|---|---|
+| concrete identifiers | 77,766 | **77,766 — none lost** |
+| clauses emitted | 45,768 | **45,768 — structure unchanged** |
+| byte-identical | 1037/1037 | **1037/1037** |
+
+18 files read differently, so the batch is not vacuous. What it reads like:
+
+    import orm decorators and declare entity class: import `Entity`, `Column`,
+      `PrimaryGeneratedColumn`, and `Index` from `typeorm` then describe the stored
+      record `ClientRunTime` in `client_run_times`
+
+    log warning and return empty map fallback: call log mass credit warning then
+      return a new `Map`
+
+The pattern is recognised first — §5D.3D's actual ask — and every identifier the mine filled is
+still there behind it. Under the pre-amendment rule the first of those would have rendered as
+`import orm decorators and declare entity class` and nothing else, and `typeorm`, `ClientRunTime`
+and `client_run_times` would have left the corpus.
+
+**What this does NOT yet show.** 20 of 86 d=1 rows, and nothing at d>=2. The property under test is
+structural and holds by construction (the content is composed exactly as it would be with no chunk
+name), but the *quality* of composite names at depth — where a chunk name summarises other chunk
+names rather than leaf clauses — is unmeasured. The remaining tiers stay queued behind Q-9.

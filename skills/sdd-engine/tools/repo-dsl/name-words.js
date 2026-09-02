@@ -193,13 +193,22 @@ function cmdName(args) {
    * leaves it stands on are. The plan's own leaf tier is the yardstick, so this cannot be satisfied
    * by an unrelated name that happens to be in the file. */
   if (tierN > 0) {
-    const leafKeys = (plan.tiers.find((t) => t.depth === 0) || { rows: [] }).rows.map((r) => r.key);
-    const missing = leafKeys.filter((k) => !existing.names[k]);
-    if (missing.length) {
-      console.error(`name-words: REFUSING d=${tierN} — ${missing.length} of ${leafKeys.length} leaf skeletons are still unnamed (R-LANG-20/21).`);
-      console.error("  every composite is a named prefix plus ONE leaf, so a name here could not be grounded. Name d=0 first.");
+    /* AMENDED for §5D.4E: the test is whether every leaf is ACCOUNTED FOR, not whether every leaf
+     * carries a NAME. The rule-coverage filter decides *who* accounts for a leaf — a node-kind rule
+     * or a name — and 1,394 of 1,414 are the rule's. Demanding names for those would refuse every
+     * composite tier forever, and would be demanding exactly the 72%-identifier-loss pilot as a
+     * precondition. R-LANG-20/21 is unweakened: what it requires is that a composite's parts are
+     * SAID by something, so the model is never asked to name a chain it cannot read. */
+    const leafRows = (plan.tiers.find((t) => t.depth === 0) || { rows: [] }).rows;
+    const unaccounted = leafRows.filter((r) => !existing.names[r.key] && !(r.rule && !r.rule.namable));
+    if (unaccounted.length) {
+      console.error(`name-words: REFUSING d=${tierN} — ${unaccounted.length} of ${leafRows.length} leaf skeletons are neither named nor rule-covered (R-LANG-20/21).`);
+      console.error("  every composite is a prefix plus ONE leaf, so a name here could not be grounded. Account for d=0 first.");
+      console.error("  (a leaf a node-kind rule already renders IS accounted for — §5D.4E; run `plan` if these annotations are stale.)");
       process.exit(1);
     }
+    const named = leafRows.filter((r) => existing.names[r.key]).length;
+    console.log(`d=0 is accounted for: ${named} named + ${leafRows.length - named} rule-covered = ${leafRows.length} leaf skeletons (R-LANG-21).`);
   }
 
   /* THE FILTER (§5D.3F §2d). A leaf a node-kind rule already renders is NOT asked about: the pilot

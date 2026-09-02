@@ -3983,3 +3983,15 @@ is independently valuable (nothing today can answer "what imports this file"), i
 touches no rendering grammar, and it is the input every later design needs. I did not build it —
 that is a real change and Amir has an open reserved decision (Q-1, direction of truth) sitting
 upstream of anything that adds a tier.
+
+## 2026-09-01 — finding 3 above is now closed with a REAL batch, not a synthetic one
+
+The answer above stood on 233,248 synthetic chunk names, and said so. A real batch has now run:
+**20 chunk names at d=1, one model call**, gated and applied. Corpus-wide, 1,037 files:
+identifiers **77,766 -> 77,766**, clauses **45,768 -> 45,768**, **1037/1037** byte-identical, 18
+files reading differently. The additive path is exercised on the real corpus and `EN.NAMES` is no
+longer `chunks: 0`.
+
+The caveat that replaces the old one: this is 20 of 86 rows at d=1 and nothing at d>=2, so what is
+validated is the MECHANISM at one depth, not the quality of composite names where a chunk name
+summarises other chunk names.
