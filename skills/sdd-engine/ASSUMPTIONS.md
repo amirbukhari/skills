@@ -5082,3 +5082,108 @@ rider on the next legitimate re-mine, not a reason to run one. Still unclaimed, 
 
 *Nothing was written to the corpus: the real `generators-lzw.json` kept its 20:52 timestamp through
 both mines, both renders and both audits, and the experiment copy was removed.*
+
+## A5 — the corpus-wide `.en` idempotence gate, built without choosing a payload closure
+
+*Session `sdd-engine-e2`, 2026-09-01. Directed: "build the A5 corpus-wide idempotence gate now,
+without choosing a payload closure… It'll go red immediately since ids renumber by construction on
+any re-mine — that's expected and correct."*
+
+**The criterion.** §5D.0 statement 2, `tools/prd/05-architecture.md:72`, Amir's words: *"then if I
+mine the codebase again I should see no change to the .en file because it backwards builds the .en
+file back into exactly what was written anyways"*.
+
+**The judgment call: I split it into two halves rather than gating it as one thing.** They have
+different answers, and collapsing them would have produced a single uninformative red that says
+nothing about which part is broken:
+
+| | question | answer |
+|---|---|---|
+| **half 1** | same source, same dictionary — is the persisted `.en` what the renderer produces? | **GREEN, 1037/1037** |
+| **half 2** | re-mine, then render — is the `.en` unchanged? | **false by construction** |
+
+Half 1 had **never been measured anywhere**. Every existing gate asks `compile(.en) === .ts` — the
+machine agreeing with itself in one direction. Nothing had ever compared a fresh render against the
+`.en` on disk. It is green today and it is a **real regression guard independent of any flip**: it
+goes red the moment someone changes the renderer without re-rendering.
+
+**Where each half lives, and why they are not in the same place.**
+
+- **Half 1 → `engine/en-idempotence.test.js`** (new, CORPUS tier, `needs: ["generators-lzw"]`).
+  *Measured:* 1037 compared, **0 drifted, 0 threw, 0 without a `.ts` counterpart**, ~5s, **842MB
+  peak RSS** — which is exactly why it is not in the register runner: `verify-register.js` must stay
+  cheap enough that nobody has a reason to skip it, and 800MB of dictionary is a reason.
+  *Mutation-proven:* corrupting every 10th of 30 persisted `.en` in memory reported **exactly those
+  3 files and no others**, so the comparison is live and not vacuously true. (The vacuous-test trap
+  from A4 was fresh enough to check for.)
+- **Half 2 → register row `R-ARCH-23`**, deliberately red, decided **statically**.
+
+**Why half 2 is never executed by mining — this is the load-bearing call.** Demonstrating it needs a
+real re-mine, which rewrites the shared 40MB dictionary, renumbers every id and invalidates all 1037
+persisted `.en`. That is a destructive write to state other lanes are using tonight, and *a gate that
+must corrupt the corpus to report is not a gate anyone will run.* So it is decided from two static
+facts, the same treatment R-PAY-6 already gets: the allocator is one line (`const id = dict.length`),
+and "no `.en` names a dictionary" is a property of the rendered files. **Measured: ids positional
+`true`; 1034 of 1037 `.en` carry a word id; 0 name a dictionary.**
+
+**What I did NOT do, deliberately.** No closure was chosen, no payload byte was touched, no re-mine,
+no render, no corpus write. Closure (a) fingerprint-stamped `.en` and (b) content-addressed ids are
+**R-PAY-6's, and Amir's call** — it moves the payload format corpus-wide, and it mutates shared state,
+which is not a unilateral decision regardless. The row exists **ahead of** that call so the criterion
+is mechanized the moment a closure lands, rather than the closure landing with nothing to say whether
+it worked.
+
+**`R-ARCH-23` was verified free** before use (no hits in any `.js` or `.md`) — the C3 duplicate-id
+trap. It sits in the R-ARCH space on purpose: statement 2 belongs beside statement 6's R-ARCH-15.
+
+**Both verdict branches were exercised through the real code path, not a re-implementation.** FAILS
+against the live corpus; **HOLDS** by pointing `CORPUS` at a throwaway dir holding two `.en` that name
+a fingerprint (`CORPUS=<tmp> node verify-register.js --id=R-ARCH-23` → `HOLDS  2 of 2 .en pin a
+dictionary`), then deleting it. *One branch is NOT exercised:* the `!t.ok` arm that fires if
+`en-idempotence.test.js` is deleted — proving it would have meant moving the test file aside while
+peer lanes are running, which was not worth the window.
+
+**Note for whoever closes R-PAY-6:** half 2's static assertion in `en-idempotence.test.js` is written
+to **fail loudly the day a closure lands**, and its message says so. That is intentional. Replace it
+with a real re-mine comparison — do not delete it.
+
+**Same-file collision, handled.** `verify-register.js` carried **254 uncommitted insertions from a
+peer lane** (10 rows: R-ART-2/3/5/6/9/10/11, R-COMP-8, R-PAY-5, R-TEST-5) when I arrived. No id
+collision with R-ARCH-23, but paths cannot separate two lanes in one file, so this commit was built
+**from the index** per CLAUDE.md §7: my row was inserted into a `git show HEAD:` copy, hashed, and
+staged with `update-index`, leaving the peer's hunks in the working tree and theirs to commit.
+
+### The index-rebuild technique is NOT safe when two lanes run it at once
+
+*`sdd-engine-e2`, 2026-09-01, minutes after the above. Caught, and already unwound — recorded because
+the failure mode is not in CLAUDE.md §7 and cost both lanes a commit.*
+
+**What happened.** A peer lane's commit `7e81898`, titled *"mechanize ten register rows"*, landed
+containing **none of those ten rows** — it held exactly the five files of the A5 work above, 247
+insertions, all mine. The peer noticed and **reset it**; their ten rows are back to unstaged in the
+working tree and my staged set came back to me. **Nothing was lost on either side.**
+
+**How, precisely — both lanes reached for the same defence and it failed in the gap between them.**
+The peer's message records their check — *"another lane has an uncommitted R-ARCH-23 row in this file,
+and `git diff --cached | grep R-ARCH-23` is 0 — their work stays theirs to commit"* — and that was
+**true when they ran it**. Then, between their check and their `git commit`:
+
+1. I ran `git restore --staged` on `measure-id-stability.js` and `sdd-clean.js` — **their** staged
+   files, unstaged to keep them out of my commit, not knowing they were mid-commit.
+2. I ran `update-index --cacheinfo` to stage my `HEAD`+R-ARCH-23 blob, **overwriting what they had
+   staged for `verify-register.js`**.
+3. They committed **from the index** — by then holding my content and not theirs.
+
+My step 2 is what put my row where their grep had just proven it wasn't. I am half the cause of this.
+
+**The lesson.** CLAUDE.md §7 presents the index-rebuild as the safe way for one lane to commit out of
+a contended file. It is **not safe when two lanes run it at once**: `update-index` is a *write* to
+shared state, so every check either lane makes is stale the instant the other writes.
+***`git diff --cached` proves what the index held when you looked, not what it holds when you
+commit.*** Nothing in the check-then-commit sequence is atomic, and the index is one global slot —
+`-o` cannot help, because the contention is not over paths.
+
+**What would actually work**, and neither lane did it: commit-and-verify as one step, then check
+`git show --stat HEAD` **immediately** and treat a wrong file list as a signal to reset — which is
+what recovered this. The post-commit `git show --stat` in §7 is not optional bookkeeping; it was the
+only thing that caught this.

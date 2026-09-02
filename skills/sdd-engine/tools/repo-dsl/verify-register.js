@@ -1541,6 +1541,63 @@ const ROWS = [
         "lexicographic, not weighted — and the control that measures it exists (§10.3: a guard that cannot be shown to fire is not a guard)");
     } },
 
+  { id: "R-ARCH-23", req: "A re-mine MUST NOT change a `.en`. §5D.0 statement 2, Amir's words: \"if I mine the codebase again I should see no change to the .en file because it backwards builds the .en file back into exactly what was written anyways\".",
+    run() {
+      /* RED ON PURPOSE, and for a reason no other row states. This is the ONLY row about the
+       * stability of the `.en` ITSELF. Every other gate in this engine asks `compile(.en) === .ts`
+       * -- the machine agreeing with itself in one direction. Statement 2 asks the other direction,
+       * and until 2026-09-01 nothing anywhere compared a fresh render against the `.en` on disk.
+       *
+       * THE CRITERION HAS TWO HALVES WITH DIFFERENT ANSWERS, and this row keeps them apart so the
+       * red is precise rather than total:
+       *   HALF 1  RENDER idempotence -- same source, same dictionary, does the persisted `.en` come
+       *           back byte-identical? MEASURED GREEN corpus-wide: 1037/1037, 0 drifted, 0 orphans
+       *           (engine/en-idempotence.test.js, CORPUS tier, ~5s, 842MB). Executed THERE and not
+       *           here on purpose: it costs 800MB of dictionary, and the register runner must stay
+       *           cheap enough that nobody has a reason to skip it.
+       *   HALF 2  MINE idempotence -- what the row actually says. FALSE BY CONSTRUCTION.
+       *
+       * Decided WITHOUT a mine, exactly as R-PAY-6 is: a re-mine renumbers every id, rewrites the
+       * shared 40MB dictionary and invalidates all 1037 `.en`. A gate that must corrupt the corpus
+       * to report is not a gate anyone will run, and this is shared state besides. Both facts that
+       * decide half 2 are static -- the allocator is one line, and "no `.en` names a dictionary" is
+       * a property of the rendered files.
+       *
+       * WHY THIS ROW EXISTS BEFORE ITS FIX DOES. Half 2 cannot close until R-PAY-6 picks a closure
+       * ((a) fingerprint-stamped `.en`, or (b) content-addressed ids) -- reserved for Amir, since it
+       * moves the payload format corpus-wide. This row is built ahead of that call so the criterion
+       * is mechanized the moment a closure lands, instead of the closure landing with nothing to
+       * tell anyone whether it worked. */
+      const e = enFiles();
+      if (e.absent) return MANUAL(`no rendered .en under ${e.where}`, "npm run render");
+      if (e.err) return FAILS(null, e.err);
+      if (!e.files.length) return MANUAL("no .en files rendered", "npm run render");
+
+      let withId = 0, withFp = 0;
+      for (const f of e.files) {
+        let t; try { t = fs.readFileSync(f, "utf8"); } catch { continue; }
+        if (/⟪lzw1 [nw]\d+/.test(t)) withId++;
+        if (/fingerprint/i.test(t)) withFp++;
+      }
+      const w = read("engine/wordlzw.js");
+      const positional = w.ok && /const id = dict\.length/.test(w.text);
+
+      /* The half-1 evidence, cited rather than re-run. A row that claims a corpus measurement it
+       * did not take is worse than one that names where the measurement lives. */
+      const t = read("engine/en-idempotence.test.js");
+      const half1 = t.ok ? "half 1 (render idempotence) is gated by engine/en-idempotence.test.js"
+                         : "half 1 IS NOT GATED AT ALL -- engine/en-idempotence.test.js is gone";
+
+      if (positional && withFp === 0)
+        return FAILS(`ids are allocated as \`dict.length\`, i.e. by mining-order position, and ${withId} of ${e.files.length} .en reference one while ${withFp} name a dictionary`,
+          `a re-mine renumbers every id, so it rewrites almost every .en by construction -- statement 2 cannot hold today. ${half1}, ` +
+          "and green there is NOT this row: re-rendering is not re-mining. Closing this needs R-PAY-6's closure first, which is Amir's call. Red on purpose");
+      if (!t.ok)
+        return FAILS("the mine half may now hold, but the render half lost its gate", half1);
+      return HOLDS(`${withFp} of ${e.files.length} .en pin a dictionary` + (positional ? "" : ", and ids are no longer positional"),
+        `a re-mine can now be shown not to move the .en -- replace en-idempotence.test.js's static half 2 with a real re-mine comparison`);
+    } },
+
   { id: "R-MEAS-9", req: "The per-file ONE-WORD RATE MUST be published by the render producer, beside review surface.",
     run() {
       const i = enIndex();
