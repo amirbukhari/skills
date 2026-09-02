@@ -566,7 +566,7 @@ function importPhrase(st, sf) {
   return P.list(parts) + from;
 }
 /* ExportDeclaration — the sibling of importPhrase, and it exists because the rule-coverage
- * measurement (§5D.4E) found the asymmetry: the import rule QUOTES the symbol and the module, while
+ * measurement (§5D.3G) found the asymmetry: the import rule QUOTES the symbol and the module, while
  * exports fell through to `exportGloss`, which only COUNTS them ("re-export 1 name from another
  * module") — 9 leaf skeletons over 113 sites where the reader was told how many names moved but
  * never which. Naming those skeletons would have served this corpus; writing this rule serves every
@@ -848,8 +848,41 @@ function spanActions(win, sf) {
       if (ts.isCallExpression(inner) && inner.expression.kind === ts.SyntaxKind.SuperKeyword) {
         actions.push("call the parent constructor"); continue;
       }
+      /* NAME THE RECEIVER (R-LANG-24). `firstCallName` returns only the METHOD, so
+       * `cacheProxy.set(argStr, returnValue)` and `Decimal.set({...})` both rendered "call set" —
+       * the same six characters for two unrelated operations, and the one thing a reader needs to
+       * tell them apart was in the source and thrown away. Measured: 3,595 statements in the
+       * foldable scope call a method on a receiver.
+       *
+       * Quoted verbatim rather than de-camelCased, on the precedent this file already sets for
+       * declarations: "the names are already the clearest available words (PRD §3), so they are
+       * quoted verbatim, not translated — `IPartnerCutAmountSource` is what the reader will grep
+       * for". The same argument applies to `clearPartnerActivePropertiesCache`, and it applies
+       * harder to a receiver, which is usually a variable the reader can look up.
+       *
+       * WHY THIS IS A RULE AND NOT A NAME. Both defects the naming pilots surfaced were this one:
+       * a model was asked to name `‹id›.set(‹args›)` and answered "set a configuration value",
+       * which is right for `Decimal.set` and wrong for `cacheProxy.set`. No single hole-free name
+       * can be correct for a skeleton whose receiver varies — only a hole can (§5D.2: a rule
+       * serves every codebase, a name serves this corpus). The receiver is that hole. */
+      const verb = isAwait(st) ? "await " : "call ";
+      {
+        let e = st.expression;
+        while (ts.isAwaitExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression;
+        if (ts.isCallExpression(e)) {
+          if (ts.isPropertyAccessExpression(e.expression)) {
+            /* dottedText returns null for anything that is not a plain dotted name, which is what
+             * keeps `expect(usageItems).toHaveLength(3)` out — quoting a call expression as if it
+             * were a variable would be worse than saying nothing about it. */
+            const recv = dottedText(e.expression.expression, sf);
+            if (recv) { actions.push(verb + q(e.expression.name.text) + " on " + q(recv)); continue; }
+          } else if (ts.isIdentifier(e.expression)) {
+            actions.push(verb + q(e.expression.text)); continue;
+          }
+        }
+      }
       const name = firstCallName(st);
-      actions.push((isAwait(st) ? "await " : "call ") + (name ? P.words(name) : "a step"));
+      actions.push(verb + (name ? P.words(name) : "a step"));
       continue;
     }
 
@@ -1146,7 +1179,7 @@ function countBodyStatements(sf) {
 
 /* ============================ NESTED RENDERING (PRD §5D.4E) ============================
  *
- * WHY THIS EXISTS. R-ARCH-18 made the renderer prefer one whole-file word over the nested words
+ * WHY THIS EXISTS. R-ARCH-22 made the renderer prefer one whole-file word over the nested words
  * inside it, taking one-word-per-file from 30.6% to 93.1%. It also took review surface from 13,873
  * to 23,784, and the reason was structural rather than a bad choice: under a FLAT span model a
  * whole-file word and the words inside its statements' bodies cover overlapping bytes, so the
@@ -1534,7 +1567,7 @@ function renderFileEn(source, index) {
     collapsedStatements: genStmts, restatedStatements: stmtN,
     verbatimStatements: Math.max(0, bodyStmts - genStmts - stmtN),
     residualStatements: Math.max(0, bodyStmts - genStmts),
-    /* R-MEAS-6 / R-ARCH-15: does this file collapse to ONE top-level word? `topSpans` is the count
+    /* R-MEAS-9 / R-ARCH-15: does this file collapse to ONE top-level word? `topSpans` is the count
      * of top-level spans and `oneWord` is true only when there is exactly one AND nothing but
      * whitespace outside it — i.e. one word accounts for the whole file. Published per file
      * because an average hides the worst file, which is the one that costs the review. */

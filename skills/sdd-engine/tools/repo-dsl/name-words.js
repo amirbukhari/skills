@@ -101,7 +101,7 @@ function cmdPlan(args) {
   const used = NP.usedWordsFromSpans(entries);
   const tiers = NP.tiersOf(cat, used, { to });
 
-  /* RULE COVERAGE (§5D.3F §2d, §5D.4E). The 80-leaf pilot named leaves a node-kind rule already
+  /* RULE COVERAGE (§5D.3F §2d, §5D.3G). The 80-leaf pilot named leaves a node-kind rule already
    * rendered and cost the corpus 72% of its concrete identifiers. So the plan no longer asks the
    * model about a leaf without first MEASURING whether a rule reaches it. Leaves only: a composite's
    * name is a whole-chunk name (R-LANG-19), which outranks per-statement rules by design and is not
@@ -193,7 +193,7 @@ function cmdName(args) {
    * leaves it stands on are. The plan's own leaf tier is the yardstick, so this cannot be satisfied
    * by an unrelated name that happens to be in the file. */
   if (tierN > 0) {
-    /* AMENDED for §5D.4E: the test is whether every leaf is ACCOUNTED FOR, not whether every leaf
+    /* AMENDED for §5D.3G: the test is whether every leaf is ACCOUNTED FOR, not whether every leaf
      * carries a NAME. The rule-coverage filter decides *who* accounts for a leaf — a node-kind rule
      * or a name — and 1,394 of 1,414 are the rule's. Demanding names for those would refuse every
      * composite tier forever, and would be demanding exactly the 72%-identifier-loss pilot as a
@@ -204,7 +204,7 @@ function cmdName(args) {
     if (unaccounted.length) {
       console.error(`name-words: REFUSING d=${tierN} — ${unaccounted.length} of ${leafRows.length} leaf skeletons are neither named nor rule-covered (R-LANG-20/21).`);
       console.error("  every composite is a prefix plus ONE leaf, so a name here could not be grounded. Account for d=0 first.");
-      console.error("  (a leaf a node-kind rule already renders IS accounted for — §5D.4E; run `plan` if these annotations are stale.)");
+      console.error("  (a leaf a node-kind rule already renders IS accounted for — §5D.3G; run `plan` if these annotations are stale.)");
       process.exit(1);
     }
     const named = leafRows.filter((r) => existing.names[r.key]).length;
@@ -286,10 +286,81 @@ function cmdName(args) {
   console.log(`applied -> ${wnPath}   (names ${Object.keys(names).length}, chunks ${Object.keys(chunks).length})`);
 }
 
+/**
+ * retire [--apply] — DROP NAMES A RULE HAS OVERTAKEN. The counterpart of the rule-coverage filter
+ * (§5D.4E), and the filter's own logic run in the other direction.
+ *
+ * The filter decides, BEFORE a call is made, that a leaf a node-kind rule already renders is not
+ * worth naming. But rules are written continuously, and a name authored when no rule reached its
+ * skeleton becomes a DOWNGRADE the moment one does — it is hole-free, and the rule that overtook it
+ * is hole-filled. Measured the first time this happened: R-LANG-24 (naming a call's receiver) took
+ * 14 of the 20 authored leaf names from "the best available clause" to "1,768 identifiers worse
+ * than doing nothing". Nothing in the gate catches that, because the gate scores a BATCH being
+ * applied; these names were already on disk and were correct when they were written.
+ *
+ * So a name is not a permanent asset. It is a claim that no rule says this better, and this command
+ * re-tests the claim against today's rules and retires the names that no longer hold it. It never
+ * touches a name whose skeleton is still unreached, and it is measured, not assumed: every retirement
+ * is expected to GAIN identifiers, and the command reports the corpus figure either way.
+ */
+function cmdRetire(args) {
+  const apply = args.includes("--apply");
+  const planRes = AC.load("naming-plan", AC.pathFor("naming-plan", CORPUS), { optional: true });
+  if (!planRes.ok) { console.error("name-words: " + planRes.reason + "\n  run `node name-words.js plan` first."); process.exit(2); }
+  const rowByKey = new Map();
+  for (const t of planRes.value.tiers) for (const r of t.rows) rowByKey.set(r.key, r);
+
+  const wnPath = AC.pathFor("word-names", CORPUS);
+  const existing = require("./engine/word-names").load(wnPath);
+  const covered = [], kept = [], unknown = [];
+  for (const key of Object.keys(existing.names)) {
+    const row = rowByKey.get(key);
+    if (!row || !row.rule) { unknown.push(key); continue; }   // not in today's plan: leave it alone
+    (row.rule.namable ? kept : covered).push({ key, en: existing.names[key].en, sym: existing.names[key].sym, rule: row.rule });
+  }
+  console.log(`word-names holds ${Object.keys(existing.names).length} leaf names: ${covered.length} now rule-covered, ${kept.length} still unreached, ${unknown.length} not in the plan.`);
+  if (!covered.length) { console.log("nothing to retire — every authored name still says more than the rules do."); return; }
+
+  /* the measurement that decides it: what does the corpus say with these names, and without them */
+  const index = EN.loadIndex(CORPUS);
+  const files = walk(SRC);
+  const detail = () => { let d = 0; for (const f of files) { try { d += GATE.detailOf(EN.renderFileEn(fs.readFileSync(f, "utf8"), index).en); } catch (_) {} } return d; };
+  const live = EN.NAMES.names;
+  const saved = Object.assign({}, live);
+  const before = detail();
+  for (const c of covered) delete live[c.key];
+  const after = detail();
+  Object.assign(live, saved);
+
+  console.log("\nretiring:");
+  for (const c of covered.slice(0, 25)) console.log(`  ${JSON.stringify(c.en)}\n     rule now says: ${JSON.stringify(c.rule.sampleClause || "")}`);
+  if (covered.length > 25) console.log(`  … and ${covered.length - 25} more`);
+  console.log(`\nconcrete identifiers across ${files.length} files: ${before} -> ${after}` +
+    (after > before ? `  (GAIN ${after - before} — the rules say more than these names did)`
+     : after === before ? "  (no change — these names were saying exactly what the rules say)"
+     : `  (LOSS ${before - after} — REFUSING)`));
+  if (after < before) { console.error("\nREFUSING: retiring these names would cost the corpus detail. That contradicts the classification; re-run `plan`."); process.exit(1); }
+  if (!apply) { console.log("\ndry run — word-names.json NOT written. Re-run with --apply to retire these."); return; }
+
+  const names = {};
+  for (const k of Object.keys(existing.names)) if (!covered.some((c) => c.key === k)) names[k] = existing.names[k];
+  const prior = existing;
+  const body = AC.stamp("word-names", {
+    note: prior.note, chunkKey: prior.chunkKey, nameKey: prior.nameKey,
+    names, orphans: prior.orphans, chunks: prior.chunks,
+    modelCalls: prior.modelCalls || 0,
+    namedBy: prior.namedBy,
+    retiredBy: { count: covered.length, reason: "a node-kind rule now renders these skeletons (§5D.4E)", detail: `${before} -> ${after}`, at: new Date().toISOString().slice(0, 10) },
+  }, { corpus: CORPUS });
+  fs.writeFileSync(wnPath, JSON.stringify(body, null, 1) + "\n");
+  console.log(`\nretired ${covered.length} -> ${wnPath}   (names ${Object.keys(names).length}, chunks ${Object.keys(prior.chunks).length})`);
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === "plan") cmdPlan(rest);
 else if (cmd === "name") cmdName(rest);
+else if (cmd === "retire") cmdRetire(rest);
 else {
-  console.error("usage: name-words.js plan [--to N]\n       name-words.js name --tier N [--batch 40] [--limit N] [--stub f] [--apply]");
+  console.error("usage: name-words.js plan [--to N]\n       name-words.js name --tier N [--batch 40] [--limit N] [--stub f] [--apply]\n       name-words.js retire [--apply]");
   process.exit(2);
 }

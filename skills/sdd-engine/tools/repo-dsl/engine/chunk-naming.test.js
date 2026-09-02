@@ -60,7 +60,7 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   ok(!/undefined|null/.test(g), "declining never leaks a null into the label");
 }
 
-/* ---- 1b. THE EXPORT CHUNK RULE (§5D.4E) ---------------------------------------------------
+/* ---- 1b. THE EXPORT CHUNK RULE (§5D.3G) ---------------------------------------------------
  * Written because the rule-coverage measurement found the asymmetry, not because a shape was
  * missing from a list: the import rule QUOTED its symbol and module while exports only COUNTED
  * ("re-export 1 name from another module") across 9 leaf skeletons / 113 sites. The alternative
@@ -126,20 +126,25 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   ok(r.covers.every(([f, t]) => t - f === 1), "no rule fired, so every clause is one statement wide");
 }
 
+/* NOTE on the clause spelling below (R-LANG-24, 2026-09-01): a call now renders as
+ * "call `set` on `res`" rather than "call set" — the receiver was in the source and was being
+ * thrown away, so `cacheProxy.set` and `Decimal.set` produced the same six characters. These
+ * expectations moved with it; what each assertion is ABOUT — cardinality collapse, interleaving,
+ * chunk-gloss validity — is unchanged, which is why they all moved in the same way at once. */
 /* ---- 2. GENERIC CARDINALITY --------------------------------------------------------------- */
 {
   const [st, sf] = stmts("res.set('a', 1);\nres.set('a', 1);\n");
   const g = EN.spanProse(st, sf);
-  eq(g, "call set twice", "two adjacent identical clauses collapse with a count");
+  eq(g, "call `set` on `res` twice", "two adjacent identical clauses collapse with a count");
   ok(!/ then /.test(g), "collapsed cardinality leaves no 'then'");
 }
 {
   const [st, sf] = stmts("res.set('a', 1);\nres.set('a', 1);\nres.set('a', 1);\n");
-  eq(EN.spanProse(st, sf), "call set 3 times", "three collapse to a count, not to 'twice'");
+  eq(EN.spanProse(st, sf), "call `set` on `res` 3 times", "three collapse to a count, not to 'twice'");
 }
 { // NON-ADJACENT identicals are genuinely interleaved and MUST NOT collapse.
   const [st, sf] = stmts("a();\nb();\na();\n");
-  eq(EN.spanProse(st, sf), "call a, call b, then call a",
+  eq(EN.spanProse(st, sf), "call `a`, call `b`, then call `a`",
     "A B A stays three clauses — interleaving is not repetition");
 }
 
@@ -168,11 +173,11 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
 }
 { // ... while the ADJACENT form of the very same repetition IS collapsed and allowed.
   const [st, sf] = stmts("a();\na();\nb();\n");
-  eq(EN.chunkGloss(st, sf), "call a twice then call b", "adjacent repetition collapses and passes the gate");
+  eq(EN.chunkGloss(st, sf), "call `a` twice then call `b`", "adjacent repetition collapses and passes the gate");
 }
 { // a single meaningful statement IS glossable — the gate refuses meaninglessness, not brevity
   const [st, sf] = stmts("x();\n");
-  eq(EN.chunkGloss(st, sf), "call x", "one meaningful clause is a valid chunk gloss");
+  eq(EN.chunkGloss(st, sf), "call `x`", "one meaningful clause is a valid chunk gloss");
 }
 
 /* ---- 4. WHOLE-CHUNK NAMES OUTRANK COMPOSITION (R-LANG-19) -------------------------------- */
@@ -217,11 +222,11 @@ const stmts = (src) => { const sf = sfOf(src); return [[...sf.statements], sf]; 
   }
   /* A chunk name with NO leaf names still keeps the rules' content, which is the case that carries
    * the identifiers: composite naming is expected to run against a corpus whose leaves are almost
-   * entirely rule-covered (§5D.4E: 1,394 of 1,414), so this is the COMMON path, not the corner. */
+   * entirely rule-covered (§5D.3G: 1,394 of 1,414), so this is the COMMON path, not the corner. */
   {
     const only = String(EN.namedLabel(span, src2, cat, {}, { [key]: { en: "set up the request context" } }));
     ok(/^set up the request context: /.test(only), "the name leads");
-    eq(only, "set up the request context: call a then call b",
+    eq(only, "set up the request context: call `a` then call `b`",
       "and the rules' own clauses are still there behind it, both of them");
   }
   ok(/first thing/.test(String(EN.namedLabel(span, src2, cat, names, {}))),

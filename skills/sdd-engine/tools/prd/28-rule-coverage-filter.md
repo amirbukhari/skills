@@ -210,3 +210,43 @@ friends) came back WITHOUT the word "partner", and `‹id›.set(‹args›)` wa
 value" while one of its two sites is a cache write (`cacheProxy.set(...)`). Both are the same defect
 in miniature — a hole-free name standing in for a receiver the render had already dropped — and both
 argue for the rule that quotes a call's receiver ahead of any further naming.
+
+---
+
+## 11. The filter run backwards: `name-words.js retire` (R-LANG-24)
+
+§1's criterion decides, BEFORE a call is made, that a leaf a node-kind rule already renders is not
+worth naming. Rules are written continuously, so the same criterion has a second direction that this
+document did not state: **a name authored when no rule reached its skeleton becomes a DOWNGRADE the
+moment one does.** The name is hole-free; the rule that overtook it is hole-filled.
+
+This stopped being hypothetical the first time a rule landed after a naming batch. R-LANG-24 made a
+call name its receiver, and of the 20 authored leaf names:
+
+| | before R-LANG-24 | after |
+|---|---|---|
+| `‹id›.set(‹args›)` | "set a configuration value" | ``call `set` on `acc` `` |
+| `clearPartnerActivePropertiesCache();` | "clear the active properties cache" | ``call `clearPartnerActivePropertiesCache` `` |
+| `‹id›.credits.forEach(‹args›);` | "iterate over credits array" | ``call `forEach` on `creationData.credits` `` |
+
+The first is the defect the pilot flagged — a name that is right for `Decimal.set` and wrong for
+`cacheProxy.set`. The second is the name that dropped the word "partner"; the rule quotes the
+identifier whole and the word comes back. **Measured: keeping those 14 names cost the corpus 1,768
+concrete identifiers** against letting the rules speak.
+
+**Nothing in the naming gate catches this**, and that is not a gap in the gate: the gate scores a
+BATCH BEING APPLIED, and these names were correct when they were written and were already on disk.
+What changed was the world around them. So retirement is its own command, with the same discipline
+as every other step here:
+
+- it re-tests each authored name against TODAY's rule annotations (`plan` must be current);
+- it never touches a name whose skeleton is still unreached — 6 of the 20 stayed;
+- it measures the corpus before and after, prints the figure either way, and **REFUSES to write if
+  retiring would cost detail** — that outcome would mean the classification is wrong, not that the
+  names should go;
+- it stamps `retiredBy` into `word-names.json` so the deletion has a reason on disk.
+
+**The standing consequence, which is the real content of this section:** a name is not a permanent
+asset. It is a CLAIM that no rule says this better, and it has to be re-tested whenever the rules
+change. §5D.2's priority — a rule serves every codebase, a name serves this corpus — is not only
+about which work to do first; it decides which of the two gives way when they collide.
