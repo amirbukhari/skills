@@ -130,6 +130,35 @@ if (!DRY && !fs.existsSync(path.join(CORPUS, ".gitignore")))
   fs.writeFileSync(path.join(CORPUS, ".gitignore"), "# derived build intermediates — regenerable, never committed.\n.cache/\n");
 
 /* ---------- 4. manifest + report ---------- */
+
+/* THE TWO PER-FILE READS, NAMED (R-MEAS-10, one granularity down). Publishing the full array
+ * (below) exposed a collision that was invisible while only top-15 slices reached disk, and it is
+ * the same defect R-MEAS-10 exists to prevent, one level in: THE KEY `reviewSurface` MEANS
+ * DIFFERENT THINGS AT THE TWO LEVELS.
+ *
+ * MEASURED 2026-09-01 over all 1037 rows:
+ *   perFile[].reviewSurface === topSpans + residualStatements          1037 / 1037   the TOP read
+ *   perFile[].reviewSurface === genSpans + unfolded (corpus formula)    260 / 1037
+ *   sum of perFile[].reviewSurface = 1,610  =  reviewSurface.reviewSurfaceTop
+ *   sum of genSpans + unfolded     = 29,260 =  reviewSurface.reviewSurface
+ *
+ * So a reader who sums the per-file column named `reviewSurface` gets the TOP number, while the
+ * corpus field of the SAME NAME is the WHOLE-TREE number -- an 18x gap, agreeing only on the 260
+ * files whose top span count happens to equal their generator span count. Dividing 29,260 by 1037
+ * likewise yields a per-file average no row matches. The §7.3 comment below claimed "One
+ * definition, two granularities -- the per-file view is `perFile[].reviewSurface`", which is FALSE
+ * in the direction that flatters: the per-file view of the corpus figure was never published at all.
+ *
+ * FIXED BY NAMING BOTH, not by renaming one. `reviewSurface` keeps its value, because
+ * `worstFiles` sorts on it and verify-register.js reads it, and a rename here is a silent break
+ * there. Both reads now sit beside it under names that say which is which, exactly as R-MEAS-10
+ * requires at the corpus level. No corpus number moves: every reduce in the manifest reads
+ * topSpans / residualStatements / genSpans directly, never these two keys. */
+for (const f of perFile) {
+  f.reviewSurfaceTop = (f.topSpans || 0) + (f.residualStatements || 0);
+  f.reviewSurfaceWhole = (f.genSpans || 0) + Math.max(0, (f.bodyStatements || 0) - (f.collapsedStatements || 0));
+}
+
 perFile.sort((a, b) => b.englishPct - a.englishPct);
 const manifest = {
   step: 7, kind: "english-source-of-truth", modelCalls: 0,
@@ -167,8 +196,11 @@ const manifest = {
     verbatimStatements: Math.max(0, bodyStmts - collapsedStmts - restatedStmts),
     residualStatements: Math.max(0, bodyStmts - collapsedStmts),
     /* §7.3 FROZEN DEFINITION, corpus view. reviewSurface = calls + unfolded statements; the
-     * collapse ratio is netStatementReduction / S. One definition, two granularities — the per-file
-     * view is `perFile[].reviewSurface`. */
+     * collapse ratio is netStatementReduction / S. The per-file view of THIS figure is
+     * `perFile[].reviewSurfaceWhole`, NOT `perFile[].reviewSurface` -- that key is the TOP read
+     * (1,610 summed, against 29,260 here). This comment used to say "one definition, two
+     * granularities" and name the wrong key; measured wrong 2026-09-01, see the note above the
+     * loop that publishes both reads. */
     netStatementReduction: collapsedStmts - genSpans,
     /* TWO SURFACES, BECAUSE A TREE HAS TWO (PRD §5D.4E, R-MEAS-10). Nested rendering replaced the
      * flat list with a tree, and "how many things must you read" stopped having one answer. The
@@ -198,6 +230,44 @@ const manifest = {
   },
   calcRelocated: { fromSpecFiles: movedFiles, fromSpecOther: movedOther },
   topEnglishFiles: perFile.slice(0, 15),
+  /* THE FULL PER-FILE ARRAY (R-ARCH-16). Published 2026-09-01, and it is the row's other half.
+   *
+   * R-ARCH-16: review surface "MUST be reported PER FILE and as a corpus total". The corpus total
+   * has been here since the manifest existed. The per-file half was computed into `perFile` and
+   * then published only as THREE TOP-15 SLICES -- `topEnglishFiles`, `reviewSurface.worstFiles`,
+   * `reviewSurface.worstBySpans` -- so per-file review surface reached disk for at most 45, and in
+   * practice 30, of 1037 files. Every corpus number in this manifest is a reduce over the full
+   * array; only the array itself was withheld.
+   *
+   * That is the R-MECH-8 shape at the evidence layer: R-MEAS-9's Check column cites
+   * `perFile[].topSpans` / `.oneWord` as though the array were on disk, a reader who trusted the
+   * citation found nothing, and R-ARCH-16 could not be decided on real data -- the mechanized row
+   * had to compare a 30-file sample against a 1037-file requirement and report the gap instead of
+   * the requirement. A metric published as a leaderboard is a metric nobody can check a file
+   * against, which is exactly what "per file" was asking for.
+   *
+   * WHY THE SLICES STAY. They are now redundant views of this array, and that duplication is
+   * deliberate rather than overlooked: consumers read them today (verify-register.js among them),
+   * and the cost of keeping them is bytes in a cache while the cost of removing them is a silent
+   * break in a row that reads `worstFiles[].residualStatements`. If they are ever dropped, drop
+   * them in a commit that says so and updates those readers.
+   *
+   * MEASURED: 1037 rows, ~28 fields each, taking en-index.json from 19 KB to ~740 KB. It is a
+   * DERIVED cache artifact under .cache/spec-derived/ (AC.pathFor, never the sen/ tree) beside a
+   * 41 MB dictionary, so the size is not a consideration; being unable to check a file is. */
+  perFile,
+  /* AND THE FILES THAT ARE NOT IN IT, because "per file" must not quietly mean "per file that
+   * rendered". A file that THREW or came back non-identical `continue`s before the push above, so
+   * it contributes to neither `perFile` nor any corpus reduce -- it simply is not there. Its
+   * review surface is not zero, it is unknown, and a manifest that omits it reports a complete
+   * corpus. `failures` was already carried in the progress stream and in the breach report; it was
+   * never in the artifact, so nothing on disk said which files were missing.
+   *
+   * A CONSUMER CHECKS ONE EQUATION: perFile.length + perFileMissing.length === gate.totalFiles.
+   * Today that is 1037 + 0, and the byte-identity floor (R-REND-1) means the second term is 0
+   * whenever the run passed at all -- which is precisely why this is cheap to add now and
+   * impossible to add honestly after the first failure. */
+  perFileMissing: failures.map(([rel, why]) => ({ rel, why })),
 };
 /* en-index.json is DERIVED -> the gitignored cache, never the sen/ tree. The location comes from
  * AC.pathFor, not a hand-built path.join: this file publishes three gates (byte-identity, R-COMP-6's

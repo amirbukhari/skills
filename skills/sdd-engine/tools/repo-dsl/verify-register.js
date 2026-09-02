@@ -1144,12 +1144,38 @@ const ROWS = [
        * publishes only three top-15 SLICES of it, so per-file review surface exists for at most 45
        * distinct files out of 1037. R-MEAS-9's Check column cites `perFile[].topSpans` / `.oneWord`
        * as though the whole array were on disk. It is not: the top-level key is absent. */
+      const total = g.totalFiles;
+      const pf = i.j.perFile, missing = i.j.perFileMissing;
+
+      if (Array.isArray(pf)) {
+        /* ACCOUNT FOR EVERY FILE, not just every file that rendered. A row that THREW or came back
+         * non-identical never reaches perFile, so an array of 1030 rows against a 1037-file corpus
+         * is not "per file" — it is per file that worked, which reports a complete corpus. The
+         * producer publishes the omissions as `perFileMissing` so ONE equation decides the row. */
+        const nm = Array.isArray(missing) ? missing.length : null;
+        if (nm === null) return FAILS(`perFile has ${pf.length} rows, no perFileMissing to account for the rest`,
+          "without the omissions published, a short array is indistinguishable from a complete one");
+        if (pf.length + nm !== total)
+          return FAILS(`perFile ${pf.length} + perFileMissing ${nm} = ${pf.length + nm}, but gate.totalFiles is ${total}`,
+            "the array does not account for the corpus — some files are in neither list");
+        /* And the rows must actually carry review surface. A per-file array of `rel` alone would
+         * satisfy the count and report nothing the row is about. */
+        const bad = pf.filter((f) => !f || f.residualStatements === undefined || f.reviewSurfaceTop === undefined).length;
+        if (bad) return FAILS(`${bad} of ${pf.length} rows carry no review surface`,
+          "per-file REVIEW SURFACE is the requirement; per-file rel is a file list");
+        return HOLDS(`corpus ${rs.reviewSurface} beside byteIdentical ${g.byteIdentical}/${total}; per-file rows for all ${pf.length} (+${nm} accounted missing)`,
+          "top and whole reads are named per row (reviewSurfaceTop / reviewSurfaceWhole) — the corpus key `reviewSurface` is the WHOLE read and the per-file key of that name is the TOP read, measured 1610 vs 29260");
+      }
+
+      /* NO ARRAY. Two different diagnoses, and telling them apart matters: a reader who concludes
+       * "the producer does not publish it" will go and add what is already there. */
       const rels = new Set();
       for (const arr of [i.j.topEnglishFiles, rs.worstFiles, rs.worstBySpans])
         for (const f of arr || []) if (f && f.rel && f.residualStatements !== undefined) rels.add(f.rel);
-      const total = g.totalFiles;
-      if (i.j.perFile) return HOLDS(`corpus ${rs.reviewSurface}, per file for all ${(i.j.perFile || []).length}`,
-        "the full per-file array is published");
+      const prod = read("write-en-files.js");
+      const publishes = prod.ok && /^\s*perFile,\s*$/m.test(prod.text);
+      if (publishes) return FAILS(`per-file rows for only ${rels.size} of ${total} files, but the producer DOES publish perFile`,
+        "the manifest on disk PREDATES the producer — this is a stale artifact, not a missing feature. Re-render");
       return FAILS(`corpus total ${rs.reviewSurface} beside byteIdentical ${g.byteIdentical}/${total}, but per-file rows for only ${rels.size} of ${total} files`,
         "`perFile` is computed by write-en-files.js and published only as three top-15 slices; R-MEAS-9 cites `perFile[]` as if the array were on disk");
     } },
