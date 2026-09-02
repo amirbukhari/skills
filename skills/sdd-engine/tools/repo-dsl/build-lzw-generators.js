@@ -155,7 +155,14 @@ const catalog = AC.stamp("generators-lzw", {
   tool: "build-lzw-generators.js",
   node: process.version,
   fileCount: parsed, gap: W.GAP, narrow, wide,
-}, { corpus: path.resolve(SRC) });
+}, { corpus: path.resolve(SRC),
+  /* §8B constants provenance. A swept value must not be indistinguishable from the settled one:
+   * the three constants above were SETTLED by a sweep (see the measurements at the top of this
+   * file), so an artifact mined at other values has to say so on itself. Only the ones that differ
+   * from the default are recorded, so a default mine's body -- and its fingerprint -- is unchanged. */
+  constants: { MIN_COUNT: { value: MIN_COUNT, default: 1 },
+               MIN_SKEL:  { value: MIN_SKEL,  default: 8 },
+               MAXWIN:    { value: MAXWIN,    default: 100000 } } });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(catalog));
 

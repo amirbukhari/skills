@@ -225,6 +225,37 @@ function stamp(kind, body, opts = {}) {
   if (typeof clean.modelCalls !== "number" || !Number.isFinite(clean.modelCalls) || clean.modelCalls < 0) {
     throw new ArtifactContractError(kind, "(stamp)", "modelCalls: a finite count >= 0 (omit it to declare 0)", JSON.stringify(clean.modelCalls));
   }
+  /* CONSTANTS PROVENANCE (§8B). A mine run with MIN_COUNT/MIN_SKEL/MAXWIN overridden produces a
+   * different artifact from a default run, and until now the artifact could not say so — a swept
+   * value looked exactly like the settled one, which is how a tuning experiment gets mistaken for
+   * the corpus's own numbers.
+   *
+   * EMITTED ONLY WHEN SOMETHING IS ACTUALLY OVERRIDDEN. This is the whole reason the field is safe
+   * to add now: a default run's body is unchanged, so no existing fingerprint moves and no artifact
+   * needs re-stamping. The concern that this "would move every fingerprint" is answered by
+   * construction rather than by argument — it moves exactly the fingerprints of runs that were not
+   * default, which is the point of recording it.
+   *
+   * IN THE BODY, NOT THE HEADER, for the same reason as `modelCalls` above: a header key is excluded
+   * from the fingerprint, so a later hand-edit deleting the override claim would not disturb the
+   * seal — and that is precisely the edit this field exists to catch. A provenance note that can be
+   * quietly removed is not provenance.
+   *
+   * FAIL-CLOSED on a malformed claim, again like modelCalls: an unparseable override record reads as
+   * "nothing was overridden" to a scanner, which is worse than absent. */
+  if (opts.constants !== undefined) {
+    const c = opts.constants;
+    if (!c || typeof c !== "object" || Array.isArray(c))
+      throw new ArtifactContractError(kind, "(stamp)", "constants: an object of { NAME: { value, default } }", Object.prototype.toString.call(c));
+    const over = {};
+    for (const name of Object.keys(c).sort()) {
+      const e = c[name];
+      if (!e || typeof e !== "object" || !("value" in e) || !("default" in e))
+        throw new ArtifactContractError(kind, "(stamp)", `constants.${name}: { value, default }`, JSON.stringify(e));
+      if (e.value !== e.default) over[name] = { value: e.value, default: e.default };
+    }
+    if (Object.keys(over).length) clean.constantsOverridden = over;
+  }
   const head = {
     schema: spec.schema,
     artifactVersion: Number(spec.schema.split("/").pop()),
