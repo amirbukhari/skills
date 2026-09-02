@@ -163,7 +163,7 @@ already says must be **one rule with cardinality as a parameter**, not N names.
 (0 names, 0 chunks, `modelCalls: 0`); nothing was left in the corpus. Re-running it is two model
 calls.
 
-> **SUPERSEDED 2026-09-01 — this paragraph is kept as the record of its moment, not as current state.** `word-names.json` now holds **20 names, 0 chunks, `modelCalls: 1`** (measured through `AC.pathFor("word-names")` at `sen/catalog/word-names.json`, fingerprint `18f81fa85c0a67d6`). The 20 names are a LATER and separate event from the 80-name pilot described above — that pilot was genuinely reverted, and this note does not undo that. See §5D.4E ([27-rule-coverage-filter.md](27-rule-coverage-filter.md)), which records the model call that produced them and the re-render that applied them. The claim that has expired is the PRESENT-TENSE one — "still holds 0 names" — not the history.
+> **SUPERSEDED 2026-09-01 — this paragraph is kept as the record of its moment, not as current state.** `word-names.json` now holds **20 names, 0 chunks, `modelCalls: 1`** (measured through `AC.pathFor("word-names")` at `sen/catalog/word-names.json`, fingerprint `18f81fa85c0a67d6`). The 20 names are a LATER and separate event from the 80-name pilot described above — that pilot was genuinely reverted, and this note does not undo that. See §5D.4E ([28-rule-coverage-filter.md](28-rule-coverage-filter.md)), which records the model call that produced them and the re-render that applied them. The claim that has expired is the PRESENT-TENSE one — "still holds 0 names" — not the history.
 
 **What this does NOT overturn:** R-LANG-21 — d=0 still cannot be excluded from the naming *scope*,
 because every chain still bottoms out at a leaf and a d>=9 word's tail is still bare leaves. The

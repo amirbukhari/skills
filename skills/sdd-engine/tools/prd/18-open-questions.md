@@ -318,7 +318,7 @@ is the mechanics, and the current code is on the far side of the change:
 - **Still open, still Amir's:** does `MIN_COUNT` move to 2 on the naming path (87% of live words are
   used exactly once, so leaf names barely amortise while rules and chunk names do).
 - **THE PASS IS BUILT, and the three remaining mechanics are PROPOSED, not ruled — §5D.3F
-  ([26-naming-pass-mechanics.md](26-naming-pass-mechanics.md)), 2026-09-01.** `name-words.js`
+  ([27-naming-pass-mechanics.md](27-naming-pass-mechanics.md)), 2026-09-01.** `name-words.js`
   (`plan` + `name --tier N [--apply]`) over `engine/naming-plan.js` (the order), `engine/namer.js`
   (the only place a model is spoken to) and `engine/naming-gate.js` (byte-identity + payload
   identity + coverage invariance, each shown FAILING against an injected renderer). 36 unit
