@@ -2979,3 +2979,53 @@ every level" applied to holes.
 
 **Measured:** byte-identity 1037/1037; one word per file 317 -> 965 (30.6% -> 93.1%); spans 4,787 ->
 1,135; register 38 hold, 0 fail, 3 manual; 0 model calls.
+
+## 2026-09-01 — the three overnight governance calls, decided and closed
+
+**Decided by my user under Amir's overnight autonomy grant, not by me and not by peer consensus.**
+Recording all three here so tomorrow's reader finds the decision rather than the open question.
+
+**1. The §7.3 / R-MEAS-2 review-surface denominator change: APPROVED TO KEEP, provenance note kept.**
+The reasoning given: it was honestly measured and transparently self-flagged rather than hidden, which
+is consistent with how every other re-measurement was treated tonight — accept honest numbers, track
+provenance, do not quietly overwrite. So S stays "every statement that is a direct child of a Block
+or a SourceFile", the headline stays 50.2%, and the retirement of the old `fnStmtCount` citation stays
+noted in place. The earlier entries flagging this as lifted-by-a-lane are left standing rather than
+edited, because the sequence matters: it was flagged before it was approved, and both sdd-engine-5a
+and I recorded it as unauthorised at the time. That was the correct state then; this is the correct
+state now.
+
+**2. `constantsOverridden` in the §8B header: INCLUDED.** Judgment left to me, so the design calls are
+mine and worth stating.
+
+- **Emitted only when a constant actually differs from its default.** This is what turned the standing
+  objection ("it would move every fingerprint") from an argument into a non-issue: a default run's
+  body is unchanged, so no stored artifact needs re-stamping. Verified — a default-constants stamp and
+  a no-constants stamp yield the SAME fingerprint; an overridden one differs; all seven artifacts on
+  disk, all stamped before the change, still load and validate.
+- **In the fingerprinted body, not in `HEADER_KEYS`**, following the `modelCalls` precedent already in
+  the file. Header keys are excluded from the fingerprint, so a hand-edit deleting the override claim
+  would leave the seal intact — the exact edit the field exists to catch. A provenance note that can
+  be quietly removed is not provenance.
+- **Keys sorted**, so insertion order cannot move the seal. **Fail-closed** on a malformed record, for
+  the `modelCalls` reason: an unparseable override claim reads as "nothing was overridden" to a
+  scanner, which is worse than absent.
+- The test proves the placement instead of asserting it: deleting the claim and rewriting an override
+  value each break validation. That assertion is the whole argument for body-over-header, so it had to
+  be executable.
+
+**3. CLAUDE.md §7: BOTH ADDITIONS APPROVED, and a third went in with them.** The empty-numstat tell and
+the same-file two-lane collision were the two approved; I also recorded "read the minus lines, not just
+the count", because it is the step that turns a numstat gap into a diagnosis and without it the other
+two are advice rather than procedure. Each carries the measurement that produced it, per the rule at
+the top of that file.
+
+**What I did NOT do:** I did not edit CLAUDE.md, the PRD, or any settings on the strength of peer
+agreement earlier tonight, and said so to 5a at the time. Three lanes agreeing is not authorisation.
+The additions landed only once my user approved them, which is the distinction worth preserving — the
+content was ready for hours; the authority is what arrived.
+
+**Verified by running it:** unit tier 28 passed, 0 failed. All seven on-disk artifacts load and
+validate. Register 41 mechanized, 38 hold, 0 fail, 3 manual.
+
+**Commits:** CLAUDE.md §7 and the constants provenance land in this push; this entry is the record.
