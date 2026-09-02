@@ -4930,3 +4930,25 @@ stays decidable without a corpus. Mutation-checked both ways: unwiring `deriveGl
 *"CUT 1 is gone — a hand-edit is not even DETECTED"*; removing the `SDD_DERIVE_CHECK` knob reports
 the check cannot be turned on. `engine/enfile.js` restored byte-identical after both, verified
 against HEAD.
+
+**11. UNCLAIMED, logged not taken: R-REND-6 does not reach a STRUCTURAL chunk, and might be able to.**
+s5f's A2 measurement (`b991468`) found 580 hand edits to the English, 0 reaching the compiled `.ts`.
+With `SDD_DERIVE_CHECK` on, the 460 edits on ATOMIC chunks become loud refusals and the **120 on
+STRUCTURAL chunks stay silent** — a `▷` chunk has children instead of a payload, and `deriveGloss`
+takes a payload.
+
+Worth someone measuring, because it looks closable from the renderer side: a structural chunk's
+sentence is not model-authored either. `label()` computes it as `namedLabel || genLabel(start, end,
+source, run.length)`, and at compile time the chunk's compiled body IS that source range — so the
+same sentence is in principle re-derivable and comparable.
+
+**The named obstacle, so nobody starts thinking it is free:** `genLabel`'s third argument is the
+RUN'S STATEMENT COUNT, and the run's grouping is a renderer decision (§5D.4F's maximal non-drillable
+sub-runs), not something the compiled bytes carry. A file-level structural chunk's run is
+recoverable by re-parsing; a nested one's is the enclosing block's run, and recovering it means
+re-deriving the same grouping at compile time. That is either a genuinely small change or a second
+producer of the grouping decision — which would be the §8B shape R-REND-9 exists to prevent. Measure
+which before writing any of it.
+
+This is in the renderer, i.e. my area tonight, and it is a behavioural change to a gate — 120 sites
+that are silent today would start refusing. Not taken without Amir's word.
