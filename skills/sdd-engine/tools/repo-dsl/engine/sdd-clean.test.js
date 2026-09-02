@@ -49,13 +49,19 @@ const has = (root, rel) => fs.existsSync(path.join(root, rel));
  * non-zero status is captured rather than thrown. */
 function run(root, args) {
   try {
-    const out = execFileSync(process.execPath, [CLEAN, "--corpus", root, ...args],
+    const out = execFileSync(process.execPath, [CLEAN, "--corpus", root, "--source", root, ...args],
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     return { code: 0, out };
   } catch (e) {
     return { code: e.status, out: (e.stdout || "") + (e.stderr || "") };
   }
 }
+
+/* SELF-HOSTING IS THE SHAPE UNDER TEST. run() passes --source AND --corpus at the same tmp root,
+ * which is the default arrangement (SOURCE === CORPUS). Passing only --corpus left SOURCE resolving
+ * to the real engine default, and every .en in the tmp tree then looked ORPHANED to the flip gate —
+ * which is the gate working, but not the case these cases are about.
+ */
 
 /* (a) THE REGRESSION. --wipe-sen --go must take sen/files/ and LEAVE the catalog. This is the
  * assertion the hole would have failed: before the fix, word-names.json was gone here. */
@@ -141,6 +147,50 @@ ok("DRIFT GUARD: scope 2 enumerates children, and the guard tests containment bo
     "the guarded-subtree check no longer tests whether the TARGET CONTAINS the guarded path");
   assert.ok(/--wipe-catalog/.test(src) && /GUARDED/.test(src),
     "the guarded-subtree mechanism is gone");
+});
+
+/* ─── THE FLIP GATE (PRD §1B.3): once the English is authoritative, sen/ is REFUSED, not gated.
+ * §1B.3's sentence — "this gate must harden from 'explicit flag' to 'refuse'" — was documentation
+ * only until 2026-09-01. These cases are the control. Both signals are asserted, and so is the
+ * property that makes it a refusal rather than a fourth token: NO flag releases it. */
+
+/* (h) DECLARED. A corpus-local sen/DIRECTION file, not an engine env var, so a forked corpus
+ * carries its own answer instead of inheriting the engine's. */
+ok("sen/DIRECTION en-authoritative: --wipe-sen --go is REFUSED and deletes nothing", () => {
+  const root = makeCorpus();
+  fs.writeFileSync(path.join(root, "sen/DIRECTION"), "# the flip landed\nen-authoritative\n");
+  const r = run(root, ["--wipe-sen", "--wipe-catalog", "--go"]);
+  assert.strictEqual(r.code, 3, "a refusal must not look like an action");
+  assert.ok(has(root, "sen/files/src/a.ts.en"), "AUTHORED ENGLISH DELETED — this is the flip hole");
+  assert.ok(has(root, "sen/catalog/word-names.json"));
+  assert.ok(has(root, ".cache/spec-derived/en-index.json"),
+    "a refused run must not delete scope 1 either — it was refused, not partially obeyed");
+  assert.ok(/en-authoritative/.test(r.out) && /do NOT release it/.test(r.out),
+    `expected the refusal to name the declaration and say no token releases it, got:\n${r.out}`);
+});
+
+/* (i) DETECTED, and this is the one that matters: the flip is likely to arrive in practice before
+ * anyone remembers to write a DIRECTION file. A render cannot produce a .en with no source file. */
+ok("an .en with no counterpart in SOURCE refuses the wipe even with no DIRECTION file", () => {
+  const root = makeCorpus();
+  fs.writeFileSync(path.join(root, "sen/files/src/authored-by-hand.ts.en"), "\u00ab hand written \u00bb\n");
+  assert.ok(!fs.existsSync(path.join(root, "sen/DIRECTION")), "no declaration — detection only");
+  const r = run(root, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 3);
+  assert.ok(has(root, "sen/files/src/authored-by-hand.ts.en"), "the orphan must survive");
+  assert.ok(has(root, "sen/files/src/a.ts.en"), "and so must everything beside it");
+  assert.ok(/1 \.en file\(s\).*NO corresponding/.test(r.out) &&
+    /authored-by-hand\.ts\.en/.test(r.out), `expected the orphan named, got:\n${r.out}`);
+});
+
+/* (j) The un-flipped tree is UNAFFECTED. Measured against the real corpus the same day: 1037 .en,
+ * zero orphans. A gate that fires today would have blocked a wipe Amir is entitled to. */
+ok("with every .en backed by a source file the gate is silent and the wipe proceeds", () => {
+  const root = makeCorpus();
+  const r = run(root, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 0, "no flip, no refusal");
+  assert.ok(!/NOT re-derivable/.test(r.out), "the flip gate must not narrate when it does not fire");
+  assert.strictEqual(has(root, "sen/files/src/a.ts.en"), false, "the ordinary wipe still works");
 });
 
 console.log(`\n${pass} assertions passed`);

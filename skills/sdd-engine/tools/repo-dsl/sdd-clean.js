@@ -29,9 +29,10 @@
  *      minutes; generators-lzw.json alone is ~41 MB).
  *
  *      READ THIS BEFORE WIPING (PRD §1B.3): sen/ is safely wipable only because it is entirely
- *      re-derivable from SOURCE — the .en is rendered FROM the .ts, not the reverse. PRD §1A
- *      intends to FLIP that. If the flip happens, sen/ stops being derived and this gate must
- *      harden from "explicit flag" to "refuse".
+ *      re-derivable from SOURCE — the .en is rendered FROM the .ts, not the reverse. §1B.5 intends
+ *      to FLIP that, and §1B.3 requires this gate to harden from "explicit flag" to "refuse" when
+ *      it does. IMPLEMENTED 2026-09-01 as THE FLIP GATE below: a declared `sen/DIRECTION`, or any
+ *      .en with no counterpart in SOURCE, refuses the run and NO token releases it.
  *
  *   3. sen/catalog/ — THE §8A SOURCE-PROTECTED ARTIFACT HOME. Its own token, `--wipe-catalog`,
  *      on top of --wipe-sen. Added 2026-09-01 after a measured data-loss hole: `--wipe-sen --go`
@@ -67,6 +68,8 @@
  *   node sdd-clean.js --wipe-sen --go                  # remove scope 1 + 2 (NOT the catalog)
  *   node sdd-clean.js --wipe-sen --wipe-catalog --go   # remove scope 1 + 2 + 3
  *   node sdd-clean.js --corpus <path>                  # any root override the resolver accepts
+ *
+ * Once the English is authoritative, EVERY line above that mentions sen/ refuses instead.
  */
 const fs = require("fs");
 const path = require("path");
@@ -173,11 +176,100 @@ function authoredCounts() {
   } catch { return null; }
 }
 
+/* ─── THE FLIP GATE (PRD §1B.3, §1B.5) ────────────────────────────────────────────────────────────
+ * §1B.3 states the whole reason a wipe is tolerable at all: *"What makes the gated wipe acceptable
+ * TODAY is that sen/ is entirely re-derivable from SOURCE: the .en is rendered from the .ts, not the
+ * reverse. If that ever inverts (§1B.5), this gate must harden from 'explicit flag' to 'refuse'."*
+ * §18 Q-1 repeats it as a flip blocker. Nothing implemented that sentence — the tokens would have
+ * kept working across the flip, at which point --wipe-sen deletes HUMAN-AUTHORED SOURCE and the
+ * refusal text still calls it "a full mine + render away".
+ *
+ * A REFUSAL, NOT A FOURTH TOKEN. §1B.3 says *refuse*, and a refusal a flag releases is a gate. Once
+ * the English is authoritative there is no engine command that can responsibly delete it; a human
+ * who genuinely means it still has `rm`, and will have typed it themselves. That is the point.
+ *
+ * TWO SIGNALS, and the second is why this is worth having before the flip lands:
+ *
+ *   DECLARED — `<CORPUS>/sen/DIRECTION` naming the English as authoritative. A corpus-local file,
+ *     NOT a third .env var: the direction is a property of the tree, so a forked corpus rendered
+ *     into a fresh root carries its own answer instead of inheriting the engine's. (CLAUDE.md also
+ *     holds .env to exactly the two roots.) First non-comment line, `en-authoritative`.
+ *
+ *   DETECTED — a `.en` under sen/files/ with NO corresponding file in SOURCE. A rendered tree cannot
+ *     produce one: every .en is written from a .ts that was walked. An orphan is therefore English
+ *     that no re-derivation can rebuild, whatever any DIRECTION file says or omits — the flip
+ *     arriving in practice before anyone remembers to declare it is the likely order of events.
+ *
+ * ONE KNOWN CONSERVATIVE CASE, stated rather than papered over: repoint SOURCE at a DIFFERENT tree
+ * while an old CORPUS/sen/ still sits there, and every .en reads as an orphan, so the run is
+ * refused. That is not a false positive in the sense that matters — sen/ genuinely is no longer
+ * re-derivable from the SOURCE now configured — and the failure mode is a refusal, not a delete.
+ * The remedy is to point SOURCE back at the tree the .en was rendered from. The tests pass
+ * --source and --corpus together because SOURCE === CORPUS is the default, self-hosting shape.
+ *
+ * MEASURED 2026-09-01 against the real corpus, read-only: 1037 .en files, ZERO orphans. So this
+ * gate refuses NOTHING today. It fires the first time a human authors English the .ts cannot
+ * re-derive, which is exactly the moment §1B.3 describes. */
+function declaredDirection() {
+  try {
+    for (const line of fs.readFileSync(path.join(CORPUS, SEN, "DIRECTION"), "utf8").split(/\r?\n/)) {
+      const t = line.trim();
+      if (t && !t.startsWith("#")) return t.toLowerCase();
+    }
+  } catch { /* absent is the normal case and means nothing was declared */ }
+  return null;
+}
+
+/* Orphan .en files, capped — the count matters, the full list does not, and this runs on every
+ * invocation. sen/files/<rel>.en mirrors <SOURCE>/<rel>, which is the mapping enfile writes. */
+function orphanEn(cap = 8) {
+  const base = path.join(CORPUS, SEN, "files");
+  const found = [];
+  let total = 0;
+  (function walk(dir) {
+    let ents;
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(abs); continue; }
+      if (!e.name.endsWith(".en")) continue;
+      const rel = path.relative(base, abs).replace(/\.en$/, "");
+      if (!fs.existsSync(path.join(SOURCE, rel))) {
+        total++;
+        if (found.length < cap) found.push(rel);
+      }
+    }
+  })(base);
+  return { total, sample: found };
+}
+
+const DIRECTION = declaredDirection();
+const ORPHANS = orphanEn();
+const FLIPPED = DIRECTION === "en-authoritative" || ORPHANS.total > 0;
+
+if (FLIPPED) {
+  console.log(`REFUSING to touch ${SEN}/ — the English in it is NOT re-derivable from SOURCE.`);
+  if (DIRECTION === "en-authoritative")
+    console.log(`  ${SEN}/DIRECTION declares: en-authoritative. The .en is the source; the .ts is output.`);
+  if (ORPHANS.total > 0) {
+    console.log(`  ${ORPHANS.total} .en file(s) under ${SEN}/files/ have NO corresponding file in SOURCE:`);
+    for (const r of ORPHANS.sample) console.log(`      ${SEN}/files/${r}.en`);
+    if (ORPHANS.total > ORPHANS.sample.length) console.log(`      … and ${ORPHANS.total - ORPHANS.sample.length} more`);
+    console.log(`  a render cannot produce those. They were authored, and no mine rebuilds them.`);
+  }
+  console.log(`  PRD §1B.3: at the flip this gate hardens from "explicit flag" to "refuse". This is that.`);
+  console.log(`  --wipe-sen and --wipe-catalog do NOT release it. Deleting authored source is not an`);
+  console.log(`  engine operation; if you truly mean it, remove the path by hand.`);
+  if (WIPE_SEN || WIPE_CATALOG) { console.log(`\nnothing was deleted — the run was refused before scope 1.`); process.exit(3); }
+  console.log("");
+}
+
 /* scope 2 — sen/, EXPLICIT FLAG ONLY.
  * Enumerated CHILD BY CHILD rather than planned as one directory. Planning `sen/` wholesale is what
  * deleted the catalog: one target, one recursive rmSync, no enumeration and so nothing to exempt. */
 const sen = measure(SEN);
-if (WIPE_SEN) {
+if (FLIPPED) { /* already refused above; WIPE_SEN exited, so this is the no-flag path */ }
+else if (WIPE_SEN) {
   const cat = path.join(SEN, "catalog");
   for (const e of fs.readdirSync(path.join(CORPUS, SEN), { withFileTypes: true })) {
     const rel = path.join(SEN, e.name);
