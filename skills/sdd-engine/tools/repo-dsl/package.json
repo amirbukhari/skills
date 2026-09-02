@@ -25,6 +25,7 @@
     "name:plan": "node --max-old-space-size=3072 name-words.js plan",
     "name:tier": "node --max-old-space-size=3072 name-words.js name",
     "reconcile": "node reconcile-names.js",
+    "apply:worksheet-names": "node --max-old-space-size=3072 apply-worksheet-names.js",
     "render": "node write-en-files.js",
     "measure": "node measure-english.js",
     "measure:uncollapsed": "node measure-uncollapsed.js",

@@ -5615,3 +5615,62 @@ authoritative (R-REND-6 CUT 2 is not built) — so this is a display change, and
   from the naming plan (target 2,052 names: 1,414 at depth 0, then 86/91/79/87/94/81/65/55) — a
   different population from the worksheet's 3,588 distinct top-level emitted words. Substituting one
   for the other because both are called "tier" would be exactly the reframe CLAUDE.md §7 forbids.
+
+### Applied — 3,566 confident rows, and one premise that did not hold (2026-09-02)
+
+Amir's two decisions, verbatim: *"overwrite — worksheet wins, all 3,588 rows written as-is,
+including the 4 existing (old values stay recoverable in git history)"*, then *"skip the 22 unsure
+rows. Write only the 3,566 rows tagged confident."* Both applied through a new tool,
+`tools/repo-dsl/apply-worksheet-names.js` (dry-run default, `--apply` to write), so the override is
+repeatable and auditable rather than hand-typed.
+
+**Result, verified by reading the artifact back through `AC.load` after the write:**
+
+| | before | after |
+|---|---|---|
+| `names` (leaf skeletons) | 6 | **6 — untouched** |
+| `chunks` (whole-word names) | 20 | **3,582** |
+| `orphans` | 0 | 0 |
+
+3,566 written · **22 skipped as unsure** · **0 unresolved ids** · **0 key collisions** ·
+**4 existing names overwritten**. `retiredBy` and `modelCalls: 0` preserved; `namedBy` records the
+source, the counts, and `gate: "BYPASSED — user override"`. Contract fingerprint `578c7fc603376b60`.
+
+**The consumer path was checked, not assumed.** A name written under the wrong key would be silent
+and would read as applied — so: `WN.chunkNameFor(cat, {a, w}, chunks)` over the first 200 confident
+rows returned the written name **199 of 199** times (the 200th was an unsure row, skipped), and an
+unsure row returns **null**, i.e. unnamed, as intended. `engine/word-names.test.js` (7 assertions),
+`engine/chunk-naming.test.js` (56 passed), `stamp-artifacts.js --check` (all artifacts honour the
+contract) and `verify-register.js` (78 hold / 4 fail / 4 manual, unchanged) all green afterwards.
+
+**THE PREMISE THAT DID NOT HOLD, corrected rather than quietly worked around.** Amir approved the
+overwrite on the basis that *"old values stay recoverable in git history"*. **They do not.**
+`Examples/` is gitignored at the repo root — measured: `git check-ignore -v` names
+`.gitignore:32:skills/sdd-engine/Examples/`, and `git log -- sen/catalog/word-names.json` is empty.
+The corpus is not a separate repo either; it resolves to the same top-level. So this artifact has no
+history at all, and CLAUDE.md §7 says it plainly: *corpus edits have no git safety net.* Two things
+close it, and neither is git:
+1. The tool **snapshots the artifact before every write** —
+   `sen/catalog/word-names.pre-worksheet-2026-09-02T11-31-24-317Z.json` for this run. It sits in the
+   §8A SOURCE-PROTECTED home, which no cleanup deletes (R-CFG-12), and its filename is not any
+   registered artifact name, so no consumer can read it by accident.
+2. The **four replaced names were already quoted verbatim** into the previous ASSUMPTIONS entry,
+   which IS tracked — so they survive in the engine repo's history even if the snapshot is lost.
+
+**Judgment calls:**
+- **Proceeded on the decision, corrected the premise.** The instruction was unambiguous and twice
+  confirmed, so the write happened; the false premise is reported rather than used as a reason to
+  stall. Had there been no snapshot path at all, that would have been a blocking question.
+- **The naming gate is BYPASSED, and the tool says so in three places** (header, `namedBy.gate`, and
+  the closing line it prints). `name-words.js name --apply` runs `engine/naming-gate.js` and refuses
+  a batch that fails byte-identity, payload identity, coverage invariance, detail retention or fold
+  invariance. This is a different producer's proposals applied by explicit instruction, so the gate
+  is skipped deliberately — an absent gate that nobody names would be the R-DRIFT-3 shape.
+- **Refuses a worksheet older than the dictionary** (`--force-stale` overrides, loudly). The
+  worksheet carries no dictionary fingerprint, so this mtime comparison is the only available guard
+  against R-PAY-6 renumbering names onto whichever words now hold those indices. For this run the
+  worksheet (10:36:38Z) was 1m42s NEWER than the dictionary (10:34:56Z).
+- **Did NOT re-render.** Chunk names outrank member composition (R-LANG-19), so these 3,566 names
+  change the rendered English at essentially every emitted span — but rendering was not asked for,
+  it is expensive, and the `.en` on disk is a shared artifact other lanes are measuring against.
+  `npm run render` is the command; bytes are unaffected either way.
