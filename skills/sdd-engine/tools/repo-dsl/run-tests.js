@@ -98,6 +98,10 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw", "word-names"],
     why: "needs the dictionary to have leaves and word-names.json to have named them",
   }],
+  ["engine/hand-authored-en.test.js", {
+    needs: ["generators-lzw"],
+    why: "renders a real .en through the dictionary, then hand-edits it (A4)",
+  }],
   ["engine/unit-boundary.test.js", {
     needs: ["generators-lzw"],
     why: "reads the recursive dictionary (enlzw.loadLzw)",
