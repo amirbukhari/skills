@@ -40,37 +40,138 @@ UNIT tier, zero model calls, no corpus. Existing `chunk-naming.test.js` (34), `w
 (5) and `artifact-location.test.js` (6) still pass; the new `naming-plan` artifact kind is
 registered and validates.
 
-## 2. THE MEASUREMENT — the target is 5,862, not 5,408, and here is why
+## 2. THE MEASUREMENT — the target is 2,052 at `8882830`, and 5,408 is superseded
 
-**R-LANG-22's figures predate the conditional-LIFT commit and should be re-stated.** Reproducing
-§5D.3E's method with the same catalog and the *render's own* span set:
+**Amir's ruling, 2026-09-02: restate R-LANG-20/22 to the re-measured figures; 5,408 is superseded.**
+Done. What follows is the provenance, because the figure is only as good as the state it was taken
+in — and this one moved three times in one evening.
 
-| | §5D.3E (2026-09-01, earlier) | this sweep (2026-09-01, post-LIFT) |
+### 2a. The figures, pinned to a commit
+
+Measured at **`216f928`** ("remove the mining ceilings"), against the catalog re-mined at 20:52 and
+the render the same lane published at 20:53:
+
+| | superseded | **current** |
 |---|---|---|
-| files swept | 943 "mineable" | **1,037** |
-| spans | 3,921 | **4,788** |
-| distinct used words | 3,237 | **3,576** |
+| files swept | 943 | **1,037** |
+| spans | 3,921 | **4,787** |
+| distinct used words | 3,237 | **3,575** |
 | leaf skeletons (d=0) | 2,619 | **2,767** |
-| used words d=1–8 | 2,789 | **3,095** |
-| **naming target** | **5,408** | **5,862** |
+| used words d=1–8 | 2,789 | **3,094** |
+| **naming target** | **5,408** | **5,861** |
 
-**The sweep is the render, not a re-implementation of it.** It calls `enlzw.genSpans` with the same
-`wholeRunOk: (run, sf) => !!chunkGloss(run, sf)` the renderer passes at `enfile.js:1026`, and its
-4,788 spans match `en-index.json`'s `generators.calls: 4788` from the last render **exactly** — which
-is the check that the plan names the words the corpus actually shows.
+**Two independent producers agree at that state.** `name-words.js plan` swept 4,787 spans;
+`en-index.json`'s `generators.calls`, published by the *renderer* from committed code, reads 4,787.
+That agreement is the check that the plan names the words the corpus actually shows.
 
-**Two causes, one confirmed and one not.** Re-running the same sweep with the LIFT switched off
-(`wholeRunOk: () => false`, the pre-`4edebd3` behaviour) gives 5,731 spans / 3,588 used words /
-2,507 leaves — so the LIFT moved the figures, but *neither* setting reproduces 3,921 spans. The
-remaining gap is the **file set**: 943 against 1,037, and `en-index.json` itself reports
-`totalFiles: 1037` for the render it gated. §5D.4A's 943 denominator (308/943 = 32.7%) and today's
-(316/1037 = 30.5%) are the same discrepancy seen from the other side. **Recorded, not resolved** —
-what "mineable" meant in the 943 sweep is not written down anywhere I can find, and guessing at it
-would be exactly the reframing CLAUDE.md §7 warns about.
+**The 0-violations invariant R-LANG-20 rests on was re-verified on the new catalog**: every composite
+is `prefix + exactly one leaf` across **115,832 wide / 126,338 narrow** entries, **0 exceptions**, at
+the new maxDepth **76**. Removing the ceiling deepened the dictionary; it did not touch the shape the
+naming order depends on.
 
-**What does NOT change is the direction R-LANG-22 exists to state.** The target is still MORE names
-than naming every used word today — 5,862 against 3,576, where the old pair was 5,408 against 3,237.
-It is a cost, and the ratio (1.64×) is essentially unmoved.
+### 2b. The MAXWIN fix is NOT what moved the number — measured either side of it
+
+The supersession was expected to be explained by s7's removal of the `MAXWIN = 64` ceiling and the
+recurrence-gate distinction. **It is not.** The same sweep run either side of that change:
+
+| | before the fix (pre-`216f928`) | after the fix (`216f928`) |
+|---|---|---|
+| spans | 4,788 | 4,787 |
+| used words | 3,576 | 3,575 |
+| naming target | 5,862 | **5,861** |
+
+**One name.** The ceiling removal changes the target by 1, because it deepens chains that were
+already being counted rather than admitting new words. The real causes of 5,408 → 5,861 are the two
+recorded when the gap was first found: the **conditional LIFT** (`4edebd3`), and the **file-set
+denominator** — 943 in the earlier sweep against `en-index.json`'s own `totalFiles: 1037`, the same
+discrepancy §5D.4A shows from the other side (308/943 = 32.7% then, 316/1037 = 30.5% now). What
+"mineable" meant in the 943 sweep is still not written down anywhere, and is **still not guessed at
+here.**
+
+### 2c. AND IT MOVED AGAIN THE SAME HOUR — the figure must carry a commit
+
+While §2a was being written, the lane's `enlzw.js` work landed as **`8882830`** ("one word per file
+over compression — 30.6% -> 93.1%"): the whole-run exemption for `isUnit`, plus `ONE_WORD_FIRST`,
+which prefers a word that covers the whole file over the weight-maximising choice. The same `plan`
+command, same catalog, 25 minutes apart:
+
+| | `216f928` | **`8882830` (current)** |
+|---|---|---|
+| spans | 4,787 | **1,135** |
+| distinct used words | 3,575 | **1,018** |
+| leaf skeletons (d=0) | 2,767 | **1,414** |
+| used words d=1–8 | 3,094 | **638** |
+| **naming target** | **5,861** | **2,052** |
+
+Both producers agree at the new state too — `plan` swept 1,135 spans and `en-index.json` reports
+`generators.calls: 1,135`, `oneWordPct: 93.1`.
+
+**The mechanism is not a loss.** A file that renders as one word emits one span instead of five, so
+fewer *distinct* words are emitted and the d>=9 tier absorbs most of them (380 words at d>=9). The
+corpus did not get smaller; the unit of naming got bigger — which is R-ARCH-15 working.
+
+**So R-LANG-22's figure now carries the commit it was measured at, and the requirement says it must.**
+5,408 (943 files, pre-LIFT) -> 5,861 (`216f928`) -> **2,052 (`8882830`)**, in one day. A naming target
+quoted without a commit is not a measurement, it is a memory.
+
+## 2d. THE PILOT — 80 leaves named, and the result was a 72% LOSS of information
+
+**Run 2026-09-02 on Amir's instruction: ~80 leaves, 2 batches of 40, `--apply`, real model calls.**
+Mechanically it went perfectly, and that is what makes the outcome worth recording.
+
+| | |
+|---|---|
+| asked / accepted / rejected | 80 / **80** / 0 |
+| model calls | **2** |
+| gate | **PASSED** — byte-identity, payload identity, coverage invariance over 152 affected files |
+| non-vacuity | 152 of 152 files read differently |
+
+**The names themselves are good English.** *"import one named export from a module"*, *"export a
+constant function"*, *"declare a test suite"*, *"register a GET route handler"*, *"export a compiled
+schema or validator"*. Nothing was rejected; the validator never fired.
+
+**And applying them made the corpus WORSE.** Measured over every file whose prose changed:
+
+| | without the 80 names | with them |
+|---|---|---|
+| files whose prose changed | — | 982 |
+| **concrete identifiers in labels** | **27,673** | **7,644** |
+| files that LOST identifiers | — | **975** |
+| files that GAINED any | — | **0** |
+
+**72% of the concrete identifiers in the corpus's labels were replaced by generic clauses**, and not
+one file improved. The mechanism is visible in a single line:
+
+```
+BEFORE  ▶ import `ITokenData` from `./hydra-ui/src/customHooks/ITokenData` then describe ...
+AFTER   ▶ import one named export from a module then describe ...
+```
+
+**A leaf NAME is hole-free; a node-kind RULE is hole-filled.** The `ImportDeclaration` rule
+(§5D.3C, R-LANG-16) renders *this* import, with its actual symbol and module. The leaf name renders
+*any* import of that shape. So for every leaf a rule already covers, naming it is a strict downgrade
+— it can only discard the specifics the rule was reading out of the holes.
+
+**This is §5D.2's "build the phrasebook first, name second" turned from an argument into a
+measurement, and it sharpens it.** The instruction is not merely about ordering the work. **Naming a
+rule-covered leaf is a regression, not a lower priority** — and the leaf tier is exactly where
+rule coverage is densest: of the 28 highest-frequency names in the pilot, ~15 are import cardinality
+variants (*"import two named exports"*, *"…three…"*, *"…with trailing comma"*), which R-LANG-16
+already says must be **one rule with cardinality as a parameter**, not N names.
+
+**The pilot was reverted.** `word-names.json` is restored byte-identical to its pre-pilot state
+(0 names, 0 chunks, `modelCalls: 0`); nothing was left in the corpus. Re-running it is two model
+calls.
+
+**What this does NOT overturn:** R-LANG-21 — d=0 still cannot be excluded from the naming *scope*,
+because every chain still bottoms out at a leaf and a d>=9 word's tail is still bare leaves. The
+finding is about WHICH leaves are worth a name, not whether the tier is in scope. **What it does
+change is the shape of the leaf tier's work order**, and that is a question for Amir:
+
+> **The plan should almost certainly filter out leaves a node-kind rule already renders**, and spend
+> the model only on leaves the rules do not reach. That filter does not exist yet, and building it
+> means measuring rule coverage per skeleton — which is a real piece of work, not a flag. Recorded
+> as the open question the pilot produced, not decided here.
 
 ## 3. PROPOSED — the three mechanics Q-9 leaves open
 
@@ -151,6 +252,6 @@ name will be written under.
   `name-words-lzw.js`, which is superseded but untouched.
 - **R-LANG-21** — enforced: `tiersOf` refuses to start above d=0 unless the caller states the leaves
   are already named, and the CLI refuses a composite tier while any leaf is unnamed.
-- **R-LANG-22** — the target figures are re-measured post-LIFT (§2). The requirement's *shape* —
+- **R-LANG-22** — RESTATED per Amir's ruling, and now PINNED TO A COMMIT: **1,414 + 638 = 2,052 at `8882830`**, superseding 5,861 at `216f928`, which superseded 5,408 (§2). The requirement's *shape* —
   state it as a cost, never as a saving — is implemented in `summarize()`, which cannot report the
   target without also reporting today's figure.

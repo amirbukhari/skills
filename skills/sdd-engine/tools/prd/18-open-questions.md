@@ -329,12 +329,35 @@ is the mechanics, and the current code is on the far side of the change:
   the word UNNAMED** — unnamed falls back to `spanProse`, which renders and compiles correctly,
   so giving up on a name costs one word reading as it reads today and the run stays resumable.
   The worksheet survives as the default DRY RUN, as recommended: `--apply` is the flag that writes.
-- **And the R-LANG-22 target figures need re-stating (§5D.3F §2).** Reproducing §5D.3E's method
-  against the render's own span set — 4,788 spans, matching `en-index.json`'s `generators.calls`
-  exactly — gives **2,767 leaves + 3,095 shallow = 5,862**, not 2,619 + 2,789 = 5,408, against
-  **3,576** used words rather than 3,237. Part is the conditional LIFT; the rest is the file set
-  (943 in the earlier sweep against `en-index`'s own `totalFiles: 1037`). The DIRECTION is
-  unchanged — still MORE names than today, at essentially the same 1.64x ratio.
+- **R-LANG-22 RESTATED, 2026-09-02 (Amir's ruling): 2,767 + 3,094 = 5,861 against 3,575 used
+  words; 5,408/3,237 is superseded (§5D.3F §2).** Measured at `216f928`, where two independent
+  producers agree — `plan` swept 4,787 spans and the renderer's own `en-index.json` reports
+  `generators.calls: 4,787`. R-LANG-20's invariant was re-verified on the new catalog: 0 violations
+  across 115,832 wide / 126,338 narrow entries at maxDepth 76.
+  - **The MAXWIN removal is not what moved it — measured either side of `216f928`, the target goes
+    5,862 -> 5,861. One name.** The causes remain the conditional LIFT and the file-set denominator
+    (943 against `en-index`'s own 1,037).
+  - **AND IT MOVED AGAIN THE SAME HOUR — the register now reads 2,052, pinned to `8882830`.** That
+    commit (one word per file, 30.6% -> 93.1%) takes the same sweep to **1,135 spans / 1,018 used
+    words / 1,414 leaves + 638 shallow = 2,052 names**, cross-checked against the renderer's own
+    `generators.calls: 1,135`. Not a loss: a file rendering as one word emits one span instead of
+    five, so the unit of naming got bigger and d>=9 absorbs 380 words. **The chain is
+    5,408 -> 5,861 -> 2,052 in one day, so R-LANG-22 now REQUIRES the figure to carry its commit.**
+    What does NOT move is banked naming work: names are keyed to the content hash of a leaf skeleton,
+    which comes from the dictionary, not the render.
+- **THE PILOT MEASURED A REGRESSION, and it is the most important result so far (§5D.3F §2d,
+  2026-09-02).** 80 leaves named in 2 model calls: 80/80 accepted, 0 rejected, gate PASSED over 152
+  files. **And applying them stripped 72% of the concrete identifiers from the corpus's labels —
+  27,673 -> 7,644 across 982 files, 975 of which lost identifiers and 0 of which gained any.** The
+  cause is structural: a leaf NAME is hole-free, a node-kind RULE is hole-filled, so naming a leaf a
+  rule already renders can only discard the specifics the rule reads out of the holes
+  (`import ``ITokenData`` from ``./hydra-ui/...``` becomes `import one named export from a module`).
+  **The pilot was REVERTED** — `word-names.json` is byte-identical to its pre-pilot state.
+  This turns §5D.2's *"build the phrasebook first, name second"* from an argument into a
+  measurement and strengthens it: **naming a rule-covered leaf is a REGRESSION, not a lower
+  priority.** R-LANG-21 is untouched — d=0 stays in scope; what changes is which leaves are worth
+  a name. **Open, and Amir's:** the plan needs a rule-coverage filter so the model is spent only on
+  leaves the node-kind rules do not reach. That filter does not exist and is real work, not a flag.
 - **What this leaves genuinely open** is therefore narrower than when Q-9 was written: the transport
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the
