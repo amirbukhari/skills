@@ -205,7 +205,7 @@ investigation, kept for its findings; not on any path.
 | `selfhost-package.js` | pipeline **C** | zero-LLM self-hosting package |
 | `test-gen-roundtrip.js` | **TEST** (slow) | render every corpus `.ts` to `.en` and compile back; assert byte-identical. ~24s, ~850MB peak |
 | `test-lzw-roundtrip.js` | **TEST** (slow) | the same gate through the recursive word dictionary. ~22s, ~840MB peak |
-| `verify-dsl.js` | **TEST** | proves the surface layer is lossless |
+| `engine/dsl-surface.test.js` | **TEST** | proves the surface layer is lossless: print/parse round-trip and byte-identical expansion, over every form the live grammar reports. Replaces `verify-dsl.js`, which is now in `archive/` — it read `compositions/` and `surface/` fixtures that were gitignored as derived and so did not survive the skill extraction, and its producer `build-compositions.js` was already archived |
 | `verify-expand.js` | **TEST** | the per-module gate |
 | `measure-bespoke-composites.js` | measurement | STEP 1 of the coverage push (MEASURE ONLY) |
 | `measure-callgraph.js` | measurement | STEP 5 (MEASURE ONLY) |

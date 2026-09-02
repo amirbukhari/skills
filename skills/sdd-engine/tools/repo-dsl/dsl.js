@@ -30,7 +30,7 @@
  *                    of that marker is the constant's dropped prefix.
  *       `via <fn>`= an identifier param whose name ends `Fn` (the delegate).
  *
- * Guarantees (see verify-dsl.js): print(tree)->parse deep-equals tree,
+ * Guarantees (see engine/dsl-surface.test.js): print(tree)->parse deep-equals tree,
  * parse->print is string-identity, and parse(dsl)->expand is byte-identical to
  * the tree's expansion. Prose / unknown markers / opaque ids are rejected.
  *

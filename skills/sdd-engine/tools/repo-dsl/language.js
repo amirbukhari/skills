@@ -194,7 +194,7 @@ function grammar() {
         reversible: "on parse, a dropped import is re-derived from the mined import map, so expansion is byte-exact" },
       { name: "positional-rendering",
         what: "a word renders as `<keyword> <exportName>`, then the typeName params joined by ` -> `, then the marked params; roles come from the signature, never from a hand-written table",
-        reversible: "print(tree) -> parse deep-equals tree, and parse -> print is string-identity (verify-dsl.js)" },
+        reversible: "print(tree) -> parse deep-equals tree, and parse -> print is string-identity (engine/dsl-surface.test.js)" },
     ],
   };
 }
