@@ -5046,3 +5046,39 @@ line would have invited exactly the wrong generalisation — a file-level chunk'
 by re-parsing the file; a nested one's is the enclosing block's run, which the compiled bytes do not
 carry. The tool now says so in place. I have not touched the renderer: which of the two shapes the
 fix takes is `skills-27`'s area and Amir's call.
+
+**12. The `;` asymmetry is now PRICED — measured on scratch trees, no mine run against the corpus.**
+Entry 10 logged the split (`build-lzw-generators.js symbolStreams` breaks a symbol stream at an
+`EmptyStatement`; `enfile.js foldableRuns` absorbs one) but could not say what closing it costs.
+s5f declined to price it from their lane — correctly, since a re-mine renumbers every word id — and
+handed back the safe route: `CORPUS=<scratch>` redirects the miner's single write.
+
+Method: the miner writes exactly one file, `AC.pathFor("generators-lzw", CORPUS)`. `SOURCE` stays
+the real tree (read-only). A CONTROL mine into scratch first, to prove the route is faithful, then
+the experiment in an untracked COPY of the miner (`tmp-mine-semi.js`, since a dirty tracked file has
+twice been swept into another lane's commit tonight). Absorption in the miner is simply *not
+breaking the stream*: a `;` contributes no symbol, and gaps are not part of a symbol stream at all.
+
+|  | control (ships today) | `;`-absorbing mine |
+|---|---|---|
+| narrow composites | 120,654 | 121,247 (+593) |
+| wide composites | 112,594 | 113,187 (+593) |
+| leaves / maxDepth | 5,684 / 3,238 / 76 | unchanged |
+| one word per file | 1030 (99.3%) | **1031 (99.4%)** |
+| review surface, top | 1,582 | 1,581 |
+| review surface, whole tree | 19,776 | **19,729** |
+| refused spans (audit) | 379 | **345 (-34)** |
+| `dictionary:ImportDeclaration` no-word | 33, in 27 files | **row gone** |
+| byte-identity | 1037/1037 | **1037/1037** |
+
+**The change is cheap and strictly positive on every published metric** — +0.5% catalog, +0.16 MB,
+same mine time (~3.3s), same depth. The 27-file refusal row it was logged for disappears entirely.
+
+**IT IS STILL NOT SAFE TO DO, and the blocker is not this change.** Closing it requires a re-mine,
+and s5f's A1 measurement found a re-mine renumbers every word id by construction while **0 of 1037
+`.en` files name the dictionary they were rendered against** — so a stale `.en` compiles to WRONG
+BYTES rather than refusing. That is the thing to fix first (A1 / R-PAY-6); this item is a one-line
+rider on the next legitimate re-mine, not a reason to run one. Still unclaimed, now with a price.
+
+*Nothing was written to the corpus: the real `generators-lzw.json` kept its 20:52 timestamp through
+both mines, both renders and both audits, and the experiment copy was removed.*
