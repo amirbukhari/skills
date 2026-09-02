@@ -322,7 +322,7 @@ is the mechanics, and the current code is on the far side of the change:
   (`plan` + `name --tier N [--apply]`) over `engine/naming-plan.js` (the order), `engine/namer.js`
   (the only place a model is spoken to) and `engine/naming-gate.js` (byte-identity + payload
   identity + coverage invariance, each shown FAILING against an injected renderer). 36 unit
-  assertions, zero model calls, `word-names.json` still at 0 names. **Amir's to overrule:**
+  assertions, zero model calls, `word-names.json` still at 0 names *(as of that entry; it now holds **20 names, `modelCalls: 1`** — see §5D.4E. The open question below is unaffected: it is about transport, batch size and retry, none of which the 20 names settle)*. **Amir's to overrule:**
   transport = in-repo `namer` module shelling to the `claude` CLI (what `refine-language.js`
   already does); batch = **40 rows per call, never spanning a depth tier** (a tier boundary is
   R-LANG-20, not a tuning knob); retry = **one re-ask carrying the rejection reason, then leave
