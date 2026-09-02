@@ -5538,3 +5538,80 @@ Verified by running it: `POST /` → 405, `/nope` → 404, `/health` → `{"ok":
   the body to print a fingerprint would make the page cost more than what it describes.
 - **Not wired into `sdd-run.js`.** That manifest is the pipeline steps a UI drives; a reporting
   server is not a step, and adding it there would put it one keystroke from the things that are.
+
+## Applying the Tier-2 worksheet names — what the apply mechanism actually is (2026-09-02)
+
+Amir: *"accept the names that were generated in the Tier-2 naming worksheet, as-is, for now"*, and
+in the same instruction: *"Check name-words-lzw.js / the worksheet format for whatever the intended
+'apply' mechanism is … rather than guessing — if there's no built-in apply step, tell me what you
+find before hand-writing the file."* **There is no apply step for this worksheet, so nothing was
+written.** What follows is the finding, and the mapping it would need, measured rather than reasoned.
+
+**1. The worksheet is emit-only BY DESIGN, and says so in two places.** `name-words-lzw.js`'s own
+header: *"This tool emits the WORKSHEET only — it does NOT apply names. The apply step … is a
+separate, deliberate pass: a generated name Amir did not choose is worse than no name at all."* And
+the artifact it writes carries a `note` field reading *"PROPOSED names are suggestions for Amir to
+edit — DO NOT apply as-is."* That note is data in the file, not a comment in the code.
+
+**2. The one apply path that exists is a DIFFERENT producer.** `name-words.js name --tier N --apply`
+is the only mechanism that writes names into `word-names.json` from proposals, and its proposals
+come from `engine/namer.js` + `naming-plan.json`, not from this worksheet. It has no `--from`
+input — its flags are `--tier --apply --batch --limit --model --stub --retries --retry-stub --to
+--include-rule-covered`. Two other writers exist and neither is this either: `reconcile-names.js`
+(the steady-state orphan/rename pass, needs a census file as `argv[2]` and `APPLY=1`) and
+`author-names.js` (**broken input** — CLAUDE.md §9).
+
+**3. That path REFUSES on a failed gate, and hand-writing the file would bypass it.**
+`engine/naming-gate.js` re-renders every affected file with the batch applied and demands five
+things: byte-identity, payload identity, coverage invariance, **detail retention** and **fold
+invariance**. Checks 4 and 5 exist because a batch passed checks 1-3 and destroyed the prose anyway
+(27,673 quoted identifiers → 7,644 across 982 files), and then passed 1-4 and dissolved an import
+fold from 1 clause to 284. `name --apply` prints *"REFUSING to write: the gate failed. No name is
+applied when the batch does not gate."* A hand-written `word-names.json` is that gate skipped.
+
+**4. The keys do not match, and this is fatal rather than cosmetic.** Worksheet rows are identified
+by `axis:id` — a word **id**. `word-names.json`'s registry role says it is *"keyed by content hash
+and never by word id"*, because ids are array indices that move on every re-mine (R-PAY-6). `names`
+keys are `w:`/`n:` + sha256(leaf skeleton); `chunks` keys are `wc:`/`nc:` + sha256 of the word's
+**ordered leaf skeletons** joined by the dictionary's GAP marker. A name written under `w:4280`
+would be looked up by nothing — `clausesFor` looks up `hashOf`, `chunkNameFor` looks up
+`chunkKeyOf` — so it would read as applied and render nothing. **Silent, and in the flattering
+direction.**
+
+**5. The mapping IS mechanically derivable, and I ran it read-only. It is clean.** Using
+`WN.leavesOf` + `WN.chunkKeyOf` against the dictionary on disk, over all 3,588 worksheet rows:
+
+| measured | value |
+|---|---|
+| rows whose id resolves in the dictionary | **3,588 of 3,588** (0 missing) |
+| rows whose leaf count matches the row's own `depth + 1` | 3,588 (0 mismatches) |
+| rows that are multi-leaf → belong in `chunks` | **3,588** (0 belong in `names`) |
+| distinct keys / key collisions | 3,588 / **0** |
+| existing entries that would be OVERWRITTEN | **4 of the 20 existing chunk names** |
+| rows the worksheet itself tags `unsure` | 22 |
+
+Ids are current: the dictionary was written 2026-09-02 10:34:56Z and the worksheet 10:36:38Z, one
+minute 42 seconds later. **This coherence is a coincidence of timing, not a guarantee** — the
+worksheet carries no dictionary fingerprint, which is R-PAY-6 in a second costume: a worksheet built
+before a re-mine and applied after it would map names onto whichever words now hold those indices,
+producing wrong names with no error.
+
+**6. What "as-is" costs, stated before it is paid.** All four overwrites replace a better name with a
+worse one — *"export redux slice actions and default reducer"* → *"take billingaccountsreceived"*;
+*"assign payload to state and update load status"* → *"set state.freshbooksaccountid"*. The two
+highest-leverage words (206 and 187 occurrences) would be named *"call seterror"* and *"call to have
+length"*. And chunk names **outrank member composition** (R-LANG-19), so 3,588 chunk names would
+replace the composed sentence at essentially every emitted span (5,731 spans) on the next render.
+Bytes are unaffected — the payload carries the word id and holes, and the sentence is not yet
+authoritative (R-REND-6 CUT 2 is not built) — so this is a display change, and a total one.
+
+**Judgment calls:**
+- **Stopped at the report, wrote nothing.** Amir's instruction made that conditional explicit, and
+  the condition held: no built-in apply step for this worksheet.
+- **Did the mapping anyway, read-only.** "No apply step exists" is not an actionable answer on its
+  own; "no apply step exists, and here is exactly what one would write, and the four names it would
+  clobber" is. Nothing was written: the analysis script ran from the scratchpad and was removed.
+- **Did not route the worksheet through `name --apply`** as a shortcut. It applies its own proposals
+  from the naming plan (target 2,052 names: 1,414 at depth 0, then 86/91/79/87/94/81/65/55) — a
+  different population from the worksheet's 3,588 distinct top-level emitted words. Substituting one
+  for the other because both are called "tier" would be exactly the reframe CLAUDE.md §7 forbids.
