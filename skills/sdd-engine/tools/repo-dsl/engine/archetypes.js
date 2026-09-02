@@ -38,7 +38,26 @@ function kindName(st) {
   return ts.SyntaxKind[st.kind];
 }
 
-/* verify a segment list tiles [0,len) exactly and reconstruct === src */
+/* Verify a segment list tiles [0,len) exactly.
+ *
+ * R-ARCH-4 / R-MECH-8 — READ BEFORE CITING `byteIdentical` FROM HERE. The field this returns is
+ * NOT a generation check and must never be published as one. It is a function of OFFSETS ONLY:
+ * `segs` carries `{a,b}` pairs and no slot, template or dictionary data reaches this function at
+ * all, so it cannot say anything about whether a generator reproduced a byte.
+ *
+ * Worse, the final `rebuilt === src` comparison is DEAD. The two loops above it already prove the
+ * segments run 0..len with no hole and no overlap; re-slicing the same string at contiguous
+ * boundaries and rejoining necessarily returns that string. *Measured 2026-09-01:* 20,000 random
+ * contiguous segmentations of random strings — the comparison returned false exactly **0** times.
+ * Every real `false` out of this function comes from a `hole`, never from the comparison.
+ *
+ * So `byteIdentical: true` here means "the tiling has no gaps", which is worth checking and is why
+ * the function stays. It does NOT mean "an archetype regenerated this file". R-ARCH-4 states the
+ * real check that is still missing: refill slots from the dictionary and compare to original bytes.
+ * As of 2026-09-01 no archetype has regenerated a byte it did not copy.
+ *
+ * Consequence for tests: the 7 `ok(r.byteIdentical, …)` assertions in archetypes.test.js assert a
+ * value that cannot be false, so they pass whatever the extractors do. */
 function checkTiling(src, segs) {
   const sorted = segs.slice().sort((a, b) => a.a - b.a);
   let cur = 0; for (const s of sorted) { if (s.a !== cur) return { byteIdentical: false, hole: cur }; cur = s.b; }
@@ -365,7 +384,15 @@ function extractRedux(src, fileName = "x.ts") {
   const actions = (src.match(/createAction\b/g) || []).length;
   const conforms = !!slice || actions >= 1; // redux structure present
   const reason = conforms ? null : "no createSlice/createAction structure found";
-  // whole-file exact-span slot set (structure captured; byte gate trivially met — redux files vary too much to tile strictly)
+  /* whole-file exact-span slot set (structure captured; redux files vary too much to tile strictly)
+   *
+   * R-ARCH-4 / R-MECH-8: this `byteIdentical: true` is a LITERAL. Unlike the other three extractors
+   * it does not even call checkTiling — nothing is compared, nothing is measured, and no input can
+   * move it. The original comment said the byte gate was "trivially met"; it is not met, it is
+   * skipped. Any aggregate that sums `byteIdentical` across archetypes (build-archetypes.js:97)
+   * counts every Redux file as a success that was never tested. Left as-is rather than silently
+   * flipped to false — that would move a published number on a guess. It needs the real generation
+   * check R-ARCH-4 asks for, or an explicit `byteVerified: null`, and that is a design call. */
   return { archetype: "ReduxModule", conforms, reason, byteIdentical: true,
     slots: { ...slots, createActions: actions }, counts: { reducers: slots.reducers.length, createActions: actions } };
 }
