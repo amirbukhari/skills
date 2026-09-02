@@ -1090,6 +1090,219 @@ const ROWS = [
       return HOLDS(`maxDepth ${d} on the live path; ${above1} spans deeper than 1 vs ${at1} at 1; flatFallback ${g.flatFallback}`,
         "measured on the REAL corpus, not a fixture -- this is the measurement §Q-8 was waiting for");
     } },
+
+  /* ══ THE HEADLINE ROWS ═══════════════════════════════════════════════════════════════════════
+   * Added 2026-09-01. §7 and §5D.4 name these as the metrics the project is judged by, and the
+   * producer has published every field they need since 2026-09-01 — but not one of them was
+   * evaluated here, so the numbers lived in a 42 MB artifact nobody diffed. R-MECH-8's shape,
+   * applied to the register's own headline: a metric that is published but never checked is a
+   * metric that can move without anyone noticing.
+   *
+   * ONE OF THEM IS RED, AND THAT IS THE POINT. R-ARCH-15 says a file MUST be accounted for by one
+   * top-level word; 34 files are not. Mechanizing it makes `verify-register.js` exit 1. That is not
+   * a regression this runner introduced — it is the register's own THE RESIDUAL becoming visible at
+   * the place the register is read. R-ARCH-18's own Check column already treats R-ARCH-15 as unmet
+   * ("30.6% with it off and 93.1% with it on, so the row can be shown to bind").
+   *
+   * IDS ARE NOT UNIQUE IN THE REGISTER — measured: 140 rows, 136 distinct ids. R-ARCH-18, R-MEAS-6
+   * and R-MEAS-7 each appear TWICE with different requirements. Where that happens the id here
+   * carries a suffix naming which meaning is mechanized, following the existing R-CFG-roots /
+   * R-ART-stamp / R-ART-4-runtime convention. `--id` could not otherwise say which row it meant. */
+
+  { id: "R-ARCH-15", req: "A file MUST be accounted for by ONE top-level word. An opaque whole-file token is forbidden.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface || {};
+      const need = ["oneWordFiles", "oneWordPct", "filesNotCollapsed"];
+      const missing = need.filter((k) => rs[k] === undefined);
+      if (missing.length) return FAILS(`missing ${missing.join(", ")}`,
+        "R-MEAS-6 requires the producer to publish the rate; without it this row cannot be decided at all");
+      const not = rs.filesNotCollapsed;
+      /* The row says MUST, so the bar is every file, not a good rate. The rate is reported either
+       * way, because "34 left" and "34 of 1037" are different pieces of news. */
+      if (not > 0) return FAILS(`${rs.oneWordFiles} of ${rs.oneWordFiles + not} files (${rs.oneWordPct}%), ${not} NOT collapsed`,
+        "THE RESIDUAL (§5D.4). This row is red on purpose: the register says MUST, and 34 files are not accounted for by one word");
+      return HOLDS(`${rs.oneWordFiles} files (${rs.oneWordPct}%), none left`, "every file collapses to one top-level word");
+    } },
+
+  { id: "R-ARCH-16", req: "Review surface MUST be reported PER FILE and as a corpus total, beside byte-identity.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface || {};
+      if (rs.reviewSurface === undefined || rs.residualStatements === undefined)
+        return FAILS("no corpus total", "the corpus half of the row is missing");
+      const g = i.j.gate || {};
+      if (g.byteIdentical === undefined) return FAILS("no byte-identity beside it",
+        "the row says BESIDE byte-identity — compression reported alone is what R-MEAS-6 forbids");
+      /* THE PER-FILE HALF, measured rather than assumed. The producer computes a full perFile[] and
+       * publishes only three top-15 SLICES of it, so per-file review surface exists for at most 45
+       * distinct files out of 1037. R-MEAS-6's Check column cites `perFile[].topSpans` / `.oneWord`
+       * as though the whole array were on disk. It is not: the top-level key is absent. */
+      const rels = new Set();
+      for (const arr of [i.j.topEnglishFiles, rs.worstFiles, rs.worstBySpans])
+        for (const f of arr || []) if (f && f.rel && f.residualStatements !== undefined) rels.add(f.rel);
+      const total = g.totalFiles;
+      if (i.j.perFile) return HOLDS(`corpus ${rs.reviewSurface}, per file for all ${(i.j.perFile || []).length}`,
+        "the full per-file array is published");
+      return FAILS(`corpus total ${rs.reviewSurface} beside byteIdentical ${g.byteIdentical}/${total}, but per-file rows for only ${rels.size} of ${total} files`,
+        "`perFile` is computed by write-en-files.js and published only as three top-15 slices; R-MEAS-6 cites `perFile[]` as if the array were on disk");
+    } },
+
+  { id: "R-ARCH-19", req: "A chunk MUST be able to carry CHILDREN instead of a payload, recursively, to leaves — no depth cap.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface || {};
+      const need = ["chunks", "chunksAtomic", "chunksStructural", "nestMaxDepth"];
+      const missing = need.filter((k) => rs[k] === undefined);
+      if (missing.length) return FAILS(`missing ${missing.join(", ")}`, "the nesting population is not published");
+      if (!rs.chunksStructural) return FAILS(`${rs.chunks} chunks, 0 structural`,
+        "every chunk is ATOMIC — the renderer is flat and nesting exists only in the writer");
+      /* A cap would show up as a depth that stops at a round number, so the depth is REPORTED, not
+       * merely thresholded. Amir, 2026-09-01: "capping at 2 levels just recreates the same 'some
+       * code stays raw' problem one level in." */
+      if (rs.nestMaxDepth < 3) return FAILS(`nestMaxDepth ${rs.nestMaxDepth}`,
+        "depth 2 is a single level of children — indistinguishable from a cap");
+      return HOLDS(`${rs.chunksAtomic} atomic + ${rs.chunksStructural} structural = ${rs.chunks}, deepest nest ${rs.nestMaxDepth}`,
+        "structural chunks exist in quantity and nest well past two levels");
+    } },
+
+  { id: "R-ARCH-18-ordering", req: "R-ARCH-15 OUTRANKS R-ARCH-16: where one word covers a file the renderer MUST emit it, even when nested words would remove more statements.",
+    run() {
+      const f = read("engine/enlzw.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const knob = /ONE_WORD_FIRST\s*=\s*process\.env\.ONE_WORD_FIRST\s*!==\s*"0"/.test(f.text);
+      const applied = /if\s*\(ONE_WORD_FIRST\s*&&/.test(f.text);
+      if (!knob) return FAILS("no ONE_WORD_FIRST knob", "the row's own Check requires ONE_WORD_FIRST=0 to restore the weight objective, so the row can be SHOWN to bind");
+      if (!applied) return FAILS("ONE_WORD_FIRST is declared but never read",
+        "a declared-and-unread constant is the dead-MAXWIN shape (§Q-6): the ordering would not be in force and nothing would say so");
+      return HOLDS("ONE_WORD_FIRST defaults on and gates the whole-file candidate in genSpans",
+        "lexicographic, not weighted — and the control that measures it exists (§10.3: a guard that cannot be shown to fire is not a guard)");
+    } },
+
+  { id: "R-MEAS-6-onewordrate", req: "The per-file ONE-WORD RATE MUST be published by the render producer, beside review surface.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface || {};
+      const missing = ["oneWordFiles", "oneWordPct", "filesNotCollapsed", "worstBySpans"].filter((k) => rs[k] === undefined);
+      if (missing.length) return FAILS(`missing ${missing.join(", ")}`,
+        "the rate had to be measured by an out-of-band script — the R-MECH-8 shape this row exists to close");
+      /* BESIDE review surface, in the same block, is the requirement — not merely somewhere in the
+       * artifact. A rate published apart from the surface it qualifies is how compression gets
+       * reported as the goal (R-MEAS-6, the other one). */
+      if (rs.reviewSurface === undefined) return FAILS("rate published without review surface beside it",
+        "the row says BESIDE review surface");
+      const p = read("write-en-files.js");
+      const prints = p.ok && /ONE WORD PER FILE \(R-ARCH-15\)/.test(p.text);
+      return HOLDS(`oneWordFiles ${rs.oneWordFiles}, oneWordPct ${rs.oneWordPct}, filesNotCollapsed ${rs.filesNotCollapsed}, beside reviewSurface ${rs.reviewSurface}`,
+        prints ? "and the producer prints the rate on every run, so a run that cannot state it is visibly not a passing run"
+               : "published in the artifact, but the producer no longer PRINTS it — the row's 'on every run' half is gone");
+    } },
+
+  { id: "R-MEAS-7-bothreads", req: "Where the render is a TREE, review surface MUST be published as BOTH the top-level read and the whole-tree read, side by side, never one alone.",
+    run() {
+      const i = enIndex();
+      if (i.absent) return MANUAL(`no manifest at ${i.where}`, "npm run render");
+      if (i.err) return FAILS(null, i.err);
+      const rs = i.j.reviewSurface || {};
+      const top = rs.reviewSurfaceTop, whole = rs.reviewSurface;
+      if (top === undefined || whole === undefined)
+        return FAILS(`top:${top} whole:${whole}`, "one of the two reads is absent, and whichever is left flatters");
+      /* EQUAL is the tell worth catching. The two reads answer different questions, so a producer
+       * that copies one into the other satisfies a key-presence check and publishes one number
+       * twice — the same conflation R-COMP-6 guards for the two depths. */
+      if (top === whole) return FAILS(`both ${top}`,
+        "the two reads are IDENTICAL — check the producer is not writing one number under both keys");
+      const p = read("write-en-files.js");
+      return HOLDS(`top ${top} beside whole-tree ${whole} (ratio ${(whole / top).toFixed(1)}x)`,
+        p.ok && /reviewSurfaceTop/.test(p.text) ? "both are computed and published by the producer, not derived by a reader"
+                                                : "published, but the producer does not name reviewSurfaceTop — check who wrote it");
+    } },
+
+  /* ══ THE THRESHOLDS, RECONCILED (Q-5, Q-6) ═══════════════════════════════════════════════════
+   * Measured 2026-09-01, because "same knob or different knob" had never been answered and the two
+   * numbers sit on ADJACENT LINES in repo-dsl.js, which is how they got conflated in the first
+   * place. THREE distinct thresholds, not one:
+   *
+   *   MIN_COUNT      build-lzw-generators.js:90, default 1   occurrences   R-MINE-1. LIVE .en path.
+   *   minCount       engine/pipeline.js:36, fallback 2        occurrences   R-WIDE-3. LEGACY mined-library path.
+   *   --min          repo-dsl.js:249, default 80             PERCENT       the coverage GATE verdict.
+   *
+   * `--min` is not a count at all — it is a percentage of corpus coverage — and `repo-dsl.js:252`
+   * carries its OWN `--min-count` (2) one line below it. Different units, different pipelines. */
+
+  { id: "R-MINE-1-binding", req: "MIN_COUNT=1 is a SELECTION rule (what the renderer may use), not a construction rule.",
+    run() {
+      const c = constValue("build-lzw-generators.js", "MIN_COUNT");
+      if (!c.ok) return FAILS(null, c.why);
+      if (c.got !== "1") return FAILS(`MIN_COUNT = ${c.got}`, "R-MINE-1 binds the DEFAULT; see the R-MINE-1 row");
+      const w = read("engine/wordlzw.js");
+      if (!w.ok) return FAILS(null, w.why);
+      /* MEASURED 2026-09-01: buildSaturated over a synthetic 6-stream corpus returns the IDENTICAL
+       * dictionary (33 entries, sha256 f9c6148605369d1f) for opts.minCount of undefined, 1, 2 and 3.
+       * Construction is gated on `createMinCount` (default 1), not on minCount — so of the two calls
+       * build-lzw-generators.js makes, only `promote` binds. The register does not say this, and a
+       * reader who assumes MIN_COUNT gates construction will "fix" the wrong call. */
+      const createGate = /createGate\s*=\s*opts\.createMinCount\s*!=\s*null\s*\?\s*opts\.createMinCount\s*:\s*1/.test(w.text);
+      const promoteReads = /function promote[\s\S]*?const minCount = opts\.minCount \|\| 2/.test(w.text);
+      if (!createGate) return FAILS("buildSaturated no longer separates createMinCount from minCount",
+        "if construction is gated on recurrence again, R-MINE-1 becomes a construction rule and every depth figure was measured under a different regime");
+      if (!promoteReads) return FAILS("promote() no longer reads opts.minCount",
+        "then MIN_COUNT reaches NOTHING and R-MINE-1 is vacuous — the register would still read green");
+      return HOLDS("MIN_COUNT 1 -> promote() only; buildSaturated gates on createMinCount (default 1) and ignores minCount entirely",
+        "creation-gate vs selection are separate knobs, measured: 4 values of opts.minCount, one identical dictionary");
+    } },
+
+  { id: "R-CFG-gate-threshold", req: "Q-5: the coverage gate threshold has TWO values — §8 records >= 20%, the code default is 80.",
+    run() {
+      const f = read("repo-dsl.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const m = f.text.match(/flag\(args,\s*"--min",\s*(\d+)\)\s*;\s*\/\/\s*corpus coverage/);
+      if (!m) return MANUAL("the gate's --min default could not be read off repo-dsl.js",
+        "grep -n '\"--min\"' repo-dsl.js — the row cannot be decided without it");
+      /* NOT a FAILS: which number binds is a DECISION (§18 Q-5 names three ways to close it), and a
+       * runner must not cast a vote by turning one of them red. It is not a HOLDS either, because
+       * a constant with two values is not a constant. So: MANUAL, carrying the consequence the
+       * question never had attached to it — measured, not argued. */
+      const cov = (() => {
+        try {
+          const CR2 = require("./engine/corpus-root");
+          const j = JSON.parse(fs.readFileSync(path.join(CR2.corpusRoot(), ".cache", "spec-derived", "corpus-coverage.json"), "utf8"));
+          return j.rollup && j.rollup.coveragePct;
+        } catch { return null; }
+      })();
+      const verdicts = cov == null ? "no persisted coverage to price it against"
+        : `corpus coverage is ${cov}%, so the code default ${m[1]} FAILS the gate and §8's 20 PASSES it`;
+      return MANUAL(`two thresholds, opposite verdicts: ${verdicts}`,
+        "node repo-dsl.js gate --no-mine   vs   --min 20. One decision, then DELETE the losing number (§18 Q-5)");
+    } },
+
+  { id: "R-CFG-12", req: "A SOURCE-PROTECTED artifact MUST NEVER be deleted in any cleanup.",
+    run() {
+      const f = read("sdd-clean.js");
+      if (!f.ok) return FAILS(null, f.why);
+      /* PROTECTED cannot express this: it matches a path's FIRST SEGMENT only, so it can say
+       * "catalog/" and never "sen/catalog/". Until 2026-09-01 `--wipe-sen --go` deleted
+       * sen/catalog/word-names.json — 20 authored names, 0 tracked files, unrecoverable. */
+      const guarded = /GUARDED\s*=\s*\[/.test(f.text) && /path\.join\(SEN,\s*"catalog"\)/.test(f.text);
+      const both = /inside\(gabs,\s*abs\)/.test(f.text);
+      const wholesale = (() => { const i = f.text.indexOf("/* scope 2"); return i >= 0 && /\bplan\(SEN\)/.test(f.text.slice(i)); })();
+      if (wholesale) return FAILS("scope 2 plans sen/ WHOLESALE",
+        "one recursive rmSync over a directory nobody enumerated — the exact hole, and no name list can exempt a descendant of it");
+      if (!guarded) return FAILS("no GUARDED entry for sen/catalog", "PROTECTED sees first path segments only");
+      if (!both) return FAILS("the guard tests equality, not containment",
+        "the hole was an ANCESTOR of the protected path, which an equality test never sees");
+      return HOLDS(`sen/catalog is a GUARDED subtree behind --wipe-catalog, refused as target OR ancestor`,
+        exists("engine/sdd-clean.test.js") ? "pinned by engine/sdd-clean.test.js (11 assertions, throwaway tmp roots), mutation-checked"
+                                           : "NO TEST — the guard is asserted by reading the source only");
+    } },
 ];
 
 /* ---------- evaluate ---------- */

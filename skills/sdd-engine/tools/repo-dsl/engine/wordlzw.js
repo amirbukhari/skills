@@ -98,7 +98,24 @@ function build(streams, opts = {}) {
  * kept, so `members` always resolve. dict[e].freq = raw window occurrence count. Deterministic.
  */
 function buildSaturated(streams, opts = {}) {
-  const maxWin = opts.maxWin || 8, minCount = opts.minCount || 2;
+  const maxWin = opts.maxWin || 8;
+  /* THERE WAS A `minCount = opts.minCount || 2` BINDING HERE, and it was DEAD. When creation stopped
+   * being gated on recurrence (the note below), `createGate` took over the one comparison that read
+   * it, and the binding was left behind — assigned from opts, never read, in the same function whose
+   * caller passes `minCount: MIN_COUNT` and whose sibling `promote` reads that option for real.
+   * A dead constant that contradicts a live one BY NAME is the Q-6 dead-`MAXWIN` shape exactly, and
+   * that one was deleted rather than documented. Removed here for the same reason, with the fact
+   * recorded so nobody re-adds it thinking construction was ever gated.
+   *
+   * MEASURED 2026-09-01 before removing it: buildSaturated over a synthetic 6-stream corpus with
+   * opts.minCount = undefined | 1 | 2 | 3 returns the IDENTICAL dictionary — 33 entries, sha256
+   * f9c6148605369d1f, all four. The option had no effect on construction at any value.
+   *
+   * CONSEQUENCE FOR R-MINE-1, which the register does not say: `MIN_COUNT` reaches the live mine
+   * through TWO calls, and only the second one binds. `build-lzw-generators.js` passes it to
+   * buildSaturated (inert, per the measurement above) and to `promote` (live — read at the two
+   * `< minCount` comparisons). So "MIN_COUNT MUST be 1" is a rule about SELECTION, what the
+   * renderer may use, not about which structural records exist. */
   /* STRUCTURE IS NOT GATED ON RECURRENCE (Amir, 2026-09-01). Textbook LZW creates an entry from
    * `prefix + one new symbol` on every step of a single pass; whether that entry is ever REUSED is
    * a separate question. This builder is a saturating window enumeration rather than a single

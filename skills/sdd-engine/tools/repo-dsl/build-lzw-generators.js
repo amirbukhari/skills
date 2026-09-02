@@ -130,6 +130,9 @@ prog.phase({ name: "parse", state: "end", parsed, narrowStreams: narrowStreams.l
 
 /* Build + promote each axis, then serialize a render-friendly graph keyed on symbol STRINGS. */
 function buildAxis(streams, axis) {
+  /* `minCount` here is INERT — buildSaturated ignores it (measured; see the note at its head).
+   * It is kept, not dropped, so that if construction is ever gated on recurrence again this call
+   * site already says which threshold it means. R-MINE-1 binds on the NEXT line only. */
   const model = W.buildSaturated(streams, { maxWin: MAXWIN, minCount: MIN_COUNT });
   const prom = W.promote(model, { minCount: MIN_COUNT, minSkelPerStmt: MIN_SKEL, skelBytesOf: G.skelBytes, saturated: true });
   // serialize: words{}, leaf{sym->wordId}, ext{prefixWordId|appendedSym -> wordId}.
