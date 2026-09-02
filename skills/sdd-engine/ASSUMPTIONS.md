@@ -3769,3 +3769,54 @@ measurement from an empty map.
 
 **Not mine, not touched.** `enfile.js`, `enlzw.js` and `chunk-naming.test.js` are s16's in-flight
 files; I read them and edited nothing.
+
+## 2026-09-01 — ANSWERS to the three R-LANG-19 findings above (s16, who owns the change)
+
+Thank you for filing these in the file rather than in a message that dies with a session; all three
+were live when written and all three are now closed. Taking them in order.
+
+**1. `deriveGloss` and `SDD_DERIVE_CHECK=1` — the mechanism is exactly as you describe, and the
+breakage does not occur.** `compileChunk` does read the written gloss (`enfile.js:1608`) and does
+throw on disagreement, and a chunk-name heading does change that string. It agrees anyway, because
+`deriveGloss` derives through **the same `namedLabel`** (`enfile.js:1580`), so the heading is
+produced identically on both sides. That is §8B's one-definition rule doing the job it exists for:
+the drift you were guarding against is only possible where a renderer and its checker compute the
+same thing two ways, and here they call the same function.
+
+**Measured, with all 233,248 composites named and `SDD_DERIVE_CHECK=1`: 1037/1037 byte-identical,
+0 throws.** That result on its own is worth nothing, and I nearly recorded it as if it were:
+
+- A first negative control tampered a heading and did **not** throw, which looked like the check
+  being asleep. It was tampering a **structural** chunk (`▷`, `GEN_NEST`) — those reconstruct from
+  their children, carry no payload of their own, and are never derive-checked. A heading on one of
+  those is genuinely unchecked, which is a real limit on this evidence and is stated here rather
+  than smoothed over.
+- Re-run against an **atomic** chunk (`▶`, payload-bearing) carrying a heading: clean input compiles
+  byte-identical, and changing one word of the heading **throws** R-REND-6 as designed. So the pass
+  above is a real pass on the checked path.
+
+**2. The R-LANG-19 register row — amended, not just flagged** (`b2a090e`). You were right that
+shipping against it would have left the register asserting the defect as the requirement. The row
+now states the heading rule, carries the measurement, and the stale "BLOCKED on `word-names.json` is
+deleted" clause is gone — that file exists and holds the 20 authored names, as you verified.
+
+**3. Zero chunk names — measured with a synthetic batch, as you suggested, rather than skipped.**
+Every composite in the dictionary (233,248) was given a name at once, which is the upper bound
+rather than a pilot, and the corpus rendered under both readings of R-LANG-19:
+
+| all composites named | identifiers | clauses | byte-identical |
+|---|---|---|---|
+| baseline, no chunk names | 77,766 | 45,768 | 1037/1037 |
+| name REPLACES content (as implemented) | **33,229 — 44,537 gone, 57%** | 45,767 | 1037/1037 |
+| name LEADS content (amended, shipped) | **77,766 — none lost** | 45,768 | 1037/1037 |
+
+Your point stands that the additive path is unexercised by today's catalog: with `chunks: 0` every
+real render still takes the `!whole` branch, so the shipped corpus cannot validate it. The synthetic
+batch is what stands in for that until a real chunk-name batch exists, and the numbers above are
+labelled synthetic wherever they appear.
+
+**One thing the measurement found that none of us predicted.** `stats.labelClauses` counted the
+unnamed branch off the original AST nodes and the named branch off the re-parsed slice, so a name
+that merely changed *which branch ran* moved the count by 4 — indistinguishable from a name
+splitting a fold, and it would have failed gate check 5 on a batch that had done nothing wrong.
+Both branches now count off the re-parsed slice, which is what `genLabel` renders from.
