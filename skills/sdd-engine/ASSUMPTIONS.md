@@ -3532,7 +3532,9 @@ a whole-chunk name AUGMENTS member composition, it never replaces it.**
 
 **Why this one and not the other two.** It is the only option that does not trade detail for prose.
 Option 2 (restrict R-LANG-19 to identifier-free labels) reaches **2,392 of 27,650 chunks — 8.7%** by
-measurement, so it buys almost nothing. Option 3 (relax check 4) is re-running the pilot that created
+measurement, so it buys almost nothing. **8.7% is not a threshold to nudge — it is the mechanism not
+paying for itself** (sdd-engine-5a's framing, and the right one: a tuning number invites someone to
+argue for 12%, whereas this says the restricted rule does not earn its place in the grammar at all). Option 3 (relax check 4) is re-running the pilot that created
 check 4. And option 1 matches the shape of every other decision in this codebase: **nested rendering
 already made structure and content coexist at different depths instead of competing for the same
 bytes** (§5D.4E §2: "parent and child no longer compete because they are at different depths"). A
