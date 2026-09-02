@@ -79,6 +79,45 @@ function constValue(rel, name) {
 
 const exists = (rel) => fs.existsSync(path.join(HERE, rel));
 
+/* RUN a tool or a test, rather than reading it. Behaviour rows need this: a static read cannot tell
+ * a guard that fires from one that is merely present, which is the whole of §10.3. Child process so
+ * a tool that calls process.exit cannot take this runner with it, and so an exit CODE (a decline is
+ * 3, a fault is 1) is observable at all. */
+function runNode(rel, args = []) {
+  const abs = path.join(HERE, rel);
+  if (!fs.existsSync(abs)) return { err: `${rel}: not present` };
+  const r = require("child_process").spawnSync(process.execPath, [abs, ...args],
+    { cwd: HERE, encoding: "utf8", timeout: 60000, maxBuffer: 32 * 1024 * 1024 });
+  if (r.error) return { err: `${rel}: ${r.error.message.split("\n")[0]}` };
+  return { code: r.status, out: (r.stdout || "") + (r.stderr || "") };
+}
+
+/* A throwaway corpus in os.tmpdir(), for the rows that must run a DESTRUCTIVE tool to decide. Never
+ * the real corpus: the point of these rows is to watch a tool that deletes, and the only safe place
+ * to watch that is a tree nobody minds losing. */
+function tmpCorpus(files) {
+  let dir;
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "verify-register-"));
+    for (const [rel, body] of Object.entries(files)) {
+      const p = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      fs.writeFileSync(p, body);
+    }
+  } catch (e) { return { err: `tmp corpus: ${e.message.split("\n")[0]}` }; }
+  const count = () => {
+    let n = 0;
+    (function walk(d) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const q = path.join(d, e.name);
+        if (e.isDirectory()) walk(q); else n++;
+      }
+    })(dir);
+    return n;
+  };
+  return { dir, count };
+}
+
 /* Does any LIVE file (archive/ and node_modules excluded) contain this pattern?
  *
  * TWO EXEMPTIONS, both learned by this file crying wolf on its first run:
@@ -899,6 +938,211 @@ const ROWS = [
       return HOLDS(`no Math.random decides a sample on any tracked path (${naming.length} use(s) name a temp file, which does not); ` +
         `${samplers.length} file(s) sample by a fixed stride`,
         "the same commit yields the same sample, so a red is reproducible");
+    } },
+
+  /* --------------------------------------------------------- BATCH 2: the tools, run not read.
+   * Mechanized 2026-09-01. Where a requirement is about BEHAVIOUR, these rows execute the thing --
+   * a child process for a tool, a call for a library -- because a static read of a guard cannot
+   * tell a guard that works from one that is merely present. The two that stay static say so and
+   * say why. Still no mine, no render, no model call, and no write outside a temp dir. */
+
+  { id: "R-CFG-5", req: "Repointing either root MUST be a ONE-FILE change — one line in <engine>/.env.",
+    run() {
+      /* Amir's acceptance test, and its executable form already exists: corpus-root.test.js greps
+       * the live tree for root literals and asserts SOURCE and CORPUS move independently. So this
+       * row RUNS it rather than restating it -- a second copy of that logic here would be a second
+       * producer of the same judgment, free to drift from the one the engine actually ships. */
+      const r = runNode("engine/corpus-root.test.js");
+      if (r.err) return FAILS(null, r.err);
+      const m = /(\d+) assertions passed/.exec(r.out);
+      return r.code === 0 && m
+        ? HOLDS(`engine/corpus-root.test.js: ${m[1]} assertions passed`,
+          "including the live-tree grep for root literals and the independence of SOURCE and CORPUS")
+        : FAILS(`exit ${r.code}${m ? "" : ", no assertion count in the output"}`,
+          "the executable form of the one-line-repoint acceptance test does not pass");
+    } },
+
+  { id: "R-CFG-8", req: "No flag = REFUSE, and the refusal MUST name what it would have deleted, with file and byte counts, so the cost is visible before it is paid.",
+    run() {
+      /* RUN THE TOOL against a throwaway corpus, never the real one: the requirement is about what
+       * sdd-clean PRINTS and what it EXITS with, and neither is visible in its source. The tree is
+       * built in os.tmpdir(), both roots point at it, and no flag is passed -- so the run under test
+       * is the one that must delete nothing. */
+      const t = tmpCorpus({ "sen/files/a.ts.en": "x", "sen/catalog/word-names.json": '{"names":{}}' });
+      if (t.err) return FAILS(null, t.err);
+      const r = runNode("sdd-clean.js", ["--corpus", t.dir, "--source", t.dir]);
+      const before = t.count();
+      if (r.err) return FAILS(null, r.err);
+      const after = t.count();
+      const names = /REFUSING/.test(r.out);
+      const counts = /\d+ files?, [\d.]+ MB|\d+ files?/.test(r.out);
+      if (after !== before) return FAILS(`${before} files before, ${after} after`, "a run with NO flag deleted something");
+      if (!names || !counts) return FAILS(`refusal text ${JSON.stringify(r.out.slice(0, 120))}`,
+        "the refusal does not name what it would have deleted with counts, so the cost is invisible");
+      return r.code === 3 ? HOLDS(`refused with file and byte counts, deleted nothing (${before} files before and after), exit 3`,
+        "a decline is exit 3, distinct from a crash")
+        : FAILS(`exit ${r.code}`, "a refusal must be a decline (3), not a success (0) or a fault (1)");
+    } },
+
+  { id: "R-CFG-9", req: "SOURCE MUST NEVER be wipable by any tool, and the protection MUST hold structurally even in the self-hosting case where SOURCE === CORPUS.",
+    run() {
+      /* Delegated to engine/sdd-clean.test.js for the same reason R-CFG-5 delegates: that harness
+       * builds the separate-tree, nested-tree and self-hosting cases in temp dirs and asserts the
+       * refusal happens at PLAN time, before any rm. Re-deriving it here would be a second producer
+       * of the destructive tool's contract. The row checks the assertion NAMES it needs are present
+       * and that the suite passes, so a rename cannot quietly shrink what this row stands on. */
+      const f = read("engine/sdd-clean.test.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const need = ["SOURCE separate with CORPUS NESTED INSIDE it", "refused for the RIGHT reason", "before any removal is attempted"];
+      const missing = need.filter((n) => !f.text.includes(n));
+      if (missing.length) return FAILS(`missing assertion(s): ${missing.join("; ")}`,
+        "the suite no longer covers the case this row is about");
+      const r = runNode("engine/sdd-clean.test.js");
+      if (r.err) return FAILS(null, r.err);
+      const m = /(\d+) assertions passed/.exec(r.out);
+      return r.code === 0 && m ? HOLDS(`engine/sdd-clean.test.js: ${m[1]} assertions passed, including the plan-time refusal and the nested-root case`)
+        : FAILS(`exit ${r.code}`, "the SOURCE protection cannot be demonstrated");
+    } },
+
+  { id: "R-MINE-5", req: "Imports and declarations MUST be foldable, gated identically to any other statement.",
+    run() {
+      /* Called, not grepped: isFoldable is a predicate, and the question is what it ANSWERS for an
+       * import and a declaration -- which a reading of its definition can get wrong the moment the
+       * helpers it composes change. */
+      let G, ts2;
+      try { G = require("./engine/generators"); ts2 = require("typescript"); }
+      catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      if (typeof G.isFoldable !== "function") return FAILS("no isFoldable export", "the gate this row names does not exist");
+      const src = "import { a } from 'b';\ninterface I { x: number }\ntype T = string;\nclass C {}\nfunction f() {}\nexport default 1;\nconst q = 1;\n";
+      const sf = ts2.createSourceFile("t.ts", src, ts2.ScriptTarget.Latest, true, ts2.ScriptKind.TS);
+      const verdicts = sf.statements.map((s) => [ts2.SyntaxKind[s.kind], G.isFoldable(s)]);
+      const refused = verdicts.filter(([, ok]) => !ok);
+      return refused.length ? FAILS(refused.map(([k]) => k).join(", "), "a declaration is gated differently from an ordinary statement")
+        : HOLDS(`${verdicts.length} statement kinds all foldable: ${verdicts.map(([k]) => k).join(", ")}`);
+    } },
+
+  { id: "R-MINE-10", req: "Every un-collapsed body MUST be attributed MINER, GATE or ARBITRATION. A bare count is not actionable.",
+    run() {
+      const f = read("measure-uncollapsed.js");
+      if (!f.ok) return FAILS(null, f.why);
+      /* ANCHORED ON THE INITIALIZER, not on the file. The first version matched
+       * /bucket[\s\S]{0,200}MINER/ anywhere, so deleting ARBITRATION from the bucket left the row
+       * GREEN -- the header comment names all three reasons a few lines above, and prose about the
+       * check satisfied the check. Read the object literal itself instead. */
+      const init = /const\s+bucket\s*=\s*\{([^}]*)\}/.exec(f.text);
+      if (!init) return FAILS("no `const bucket = { ... }`", "there is no three-way split to inspect");
+      const kinds = ["MINER", "GATE", "ARBITRATION"];
+      const missing = kinds.filter((k) => !new RegExp(`\\b${k}\\s*:`).test(init[1]));
+      if (missing.length) return FAILS(`the bucket has no ${missing.join(", ")} — it is { ${init[1].trim()} }`,
+        "an un-collapsed body would land in a bare count");
+      /* The decision itself, not just the buckets: one expression must choose among the three. */
+      const decides = /!\s*saw\w+\s*\?\s*"(MINER|GATE|ARBITRATION)"/.test(f.text);
+      return decides ? HOLDS("three buckets and one expression that attributes every body to exactly one of them")
+        : FAILS("buckets exist but nothing assigns them", "a bucket nothing writes to reports zero forever");
+    } },
+
+  { id: "R-MINE-11", req: "Structural entry creation MUST NOT be gated on recurrence.",
+    run() {
+      /* MEASURED BY BUILDING, both ways. An entry records that a composition EXISTS; recurrence
+       * decides only whether it is REUSED. If creation were gated, raising the recurrence bar would
+       * shrink the dictionary -- so build the same streams at three settings and compare. */
+      let W2;
+      try { W2 = require("./engine/wordlzw"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const S = [["a", "b", "c", "d"], ["a", "b", "c", "e"], ["a", "b", "c", "d"], ["q", "r", "a", "b"]];
+      const sizeAt = (opts) => {
+        const m = W2.buildSaturated(S, Object.assign({ maxWin: 8 }, opts));
+        const d = m.dict || m.words || m;
+        return Array.isArray(d) ? d.length : Object.keys(d).length;
+      };
+      const base = sizeAt({}), two = sizeAt({ minCount: 2 }), three = sizeAt({ minCount: 3 });
+      if (base !== two || base !== three)
+        return FAILS(`dictionary size ${base} / ${two} / ${three} at minCount undefined / 2 / 3`,
+          "raising the RECURRENCE bar changed what was CREATED, so structure is gated on recurrence");
+      return HOLDS(`${base} entries at minCount undefined, 2 and 3 alike — construction ignores the recurrence bar`,
+        "recurrence is a SELECTION knob (promote), and naming-worth is a third question again");
+    } },
+
+  { id: "R-DRIFT-3", req: "A reason that cannot fire MUST be published as UNREACHABLE, with the argument for why, never as a passing zero.",
+    run() {
+      let R;
+      try { R = require("./engine/refusals"); } catch (e) { return FAILS(null, e.message.split("\n")[0]); }
+      const U = R.UNREACHABLE || {};
+      const keys = Object.keys(U);
+      if (!keys.length) return HOLDS("no reason is currently declared unreachable",
+        "the row binds only when one is -- and the mechanism below is present for when it is");
+      const empty = keys.filter((k) => typeof U[k] !== "string" || U[k].trim().length < 20);
+      if (empty.length) return FAILS(`${empty.join(", ")} declared unreachable with no argument`,
+        "an unreachable reason without its proof is a passing zero with a label");
+      const col = read("engine/refusals.js");
+      const carries = col.ok && /reachable|unreachableBecause/.test(col.text);
+      return carries ? HOLDS(`${keys.length} unreachable reason(s), each carrying its argument; the collector publishes reachable/unreachableBecause`)
+        : FAILS("the collector does not publish reachability", "the argument exists but never reaches a report");
+    } },
+
+  { id: "R-ARCH-14", req: "The archetype command MUST emit the `.en` FIRST and derive the `.ts` from it — never the reverse — and MUST be drivable non-interactively.",
+    run() {
+      const f = read("new-archetype.js");
+      if (!f.ok) return FAILS(null, f.why);
+      const en = f.text.indexOf("writeFileSync(enPath");
+      const tsw = f.text.indexOf("writeFileSync(tsPath");
+      if (en < 0 || tsw < 0) return FAILS(`enPath write ${en < 0 ? "absent" : "present"}, tsPath write ${tsw < 0 ? "absent" : "present"}`,
+        "the two writes this row orders are not both there");
+      if (en > tsw) return FAILS("the .ts is written before the .en", "a crash between the two would leave a .ts with no .en — the wrong survivor");
+      const interactive = /require\(["']readline["']\)|createInterface\s*\(/.test(f.text);
+      return interactive ? FAILS("it constructs a readline interface", "a prompt cannot be driven by a UI or a script")
+        : HOLDS("the .en is written before the .ts, and there is no readline anywhere in the command",
+          "a crash between the two leaves the .en, which is the one that can regenerate the other");
+    } },
+
+  { id: "R-ARCH-17", req: "The renderer MUST NOT discard a whole-run word SOLELY because it covers the run.",
+    run() {
+      const f = read("engine/enlzw.js");
+      if (!f.ok) return FAILS(null, f.why);
+      /* The superseded rule was an UNCONDITIONAL refusal. What must be there now is a predicate the
+       * caller supplies, so the refusal is conditional on whether the run can be glossed. */
+      if (!/wholeRunOk/.test(f.text)) return FAILS("no wholeRunOk predicate", "the refusal is unconditional again — the superseded R-MINE-7");
+      const defaultsClosed = /wholeRunOk\s*=\s*\(opts && opts\.wholeRunOk\)\s*\|\|\s*\(\(\)\s*=>\s*false\)/.test(f.text);
+      return defaultsClosed
+        ? HOLDS("the whole-run refusal is conditional on a caller-supplied wholeRunOk, defaulting to refuse",
+          "a caller that cannot gloss (a test, a harness) does not silently start emitting whole-file words")
+        : FAILS("wholeRunOk is present but its default is not a closed one",
+          "defaulting open would let a harness emit whole-file words nobody can read");
+    } },
+
+  { id: "R-TEST-1", req: "Correctness MUST assert against real source through a round-trip: the oracle is the corpus itself, compileFileEn(renderFileEn(src)) === src over actual files on disk.",
+    run() {
+      /* THE ORACLE IS THE CORPUS, so this row compiles REAL .en files and compares against the REAL
+       * .ts they were rendered from -- the direction the gate cares about. Sampled by a fixed stride
+       * (R-TEST-5), never narrowed: a miss is reported, not skipped. The render half is not re-run
+       * here because rendering the corpus is the expensive path; what is checked is that the .en on
+       * disk still compiles back to its source byte-for-byte. */
+      const e = enFiles();
+      if (e.absent) return MANUAL(`no rendered .en under ${e.where}`, "npm run render");
+      if (e.err) return FAILS(null, e.err);
+      if (!e.files.length) return MANUAL("no .en files rendered", "npm run render");
+      let EF, CR2;
+      try { EF = require("./engine/enfile"); CR2 = require("./engine/corpus-root"); }
+      catch (er) { return FAILS(null, er.message.split("\n")[0]); }
+      const home = path.join(CR2.senDir(), "files"), SRC = CR2.sourceRoot();
+      const step = Math.max(1, Math.floor(e.files.length / 40));
+      const sample = e.files.filter((_, i) => i % step === 0).slice(0, 40);
+      let index; try { index = EF.loadIndex(); } catch (er) { return FAILS(null, `loadIndex: ${er.message.split("\n")[0]}`); }
+      const bad = [];
+      let checked = 0;
+      for (const f of sample) {
+        const rel = path.relative(home, f).replace(/\.en$/, "");
+        const srcP = path.join(SRC, rel);
+        let want; try { want = fs.readFileSync(srcP, "utf8"); } catch { bad.push(`${rel}: no source at ${srcP}`); continue; }
+        let got;
+        try { got = EF.compileFileEn(fs.readFileSync(f, "utf8"), index); }
+        catch (er) { bad.push(`${rel}: ${er.message.split("\n")[0]}`); continue; }
+        checked++;
+        if (got !== want) bad.push(`${rel}: ${got.length} bytes out, ${want.length} expected`);
+      }
+      return bad.length ? FAILS(`${bad.length} of ${sample.length} sampled files: ${bad.slice(0, 3).join("; ")}`,
+        "the .en on disk no longer compiles back to its own source — byte-identity is the hard floor")
+        : HOLDS(`${checked} of ${e.files.length} .en compiled back to their .ts byte-for-byte (fixed stride ${step})`,
+          "the oracle is the corpus, not a catalog the engine wrote");
     } },
 
   { id: "R-CFG-6", req: "`sen` MUST be spelled in exactly one place (LAYOUT.sen), never as a path literal.",
