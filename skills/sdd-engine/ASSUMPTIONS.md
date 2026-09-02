@@ -5188,72 +5188,22 @@ commit.*** Nothing in the check-then-commit sequence is atomic, and the index is
 what recovered this. The post-commit `git show --stat` in §7 is not optional bookkeeping; it was the
 only thing that caught this.
 
-## Ten register rows mechanized — and `git commit` with no paths is never safe here. 2026-09-01
+**Resolved, and the fix came from the peer.** `sdd-engine-5f` reset their commit (`git reset --soft
+HEAD^`, which restores the index exactly as staged), then rebuilt it through a **PRIVATE index** —
+`GIT_INDEX_FILE` + `read-tree HEAD` + `cacheinfo` + `commit-tree` — so the shared index was never
+touched again, verifying `git diff-index --cached -p HEAD | grep R-ARCH-23` was 0 before writing the
+ref. Final order: `f4cdeac` (their ten rows) then `1001b6f` (this A5 work). **Both lanes' rows are in
+`HEAD` and the merged runner reports 58 hold / 4 fail / 4 manual of 66, with R-ARCH-23 red for its
+stated reason.**
 
-**Lane `sdd-engine-5f`**, commit `f4cdeac`. 52 of 149 register rows were mechanized; these ten are
-all decidable from tracked source, the exported contract, or an artifact already on disk — no mine,
-no render, no model call: **R-ART-2, R-ART-3, R-ART-5, R-ART-6, R-ART-9, R-ART-10, R-ART-11,
-R-COMP-8, R-PAY-5, R-TEST-5**. Runner 48 hold / 3 fail / 4 manual of 55 → **57 / 4 / 4 of 65**.
+**So the rule this episode actually produces:** in a tree with concurrent lanes, `git commit` with no
+paths is never safe, *even seconds after checking `git diff --cached`* — and `-o <paths>` does not
+help either, because the contention is over the **index slot**, not over paths. The route that holds
+is a private index via `GIT_INDEX_FILE`, which never writes shared state at all. That is 5f's, and it
+is better than the technique CLAUDE.md §7 currently documents.
 
-**Where a row could only be decided by mining, it was left out rather than approximated.** A check
-that stands in for its requirement reports on the stand-in, and the register would then say
-something the requirement does not.
-
-**All ten mutation-checked in both directions** (§10.3, R-TEST-3), each with the message it
-promises: `contentFingerprintOf` stopped excluding VOLATILE → *"one of minedAt, … is still inside
-the hash"*; `HOMES.tracked` → `"catalog"` → *"a home moved"*; a kind's `requires` emptied → *"requires
-is empty, so a shape change at the same version is invisible"*; a scratch corpus crafted with an
-off-shape key, a v0 entry and a forward composite member → R-ART-9 / R-ART-10 / R-COMP-8 red; a probe
-line appended to a tracked file → R-ART-2, R-PAY-5, R-TEST-5 red. `artifact-contract.js` restored
-byte-identical after each, verified against HEAD.
-
-**Two rows cried wolf on their first run and were narrowed, not quieted.** R-ART-6 first grepped
-*every* `catch { return null }` and reported five, four of which were correct code — a failed
-`ts.createSourceFile` meaning "no name is derivable", a `statSync` probe meaning "not present", and
-`deriveGloss`'s own documented *"a gloss we cannot derive is not evidence of an edit"*. Those are
-local control flow, not a consumer misreporting an artifact. R-TEST-5 flagged `namer.test.js:24`,
-where `Math.random` names a temp fixture file — that decides where a stub is written, never which
-files the oracle covers. Both are now scoped to what the row actually says, and R-TEST-5 prints the
-excluded count so the exemption cannot quietly grow.
-
-**The one surviving hit was mine.** R-ART-6 named `sdd-clean.js:208` — `authoredCounts()`, which I
-wrote for the wipe-refusal path, read `word-names.json` and returned a bare null on any failure, so
-a *missing* artifact and an *unparseable* one printed the identical message **on the path to a
-refusal about data no re-mine can rebuild**. Fixed in the same commit; it returns a reason and the
-refusal prints it. `engine/sdd-clean.test.js`: 17 assertions pass.
-
-**R-ART-11 carries a known limit, found by mutation-checking rather than by reading it.** Dropping a
-key *from* the VOLATILE list leaves the row green, because the check derives its test bodies from
-that list. It proves the declared exclusions are honoured; it cannot prove the list is complete.
-Stated in the row — a row that quietly checks less than it claims is how a green stops meaning
-anything.
-
-### The expensive one: `git commit` with no paths is not safe in this tree, ever
-
-CLAUDE.md §7 already says `-o` gives no protection *inside* a path, and prescribes building from the
-index when two lanes are in the same file. I did that — `git add`, checked `git diff --cached`, saw
-exactly my three paths, committed **from the index with no paths** — and still swept another lane's
-work. Between my check and my commit, `sdd-engine-e2` staged five paths of A5 work into the **shared
-index**, so `git commit` committed *theirs* under *my* message.
-
-**The index is shared state, and a check of it is only true at the instant it is read.** That is a
-different failure from the one §7 describes: not a working-tree path I named, but the index itself
-moving underneath a verified plan.
-
-Undone rather than papered over — the commit was local and unpushed, so `git reset --soft HEAD^`
-restored their staged state exactly (all five paths still staged, `en-idempotence.test.js` still on
-disk, their R-ARCH-23 row still in the working tree). The commit was then rebuilt through a
-**private index**, which never touches the shared one:
-
-```
-GIT_INDEX_FILE=/tmp/… git read-tree HEAD
-GIT_INDEX_FILE=/tmp/… git update-index --cacheinfo 100644,<sha>,<path>   # once per path I own
-GIT_INDEX_FILE=/tmp/… git diff-index --cached -p HEAD | grep R-ARCH-23   # 0 — their marker absent
-GIT_INDEX_FILE=/tmp/… git write-tree && git commit-tree … && git update-ref
-```
-
-**One aftershock worth knowing, because it is the dangerous half.** Moving HEAD out from under a
-peer's index leaves *their* index stale: it then showed my 260 new lines as a **deletion**, so their
-next `git commit` would have reverted my rows without either of us seeing it. Re-staging the three
-files I own corrected it, and `git diff --cached` now shows their five paths as pure additions. Told
-them directly rather than leaving it to be discovered.
+**One thing 5f flagged that was worth checking and is now checked:** moving `HEAD` out from under my
+index left it briefly stale, so a no-paths commit from me *would have reverted their 260 lines*. They
+re-staged; I verified before committing (`git diff --cached` = my five paths, pure additions,
+`verify-register.js` 57/0) and again after (`git show --stat HEAD` = exactly those five). Their rows
+are intact in `HEAD`, confirmed by name.
