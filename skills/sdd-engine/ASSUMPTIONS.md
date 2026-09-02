@@ -4157,3 +4157,115 @@ writer, and it does not decide where its output goes.
 
 **Q-5's losing number.** One decision, then §18's own instruction: *delete* the loser rather than
 annotate it. *A constant with two values is not a constant.*
+
+---
+
+## 2026-09-01 — PRD resequence, the verify-dsl decision, and why three lanes won't touch the register
+
+Three items Amir returned with decisions on.
+
+### 1. Ordinal collisions — resequenced (`776a0d1`)
+
+Authorized after the inbound-reference cost was measured. `26/26` and `27/27` shared prefixes, so an
+ordinal could not identify a section. Resequenced **in reading order** (26 → 32) rather than parking
+the strays in free slots, so the number keeps meaning "where this sits in the split". Six `git mv`s
+in descending target order so no intermediate step collided; references rewritten across every
+tracked `.md`/`.js`/`.json`; the README's ordinal **column** corrected mechanically by requiring each
+cell to equal its own link's filename prefix, not by hand.
+
+Verified after: ordinals unique **and** ascending, every README link resolves, every `.md` indexed.
+
+**I swept another lane's work and caught it before pushing.** `git add -A tools/prd/` took three
+R-DRIFT register rows belonging to the refusals lane into my commit. Caught by reading `--stat`
+before the push, undone with `reset --soft` + `restore --staged`; their rows went back to the working
+tree unstaged and still theirs. This is exactly the hazard §7 names, and `-A` on a directory is how
+it happens — the discipline is not "avoid `-A`", it is **read `--stat` before every push**.
+
+I also let a global search-and-replace rewrite another lane's C5 log entry — a historical claim, not
+a link. Reverted. Rewriting a path inside someone else's record of what was true then is not
+housekeeping.
+
+### 2. `verify-dsl.js` — retired, guarantee restored (`055d3dd`)
+
+Traced before deciding, as instructed:
+
+| when | what |
+|---|---|
+| `f7ba5f3` | `compositions/*.json` + `surface/*.calc` committed as fixtures |
+| later | both directories declared derived and **gitignored** (`.gitignore:10`, `:22`) |
+| `e95ca17` | the extraction moved **129 tracked** files with `git mv` — ignored files do not travel |
+| prior | `build-compositions.js`, the fixture producer, moved to `archive/` |
+
+So the fixtures were not deleted; they were **made invisible to `git mv` and then left behind**.
+Restoring them would mean re-committing files the repo deliberately ignores, to revive a script whose
+generator is retired — and they would be lost again by the same mechanism at the next move.
+
+**Decision: retire the script, keep the guarantee.** The three properties in `dsl.js`'s header were
+real and untested, and `dsl.js` is the most-referenced module here — live code, even though the
+compositions *pipeline* (B) is measurement-only. `engine/dsl-surface.test.js` replaces it with no
+fixture at all: it builds trees in memory from the live grammar, synthesising a legal value per role
+from that role's own kind, so it hardcodes no composite, keyword or param and covers a new composite
+the day it is added. `verify-dsl.js` moved to `archive/` beside its producer, and both live citations
+(`dsl.js`'s header, and `language.js`'s `transforms` claim, which **ships to a cross-repo consumer**)
+now name the running test instead of an archived one.
+
+**A mutation passed and it was my test's fault, not the code's.** Making `parseMarkedLine` skip
+unknown markers silently left the suite green. `parseText` routes a line by its FIRST token, so
+corrupting the first marker never reaches the unknown-marker branch — the line is read as a *types*
+line and dies with `expected N type(s)`, which my regex accepted through a loose `|` alternative. The
+assertion now corrupts the SECOND marker so the line still routes into `parseMarkedLine`, and matches
+the exact message. Re-run: it fires. **Second time tonight** a mutation exposed a test that was green
+for the wrong reason (the other was the wire-form RegExp in `language.test.js`). Both were found only
+by mutating — never by reading the assertion, which looked correct both times.
+
+### 3. Why three lanes independently refused to amend a register row — Amir asked, and it is worth stating
+
+The three of us gave *different* stated reasons. e2 and 5f said **"register text is Amir's"**; I said
+**"renumbering breaks cross-references"**. Those look like an authority argument and a mechanical one.
+They are the same argument, and the underlying reason is stronger than either:
+
+> **The register is not documentation of the code. It is the specification the code is checked
+> against — and it is checked mechanically.**
+
+Measured 2026-09-01: `verify-register.js` carries each requirement as
+`{ id: "R-MECH-4", req: "<the normative text>", ... }` **restated inline in executable code** beside
+its check, and **69 distinct R-IDs are cited from live `.js`** (143 defined in the register). So a
+register row is three things at once: an **identifier** other code cites, a **normative MUST** that is
+the acceptance criterion, and a **record of a decision with an owner**.
+
+That makes an amendment by the lane implementing the requirement structurally circular: the
+implementation would define its own acceptance criterion, and `verify-register.js` would then confirm
+the code against a spec its own author had just rewritten to match. Identical in shape to a test
+asserting whatever the code currently happens to do — a green that cannot fail.
+
+Both stated reasons are surfaces of that one:
+
+- *"It's Amir's text"* = the spec must have an owner **other than the implementer**. Not deference —
+  independence.
+- *"Cross-references break"* = the ID is a **key in a mechanical system**, not a label. And because
+  `verify-register.js` holds its own copy of the text, an edit to the register does not merely break
+  citations: it forks the spec-of-record from the spec-being-checked, **silently**, with the checker
+  still reporting green against the old wording.
+
+This applies to R-MEAS-6's "retired framing" too, which is the one that most looks like harmless
+tidying. Rewriting a goal statement to match what was actually built is the purest form of the
+circularity — it makes the project's stated purpose a function of its output.
+
+**What this does NOT forbid:** *adding* a new row for new work (e2 added R-DRIFT-1/2/3; I added
+R-ARCH-20/21). Adding is not circular — it makes a new claim that can fail. Amending an existing row
+to agree with new code is what none of us will do. The distinction is whether the edit can still
+fail after it lands.
+
+**Still Amir's, therefore, and untouched:** the 4 duplicate IDs (`R-ARCH-18`, `R-MEAS-6`, `R-MEAS-7`,
+`R-REND-8`, two rows each), R-MEAS-6's retired framing, and `§5D.4E` labelling two sections
+(`28-rule-coverage-filter.md` and `30-nested-rendering.md`) — which is why R-LANG-23's row cites
+"§5D.4E §10" ambiguously.
+
+### A correction to my own earlier report
+
+I told Amir `verify-dsl.js` was "the guard for the DSL's own print/parse/expand byte-identity, so that
+property currently has no running test", which overstated its place. The **live `.en` byte-identity
+floor (R-REND-1) is pipeline A** and is guarded by `test-lzw-roundtrip.js` and `enfile.test.js` — it
+was never at risk. What had no test was the **DSL surface layer's** round-trip, which is pipeline B
+(measurement-only per README) even though `dsl.js` itself is live. The gap was real; it was not the
+floor.
