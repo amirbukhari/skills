@@ -12,6 +12,11 @@
  * The .en -> .ts round-trip is the gate: it must hold for ALL files. Deterministic; 0 model.
  *   node write-en-files.js
  *
+ * --json: emit an NDJSON PROGRESS STREAM on stdout (one document per line) and move the prose to
+ * stderr, for a UI to consume live. See engine/progress.js for the contract and for why this is
+ * the complement of sdd-run.js rather than a duplicate of it. Without the flag nothing changes.
+ *   node write-en-files.js --json
+ *
  * --no-write (alias --dry-run): run the FULL render + verify + report path without mutating the
  * corpus — no .calc relocation, no .en writes, no .gitignore, and no en-index unless --out <dir>
  * is given. Lets the production code path prove the byte-identity gate and the recursive/flat
@@ -24,6 +29,7 @@ const ts = require("typescript");
 const EN = require("./engine/enfile");
 const CR = require("./engine/corpus-root");
 const AC = require("./engine/artifact-contract");
+const PROGRESS = require("./engine/progress");
 
 const CORPUS = CR.corpusRoot();   // WRITE root: sen/, .cache/
 const SRC = CR.sourceRoot();      // READ root: the .ts tree
@@ -31,6 +37,10 @@ const SRC = CR.sourceRoot();      // READ root: the .ts tree
 const DRY = process.argv.includes("--no-write") || process.argv.includes("--dry-run");
 const outFlag = process.argv.indexOf("--out");
 const OUT_DIR = outFlag >= 0 ? process.argv[outFlag + 1] : null;
+/* --json: NDJSON on stdout, prose on stderr. `say` is console.log unless --json is passed, so the
+ * lines below are unchanged for every existing caller. */
+const prog = PROGRESS.open({ step: "render" });
+const say = prog.say;
 const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 const walkAll = (d, pred, o = []) => { if (!fs.existsSync(d)) return o; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walkAll(p, pred, o); else if (pred(p)) o.push(p); } return o; };
@@ -77,13 +87,28 @@ const dictCounts = (() => {
   return c && c.counts ? { ...z, ...c.counts } : z;
 })();
 const perFile = [];
+prog.start({ totalFiles: src.length, dryRun: DRY, corpus: CORPUS, source: SRC,
+             dictionary: { composites: dictCounts.composites, maxDepth: dictCounts.maxDepth, entries: dictCounts.dictEntries } });
+let seen = 0;
 for (const abs of src) {
   const rel = path.relative(SRC, abs);
   let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
   let r, back;
-  try { r = EN.renderFileEn(source, index); back = EN.compileFileEn(r.en, index); } catch (e) { failures.push([rel, "THREW: " + e.message]); continue; }
-  if (back !== source) { failures.push([rel, "MISMATCH"]); continue; }
+  try { r = EN.renderFileEn(source, index); back = EN.compileFileEn(r.en, index); }
+  catch (e) {
+    failures.push([rel, "THREW: " + e.message]);
+    prog.file({ rel, done: ++seen, total: src.length, byteIdentical: false, why: "THREW", message: e.message });
+    continue;
+  }
+  if (back !== source) {
+    failures.push([rel, "MISMATCH"]);
+    prog.file({ rel, done: ++seen, total: src.length, byteIdentical: false, why: "MISMATCH" });
+    continue;
+  }
   byteExact++;
+  prog.file({ rel, done: ++seen, total: src.length, byteIdentical: true,
+              bytes: r.stats.totalBytes, chunks: r.stats.chunks || 0, oneWord: !!r.stats.oneWord,
+              bodyStatements: r.stats.bodyStatements || 0, topSpans: r.stats.topSpans || 0 });
   if (!DRY) {
     const outPath = path.join(enFilesDir, rel + ".en");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
@@ -195,17 +220,24 @@ if (enIndexOut) {
 }
 
 const residualCalc = walkAll(senDir, (p) => p.endsWith(".calc")).length;
-console.log(`=== STEP 7 — ENGLISH SOURCE OF TRUTH ===${DRY ? "  (DRY RUN — no corpus writes)" : ""}`);
-console.log(`  .en ${DRY ? "rendered (not written)" : "written ............."} ${byteExact}/${src.length}  ${DRY ? "" : "-> sen/files/<rel>.en"}`);
-console.log(`  .en -> .ts BYTE-IDENTICAL ..... ${byteExact}/${src.length}   ${manifest.gate.allByteIdentical ? "(ALL PASS)" : "FAILURES: " + failures.length}`);
-for (const f of failures.slice(0, 10)) console.log(`       FAIL ${f[0]} ${f[1]}`);
-console.log(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   (${stmtSpans} logic-stmt spans + ${dataSpans} data spans)`);
+/* THE GATE, AS A FIRST-CLASS EVENT (R-UI-2). PRD R-REND-1 calls byte-identity "the floor and it
+ * never regresses", and a UI must not have to read prose — or infer from an exit code that has not
+ * been produced yet — to know whether the floor held. `failures` carries every failing file, not a
+ * count: the file that failed is the one a panel needs to name. */
+prog.gate({ name: "byte-identity", requirement: "R-REND-1", pass: manifest.gate.allByteIdentical,
+            total: src.length, passed: byteExact, failed: failures.length,
+            failures: failures.map(([rel, why]) => ({ rel, why })) });
+say(`=== STEP 7 — ENGLISH SOURCE OF TRUTH ===${DRY ? "  (DRY RUN — no corpus writes)" : ""}`);
+say(`  .en ${DRY ? "rendered (not written)" : "written ............."} ${byteExact}/${src.length}  ${DRY ? "" : "-> sen/files/<rel>.en"}`);
+say(`  .en -> .ts BYTE-IDENTICAL ..... ${byteExact}/${src.length}   ${manifest.gate.allByteIdentical ? "(ALL PASS)" : "FAILURES: " + failures.length}`);
+for (const f of failures.slice(0, 10)) say(`       FAIL ${f[0]} ${f[1]}`);
+say(`  english coverage (bytes) ...... ${manifest.englishBytesPct}%   (${stmtSpans} logic-stmt spans + ${dataSpans} data spans)`);
 /* NOT "recursive X / flat Y (Y% fallback)". There is no flat producer (engine/enfile.js pass 0b),
  * so a 0% fallback figure is a tautology dressed as a measurement — the class of number PRD
  * R-MECH-8 forbids publishing. Printed as a structural fact plus a tripwire instead. */
-console.log(`  generator spans ............... ${genSpans}   all recursive (no flat producer exists)`);
-if (genFlatFallback) console.log(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
-console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
+say(`  generator spans ............... ${genSpans}   all recursive (no flat producer exists)`);
+if (genFlatFallback) say(`  !! FLAT SPANS: ${genFlatFallback} — a flat producer was re-introduced; re-check the R-COMP-7 gate`);
+say(`  composition depth ............. live path ${maxDepth} (R-COMP-7 needs >= 2), dictionary ${dictCounts.maxDepth}; ${dictCounts.composites} composites / ${dictCounts.compositionEdges} edges`);
 /* THE INVARIANT THAT SHOULD HAVE EXISTED FIRST (R-MECH-8 discipline). Two wrong denominators
  * shipped before this line did, and both PUBLISHED rather than failing: one made collapsed exceed
  * S so residual clamped to a perfect 0, the other left `restated` larger than `unfolded`. Both are
@@ -224,21 +256,28 @@ console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 n
     throw new Error(`review surface is incoherent: collapsed ${r.collapsedStatements} exceeds S ${r.bodyStatements}.`);
 }
 const rs = manifest.reviewSurface;
-console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurfaceTop} at the TOP level, from S=${rs.bodyStatements} statements`);
-console.log(`                                 ${rs.reviewSurface} reading the whole tree exhaustively (${rs.chunks} chunks: ${rs.chunksAtomic} atomic + ${rs.chunksStructural} structural, max nest depth ${rs.nestMaxDepth})`);
-console.log(`  ONE WORD PER FILE (R-ARCH-15) . ${rs.oneWordFiles}/${perFile.length} files collapse to a single top-level word (${rs.oneWordPct}%)`);
-console.log(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);
-console.log(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);
-console.log(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
-console.log(`  .calc REMAINING under sen/ .... ${residualCalc}   ${residualCalc === 0 ? "(sen tree is .calc-free)" : "(!!)"}`);
+say(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurfaceTop} at the TOP level, from S=${rs.bodyStatements} statements`);
+say(`                                 ${rs.reviewSurface} reading the whole tree exhaustively (${rs.chunks} chunks: ${rs.chunksAtomic} atomic + ${rs.chunksStructural} structural, max nest depth ${rs.nestMaxDepth})`);
+say(`  ONE WORD PER FILE (R-ARCH-15) . ${rs.oneWordFiles}/${perFile.length} files collapse to a single top-level word (${rs.oneWordPct}%)`);
+say(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);
+say(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);
+say(`  .calc relocated out of spec ... ${movedFiles} (files/) + ${movedOther} (modules,skeletons) -> .cache/${DRY ? "  (skipped: dry run)" : ""}`);
+say(`  .calc REMAINING under sen/ .... ${residualCalc}   ${residualCalc === 0 ? "(sen tree is .calc-free)" : "(!!)"}`);
 /* s12, 2026-08-31: this line used to say `wrote .gitignore ( .cache/ ) + sen/en-index.json`, but
  * en-index.json is written to <corpus>/.cache/spec-derived/. A log that names the wrong path is how
  * a reader looks for an artifact in the sen tree and concludes it was never produced. */
-console.log(`  en-index ...................... ${enIndexOut || "(not written: pass --out <dir> to emit)"}`);
-console.log(`\n  worst review surface (statements still read as code):`);
-for (const f of rs.worstFiles.slice(0, 8)) console.log(`     surface ${String(f.reviewSurface).padStart(4)} of S=${String(f.bodyStatements).padEnd(5)} (${f.residualStatements} unfolded)  ${f.rel}`);
-console.log(`\n  most-English files:`);
-for (const f of perFile.slice(0, 8)) console.log(`     ${String(f.englishPct).padStart(5)}%  ${f.rel}`);
+say(`  en-index ...................... ${enIndexOut || "(not written: pass --out <dir> to emit)"}`);
+say(`\n  worst review surface (statements still read as code):`);
+for (const f of rs.worstFiles.slice(0, 8)) say(`     surface ${String(f.reviewSurface).padStart(4)} of S=${String(f.bodyStatements).padEnd(5)} (${f.residualStatements} unfolded)  ${f.rel}`);
+say(`\n  most-English files:`);
+for (const f of perFile.slice(0, 8)) say(`     ${String(f.englishPct).padStart(5)}%  ${f.rel}`);
+
+/* The measured numbers, once, from the SAME manifest the artifact is stamped from — never
+ * recomputed for the stream. A second derivation of a published number is the §8B drift shape with
+ * the UI as the consumer, and it is how a panel comes to disagree with en-index.json. */
+prog.summary({ gate: manifest.gate, englishBytesPct: manifest.englishBytesPct,
+               generators: manifest.generators, reviewSurface: manifest.reviewSurface,
+               enIndex: enIndexOut, dryRun: DRY });
 
 /* ---------- EXIT CODE — gate 1 must be able to fail a caller ----------
  * PRD R-REND-1 / §7.0 gate 1: `compileFileEn(renderFileEn(src)) === src` for EVERY file, always;
@@ -255,9 +294,13 @@ for (const f of perFile.slice(0, 8)) console.log(`     ${String(f.englishPct).pa
  * A dry run reports and does not gate — it writes nothing, so it is a measurement, not a build.
  * Measured before the change: 1037/1037 byte-identical, so this exits 0 on today's corpus. */
 if (!DRY && !manifest.gate.allByteIdentical) {
+  prog.error({ reason: "byte-identity", requirement: "R-REND-1", failed: failures.length,
+               failures: failures.map(([rel, why]) => ({ rel, why })) });
+  prog.end({ exitCode: 1, byteIdentical: byteExact, totalFiles: src.length });
   console.error(`\nBYTE-IDENTITY FLOOR BREACHED — ${byteExact}/${src.length} files round-trip; ${failures.length} failed.`);
   console.error(`  PRD R-REND-1: this is the floor and it never regresses. Refusing to report success.`);
   for (const [rel, why] of failures.slice(0, 10)) console.error(`    ${why.padEnd(10)} ${rel}`);
   if (failures.length > 10) console.error(`    ... and ${failures.length - 10} more`);
   process.exit(1);
 }
+prog.end({ exitCode: 0, byteIdentical: byteExact, totalFiles: src.length, dryRun: DRY });

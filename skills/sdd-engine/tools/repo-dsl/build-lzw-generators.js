@@ -9,6 +9,10 @@
  * are the canonical short forms shared verbatim by the writer (engine/wordlzw.js) and the reader
  * (engine/enlzw.js); see wordlzw.js's header for why they are abbreviated.
  *
+ * --json: emit an NDJSON PROGRESS STREAM on stdout (one document per line), prose to stderr, for a
+ * UI to consume live. See engine/progress.js. Without the flag nothing changes.
+ *   node build-lzw-generators.js --json
+ *
  * Corpus is READ-ONLY (walked, never written). The catalog is written into the SKILLS REPO
  * (catalog/generators-lzw.json), NOT under hydra-source — the SOURCE-PROTECTED generators.json
  * (s1's live flat catalog) is left untouched. Deterministic; zero model calls.
@@ -20,6 +24,7 @@ const ts = require("typescript");
 const G = require("./engine/generators");
 const W = require("./engine/wordlzw");
 const CR = require("./engine/corpus-root");
+const PROGRESS = require("./engine/progress");
 
 const CORPUS = CR.corpusRoot();   // WRITE root
 const SRC = CR.sourceRoot();       // READ root: the .ts tree
@@ -28,6 +33,9 @@ const OUT = AC.pathFor("generators-lzw", CORPUS); // CORPUS tree — the engine 
 // dictionary was mined over 956 files but applied to 1037, so every recurring body in a test file
 // had no word by construction — 696 of 937 un-collapsed bodies traced to that one mismatch.
 const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
+/* --json: NDJSON on stdout, prose on stderr. Unchanged for every existing caller (engine/progress.js). */
+const prog = PROGRESS.open({ step: "mine" });
+const say = prog.say;
 // MIN_SKEL = minimum skeleton bytes per statement before a word may be promoted. It is the
 // readability dial, not a correctness one: every span is byte-gated at emission regardless.
 // Measured over the full corpus (byte-identity 1037/1037 at every point):
@@ -101,15 +109,24 @@ function symbolStreams(sf, wide) {
 }
 
 const files = walk(SRC);
+prog.start({ totalFiles: files.length, source: SRC, corpus: CORPUS, out: OUT,
+             constants: { MIN_COUNT, MIN_SKEL, MAXWIN } });
 const narrowStreams = [], wideStreams = [];
 let parsed = 0;
+/* The mine has genuinely distinct stages with different costs, and a UI showing one bar for all of
+ * them is showing a bar that stalls. They are named so a panel can label what it is waiting on. */
+prog.phase({ name: "parse", state: "begin", totalFiles: files.length });
 for (const abs of files) {
   let src; try { src = fs.readFileSync(abs, "utf8"); } catch { continue; }
   const sf = ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const n0 = narrowStreams.length, w0 = wideStreams.length;
   for (const s of symbolStreams(sf, false)) narrowStreams.push(s);
   for (const s of symbolStreams(sf, true)) wideStreams.push(s);
   parsed++;
+  prog.file({ rel: path.relative(SRC, abs), done: parsed, total: files.length,
+              narrowStreams: narrowStreams.length - n0, wideStreams: wideStreams.length - w0 });
 }
+prog.phase({ name: "parse", state: "end", parsed, narrowStreams: narrowStreams.length, wideStreams: wideStreams.length });
 
 /* Build + promote each axis, then serialize a render-friendly graph keyed on symbol STRINGS. */
 function buildAxis(streams, axis) {
@@ -137,8 +154,12 @@ function buildAxis(streams, axis) {
   return { axis, minCount: MIN_COUNT, minSkel: MIN_SKEL, counts: { leaves, composites, maxDepth, compositionEdges: edges, dictEntries: model.dict.length }, words, leaf, ext };
 }
 
+prog.phase({ name: "build", state: "begin", axis: "narrow", streams: narrowStreams.length });
 const narrow = buildAxis(narrowStreams, "narrow");
+prog.phase({ name: "build", state: "end", axis: "narrow", counts: narrow.counts });
+prog.phase({ name: "build", state: "begin", axis: "wide", streams: wideStreams.length });
 const wide = buildAxis(wideStreams, "wide");
+prog.phase({ name: "build", state: "end", axis: "wide", counts: wide.counts });
 
 // PROVENANCE — §8A protects this artifact, which is only meaningful if the next person can
 // regenerate it rather than treat it as a mystery blob. Record the exact corpus and command.
@@ -163,14 +184,16 @@ const catalog = AC.stamp("generators-lzw", {
   constants: { MIN_COUNT: { value: MIN_COUNT, default: 1 },
                MIN_SKEL:  { value: MIN_SKEL,  default: 8 },
                MAXWIN:    { value: MAXWIN,    default: 100000 } } });
+prog.phase({ name: "write", state: "begin", out: OUT });
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(catalog));
+prog.phase({ name: "write", state: "end", out: OUT, bytes: fs.statSync(OUT).size });
 
-console.log("=== build-lzw-generators ===");
-console.log("corpus files parsed:", parsed);
-console.log("NARROW  leaves:", narrow.counts.leaves, " composites:", narrow.counts.composites, " maxDepth:", narrow.counts.maxDepth, " dictEntries:", narrow.counts.dictEntries);
-console.log("WIDE    leaves:", wide.counts.leaves, " composites:", wide.counts.composites, " maxDepth:", wide.counts.maxDepth, " dictEntries:", wide.counts.dictEntries);
-console.log("wrote", OUT, "(" + (fs.statSync(OUT).size / 1e6).toFixed(2) + " MB)");
+say("=== build-lzw-generators ===");
+say("corpus files parsed:", parsed);
+say("NARROW  leaves:", narrow.counts.leaves, " composites:", narrow.counts.composites, " maxDepth:", narrow.counts.maxDepth, " dictEntries:", narrow.counts.dictEntries);
+say("WIDE    leaves:", wide.counts.leaves, " composites:", wide.counts.composites, " maxDepth:", wide.counts.maxDepth, " dictEntries:", wide.counts.dictEntries);
+say("wrote", OUT, "(" + (fs.statSync(OUT).size / 1e6).toFixed(2) + " MB)");
 
 /* ---------- EXIT CODE — a mine that mined nothing must not report success ----------
  * This script exited 0 unconditionally, so `npm run mine` (and `sdd-run.js mine`, which passes the
@@ -185,15 +208,27 @@ console.log("wrote", OUT, "(" + (fs.statSync(OUT).size / 1e6).toFixed(2) + " MB)
  * loudly or mark itself complete:false — it never emits a smaller plausible number."
  *
  * Measured before the change: parsed 1037, narrow 5684 leaves, wide 3238 leaves — exits 0. */
+/* THE MINE'S GATE (R-UI-2), the counterpart of render's byte-identity: R-PIN-6 — "a build that
+ * cannot walk the whole tree MUST fail loudly ... it never emits a smaller plausible number". A
+ * mine that parsed nothing, or promoted an empty vocabulary, looks exactly like a clean mine that
+ * found little, and that is the one thing a UI must not render as success. */
 const problems = [];
 if (!parsed) problems.push(`walked ${files.length} file(s) under ${path.resolve(SRC)} and parsed NONE`);
 for (const ax of [narrow, wide]) {
   if (!ax.counts.leaves) problems.push(`${ax.axis} axis promoted 0 leaf words — an empty vocabulary`);
 }
+prog.gate({ name: "non-empty-mine", requirement: "R-PIN-6", pass: problems.length === 0,
+            parsed, walked: files.length, problems });
+prog.summary({ parsed, gap: W.GAP, out: OUT, bytes: fs.statSync(OUT).size,
+               constants: { MIN_COUNT, MIN_SKEL, MAXWIN },
+               narrow: narrow.counts, wide: wide.counts });
 if (problems.length) {
+  prog.error({ reason: "empty-mine", requirement: "R-PIN-6", problems });
+  prog.end({ exitCode: 1, parsed, walked: files.length });
   console.error("\nMINE FAILED — refusing to report success:");
   for (const p of problems) console.error("  " + p);
   console.error(`  SOURCE ${path.resolve(SRC)}\n  CORPUS ${path.resolve(CORPUS)}`);
   console.error("  check the root (npm run roots) and the SKIP set before trusting any downstream number.");
   process.exit(1);
 }
+prog.end({ exitCode: 0, parsed, walked: files.length, out: OUT });

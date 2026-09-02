@@ -3252,3 +3252,112 @@ a rule invented to fit one file is worse than an open case.
 
 **Expected end state if Half 1 and the denominator change both land: 1031/1035 = 99.6%**, with 4
 known non-collapsing files — 3 leading-comment, 1 unexplained.
+
+---
+
+## 2026-09-01 — §5D.5, the NDJSON progress stream (`--json` on render and mine)
+
+Amir asked for `--json` progress on `write-en-files.js` and `build-lzw-generators.js` for Kraken's
+SDD panel, prose kept working, tests for the shape. The judgment calls:
+
+1. **I did not quietly edit the argument against this.** `sdd-run.js`'s header opens with "WHY A
+   WRAPPER AND NOT `--json` ON ELEVEN SCRIPTS" and says adding an output mode to each script is "a
+   regression risk for no functional gain". Amir's request contradicts it on its face, and the easy
+   move was to delete the paragraph. It is still **right about what it was arguing**, so I left it
+   and appended the distinction it does not cover: `sdd-run` reads a child's output *after it
+   exits*, so a 5-second render and a 5-minute one are indistinguishable until they end. An envelope
+   cannot report progress; that needs a stream. Two scripts grew a flag because two scripts are the
+   ones a panel watches — and I wrote explicitly that the argument still stands for the other nine.
+
+2. **One emitter module, not two.** Two scripts writing the same shape from two places is the §8B
+   producer/consumer drift shape with the UI as the consumer. `engine/progress.js` is the single
+   definition and one test asserts both scripts against it.
+
+3. **Prose moves to stderr under `--json` rather than being suppressed.** That matches sdd-run's
+   existing contract (stdout machine, stderr log), so a UI parses one stream the same way whichever
+   entry point it used, and a human running `--json` by hand still sees the report. The test asserts
+   the prose is **byte-identical between modes**, which turns "don't break current callers" into
+   something checked rather than remembered.
+
+4. **`file` events are per unit, not sampled.** 1,037 short lines is nothing beside the 4 MB catalog
+   the same run reads, a panel wants the name of the file it is on, and sampling would be lossy in
+   the one case that matters — the file that fails is the file you want named.
+
+5. **I exported `emit`.** The closed-vocabulary guard is reachable only through the named helpers,
+   so its refusal could never fire — it was dead code dressed as a guard, the exact §10.3 shape I
+   have flagged twice this week, and I wrote it myself. Exporting `emit` makes the refusal reachable
+   and the test drives it, with a control proving the guard does not simply refuse everything.
+
+6. **The render gate's FALSE branch is not forced, and I said so rather than implying coverage.** A
+   byte-identity failure cannot be manufactured from outside the renderer — every span is byte-gated
+   by construction. The test pins the render gate's shape and true value, and demonstrates
+   falsifiability on the *mine's* gate, which an empty `SOURCE` drives to `pass:false` / `end.ok:false`
+   / exit 1. Claiming both gates were shown to fire would have been the flattering version.
+
+7. **No corpus was written by any test.** The render case runs `--dry-run` with no `--out`; the mine
+   case writes into a temp `CORPUS`. I checked the real `generators-lzw.json` checksum rather than
+   assuming the env override worked.
+
+**Measured:** byte-identity 1037/1037 after the change; render `--json` 1,041 lines / mine `--json`
+1,049 lines; prose identical between modes; 0 JSON on stdout without the flag; `progress.test.js`
+8/8; enfile, nested-rendering, unit-boundary, artifact-location all green; `sdd-run --list` and
+`sdd-run render` unaffected.
+
+## 2026-09-01 — MEASURED: chunk-level (d>=1) naming risk. It is worse than the leaf pilot.
+
+**Ran the leaf pilot's own instrument** — `naming-gate.detailOf`, the one measure that would have
+caught that regression, reused rather than reimplemented — against a chunk-level simulation.
+Read-only, in memory, over all 1037 files. Nothing written, no shared file touched.
+
+**The exposure.** In today's nested render the corpus carries **77,766** concrete identifiers in
+prose (payloads stripped, per `detailOf`). Of those, **48,761 (63%) live in d>=1 chunk labels** —
+composed from members, which is exactly what R-LANG-19 lets a whole-chunk name outrank.
+
+    depth 0    27,933 identifiers    1,064 chunks
+    depth >=1  48,761 identifiers   27,650 chunks   <- what R-LANG-19 puts at risk
+
+**The simulation.** A whole-chunk name is hole-free, so I grouped d>=1 chunks by their label with
+identifiers masked (`` `X` ``) — the hole-free shape one name would cover — and charged every
+identifier in those labels as lost. 27,650 chunks reduce to **6,719 distinct shapes**.
+
+    names applied   chunks covered   identifiers LOST   % of d>=1 detail   files touched
+              1            3,110              6,220              12.8%             698
+             10           10,001             14,813              30.4%             774
+             80           16,077             23,422              48.0%             777
+            400           19,592             28,374              58.2%             777
+
+**An 80-name chunk pilot — the same size as the leaf pilot — destroys 23,422 identifiers.** The leaf
+pilot destroyed 20,029 (27,673 -> 7,644). **Chunk naming is the bigger regression of the two, and it
+is worse per name at the top:** the single most attractive name to give, `` import `X` from `X` ``,
+covers 3,110 chunks across 698 files and destroys **6,220 identifiers by itself.**
+
+**NOT a like-for-like comparison, stated because the shape invites one.** The leaf pilot's 27,673
+was measured on the FLAT render, before nested rendering existed; 77,766 is today's nested render.
+The two totals are different populations. What IS comparable is the mechanism and the order of
+magnitude of the loss.
+
+**The top shapes are the same hazard class, confirmed rather than assumed.** The costliest names are
+`` import `X` from `X` ``, `` import `X` and `X` from `X` ``, `` define `X` ``, `` compute `X` ``,
+`` return `X` `` — hole-filled rule-rendered clauses whose entire information content is the
+identifier in the hole. Naming them trades a clause that says `getManager` for one that says the
+same words everywhere. That is the leaf regression's exact cause, one tier up.
+
+**The good news, and it is structural.** `naming-gate.js` check 4 (DETAIL RETENTION) is per file and
+fails on `dAfter < before`, and `recordFor` already routes a chunk-keyed proposal into `NAMES.chunks`
+— so chunk names flow through the SAME gate with no change. Every useful chunk name touches files
+that lose detail, so **the gate as it stands would reject essentially every one of them.**
+
+**Which is the finding for Amir: R-LANG-19 and naming-gate check 4 are in direct conflict.** A
+whole-chunk name that outranks member composition necessarily deletes what composition was supplying.
+Three ways out, none of them mine to choose:
+1. **Chunk names must be hole-FILLED too** — a name that keeps its holes, so `` import `X` from `X` ``
+   becomes a named shape that still quotes the identifiers. Preserves detail; R-LANG-19 survives.
+2. **Restrict R-LANG-19 to chunks whose labels carry no identifiers.** Measured ceiling: only
+   **2,392 of 27,650** d>=1 chunks (8.7%) have zero identifiers in their label, so this buys little.
+3. **Relax check 4 for chunk names** — which is re-running the pilot that produced this gate.
+
+**Recommendation: do not start naming composite tiers on the current R-LANG-19 wording.** Option 1
+is the only one that does not trade prose for names. This is a measurement and a recommendation, not
+a decision — R-LANG-19 is register text and belongs to Amir.
+
+**Commit:** see below.

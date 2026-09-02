@@ -11,6 +11,19 @@
  * pipeline script: it runs them as subprocesses and reports a structured envelope. If it is
  * deleted, nothing else changes behaviour.
  *
+ * AMENDED 2026-09-01. Two scripts — `render` and `mine` — now DO take `--json`, at Amir's request,
+ * and the paragraph above is worth keeping rather than quietly editing, because it is still right
+ * about what it was arguing. What it did not cover is PROGRESS. This wrapper spawns a child and
+ * reads its output when the child exits, so a 5-second render and a 5-minute one are
+ * indistinguishable until they finish; an envelope cannot say what is happening meanwhile. That is
+ * a different question from "how do I ask for a step and learn how it ended", which is this file's,
+ * and it is answered by a stream instead (engine/progress.js, `sdd-progress/v1`).
+ *
+ * The two do not overlap and are wired to agree: a progress `end` event's `ok` is `exitCode === 0`,
+ * the same rule as this envelope's `ok`. Use this to RUN a step; pass `-- --json` through to it to
+ * WATCH one. The eleven-scripts argument still stands for the other nine — nothing else has grown
+ * an output mode, and nothing should without a reason as concrete as this one.
+ *
  *   node sdd-run.js --list                 the step manifest — what a UI renders as the pipeline
  *   node sdd-run.js --status               resolved roots + which artifacts exist right now
  *   node sdd-run.js <step> [-- <argv...>]  run one step; everything after `--` goes to the script
