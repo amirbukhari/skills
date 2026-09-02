@@ -5327,3 +5327,43 @@ GIT_INDEX_FILE=… git read-tree $P
 GIT_INDEX_FILE=… git commit-tree $T -p $P …
 git show --stat HEAD             # then grep for the OTHER lane's heading
 ```
+
+## Ten more register rows — the tools RUN, not read. 2026-09-01
+
+**Lane `sdd-engine-5f`**, commit `d6c3e42`. R-CFG-5, R-CFG-8, R-CFG-9, R-MINE-5, R-MINE-10,
+R-MINE-11, R-DRIFT-3, R-ARCH-14, R-ARCH-17, R-TEST-1. Runner 58 hold / 4 fail / 4 manual of 66 →
+**68 / 4 / 4 of 76**. Still no mine, no render, no model call, and no write outside a temp dir.
+
+**The principle this batch adds: where a requirement is about behaviour, execute the thing.** A
+static read cannot tell a guard that fires from one that is merely present — §10.3's whole point.
+So `R-CFG-8` *runs* `sdd-clean.js` with no flag against a throwaway corpus and watches it refuse,
+name its counts, delete nothing and exit 3; `R-MINE-5` *calls* `isFoldable` on seven real statement
+kinds; `R-MINE-11` *builds* the same streams at three recurrence settings (21 entries alike);
+`R-TEST-1` *compiles* 40 real `.en` on a fixed stride against the real `.ts`.
+
+**Two rows delegate to an existing test instead of re-deriving it** (`R-CFG-5` → `corpus-root.test.js`,
+`R-CFG-9` → `sdd-clean.test.js`). A second copy of the roots contract, or of the destructive tool's
+contract, would be a **second producer of the same judgment** — free to drift from the one the engine
+actually ships, which is the §8B shape R-REND-9 exists to prevent. `R-CFG-9` also pins the assertion
+*names* it stands on, so a rename cannot quietly shrink what the row means.
+
+**All ten mutation-checked in both directions**, each with the message it promises — `isFoldable`
+narrowed to drop declarations, the ARBITRATION bucket deleted, `createGate` switched to
+`opts.minCount` (21 / 13 / 10), the two archetype writes swapped, `wholeRunOk` defaulted open, an
+UNREACHABLE reason emptied of its argument, `REFUSING` renamed, an assertion renamed, a deliberately
+false assertion appended, and a scratch corpus whose `.en` does not compile back. Every file restored
+byte-identical, verified with `git diff --quiet`.
+
+**R-MINE-10 cried wolf and its own mutation check caught it.** The first version matched
+`/bucket[\s\S]{0,200}MINER/` anywhere in the file, so deleting ARBITRATION from the bucket left the
+row **green** — the header comment names all three reasons a few lines above, and **prose about the
+check satisfied the check**. It now reads the object literal. That is `sdd-engine-5a`'s warning
+arriving on schedule: in this codebase the comments discuss the very thing being checked, often
+quoting the code shape verbatim. It is also the argument for mutation-checking every row rather than
+the interesting ones — the green was indistinguishable from a real pass by inspection.
+
+**Two new helpers, both narrow.** `runNode()` spawns a child so a tool that calls `process.exit`
+cannot take the runner down with it, and so an exit *code* is observable at all (a decline is 3, a
+fault is 1). `tmpCorpus()` builds a throwaway tree in `os.tmpdir()` for the rows that must run a
+**destructive** tool to decide. The real corpus is never a subject of these rows — the only safe
+place to watch a tool that deletes is a tree nobody minds losing.
