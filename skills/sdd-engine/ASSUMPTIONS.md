@@ -4449,3 +4449,107 @@ I did **not** run `name-words-lzw.js worksheet` end-to-end. It renders the full 
 active. The path is verified by resolving the same expression the source uses, and the directory is
 created before the write; **the write itself is unexercised.** Whoever next runs `npm run name`
 is the first to exercise it.
+
+## 2026-09-01 — R-ARCH-16: the full `perFile[]`, and a naming collision it exposed
+
+### The gap, and why it was the evidence layer rather than the metric
+
+*Measured.* R-ARCH-16 says review surface **MUST** be reported **per file** and as a corpus total.
+The corpus half has always been published. The per-file half was **computed** into `perFile` and
+published only as **three top-15 slices** — `topEnglishFiles`, `reviewSurface.worstFiles`,
+`reviewSurface.worstBySpans` — so per-file review surface reached disk for at most 45 and in
+practice **30 of 1037** files. Every corpus number in the manifest is a `reduce` over the full
+array; only the array itself was withheld.
+
+That is the R-MECH-8 shape one layer down from where R-MECH-8 usually bites: R-MEAS-9's Check column
+cites `perFile[].topSpans` / `.oneWord` **as though the array were on disk**, so a reader who
+trusted the citation found nothing, and the mechanized row had to compare a 30-file sample against
+a 1037-file requirement and report the gap instead of the requirement. A metric published as a
+leaderboard is a metric nobody can check a **file** against — which is what *"per file"* was asking
+for.
+
+### `perFileMissing`, because "per file" must not quietly mean "per file that rendered"
+
+*My call.* A file that THREW or came back non-identical `continue`s before the push, so it is in
+neither `perFile` nor any corpus reduce — it simply is not there, and its review surface is not
+zero, it is **unknown**. `failures` was already in the progress stream and the breach report but
+never in the artifact, so nothing on disk said which files were missing. A consumer now checks one
+equation: **`perFile.length + perFileMissing.length === gate.totalFiles`**. Today 1037 + 0.
+
+This is cheap to add now and impossible to add honestly after the first failure, which is the only
+reason it is in this commit rather than a later one.
+
+### The naming collision — R-MEAS-10's exact defect, one granularity down
+
+*Measured, and I would not have found it without publishing the array.* The key `reviewSurface`
+**means different things at the two levels**:
+
+| | |
+|---|---|
+| `perFile[].reviewSurface === topSpans + residualStatements` | **1037 / 1037** — the **TOP** read |
+| `perFile[].reviewSurface === genSpans + unfolded` (the corpus formula) | 260 / 1037 |
+| sum of `perFile[].reviewSurface` | **1,610** = `reviewSurface.reviewSurfaceTop` |
+| sum of `genSpans + unfolded` | **29,260** = `reviewSurface.reviewSurface` |
+
+So a reader who sums the per-file column named `reviewSurface` gets the **top** number, while the
+corpus field of the **same name** is the **whole-tree** number — an **18x gap**, agreeing only on
+the 260 files whose top span count happens to equal their generator span count. Dividing 29,260 by
+1037 likewise yields a per-file average that no row matches. The §7.3 comment claimed *"One
+definition, two granularities — the per-file view is `perFile[].reviewSurface`"*, which is **false
+in the direction that flatters**: the per-file view of the corpus figure was never published at all.
+
+**My call: name both, do not rename one.** `reviewSurface` keeps its value because `worstFiles`
+sorts on it and `verify-register.js` reads it — a rename here is a silent break there. Each row now
+also carries `reviewSurfaceTop` and `reviewSurfaceWhole`, exactly the pair R-MEAS-10 already
+requires at the corpus level, and the false comment is corrected at its source.
+
+### Purely additive — proven, not asserted
+
+HEAD's producer and the changed one were both dry-run **at the same tree state**, into separate out
+dirs. Every manifest key identical except the two additions; the `reviewSurface` block
+byte-identical; `topEnglishFiles` identical once the two new per-row keys are stripped;
+byte-identity **1037/1037** both ways.
+
+**The corpus artifact was not rewritten.** Every run used `--no-write --out <tmp>`;
+`en-index.json` on disk is md5 `b33ec224d752ff403215e1f39e3098a7` before and after. *My call:* a
+real render is another lane's to make — `engine/enfile.js` had uncommitted changes at the time and
+rendering would bake WIP into 1037 `.en` files. So **R-ARCH-16 stays red against the corpus until
+someone renders**, and the row now says why in those words.
+
+*A caution for anyone reading the numbers in this file:* between two of my dry runs `oneWordFiles`
+moved 1003 → 1030 and `reviewSurfaceTop` 1610 → 1582. **That was not my change** — a naming lane
+rewrote `word-names.json` (authored names 20 → 6, chunks 0 → 20, R-LANG-24 retiring names a rule
+overtook) and had uncommitted `engine/enfile.js` edits, both of which feed the render. The
+same-tree-state probe above is what separates the two, and it is the only reason I can say the
+additive claim holds.
+
+### The row, tightened so an incomplete array cannot pass
+
+Four branches exercised against the dry-run artifact via a throwaway `CORPUS=<tmp>` (no corpus
+mutation): **HOLDS** at 1037 + 0; **FAILS** on a missing `perFileMissing` (*"a short array is
+indistinguishable from a complete one"*); **FAILS** when `perFile` is truncated to 1030 — the
+"per file that worked" shape; **FAILS** when rows carry `rel` alone, because a file list is not
+review surface.
+
+And it now distinguishes a **stale artifact** from a **missing feature**, by checking whether the
+producer publishes `perFile` even when the manifest does not carry it. Against the real corpus it
+reads *"the producer DOES publish perFile — stale artifact, re-render"*. Without that branch, a
+reader concludes the producer needs fixing and goes to add what is already there.
+
+### The other half of the task went to another lane, and correctly
+
+The register id dedupe (140 rows / 136 distinct) landed as **`dfc8ac3`** by a third lane while I
+was working — renumbering the later arrival in each pair to **R-ARCH-22 / R-MEAS-9 / R-MEAS-10 /
+R-REND-9**, resolved per citation site by date. They found a **fourth** collision I had missed
+(**R-REND-8**), so my count was right on the arithmetic and short by one pair on the enumeration.
+I stood down rather than duplicate it, and `sdd-engine-5a` was right to push back on my first
+attribution: the work was not theirs either, and saying so kept the credit with `dfc8ac3`.
+
+One thing worth keeping from their reply: **the `sdd-clean.js` SOURCE-refusal exits 1 with a stack
+where a decline exits 3, and that is NOT R-CFG-8.** R-CFG-8 governs the *no-flag* refusal and what
+it must print; the SOURCE guard is a different refusal on a different trigger and prints no counts
+at all. So it is an inconsistency against the convention stated in the test file's own header, not
+a violation of a numbered row — and if it should be one, that is a row someone **adds**, which is
+the non-circular direction. Left noted, not fixed, by both of us deliberately; their
+`assert.strictEqual(r.code, 1)` pins today's behaviour so a deliberate fix fails the assertion
+instead of changing it silently.
