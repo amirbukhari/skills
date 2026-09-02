@@ -4269,3 +4269,70 @@ floor (R-REND-1) is pipeline A** and is guarded by `test-lzw-roundtrip.js` and `
 was never at risk. What had no test was the **DSL surface layer's** round-trip, which is pipeline B
 (measurement-only per README) even though `dsl.js` itself is live. The gap was real; it was not the
 floor.
+
+## verify-dsl.js — RETIRE, do not restore. 2026-09-01
+
+Task: "check git history/blame on when and why `compositions/` disappeared, and decide whether to
+restore the fixture or retire the test — don't restore blind."
+
+**Decision: retire. Restoring the fixture is not an option that exists.**
+
+### Why — the cause is a deliberate security scrub, not an accident of tooling
+
+`compositions/*.json` and `surface/*.calc` were tracked from `f7ba5f3` / `ade30c3` (2026-08-27).
+They were **deleted on purpose** in `801d704`, *"security: scrub all Hydra-derived material from the
+skills repo"* (2026-08-30 23:48), on Amir's explicit word, quoted in that commit:
+
+> "Scrub that shit from the skills repo. We don't need any examples over there." /
+> "the skills repo should hold no copies." / "there should be nothing in there that delonix needs
+> either."
+
+It removed `catalog/`, `results/`, `compositions/`, `surface/` from index **and** working tree — 85
+pure deletions across 89 files — and rewrote `.gitignore` as a guard "so re-mined output cannot be
+committed back". Measured:
+
+```
+git ls-tree -r --name-only 801d704^ | grep -c 'compositions/.*\.json'   ->  3
+git ls-tree -r --name-only 801d704  | grep -c 'compositions/.*\.json'   ->  0
+```
+
+The skill extraction `e95ca17` is 2026-08-31 12:46 — **thirteen hours later**. The fixtures were
+already gone, so git-mv semantics never entered into it. Guards verified with `git check-ignore -v`
+(not `-q`, per §9): `compositions/` is ignored at **root** `.gitignore:10`, `surface/` at `:22`.
+
+This repo has a **public remote** (`tools/repo-dsl/.gitignore:7` says so explicitly). So restoring
+means re-committing Hydra-derived bytes that Amir ordered out. Not "it wouldn't stick" — prohibited.
+
+### Why retiring is safe: the guarantee is still guarded
+
+`verify-dsl.js` guarded three properties of the DSL surface (print->parse deep-equal;
+parse->print string-identical; expand byte-identical through the surface). Those are now guarded
+**fixture-free** by `engine/dsl-surface.test.js`, which synthesises a legal tree for every form
+`dsl.grammar()` reports, so a composite added to `generators.js` is covered the day it is added.
+
+```
+node engine/dsl-surface.test.js  ->  9 assertions passed
+```
+
+covering all three guarantees plus five refusal cases (prose rejected, unknown keyword names itself,
+unknown marker rejected not dropped, opaque leaf id is not a surface form, const missing its prefix
+refused) and R1 (holds with or without the import map). The producer `build-compositions.js` is in
+`archive/`; nothing live references `compositions/`.
+
+### Ownership note — I did not implement this
+
+A peer lane had already staged `verify-dsl.js -> archive/verify-dsl.js` and written
+`engine/dsl-surface.test.js` (untracked) while I was measuring; `verify-dsl.js` vanished between two
+of my own commands. I touched neither file and sent the correction below to sdd-engine-5f instead.
+
+**Correction sent, worth keeping:** that file's header attributes the loss to the fixtures being
+gitignored and therefore not travelling through the extraction's `git mv`. That is downstream and
+wrong, and it matters — "they'd be lost again by the same mechanism" reads as a tractable problem
+whose obvious fix is "track them properly this time", which is precisely the prohibited move. The
+conclusion was right; the reason understated it.
+
+**My own error, logged:** I first grepped `tools/repo-dsl/.gitignore` (16 lines), found no
+`compositions/` rule, and was about to report the scrub's guard as incomplete. Wrong file — the rules
+are in the **root** `.gitignore`. `git check-ignore -v` gave the right answer in one command. §9's
+rule about `check-ignore` is about the `-q` exit code; reading its `-v` output is still the fast
+correct move.
