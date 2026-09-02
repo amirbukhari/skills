@@ -78,6 +78,7 @@ PART IV — and engine source comments cite it directly.
 | 26 | [§5D.3F The naming pass — built, and the three Q-9 mechanics proposed](26-naming-pass-mechanics.md) | 156 |
 | 27 | [§5D.4E The rule-coverage filter — the leaf tier is 98% already done](27-rule-coverage-filter.md) | 118 |
 | 27 | [§5D.4D One word per file, chosen over compression](27-one-word-first.md) | 133 |
+| 28 | [§5D.4E Nested rendering: words made of words, to leaves](28-nested-rendering.md) | 108 |
 
 ## How the split was made
 

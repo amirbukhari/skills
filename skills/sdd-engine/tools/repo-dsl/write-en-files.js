@@ -145,6 +145,18 @@ const manifest = {
      * collapse ratio is netStatementReduction / S. One definition, two granularities — the per-file
      * view is `perFile[].reviewSurface`. */
     netStatementReduction: collapsedStmts - genSpans,
+    /* TWO SURFACES, BECAUSE A TREE HAS TWO (PRD §5D.4E, R-MEAS-7). Nested rendering replaced the
+     * flat list with a tree, and "how many things must you read" stopped having one answer. The
+     * flat definition below counts EVERY node — what the corpus costs to read exhaustively, which
+     * no one does, but it is the honest ceiling and it must not hide. `reviewSurfaceTop` counts
+     * what a reader meets at the top level of each file, which is what R-ARCH-16 is actually
+     * about. Publishing only the flatterer of the two is exactly what R-MECH-8 forbids, so both
+     * are published, side by side, always. */
+    reviewSurfaceTop: perFile.reduce((a, f) => a + (f.topSpans || 0) + (f.residualStatements || 0), 0),
+    chunks: perFile.reduce((a, f) => a + (f.chunks || 0), 0),
+    chunksAtomic: perFile.reduce((a, f) => a + (f.chunksAtomic || 0), 0),
+    chunksStructural: perFile.reduce((a, f) => a + (f.chunksStructural || 0), 0),
+    nestMaxDepth: perFile.reduce((a, f) => Math.max(a, f.nestMaxDepth || 0), 0),
     reviewSurface: genSpans + Math.max(0, bodyStmts - collapsedStmts),
     collapseRatioPct: bodyStmts ? +(100 * (collapsedStmts - genSpans) / bodyStmts).toFixed(1) : 0,
     filesFullyCovered: perFile.filter((f) => (f.residualStatements || 0) === 0 && (f.bodyStatements || 0) > 0).length,
@@ -212,7 +224,8 @@ console.log(`  composition depth ............. live path ${maxDepth} (R-COMP-7 n
     throw new Error(`review surface is incoherent: collapsed ${r.collapsedStatements} exceeds S ${r.bodyStatements}.`);
 }
 const rs = manifest.reviewSurface;
-console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurface} things to read, from S=${rs.bodyStatements} statements  (${rs.collapseRatioPct}% left the reader's view)`);
+console.log(`  REVIEW SURFACE (R-ARCH-16) .... ${rs.reviewSurfaceTop} at the TOP level, from S=${rs.bodyStatements} statements`);
+console.log(`                                 ${rs.reviewSurface} reading the whole tree exhaustively (${rs.chunks} chunks: ${rs.chunksAtomic} atomic + ${rs.chunksStructural} structural, max nest depth ${rs.nestMaxDepth})`);
 console.log(`  ONE WORD PER FILE (R-ARCH-15) . ${rs.oneWordFiles}/${perFile.length} files collapse to a single top-level word (${rs.oneWordPct}%)`);
 console.log(`                                 = ${genSpans} generator calls + ${rs.residualStatements} unfolded (of which ${rs.restatedStatements} restated 1:1, NOT credited per §4; ${rs.verbatimStatements} verbatim)`);
 console.log(`                                 ${rs.filesFullyCovered}/${src.length} files fully accounted for by words (target: all, PRD §5D.4)`);

@@ -31,6 +31,24 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
 const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator span: «▶ gloss ⟪lzw1 payload⟫»
+/* NESTED RENDERING (PRD §5D.4E, R-ARCH-19). A generator chunk comes in two shapes now:
+ *   ATOMIC      «▶ gloss ⟪payload⟫»        — a word whose statements have no inner blocks to
+ *                                            drill into. Compiles by refilling the catalog
+ *                                            skeleton. This is the byte-eliminating form, and it
+ *                                            is exactly what every chunk was before.
+ *   STRUCTURAL  «▶ gloss ⟨ …children… ⟩»   — a word whose statements DO contain inner runs. It
+ *                                            carries no payload: it is a NAME over children, and
+ *                                            it compiles by concatenating them. Its children are
+ *                                            chunks in their own right, recursively, to leaves.
+ * A structural chunk is what makes R-ARCH-15's "editable at every level" true: the reader can
+ * open a file's word, see the word for each definition inside it, open that, and reach the run of
+ * statements at the bottom — every level a sentence with a payload or children under it. */
+/* A structural chunk is marked ▷ rather than ▶ so the two shapes are told apart by ONE character at
+ * a fixed position, never by scanning for a delimiter. That matters here: `payload.js:34` emits ⟨
+ * RAW as its hole marker, so "does this chunk contain ⟨" would call every atomic chunk structural.
+ * ⟩, by contrast, is escaped in hole text and emitted nowhere raw, so the body's close is
+ * unambiguously the chunk's last character. */
+const GEN_NEST = "▷", BODY_OPEN = "⟨", BODY_CLOSE = "⟩";
 /* (There was a `const MAXWIN = 8` here until 2026-08-31. It was declared once and never read —
  * dead, and misleading: same name as the miner's live `MAXWIN` (64, `build-lzw-generators.js`)
  * with a different value, in a different module, which reads as "there are two windows to
@@ -67,9 +85,15 @@ const GEN = "▶", PAY_OPEN = "⟪", PAY_CLOSE = "⟫"; // multi-line generator 
  * FAIL-CLOSED, like PAY.decode: an unrecognised escape throws rather than being passed through.
  * A hand-edited .en with a stray ⟡ is a question for the author, not something to guess at. */
 const V_ESC = "⟡";
-const V_ENC = new Map([[V_ESC, V_ESC + "0"], [OPEN, V_ESC + "5"], [CLOSE, V_ESC + "6"]]);
-const V_DEC = new Map([["0", V_ESC], ["5", OPEN], ["6", CLOSE]]);
-const V_NEEDS = /[⟡«»]/g;
+/* ⟨ ⟩ JOINED THE ESCAPE SET 2026-09-01, with nested rendering. Before it, verbatim text lay only
+ * OUTSIDE every chunk, where the body sentinels mean nothing — the reasoning in the note above.
+ * A structural chunk puts verbatim text INSIDE a chunk body, where a stray ⟨ or ⟩ would end the
+ * body early, so the same by-construction argument now reaches them. Cost on the corpus is still
+ * zero: the 1037 source files contain none of these characters. */
+const V_ENC = new Map([[V_ESC, V_ESC + "0"], [OPEN, V_ESC + "5"], [CLOSE, V_ESC + "6"],
+                       [BODY_OPEN, V_ESC + "7"], [BODY_CLOSE, V_ESC + "8"]]);
+const V_DEC = new Map([["0", V_ESC], ["5", OPEN], ["6", CLOSE], ["7", BODY_OPEN], ["8", BODY_CLOSE]]);
+const V_NEEDS = /[⟡«»⟨⟩]/g;
 
 function escapeVerbatim(s) { return s.replace(V_NEEDS, (ch) => V_ENC.get(ch)); }
 
@@ -146,7 +170,7 @@ const PAY = require("./payload");
  * parse, and ▶ marks a generator chunk. A throw MESSAGE could in theory contain any of these, so
  * every label passes through here before it is emitted. Replacing with a straight quote keeps the
  * text readable while making the sentinels structurally impossible. */
-const LABEL_SENTINELS = /[«»⟪⟫▶]/g;
+const LABEL_SENTINELS = /[«»⟪⟫▶▷⟨⟩]/g;
 function sanitizeLabel(s) { return String(s).replace(LABEL_SENTINELS, "'").replace(/\s+/g, " ").trim(); }
 
 /* first call name anywhere under a node (the operation it performs), or null. */
@@ -540,6 +564,29 @@ function importPhrase(st, sf) {
   if (!parts.length) return null;
   return P.list(parts) + from;
 }
+/* ExportDeclaration — the sibling of importPhrase, and it exists because the rule-coverage
+ * measurement (§5D.4E) found the asymmetry: the import rule QUOTES the symbol and the module, while
+ * exports fell through to `exportGloss`, which only COUNTS them ("re-export 1 name from another
+ * module") — 9 leaf skeletons over 113 sites where the reader was told how many names moved but
+ * never which. Naming those skeletons would have served this corpus; writing this rule serves every
+ * codebase in the language (§5D.2, R-LANG-16). Cardinality stays a parameter, exactly as it is for
+ * imports: one export or twelve, one clause. */
+function exportPhrase(st, sf) {
+  const spec = st.moduleSpecifier && ts.isStringLiteralLike(st.moduleSpecifier) ? st.moduleSpecifier.text : null;
+  const from = spec ? " from " + q(spec) : "";
+  const cl = st.exportClause;
+  if (!cl) return spec ? "everything" + from : null;          // export * from './m'
+  if (ts.isNamespaceExport && ts.isNamespaceExport(cl)) return "all of " + q(cl.name.text) + from; // export * as ns from './m'
+  if (ts.isNamedExports(cl)) {
+    /* `export { internalName as publicName }` — the rename is the interesting half and the reader
+     * cannot recover it from the module path, so both sides are quoted. */
+    const parts = cl.elements.map((e) => (e.propertyName ? q(e.propertyName.text) + " as " + q(e.name.text) : q(e.name.text)));
+    if (!parts.length) return null;
+    return P.list(parts) + from;
+  }
+  return null;
+}
+
 const CHUNK_RULES = [
   /* ImportDeclaration — the single most repetitive kind in the corpus (5,833 of 33,918
    * statements, per generators.js's v3 note), and the one Amir named. */
@@ -549,6 +596,19 @@ const CHUNK_RULES = [
       const phrases = run.map((st) => importPhrase(st, sf));
       if (phrases.some((x) => !x)) return null; // one unreadable member -> decline the whole run
       return "import " + P.list(phrases);
+    } },
+  /* ExportDeclaration. A run that MIXES re-exports (`export { X } from './m'`) with local exports
+   * (`export { X }`) is declined rather than fudged into one verb — declining falls through to the
+   * per-statement path (R-LANG-17), which is correct, just less compact. */
+  { kind: "ExportDeclaration",
+    match: (st) => ts.isExportDeclaration(st),
+    render: (run, sf) => {
+      const reexport = run.every((st) => !!st.moduleSpecifier);
+      const local = run.every((st) => !st.moduleSpecifier);
+      if (!reexport && !local) return null;
+      const phrases = run.map((st) => exportPhrase(st, sf));
+      if (phrases.some((x) => !x)) return null;
+      return (reexport ? "re-export " : "export ") + P.list(phrases) + (local ? " from this module" : "");
     } },
 ];
 const chunkRuleFor = (st) => CHUNK_RULES.find((r) => r.match(st)) || null;
@@ -1003,9 +1063,273 @@ function countBodyStatements(sf) {
   return n;
 }
 
+/* ============================ NESTED RENDERING (PRD §5D.4E) ============================
+ *
+ * WHY THIS EXISTS. R-ARCH-18 made the renderer prefer one whole-file word over the nested words
+ * inside it, taking one-word-per-file from 30.6% to 93.1%. It also took review surface from 13,873
+ * to 23,784, and the reason was structural rather than a bad choice: under a FLAT span model a
+ * whole-file word and the words inside its statements' bodies cover overlapping bytes, so the
+ * scheduler can only ever have one of them. `src/xero-api/invoice.ts` became a single chunk — a
+ * 4,911-character sentence over a 48,953-character payload, which is the "one opaque reference"
+ * R-ARCH-15 forbids in as many words.
+ *
+ * THE FIX IS NOT A BETTER OBJECTIVE, IT IS A TREE. A word for a run becomes a chunk; each statement
+ * of that run becomes a chunk inside it; each inner block's runs become chunks inside those, to
+ * leaves. Parent and child stop competing because they are at different depths. Every level carries
+ * a sentence, so the reader opens the file's word, sees a word per definition, opens one, and
+ * reaches straight-line statements at the bottom.
+ *
+ * WHERE THE BYTES GO. A chunk with no inner blocks is ATOMIC: its word's skeleton stays in the
+ * catalog and only holes are emitted, exactly as before — this is still where compression happens,
+ * and it is now the frontier of the recursion rather than the whole of it. A chunk with inner
+ * blocks is STRUCTURAL: it emits the bytes it owns and nothing more, which for a function is its
+ * signature and braces. Those bytes were previously inside a catalog skeleton; they are now in the
+ * .en, verbatim. That is a real cost in size and a real gain in legibility, and it is measured
+ * rather than assumed (§5D.4E §4).
+ *
+ * BYTE-IDENTITY. Every atomic chunk passes the same `wp.fill === source.slice(...)` gate as before.
+ * A structural chunk compiles by concatenating its children with the exact inter-child bytes, so
+ * it reconstructs its range if and only if its children do. The induction bottoms out at atomic
+ * chunks and verbatim text, both byte-exact, so the tree is byte-exact. */
+
+/* the maximal runs of foldable statements in a statement list: [[st,...], ...] */
+function foldableRuns(stmts) {
+  const runs = [];
+  let i = 0;
+  while (i < stmts.length) {
+    if (!G.isFoldable(stmts[i])) { i++; continue; }
+    let j = i; while (j < stmts.length && G.isFoldable(stmts[j])) j++;
+    runs.push(stmts.slice(i, j));
+    i = j;
+  }
+  return runs;
+}
+
+/* the OUTERMOST blocks strictly inside `node` — the recursion's next level down. Deeper blocks are
+ * reached by recursing into these, not by collecting them here, or a nested block would be emitted
+ * twice (once by its own chunk and once inside its parent's). */
+function outerBlocks(node, sf) {
+  const out = [];
+  const visit = (n) => {
+    if (n !== node && ts.isBlock(n)) { out.push(n); return; }
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return out;
+}
+
+/* every inner run of `st`, as byte ranges, in source order */
+function innerRunRanges(st, sf) {
+  const out = [];
+  for (const b of outerBlocks(st, sf))
+    for (const run of foldableRuns([...b.statements]))
+      out.push({ start: run[0].getStart(sf), end: run[run.length - 1].getEnd(), run });
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+
+function NestRenderer(sf, source, index) {
+  const cat = index && index._lzw;
+  const stats = { atomic: 0, structural: 0, atomicStmts: 0, structuralStmts: 0, maxDepth: 0, verbatimStmts: 0, depthHist: {}, stmtSpans: 0, dataSpans: 0 };
+
+  /* THE LEAF LAYERS STILL APPLY (passes 1 and 2 of the flat renderer). A structural chunk emits the
+   * bytes it owns — a function's signature, a class's members, an `if`'s condition — and those
+   * bytes are exactly where the cnl statement grammar and the data layer do their work. Dropping
+   * them was the first thing nesting broke: `@Column({...})` stopped rendering as "an object with
+   * …" because the region was no longer reached by any pass. So every verbatim region goes through
+   * `renderVerbatim` instead of straight to `escapeVerbatim`.
+   *
+   * COMPUTED ONCE FOR THE FILE, not per region. The obvious implementation re-walks the AST for
+   * each verbatim range, which is O(nodes x ranges) — thousands of ranges in a deeply nested file.
+   * The candidates do not depend on the range, so they are gathered once and sliced. */
+  const leafSpans = (() => {
+    const out = [], seen = [];
+    const visitStmt = (node) => {
+      if (isSimpleStmt(node) && !hasRenderableData(node, sf)) {
+        const text = node.getText(sf);
+        if (!/[«»]/.test(text)) {
+          let en = null;
+          try { en = cnl.renderStatement(text, index); } catch (_) { en = null; }
+          const isPureEscape = en != null && /^`[\s\S]*`\.?$/.test(en);
+          if (en != null && !en.includes("\n") && !isPureEscape) {
+            let back = null; try { back = cnl.compileStatement(en, index); } catch (_) { back = null; }
+            if (back === text) { const s = node.getStart(sf), e = node.getEnd(); out.push({ start: s, end: e, en, kind: "stmt" }); seen.push([s, e]); }
+          }
+        }
+      }
+      ts.forEachChild(node, visitStmt);
+    };
+    visitStmt(sf);
+    const inStmt = (s, e) => seen.some(([a, b]) => s >= a && e <= b);
+    const visitData = (node, insideData) => {
+      if (isDataLeaf(node) && DATA.dataByteExact(node, sf)) {
+        const s = node.getStart(sf), e = node.getEnd();
+        if (!insideData && !inStmt(s, e)) { out.push({ start: s, end: e, en: DATA.renderData(node, sf), kind: "data" }); ts.forEachChild(node, (c) => visitData(c, true)); return; }
+      }
+      ts.forEachChild(node, (c) => visitData(c, insideData));
+    };
+    visitData(sf, false);
+    return out.sort((a, b) => a.start - b.start || b.end - a.end);
+  })();
+
+  /* a verbatim byte range, with any leaf span that falls WHOLLY inside it rendered as English */
+  function renderVerbatim(start, end) {
+    if (end <= start) return "";
+    let out = "", pos = start;
+    for (const sp of leafSpans) {
+      if (sp.start < pos || sp.end > end) continue;
+      out += escapeVerbatim(source.slice(pos, sp.start)) + OPEN + sp.en + CLOSE;
+      pos = sp.end; if (sp.kind === "data") stats.dataSpans++; else stats.stmtSpans++;
+    }
+    return out + escapeVerbatim(source.slice(pos, end));
+  }
+
+  /* ONE DEFINITION OF A CHUNK'S SENTENCE, shared with deriveGloss (R-REND-6). It is tempting to
+   * reach for chunkGloss here — it is the nicer sentence, and it is already computed. Measured, it
+   * is also WRONG: deriveGloss recomputes the sentence as `namedLabel || genLabel`, so a chunk
+   * labelled by any third path fails its own derive check at compile ("await find one or fail into
+   * `payment`" written against "await await into `payment`" derived, on the real corpus). A
+   * renderer and its checker computing the same thing two ways is the producer/consumer drift
+   * shape §8B is about — so this calls exactly what deriveGloss calls, in the same order. */
+  const label = (run, start, end, payload) => {
+    let s = null;
+    if (payload && cat) { try { s = namedLabel({ start, end, payload }, source, cat, NAMES.names, NAMES.chunks); } catch (_) { s = null; } }
+    return sanitizeLabel(s || genLabel(start, end, source, run.length));
+  };
+
+  /* one chunk for an entire run: atomic when nothing inside it can be drilled into, structural
+   * otherwise. Returns null when the run has no word AND no inner structure — the caller then
+   * emits it verbatim rather than inventing a chunk with nothing behind it. */
+  function renderRun(run, depth) {
+    if (depth > stats.maxDepth) stats.maxDepth = depth;
+    const start = run[0].getStart(sf), end = run[run.length - 1].getEnd();
+    const drillable = run.some((st) => innerRunRanges(st, sf).length > 0);
+    const w = cat ? EL.runWord(run, sf, source, cat) : null;
+
+    if (!drillable) {
+      if (!w) return null;                                   // no word, nothing under it: verbatim
+      stats.atomic++; stats.atomicStmts += run.length;
+      stats.depthHist[depth] = (stats.depthHist[depth] || 0) + 1;
+      return OPEN + GEN + " " + label(run, start, end, w.payload) + " "
+           + PAY_OPEN + PAY.encode(w.payload) + PAY_CLOSE + CLOSE;
+    }
+
+    /* STRUCTURAL: one child per statement, with the exact inter-statement trivia between them. */
+    let body = "";
+    for (let k = 0; k < run.length; k++) {
+      body += renderStatement(run[k], depth + 1);
+      if (k < run.length - 1) body += renderVerbatim(run[k].getEnd(), run[k + 1].getStart(sf));
+    }
+    /* the run's statements are counted by their OWN chunks below; counting them here too
+     * would double-count every statement in a drillable run (measured: 834 for a 486-statement
+     * file before this line was corrected). */
+    stats.structural++;
+    stats.depthHist[depth] = (stats.depthHist[depth] || 0) + 1;
+    return OPEN + GEN_NEST + " " + label(run, start, end, w && w.payload) + " " + BODY_OPEN + body + BODY_CLOSE + CLOSE;
+  }
+
+  /* one statement: a chunk of its own if it has inner runs (structural) or a word (atomic). */
+  function renderStatement(st, depth) {
+    if (depth > stats.maxDepth) stats.maxDepth = depth;
+    const start = st.getStart(sf), end = st.getEnd();
+    const inner = innerRunRanges(st, sf);
+    if (!inner.length) {
+      const one = renderRun([st], depth);
+      if (one) return one;
+      stats.verbatimStmts++;
+      return renderVerbatim(start, end);
+    }
+    let body = "", pos = start;
+    for (const r of inner) {
+      const child = renderRun(r.run, depth + 1);
+      body += renderVerbatim(pos, r.start) + (child !== null ? child : renderVerbatim(r.start, r.end));
+      pos = r.end;
+    }
+    body += renderVerbatim(pos, end);
+    const w = cat ? EL.runWord([st], sf, source, cat) : null;
+    stats.structural++; stats.structuralStmts += 1;
+    stats.depthHist[depth] = (stats.depthHist[depth] || 0) + 1;
+    return OPEN + GEN_NEST + " " + label([st], start, end, w && w.payload) + " " + BODY_OPEN + body + BODY_CLOSE + CLOSE;
+  }
+
+  function renderFile() {
+    let out = "", pos = 0;
+    for (const run of foldableRuns([...sf.statements])) {
+      const start = run[0].getStart(sf), end = run[run.length - 1].getEnd();
+      const chunk = renderRun(run, 0);
+      out += renderVerbatim(pos, start) + (chunk !== null ? chunk : renderVerbatim(start, end));
+      pos = end;
+    }
+    out += renderVerbatim(pos, source.length);
+    return out;
+  }
+
+  return { renderFile, stats };
+}
+
+/* renderFileNested — the nested renderer wearing renderFileEn's contract, so every existing caller
+ * (tests, the corpus writer, the round-trip gates) gets the tree without knowing about it.
+ *
+ * THE METRICS CHANGE MEANING HERE, AND SAYING SO IS THE POINT (R-MECH-8). A flat render put one
+ * list in front of the reader, so "how many things must you read" had one answer. A tree does not:
+ * the reader reads the top sentence, and descends only where they need to. Publishing one number
+ * as if nothing had changed would be the flattering choice. So three are published, and they are
+ * different questions:
+ *   reviewSurface      — the TOP-LEVEL read: top-level chunks + statements under no chunk at all.
+ *                        What the file costs to understand at a glance. This is the number
+ *                        R-ARCH-16 is about, and it is the one that falls.
+ *   chunks             — every node of the tree. What the file costs to read EXHAUSTIVELY, which
+ *                        no one does, but it is the honest ceiling and it must not hide.
+ *   verbatimStatements — statements with no English over them at all, at any depth. Raw
+ *                        TypeScript, the thing the whole effort exists to remove. */
+function renderFileNested(source_sf, source, index) {
+  const sf = source_sf;
+  const N = NestRenderer(sf, source, index);
+  const out = N.renderFile();
+  const s = N.stats;
+  const bodyStmts = countBodyStatements(sf);
+  let topSpanCount = 0, outsideNonWs = 0;
+  { let depth = 0, cursor = 0;
+    for (let k = 0; k < out.length; k++) {
+      const ch = out[k];
+      if (ch === OPEN) { if (depth === 0) { outsideNonWs += out.slice(cursor, k).replace(/\s/g, "").length; } depth++; }
+      else if (ch === CLOSE) { depth--; if (depth === 0) { topSpanCount++; cursor = k + 1; } }
+    }
+    outsideNonWs += out.slice(cursor).replace(/\s/g, "").length;
+  }
+  const chunks = s.atomic + s.structural;
+  const covered = Math.min(bodyStmts, s.atomicStmts + s.structuralStmts);
+  return { en: out, stats: {
+    totalBytes: source.length, englishBytes: source.length - outsideNonWs,
+    englishPct: source.length ? +(100 * (source.length - outsideNonWs) / source.length).toFixed(1) : 0,
+    stmtSpans: s.stmtSpans, dataSpans: s.dataSpans,
+    bodyStatements: bodyStmts,
+    collapsedStatements: covered, restatedStatements: 0,
+    verbatimStatements: s.verbatimStmts,
+    residualStatements: Math.max(0, bodyStmts - covered),
+    topSpans: topSpanCount, outsideNonWs,
+    oneWord: topSpanCount === 1 && outsideNonWs === 0,
+    netStatementReduction: Math.max(0, covered - topSpanCount),
+    /* the TOP-LEVEL read, not the whole tree — see the note above */
+    reviewSurface: topSpanCount + Math.max(0, bodyStmts - covered),
+    reviewSurfacePct: bodyStmts ? +(100 * (topSpanCount + Math.max(0, bodyStmts - covered)) / bodyStmts).toFixed(1) : 0,
+    genSpans: chunks, genStmtsCollapsed: covered,
+    genRecursive: chunks, genFlatFallback: 0,
+    /* tree shape */
+    chunks, chunksAtomic: s.atomic, chunksStructural: s.structural,
+    nestMaxDepth: s.maxDepth,
+    maxDepth: s.maxDepth, depthHist: s.depthHist,
+  } };
+}
+
+/* NEST=0 restores the FLAT renderer for measurement only — it is how §5D.4E's before/after pairs
+ * were produced. Not a supported production mode: with it off, a file is one opaque chunk. */
+const NEST = process.env.NEST !== "0";
+
 function renderFileEn(source, index) {
   index = index || cnl.loadWordsIndex([]);
   const sf = ts.createSourceFile("f.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  if (NEST && index._lzw) return renderFileNested(sf, source, index);
   const spans = []; // {start, end, en, kind}
 
   // Pass 0 — multi-line generator collapse (takes precedence over the single-statement passes).
@@ -1157,6 +1481,16 @@ const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK === "1";
 
 function compileChunk(chunk, index, opts) {
   const deriveCheck = (opts && opts.deriveCheck !== undefined) ? opts.deriveCheck : DERIVE_CHECK;
+  if (chunk[0] === GEN_NEST) {
+    /* STRUCTURAL chunk (PRD §5D.4E): a NAME over children, with no payload of its own. It
+     * reconstructs its range by compiling its body — which is ordinary .en text: nested chunks and
+     * escaped verbatim — so byte-exactness is inherited from the children rather than asserted
+     * here. The body is delimited by the LAST BODY_CLOSE, matched against the first BODY_OPEN
+     * after the marker, so a ⟨ inside a child's payload cannot end it early. */
+    const bo = chunk.indexOf(BODY_OPEN), bc = chunk.lastIndexOf(BODY_CLOSE);
+    if (bo < 0 || bc < bo) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
+    return compileFileEn(chunk.slice(bo + 1, bc), index, opts);
+  }
   if (chunk[0] === GEN) { // multi-line generator: refill catalog template with per-site holes
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
     if (a < 0 || b < 0 || b < a) throw new Error("enfile: malformed generator payload");
@@ -1185,6 +1519,19 @@ function compileChunk(chunk, index, opts) {
   if (DATA_PREFIX.test(chunk)) return DATA.compileData(chunk);
   return cnl.compileStatement(chunk, index);
 }
+/* NESTING-AWARE SCAN (PRD §5D.4E). This used to find a chunk's end with `indexOf(CLOSE)`, which
+ * takes the FIRST » — right through the middle of a structural chunk whose children carry their
+ * own. Matching depth is what makes children reachable at all; without it the outermost chunk of
+ * every nested file would compile to garbage or throw. */
+function matchClose(en, open) {
+  let depth = 0;
+  for (let k = open; k < en.length; k++) {
+    const ch = en[k];
+    if (ch === OPEN) depth++;
+    else if (ch === CLOSE) { depth--; if (depth === 0) return k; }
+  }
+  return -1;
+}
 function compileFileEn(en, index, opts) {
   index = index || cnl.loadWordsIndex([]);
   let out = "", i = 0;
@@ -1192,7 +1539,7 @@ function compileFileEn(en, index, opts) {
     const open = en.indexOf(OPEN, i);
     if (open < 0) { out += unescapeVerbatim(en.slice(i)); break; }
     out += unescapeVerbatim(en.slice(i, open));
-    const close = en.indexOf(CLOSE, open + 1);
+    const close = matchClose(en, open);
     if (close < 0) throw new Error("enfile: unbalanced « (no matching »)");
     out += compileChunk(en.slice(open + 1, close), index, opts);
     i = close + 1;
@@ -1200,7 +1547,7 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
+module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,
    * and it is this one — the renderer's. A second copy in the consumer would drift from it silently. */
   SAYS_NOTHING };

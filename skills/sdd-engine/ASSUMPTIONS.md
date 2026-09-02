@@ -3029,3 +3029,56 @@ content was ready for hours; the authority is what arrived.
 validate. Register 41 mechanized, 38 hold, 0 fail, 3 manual.
 
 **Commits:** CLAUDE.md §7 and the constants provenance land in this push; this entry is the record.
+
+---
+
+## 2026-09-01 — §5D.4E, nested rendering (Amir's call: full recursion, no cap)
+
+Amir asked for a plan first; the plan changed once I read the render path, and the judgment calls
+are mostly about what I found there rather than what I built.
+
+1. **I reported that the review-surface regression was largely a measurement artifact, before
+   building the fix for it.** `generators.js appendKid` recurses nested statements into the
+   *skeleton*, so a whole-file word already covered its bodies structurally — the 410 "residual"
+   statements in `invoice.ts` were inside the word, not verbatim in the `.en`. It would have been
+   easy to build nested rendering and let the number "improve"; the number was wrong in both
+   directions and saying so first was the honest order. The real problem was different and worse: a
+   4,911-character sentence over a 48,953-character payload.
+
+2. **I chose a tree over a better objective.** The flat span model was the assumption worth
+   dropping, not the scheduler's weights. Parent and child stop competing once they are at
+   different depths — no arbitration needed, and nothing to tune.
+
+3. **I published TWO review-surface numbers rather than redefining the one.** A tree genuinely has
+   two answers, and both are load-bearing: 1,610 at the top level, 29,260 exhaustively. Quietly
+   swapping in the smaller one under the old name is precisely the R-MECH-8 failure. R-MEAS-7 now
+   requires both.
+
+4. **I marked structural chunks with `▷` rather than detecting them by delimiter.** `payload.js:34`
+   emits `⟨` raw as its hole marker, so "contains ⟨" would have called every atomic chunk
+   structural. I found this by reading payload.js before trusting the delimiter, not by debugging
+   the corpus afterwards.
+
+5. **I did NOT re-mine.** The dictionary is byte-identical to `216f928`'s. Nesting is a rendering
+   change; re-mining would have moved two variables at once and made the before/after unreadable.
+
+**Two regressions my first cut shipped with, both caught by tests, both worth recording:**
+
+- **The leaf layers stopped running.** The nested path returned before passes 1 and 2, so
+  `@Column({...})` stopped rendering as "an object with …". I had not noticed that structural
+  chunks create a *new* class of verbatim region — inside a chunk — that no pass had ever had to
+  reach. Fixed by routing every verbatim emission through `renderVerbatim`, with the candidates
+  computed once per file rather than per region (the naive version is O(nodes x ranges), and a deep
+  file has thousands of ranges).
+- **The chunk's sentence had two definitions.** I labelled chunks `namedLabel || chunkGloss ||
+  spanProse || genLabel` because chunkGloss is the nicer sentence and was already computed;
+  `deriveGloss` re-derives `namedLabel || genLabel`, so anything labelled by the middle two failed
+  R-REND-6 at compile. This is the §8B drift shape and I wrote it, having documented that shape
+  twice this week. R-REND-8 now states the rule so the next person does not have to rediscover it.
+
+**Measured, no guardrail tripped:** byte-identity 1037/1037; one word per file 965 -> 1003 (96.7%);
+top-level review surface 23,784 -> 1,610 (and 13,873 -> 1,610 against the pre-R-ARCH-18 baseline);
+statements with no English 22,592 -> 546; english coverage 100%; render + gate 22.9 s -> **5.0 s**,
+i.e. faster, not slower; 0 model calls. The one number that got materially worse is `.en` size,
++19% -> +74% of `.ts`, because structural chunks emit the signatures and braces that used to live
+inside catalog skeletons. Reported rather than buried: it is the legible half of the file.

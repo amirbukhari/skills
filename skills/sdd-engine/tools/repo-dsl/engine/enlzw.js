@@ -246,6 +246,39 @@ function genSpans(sf, source, cat, opts) {
   return chosen.map((c) => ({ start: c.start, end: c.end, payload: c.payload, stmts: c.stmts, depth: c.depth }));
 }
 
+/* runWord(run, sf, source, cat) -> a byte-gated word covering the ENTIRE run, or null.
+ *
+ * NESTED RENDERING (PRD §5D.4E, R-ARCH-19). genSpans answers "which non-overlapping spans should
+ * this file emit"; that question has no recursive answer, because a whole-file word and the words
+ * inside its statements' bodies necessarily overlap. The nested renderer asks a different, local
+ * question — "is there one word for exactly THIS run" — and recurses into the bodies itself, so
+ * the two sets stop competing for the same bytes and become parent and child.
+ *
+ * `run.length === 1` is deliberately allowed: a leaf word (len 1) is a real dictionary entry, and
+ * it is what lets the recursion bottom out on a single statement with its skeleton still in the
+ * catalog rather than emitted verbatim.
+ *
+ * NARROW IS PREFERRED, as everywhere else (§5A arbitration): wide only where narrow has no word.
+ * The byte gate is the same one genSpans uses, on the same bytes, so admitting a word here can no
+ * more break byte-identity than admitting it there. */
+function runWord(run, sf, source, cat) {
+  if (!cat || !run.length) return null;
+  const start = run[0].getStart(sf), end = run[run.length - 1].getEnd();
+  const slice = source.slice(start, end);
+  for (const wide of [false, true]) {
+    const axis = wide ? cat.wide : cat.narrow;
+    const syms = run.map((st) => { const p = G.generalStmtParts(st, sf, wide); return p ? G.keyOf(p) : null; });
+    if (syms.some((s) => s == null)) continue;
+    const w = wordsAt(axis, syms, 0).filter((x) => x.len >= run.length)[0];
+    if (!w) continue;
+    const wp = G.windowParts(run, sf, wide);
+    if (!wp || wp.fill !== slice) continue;
+    return { start, end, stmts: run.length, depth: axis.words[w.id].d,
+             payload: { d: "lzw", a: wide ? "w" : "n", w: w.id, h: wp.holes } };
+  }
+  return null;
+}
+
 /* compile one span payload back to exact source bytes. */
 function compileSpan(payload, cat) {
   const axis = payload.a === "n" ? cat.narrow : cat.wide;
@@ -253,4 +286,4 @@ function compileSpan(payload, cat) {
   return G.refill(key, payload.h);
 }
 
-module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit, wordsAt };
+module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit, wordsAt, runWord };
