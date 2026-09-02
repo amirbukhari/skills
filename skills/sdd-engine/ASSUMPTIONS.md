@@ -3082,3 +3082,61 @@ statements with no English 22,592 -> 546; english coverage 100%; render + gate 2
 i.e. faster, not slower; 0 model calls. The one number that got materially worse is `.en` size,
 +19% -> +74% of `.ts`, because structural chunks emit the signatures and braces that used to live
 inside catalog skeletons. Reported rather than buried: it is the legible half of the file.
+
+---
+
+## 2026-09-01 — §5F architecture drift detection written into the PRD (commit `0c42eee`)
+
+Amir asked for the architecture drift check to be documented as a formal PRD mechanism with a
+requirement ID. The engine already computes it; the PRD had never named it, and "drift" appeared
+only in passing in two `05-architecture.md` notes.
+
+**Added:** `tools/prd/29-archetype-drift-check.md` (§5F, 108 lines), `R-ARCH-20` + `R-ARCH-21` in the
+register, an index row in `tools/prd/README.md`, and cross-references at both existing drift mentions
+in `05-architecture.md`. Written as a sibling file rather than an edit inside s7's active
+`20-archetype-hybrid-design.md`, to keep collision risk at zero.
+
+**Verified by reading the source, not assumed from the brief** — three facts differ from how the
+task was described to me, and the PRD follows the code:
+
+- The brief said "~17 archetypes". `classifyFile` returns **18** distinct names.
+- Only **4** are generative — `GENERATIVE` at `engine/archetypes.js:23`, declared once and imported
+  by `build-archetypes.js:21`, `measure-english.js:128`, `engine/sdd.js:75`. So 14 archetypes are
+  descriptive and are correctly skipped by the check: an archetype with no slot schema never claimed
+  a shape to drift from.
+- The brief said a file conforms when its statements are accounted for. Conformance is actually
+  **three** conditions ANDed: the archetype's structural condition, `residual.length === 0`, **and**
+  `byteIdentical`. §5F keeps losslessness reported separately from conformance, because merging them
+  either hides drift behind a passing tiling number or condemns a lossless tiling for a schema's
+  shortfall.
+
+**A wrong claim I wrote and then caught before committing.** My first draft said `tileTop` types each
+segment `import`/**slot**/glue/`residual`, and the R-ARCH-20 check column repeated it. The actual
+emitted type strings are `glue`, `import`, `preambleType`, `residual`. "Slot" is the concept the
+source *comments* use; it is not a type string. I had written it from the concept rather than from
+the code, and it survived into the register row before a verification pass over my own claims caught
+it. Both places now name the four strings and say which one is slot-bearing. This is §8's landmine in
+documentation form: a paraphrase reads fine and is unfalsifiable until someone greps for it.
+
+**Implementation status recorded rather than implied.** `engine/sdd.js check()` returns
+`{scanned, generative, conforming, nonConforming, nonConformers}` and skips descriptive archetypes,
+so the `N of M conform / K drifted` roll-up and the non-conformer list **exist**. The per-archetype
+breakdown, the aggregated byte-identical count and worst-first ordering **do not** — `nonConformers`
+comes out in walk order. §5F §3 and the R-ARCH-20 check column say so explicitly, so the section is
+not read as a description of present behaviour.
+
+R-ARCH-21 is **already satisfied**: `checkFile` re-reads the source and re-runs
+`classifyFile` + `EXTRACTORS`, reaching for no stored artifact. `render` is the only path that loads
+`sen/archetypes/<rel>.arch.json`. Recorded anyway so a later cache-the-verdict optimisation has to
+argue with it.
+
+**No figures pinned.** The archetype catalogs are absent from the corpus today, so any conformance
+number quoted would be unreproducible. §5F §6 lists that, plus the fact that the archetype artifacts
+are published outside the §8B contract, as known gaps.
+
+**Pre-existing defect found while placing the rows, not fixed:** `R-ARCH-18` is used **twice** in
+`11-requirements-register.md` — line 127 (one-word-first ordering) and line 136 (relation slot
+fields). Renumbering would break cross-references, so this needs Amir's call on which one moves.
+
+**Not touched:** `tools/repo-dsl/engine/enfile.js` is modified in the working tree and is not mine —
+5f misattributed it to me earlier. Left unstaged for its real owner.
