@@ -4720,3 +4720,77 @@ entirely gitignored, so this writes nothing tracked and is regenerable. It matte
 `verify-register.js` reads `en-index.json`: R-ARCH-16 was red only because the stored manifest
 predated its own producer, and the render flipped it green with no code change. R-ARCH-15 now fails
 honestly at 7 files instead of a stale 34.
+
+## C11 — the archetype `byteIdentical` measures nothing. 2026-09-01
+
+R-ARCH-4 already says this is a tautology; C11 asked whether it still is. It is, and the aggregate
+is worse than the register describes. Landed as a site comment in `e93fb8e` (comment-only;
+`archetypes.test.js` still **56 passed, 0 failed**).
+
+**Verified by running it.** `checkTiling(src, segs)` takes offsets ONLY — no slot, template or
+dictionary data is a parameter — so it cannot speak to whether a generator reproduced a byte. Its
+final `rebuilt === src` is **dead code**: the loops above already prove the segments run `0..len`
+with no hole or overlap, and re-slicing one string at contiguous boundaries then rejoining
+necessarily returns it. **20,000 random contiguous segmentations: the comparison returned false
+exactly 0 times.** Every real `false` from that function is a `hole`.
+
+**`ReduxModule` (`archetypes.js:369`) is worse than the tautology — it is a bare literal `true`,
+with no `checkTiling` call at all.** The comment called the byte gate *"trivially met"*; it is not
+met, it is skipped, and `build-archetypes.js:97` sums it into an aggregate in which every Redux file
+counts as a success that was never tested. That is R-MECH-8's exact prohibition: a published number
+no mine can move.
+
+**Consequence:** the 7 `ok(r.byteIdentical, …)` assertions in `archetypes.test.js` assert a value
+that cannot be false.
+
+*Judgment call:* I did **not** flip the literal to `false` and did **not** rename `byteIdentical` to
+`tilesExactly`. Either moves a published number or ripples through `sdd.js` /
+`build-archetypes.js` / `sdd.test.js` on my judgment rather than on a measurement. The real check
+R-ARCH-4 asks for — refill slots from the dictionary, compare to original bytes — is still unbuilt.
+**No archetype has yet regenerated a byte it did not copy.** Also confirmed for C11: no archetype
+kind exists in the §8B registry, and both archetype catalogs are absent from the corpus.
+
+## C1 — the protection is worse than reported, and the fix is NOT prohibited. 2026-09-01
+
+C1 said the §8A SOURCE-PROTECTED artifacts are untracked because `Examples/` is gitignored one level
+up. Both halves need correcting, in opposite directions.
+
+**Worse than reported.** *Verified by running it:* the corpus has **no `.git` at all** — it is not a
+repository. `git rev-parse --show-toplevel` from inside it resolves to the **skills** repo, where
+`.gitignore:32` ignores `skills/sdd-engine/Examples/`, and `git ls-files` on `sen/catalog` returns
+**0**. R-CFG-12 requires these artifacts *"tracked in the corpus's own repo and never gitignored
+away"* — **there is no corpus repo in which that could be satisfied.** R-CFG-12 is not merely
+unmet, it is unimplementable as written. `word-names.json` — 26 authored entries (6 names,
+20 chunks), 5,189 bytes, the half §8A says a re-mine **cannot** rebuild — has no version control of
+any kind. After 5f's `76e8baa` the only thing standing between it and permanent loss is a name in
+`sdd-clean.js`'s `PROTECTED` list.
+
+**But the blocker everyone assumed is not there.** 5f flagged that the obvious fix is `801d704`
+again — *"the skills repo should hold no copies"*, public remote, Hydra-derived. **Measured, and
+that does not apply to this file.** Corpus-identifier occurrences (`hydra|rentsync|jamesgmarks|
+Xero|BillingAccount|llws`):
+
+| artifact | size | corpus identifiers | rebuildable by a re-mine? |
+|---|---|---|---|
+| `word-names.json` | 5 KB | **0** | **NO — authored** |
+| `mined-library.json` | 1.4 MB | 1 | yes |
+| `import-resolution.json` | 404 KB | **2,437** | yes |
+| `generators-lzw.json` | 40 MB | **2,007** | yes |
+
+`word-names.json` holds shape skeletons with every identifier already replaced by a hole (`‹id›`,
+`‹args›`, `‹obj›`, `‹gap›`) plus English glosses and hashes. The two entries my first regex flagged
+were false positives — `export default ‹obj›;` and a `try/catch/throw` skeleton, keywords only.
+
+**The split is clean and not arbitrary: the one artifact that CANNOT be rebuilt is the one that
+carries NO corpus bytes.** So the scrub prohibition and the §8A protection requirement do not
+actually conflict — they point at disjoint files. Tracking `word-names.json` alone, and continuing
+to ignore the other three, satisfies both.
+
+*Judgment call — I did NOT do it.* Adding a file to a repo with a **public remote** and pushing it is
+outward-facing and effectively irreversible once published, and Amir's standing instruction here was
+categorical. The measurement flips this from *"blocked, prohibited"* to *"safe, and here is the
+proof"*, which is the part I can settle; the act of publishing is his. **Recommended:** negate
+`word-names.json` alone in root `.gitignore` (the negation block must stay **last** — gitignore is
+last-match-wins, per §5), leave the other three ignored, and correct R-CFG-12 to name the repo that
+actually exists. Until then the honest statement is that §8B's protection is a `PROTECTED` list in a
+cleaner, not version control.
