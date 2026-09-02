@@ -184,11 +184,14 @@ This gap was silently forgotten once already.
   in this code base now, you can start committing shit if you want"* and *"and pushing you can push
   shit up too. just dont trigger any CI shit"*. So: commit logical changesets freely, push freely,
   and **opening a PR, merging, or force-pushing still needs his word in the moment**.
-  - **Before any push, check for CI and say what you found.** *Measured 2026-08-31* — this repo has
-    **no CI**: no `.github/workflows/`, no Travis/Circle/GitLab/Jenkins/Drone config, and `.github/`
-    holds only two agent `.md` files. A push therefore fires nothing. **That is a measurement with a
-    date on it, not a standing fact** — re-check before pushing, because the day someone adds a
-    workflow is the day this line becomes wrong.
+  - **Before any push, check for CI and say what you found.** *Re-measured 2026-09-01* — this repo
+    still has **no CI**: no `.github/workflows/`, no Travis/Circle/GitLab/Jenkins/Drone config
+    anywhere. A push therefore fires nothing. **That is a measurement with a date on it, not a
+    standing fact** — re-check before pushing, because the day someone adds a workflow is the day
+    this line becomes wrong. *(The 2026-08-31 reading said `.github/` "holds only two agent `.md`
+    files"; that directory no longer exists at all. The conclusion was unchanged, but the detail it
+    rested on had already rotted in one day — which is the point of re-measuring rather than
+    citing.)*
   - **Group commits by the work, not by the clock.** Do not sweep an unrelated staged change into a
     commit whose message describes something else — that happened here on 2026-08-31 and the skill
     removals now sit inside a commit titled "add a real front door README".
@@ -230,6 +233,29 @@ This gap was silently forgotten once already.
       after the commit the marker was still in the working tree, so their change survived and
       stayed theirs to commit. Check `git diff --cached --numstat` is empty first, or you will
       sweep at the index instead of at the path.
+    - **THAT TECHNIQUE IS NOT ENOUGH WHEN TWO LANES RUN IT AT ONCE — measured 2026-09-01, three
+      sweeps in one file in one night, between two lanes both following the rule above.** The
+      shared index is a single global slot, so `-o` cannot help: the contention is not over paths.
+      **`git commit` with no paths is never safe here, even seconds after checking**, because
+      `git diff --cached` proves what the index held *when you looked*, not what it holds when you
+      commit. Observed: lane A's `update-index` landed between lane B's clean `grep` and lane B's
+      commit, and B's commit contained only A's five files.
+      - **Use a PRIVATE index, which never writes shared state:** `GIT_INDEX_FILE=<tmp>` +
+        `read-tree` + `git add` + `write-tree` + `commit-tree` + `update-ref`.
+      - **And capture the parent ONCE:** `P=$(git rev-parse HEAD)`, then `read-tree $P` and
+        `commit-tree -p $P`. **Never pass the name `HEAD` to either** — it is re-resolved at use,
+        so a peer commit landing in between gives you a commit whose parent is theirs and whose
+        tree predates it, silently reverting them. That is exactly how sweep 2 happened, *through
+        a private index*, with every check looking clean.
+      - **`update-ref <branch> <new> <old>` with the old value as a guard** makes the tip move
+        atomic: if a peer moved it, you fail harmlessly instead of clobbering.
+    - **THE DETECTOR MATTERS MORE THAN THE TECHNIQUE, and it runs AFTER the commit.** All three
+      sweeps were caught by `git show --stat HEAD`, none by any pre-commit check — because a
+      pre-commit check asks what the commit *contains*, and this failure is what it **drops**. So
+      after every commit: confirm the file list is exactly yours, **and grep for the other lane's
+      heading or marker to confirm you did not carry it away**. A stale working copy reverts
+      whoever committed most recently, and it cuts **both** ways — the same night, one lane's
+      commit read 19 insertions against **69 deletions** in the other direction.
   - **Never stage a deletion you cannot account for.** If `git status` shows a file gone that you did
     not remove, leave it unstaged and ask. Deletions in this repo have been deliberate manual wipes
     more than once.
