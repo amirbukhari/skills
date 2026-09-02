@@ -33,6 +33,39 @@ const SRC = [
 const idx = EN.loadIndex("");
 const withNames = EN.renderFileEn(SRC, idx).en;
 
+/* THE CATALOG IS AN INPUT, SO THE NON-VACUITY FIXTURE IS BUILT, NOT ASSUMED (§10.2).
+ *
+ * This file used to assert the literal string "import one name from a module" appeared in the
+ * render — i.e. that the SHIPPED catalog happened to contain a name for the import skeleton. That
+ * premise died with §5D.4E (2026-09-01): the rule-coverage filter deliberately does NOT spend a
+ * model call on a leaf a node-kind rule already renders, and imports are the best-covered kind in
+ * the corpus, so no such name is ever authored again. The assertion was measuring naming POLICY
+ * while claiming to measure the naming MECHANISM, and it went red when the policy changed.
+ *
+ * So the fixture installs a name for every leaf skeleton in the catalog and asserts the mechanism
+ * carries it to the label. That is immune to which leaves the naming pass chooses to name — the set
+ * is deliberately shrinking — and it is a STRICTLY STRONGER test of what this file is about: it
+ * cannot pass vacuously, because a skeleton that reaches no label is exactly what it would catch. */
+function probeNames(en) {
+  const cat = idx._lzw;
+  const out = {};
+  if (cat) {
+    for (const sym of Object.keys(cat.wide.leaf || {})) out[WN.hashOf("wide", sym)] = { en, sym };
+    for (const sym of Object.keys(cat.narrow.leaf || {})) out[WN.hashOf("narrow", sym)] = { en, sym };
+  }
+  return out;
+}
+/** render SRC with `names` standing in for the live catalog, then put the catalog back. */
+function renderWith(names) {
+  const live = EN.NAMES.names;
+  const saved = Object.assign({}, live);
+  for (const k of Object.keys(live)) delete live[k];
+  Object.assign(live, names);
+  try { return EN.renderFileEn(SRC, idx).en; }
+  finally { for (const k of Object.keys(live)) delete live[k]; Object.assign(live, saved); }
+}
+const SENTINEL = "a named leaf reached this label";
+
 /* 1. the round trip is byte-exact WITH names */
 ok("renderFileEn/compileFileEn is byte-identical with names loaded", () => {
   assert.strictEqual(EN.compileFileEn(withNames, idx), SRC);
@@ -40,21 +73,17 @@ ok("renderFileEn/compileFileEn is byte-identical with names loaded", () => {
 
 /* 2. names actually reached the label — otherwise 3-5 would pass vacuously */
 ok("a named leaf reached the label region (non-vacuity)", () => {
-  assert.ok(/import one name from a module/.test(withNames),
-    "expected an authored name in the .en; got:\n" + withNames.slice(0, 400));
+  const en = renderWith(probeNames(SENTINEL));
+  assert.ok(en.includes(SENTINEL),
+    "a name on every leaf skeleton reached no label at all; got:\n" + en.slice(0, 400));
 });
 
 /* 3. DELIBERATELY WRONG names change the prose and CANNOT change the bytes.
  *    Every name is replaced with a lie; the compiled output must be identical anyway. */
 ok("a wrong name changes prose but never bytes", () => {
-  const real = EN.NAMES.names;
-  const lies = {};
-  for (const k of Object.keys(real)) lies[k] = Object.assign({}, real[k], { en: "PURPLE MONKEY DISHWASHER" });
-  const saved = {};
-  for (const k of Object.keys(real)) { saved[k] = real[k]; real[k] = lies[k]; }
-  let lied;
-  try { lied = EN.renderFileEn(SRC, idx).en; } finally { for (const k of Object.keys(saved)) real[k] = saved[k]; }
-  assert.notStrictEqual(lied, withNames, "the lie should have changed the prose");
+  const bare = renderWith({});
+  const lied = renderWith(probeNames("PURPLE MONKEY DISHWASHER"));
+  assert.notStrictEqual(lied, bare, "the lie should have changed the prose");
   assert.ok(lied.includes("PURPLE MONKEY DISHWASHER"), "the lie should appear in the label");
   assert.strictEqual(EN.compileFileEn(lied, idx), SRC, "wrong names must still compile byte-exact");
 });
@@ -73,12 +102,12 @@ ok("an empty name catalog degrades to spanProse, byte-identical", () => {
 /* 5. the two renders differ ONLY inside label regions (between ▶ and ⟪), never in a payload. */
 ok("named and unnamed renders have identical payloads", () => {
   const payloads = (en) => (en.match(/⟪[^⟫]*⟫/g) || []);
-  const real = EN.NAMES.names;
-  const saved = Object.assign({}, real);
-  for (const k of Object.keys(real)) delete real[k];
-  let bare;
-  try { bare = EN.renderFileEn(SRC, idx).en; } finally { Object.assign(real, saved); }
-  assert.deepStrictEqual(payloads(withNames), payloads(bare));
+  /* compared against the PROBE render, not the shipped one: with the live catalog these two can be
+   * the same string, and two identical renders agree on their payloads for no reason at all. */
+  const named = renderWith(probeNames(SENTINEL));
+  const bare = renderWith({});
+  assert.notStrictEqual(named, bare, "the two renders must actually differ for this to mean anything");
+  assert.deepStrictEqual(payloads(named), payloads(bare));
 });
 
 /* 6. the name key is the CONTENT of the skeleton, not its position. */

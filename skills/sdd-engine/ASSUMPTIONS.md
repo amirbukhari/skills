@@ -3610,3 +3610,32 @@ that in one line and I did not run it.
 NDJSON progress stream that does not mention chunk naming at all — the exact CLAUDE.md §7 pattern,
 landed one lane upstream of both of us. Nothing to fix; worth knowing when someone greps the log for
 this measurement and does not find it.
+
+## A test may pin the naming MECHANISM, never the naming POLICY (2026-09-01)
+
+`engine/word-names.test.js` asserted that the shipped catalog contained the literal name
+"import one name from a module". §5D.4E's rule-coverage filter then decided — deliberately, and with
+Amir's approval — that a leaf a node-kind rule already renders is never sent to a model. Imports are
+the best-covered kind in the corpus, so that name is never authored again and the assertion went red
+without anything being broken.
+
+**Assumed, and now explicit:** a catalog is an INPUT (§10.2), so its CONTENTS are policy and may
+shrink to nothing. A test that needs a name must INSTALL one. `word-names.test.js` now builds its
+own fixture — a name on every leaf skeleton in the catalog — and asserts the mechanism carries it to
+a label. This is strictly stronger than what it replaced: it cannot pass vacuously, and it stays
+green as the named set shrinks.
+
+Corollary for anything measuring the naming pass: assert on the *mechanism* (a name reaches a label,
+bytes do not move, clause structure does not move) and treat *which* leaves are named as data.
+
+## `Examples/` is gitignored, so git silence is not evidence (2026-09-01)
+
+`Examples/hydra-source/**` — the corpus, every `.en`, and `sen/catalog/word-names.json` — is
+untracked. A clean `git status` on those paths means only that git was never watching them. A revert
+of the 80-leaf pilot was reported here as "byte-identical to its committed state" on exactly that
+non-evidence; the revert was in fact real, but it was established by re-measuring the corpus
+(284 -> 1 unfolded import repeats), not by git.
+
+**The rule:** a claim that a catalog or a rendered artifact "matches its committed state" must come
+from a hash or a measurement. For tracked files `git diff --numstat` is fine; for anything under
+`Examples/` it is meaningless.
