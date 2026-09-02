@@ -3820,3 +3820,166 @@ unnamed branch off the original AST nodes and the named branch off the re-parsed
 that merely changed *which branch ran* moved the count by 4 — indistinguishable from a name
 splitting a fold, and it would have failed gate check 5 on a batch that had done nothing wrong.
 Both branches now count off the re-parsed slice, which is what `genLabel` renders from.
+
+---
+
+## 2026-09-01 — the silent rule mismatch detector (§5D.6, R-DRIFT-1..3)
+
+**1. The drift counters I set out to gate on cannot fire, and I published that instead of the zero.**
+The natural design is to count refusals meaning "the catalog no longer matches these bytes"
+(`parts-inexact`, `byte-gate`) and demand zero. They are zero **by construction**: `runWord` proves
+every statement canonicalizes before calling `windowParts`, and every part list is self-verified
+`fillOf === exact source slice` with gaps carrying literal trivia. Gating on them would have been a
+tautological number sold as a guard (R-MECH-8, §10.3). They stay in the vocabulary, reported as
+UNREACHABLE with the argument, and a test asserts both `count === 0` and `reachable === false` so
+the claim fails loudly if someone reorders `runWord`.
+
+**2. Therefore the check is DIFFERENTIAL, which is a bigger design call than it looks.**
+The LZW dictionary is keyed on canonical symbols and never supplies bytes, so a stale entry cannot
+produce a wrong file — only fail to match, which surfaces as an ordinary `no-word`, identical in a
+single run to a shape that was never mined. Drift is only observable as a **change**, so
+`audit-rules.js` records a baseline and fails when a rule refuses more than it did. This means the
+check is worth nothing until a baseline is recorded, and it says so rather than passing quietly.
+
+**3. Refusals are counted per SPAN, not per consultation.** The scheduler asks the same question
+about the same span many times. Raw event counts would measure how hard it tried, not how much
+collapse was lost. Both are published (`total` and `events`) so the ratio is not hidden.
+
+**4. Two reasons report 0 on the live path because that path never consults them**, not because
+they always pass: `chunkGloss` is the *flat* renderer's `wholeRunOk` hook, reachable only under
+`NEST=0`, and the chunk-rule pre-pass sits under it. Both are driven directly in the test with
+controls, so the counters are proved wired rather than assumed.
+
+**5. The baseline is deliberately NOT a registered artifact.** It lives at
+`<corpus>/.cache/spec-derived/rule-refusals.baseline.json` — gitignored, regenerable — with a plain
+`note` field instead of a schema header. Hand-stamping a contract header onto an unregistered kind
+is the exact landmine CLAUDE.md §8 warns about, and registering a new kind would have meant editing
+`engine/artifact-contract.js`, which the concurrent lane is holding.
+
+**6. Drift was proved end-to-end without touching the corpus.** A real file is copied into a
+throwaway temp tree, `SOURCE` is pointed at the copy (catalog stays real), and an `interface` the
+dictionary never saw is appended — the audit exits 1 naming `dictionary:InterfaceDeclaration`. The
+corpus is never written to; the temp dir is removed.
+
+**7. Nothing on the render path changed.** The recorder is a null check with no sink installed, and
+the post-change corpus numbers are identical: byte-identity 1037/1037, review surface 1,610 /
+29,260, 19,102 atomic + 9,612 structural chunks, max nest depth 14.
+
+## Whole-codebase-as-one-word — investigation, 2026-09-01
+
+Amir's extension of R-ARCH-15 one level up: files as leaves of a codebase-level composition,
+composed by the import graph. Task was explicitly "investigate first, it is fine to come back with
+what is required rather than a finished design". Everything below is **measured, read-only,
+in memory**; no shared file was touched and nothing was written to the corpus.
+
+### Finding 1 — the mechanism does NOT transfer. This is the headline.
+
+Inside a file, "words made of words" works because LZW mines **recurring adjacent pairs** out of a
+linear token stream. At file level there is nothing to mine.
+
+Measured over the 1037 rendered `.en`, taking each file's actual top-level word:
+
+```
+distinct top-level words   1033 of 1035   (99.8% unique; 2 files have no chunk at all)
+words used by >1 file      2   covering 4 files
+adjacent pairs recurring   0 of 1034 distinct
+```
+
+**Zero.** An LZW pass over the file sequence would create no composite at all: the "codebase word"
+would be a flat depth-1 list of 1037 unique symbols. A list is not a word.
+
+Cross-checked against a deliberately **coarse** alphabet (each file reduced to its sequence of
+top-level `SyntaxKind`s — this can only *overstate* recurrence, so it is an upper bound):
+
+```
+distinct file shapes       540 of 1037;  122 shapes shared, covering 619 files
+adjacent pairs recurring   60 of 1036    (5.8%)
+```
+
+So even the most generous alphabet yields 5.8%. Composition at the codebase tier has to be
+**structural** — a fold over import edges — not **statistical**. That is a different algorithm from
+anything in the engine today, and it is the real cost of this feature.
+
+### Finding 2 — circular imports are real, and already solved by condensation
+
+```
+files 1037 | internal import edges 2246 | external package imports 3609
+cycles (SCCs > 1 file)  19    files inside a cycle 170    largest cycle 43 files
+self-imports 0
+after Tarjan condensation: 886 DAG nodes, depth 17, deterministic total order EXISTS
+```
+
+Cycles are not a blocker. An SCC becomes one composite node — the 43-file cycle is one
+codebase-level word whose members are unordered with respect to each other. This is a **node kind**
+to design, not an obstruction. (The three largest cycles are the hydra entity layer, the redux
+feature slices, and the statement API trio.)
+
+### Finding 3 — it is not one word, it is 424
+
+424 files have no importer. A single root requires a **synthetic** node over those 424. That is a
+design decision to make explicitly, not something the graph hands you.
+
+### Finding 4 — the biggest concrete blocker: a quarter of the codebase is invisible
+
+```
+.ts files mined            1037
+.tsx files present, NOT mined   332
+dangling relative edges:  56 point at a .tsx file the engine cannot render
+                          35 point at a file that does not exist (mostly
+                             src/sandbox/oldSandboxes/* -> ../field_types/IFieldDescription)
+```
+
+A "codebase word" today would cover 1037 of 1369 real modules with 91 holes in its edge set. Inside
+a file, a hole is a slot with a filler; here a hole is a **missing leaf**, which is not the same
+thing and cannot be filled by rendering. Either `.tsx` enters the mined set or the codebase tier is
+knowingly partial — and if it is partial, byte-identity at that tier means something weaker than it
+does today, which needs saying out loud before anyone builds on it.
+
+### Finding 5 — cross-file naming collisions are modest but force path-qualified addressing
+
+```
+distinct exported names   2732;  used in >1 file 204 (7.5%);  worst fixHandlerInfo in 13 files
+anonymous / default exports  137   (no name to address at all)
+basename collisions       65 of 838 distinct basenames;  index.ts x45, actions.ts x38
+```
+
+A codebase word cannot address a member by bare symbol name or by basename. Addressing must be
+path-qualified. Cheap to satisfy, but it must be decided before an artifact schema is frozen.
+
+### Finding 6 — the dictionary is ALREADY corpus-global; the gap is narrower than it looks
+
+`generators-lzw.json` is one dictionary mined over all 1037 files: 128,318 entries (5,684 leaves,
+120,654 composites), 241,308 composition edges, **max depth 76**. Words are shape skeletons with
+holes (`‹id›`, `‹str›`, `‹gap›`) and are reused freely across files.
+
+So "words made of words" **already spans files** in the dictionary sense. What is strictly per-file
+is the *instance*: `fanout.js` emits one token stream per `SourceFile`, and the tokens+gaps tile
+exactly one file. The single-file architecture constrains the **rendering**, not the vocabulary.
+
+### What would actually have to change
+
+1. **A new artifact tier — an import graph.** It does not exist. `import-resolution.json` is
+   symbol -> module-specifier (2308 symbols), *not* file -> file edges, and it drops the direction
+   the composition needs. New artifact: edges + SCC condensation + the chosen root set, published
+   through `AC.stamp` like everything else.
+2. **A third chunk kind.** Today: ATOMIC `«▶ gloss ⟪payload⟫»` (has payload, recursion frontier) and
+   STRUCTURAL `«▷ gloss ⟨children⟩»` (compiles by concatenating inline children). A codebase chunk's
+   children are **files**, i.e. *references*, not inline content — so it cannot compile by
+   concatenation. Either a REFERENCE chunk that resolves to a child's own `.en`, or the codebase
+   tier is an index rather than a word. This is the single biggest design question and it should go
+   to Amir, not be decided by inference.
+3. **A new entry point.** `renderFile` / `renderFileNested` are per-file by construction. A
+   `renderCorpus` has no home today.
+4. **Byte-identity must be redefined.** Today the floor is per-file: 1037/1037. A codebase word
+   compiles to a *set of files*, so the floor becomes "all 1037 byte-identical **and** the file set
+   and their paths exactly reproduced". The current gate cannot express the second half.
+
+### Recommendation
+
+Well-posed **only** if composition at this tier is structural (a DAG fold over the condensation),
+and only after (2) is decided. Do not attempt it as an LZW tier — Finding 1 measures that to zero.
+The cheap, useful, non-controversial first step is item (1): publish the import-graph artifact. It
+is independently valuable (nothing today can answer "what imports this file"), it is additive, it
+touches no rendering grammar, and it is the input every later design needs. I did not build it —
+that is a real change and Amir has an open reserved decision (Q-1, direction of truth) sitting
+upstream of anything that adds a tier.
