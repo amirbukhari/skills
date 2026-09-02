@@ -4987,7 +4987,9 @@ promotion leaves the raw index space **sparse**, i.e. a promoted word *keeps* th
 created with. Measured both knobs — creation gate (`createMinCount` 1→2) moved **3 of 13** shared
 shapes; selection gate (`promote` `minCount` 1→2) moved **0 of 4**. Changing what the renderer may
 USE cannot renumber anything; changing what the miner may CREATE can. That is the same
-creation/selection split R-MINE-1 turned out to sit on (`4a43855`), seen from the id side — and it
+creation/selection split R-MINE-1 turned out to sit on, seen from the id side — the gate itself
+is another lane's (`createMinCount`, `216f928`; `git log -S` says so, and `sdd-engine-5a` handed the
+credit back rather than keep it), and `4a43855` is only where the three thresholds were reconciled — and it
 is the second time tonight that reading a structure produced a confident wrong answer that running
 it corrected in seconds.
 
@@ -5026,3 +5028,21 @@ says that premise must not be resolved by inference. (a) is not so entangled: a 
 is worth having in today's direction, where a `.en` is a report that can silently be a wrong one.
 `sdd-engine-e2` reached the same conclusion independently and corrected its own earlier "R-PAY-6
 sits behind the direction-of-truth call" as overstated for (a). I have built against neither.
+
+### Addendum, same night — the structural silence is measured on the ATYPICAL 8%
+
+`skills-27` asked which of A2's 120 silent structural sites are file-level and which are nested,
+because the answer decides whether closing the structural half of cut 2 is a small change or a
+**second producer** of the renderer's run grouping (§5D.4F, the shape R-REND-9 exists to prevent).
+Measured over the whole tree and added to `measure-hand-edit.js`:
+
+- **120 of 120** sampled structural sites sit at chunk **depth 0** — the file's own chunk. Every
+  structural class edits the FIRST `▷` chunk in a file, and that one is always the file's own.
+- Corpus-wide there are **9,611** structural chunks: **777** at depth 0 and **8,834 nested**,
+  deepest 13. So **91.9%** of structural chunks are unlike anything A2 measured.
+
+A2's structural rows are therefore a sample of the *easy* case, and reporting the 120 without this
+line would have invited exactly the wrong generalisation — a file-level chunk's run is recoverable
+by re-parsing the file; a nested one's is the enclosing block's run, which the compiled bytes do not
+carry. The tool now says so in place. I have not touched the renderer: which of the two shapes the
+fix takes is `skills-27`'s area and Amir's call.

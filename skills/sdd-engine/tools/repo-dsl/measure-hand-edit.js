@@ -156,6 +156,34 @@ function firstStructural(en) {
   return { glossStart: i + 2, glossEnd: bo };
 }
 
+/* Chunk depth of an offset: how many « are still open at it. A structural chunk at depth 0 is the
+ * FILE's own chunk; anything deeper is a structural chunk nested inside another. The distinction is
+ * not cosmetic — it is the difference between "re-parse the file" and "a second producer of the
+ * renderer's run grouping" (§8B, R-REND-9) for anyone closing the structural half of cut 2. */
+function depthAt(en, at) {
+  let d = 0;
+  for (let i = 0; i < at; i++) { const c = en[i]; if (c === OPEN) d++; else if (c === CLOSE) d--; }
+  return d;
+}
+
+/* Corpus-wide census of structural chunks by depth. Read-only, whole tree, not the sample — the
+ * sample cannot answer it, because every class here edits the FIRST structural chunk in a file and
+ * that one is always the file's own. Reporting the sample's 120 without this line would invite
+ * exactly the wrong generalisation. */
+function structuralCensus(files) {
+  let total = 0, depth0 = 0, maxDepth = 0;
+  for (const f of files) {
+    let t; try { t = fs.readFileSync(f, "utf8"); } catch { continue; }
+    let d = 0;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      if (c === OPEN) { if (t[i + 1] === GEN_NEST) { total++; if (d === 0) depth0++; if (d > maxDepth) maxDepth = d; } d++; }
+      else if (c === CLOSE) d--;
+    }
+  }
+  return { total, depth0, nested: total - depth0, maxDepth };
+}
+
 const splice = (s, at, len, rep) => s.slice(0, at) + rep + s.slice(at + len);
 
 /* Each class: a one-line description and a mutate(en) -> newEn | null. */
@@ -299,6 +327,19 @@ const silentOff = englishRows.reduce((a, r) => a + r.off.silent, 0);
 const englishTried = englishRows.reduce((a, r) => a + r.applicable, 0);
 const silentOn = englishRows.reduce((a, r) => a + r.on.silent, 0);
 const effectOff = englishRows.reduce((a, r) => a + r.off.effect, 0);
+/* WHERE THE STRUCTURAL SITES ACTUALLY ARE. Every structural class edits the FIRST ▷ chunk in a
+ * file, and that one is always the file's own chunk, so the sample says nothing about nested
+ * structural chunks — of which there are far more. Measured over the whole tree, not the sample. */
+const census = structuralCensus(every);
+let sampledStructural = 0, sampledStructuralDepth0 = 0;
+for (const f of sample) {
+  let t; try { t = fs.readFileSync(f, "utf8"); } catch { continue; }
+  const st = firstStructural(t);
+  if (!st) continue;
+  sampledStructural++;
+  if (depthAt(t, st.glossStart - 2) === 0) sampledStructuralDepth0++;
+}
+
 const summary = {
   corpus: CORPUS, enFilesTotal: every.length, sampled: sample.length, seededForVerbatimControl: seeded.length,
   baselineCompiled: baselineOk, baselineFailed: baselineBad,
@@ -312,6 +353,7 @@ const summary = {
       silentOn: g.reduce((a, r) => a + r.on.silent, 0),
       effectOff: g.reduce((a, r) => a + r.off.effect, 0) }];
   })),
+  structuralChunks: { ...census, sampledSites: sampledStructural, sampledSitesAtDepth0: sampledStructuralDepth0 },
 };
 
 if (JSON_OUT) {
@@ -337,6 +379,16 @@ if (JSON_OUT) {
   console.log(`  and a STRUCTURAL chunk (▷, R-ARCH-19) has children instead of a payload — so there is`);
   console.log(`  nothing to derive from and the check cannot fire on it. A structural row staying SILENT`);
   console.log(`  in the "on" column is a documented boundary of that guard, not a hole in it.\n`);
+  console.log(`  AND THE STRUCTURAL SITES ARE NOT A RANDOM SAMPLE OF STRUCTURAL CHUNKS. Every structural`);
+  console.log(`  class edits the FIRST ▷ chunk in a file, and ${sampledStructuralDepth0} of ${sampledStructural} of those sat at chunk depth 0 —`);
+  console.log(`  the file's OWN chunk. Corpus-wide there are ${census.total} structural chunks, ${census.depth0} at depth 0 and`);
+  console.log(`  ${census.nested} NESTED (deepest ${census.maxDepth}), so ${pct(census.nested, census.total)} of them are unlike anything measured`);
+  console.log(`  above. That distinction is load-bearing for whoever closes the structural half: a`);
+  console.log(`  file-level chunk's run is recoverable by re-parsing the file, while a nested one's is`);
+  console.log(`  the enclosing block's run — a renderer decision (§5D.4F) the compiled bytes do not`);
+  console.log(`  carry. Recovering it at compile time is either a small change or a SECOND PRODUCER of`);
+  console.log(`  that grouping, which is the shape R-REND-9 exists to prevent. Measured, not assumed,`);
+  console.log(`  because the sample alone would have invited exactly the wrong generalisation.\n`);
   for (const r of rows) console.log(`  ${r.id.padEnd(26)} ${r.what}`);
   console.log(`\n  THE HEADLINE, in one line each:`);
   console.log(`    of ${englishTried} English edits, ${effectOff} reached the .ts and ${silentOff} were SILENT ` +
