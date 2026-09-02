@@ -113,4 +113,7 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { explainTree };
+/* tierOf is exported for language.js: the rule "tier, else structural, else trivia, else the
+ * fallback" is a classification the published vocabulary must state the same way this walker does.
+ * Two copies would drift the moment a new flag joins generators.js. */
+module.exports = { explainTree, tierOf };

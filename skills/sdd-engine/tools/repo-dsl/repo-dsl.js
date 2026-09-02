@@ -28,6 +28,12 @@
  *                        [--apply]      for mined g_<len>_<hash> composites, gated on
  *                        [--only naming] byte-identity + coverage invariance. Dry-run
  *                                       writes a proposal report; --apply promotes v2.
+ *   repo-dsl language <dir> [--json]    Publish the DSL VOCABULARY (leaf primitives +
+ *                                       composite words) and the auto-derived positional
+ *                                       GRAMMAR. --json emits the machine document (and
+ *                                       persists it) for the Kraken panel's Syntax/Grammar
+ *                                       tabs; bare prints the human view. Every fact is read
+ *                                       live from generators.js/dsl.js, so it cannot go stale.
  *   repo-dsl report                     Reprint the last mine rollup.
  *
  * Robust by design: a file that doesn't fully reduce lowers its coverage and adds
@@ -331,6 +337,30 @@ function cmdExpand(args) {
   process.stdout.write(expand(tree));
 }
 
+/**
+ * language — publish the vocabulary + grammar for a cross-repo consumer.
+ *
+ * `--json` writes the machine document to stdout (and persists it under the §8B cache home so a
+ * consumer can read a file instead of shelling out); bare `language` prints the human view.
+ *
+ * The document is DERIVED from generators.js/dsl.js at call time, never hand-maintained — see the
+ * header of language.js for why that is the correctness argument rather than a style choice.
+ */
+function cmdLanguage(args) {
+  const dir = resolveCorpus(args.find((a) => !a.startsWith("--")) || DEFAULT_CORPUS, "language");
+  const { buildLanguage, renderHuman } = require("./language");
+  const doc = buildLanguage(dir);
+
+  if (!args.includes("--json")) { process.stdout.write(renderHuman(doc)); return; }
+
+  /* Persisted as well as printed. Located BY THE CONTRACT — a second spelling of the layout here
+   * is how one kind ends up written to two places (see the CATALOG note at the top of this file). */
+  const dest = AC.pathFor("language", dir);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(doc, null, 2) + "\n");
+  process.stdout.write(JSON.stringify(doc, null, 2) + "\n");
+}
+
 function cmdReport() {
   if (!fs.existsSync(COVERAGE_JSON)) { console.error("no results yet — run: repo-dsl mine"); process.exit(1); }
   const j = JSON.parse(fs.readFileSync(COVERAGE_JSON, "utf8"));
@@ -390,10 +420,11 @@ function main() {
     case "verify-expand": return cmdVerifyExpand(args);
     case "expand": return cmdExpand(args);
     case "explain": return cmdExplain(args);
+    case "language": return cmdLanguage(args);
     case "refine-language": return cmdRefineLanguage(args);
     case "report": return cmdReport();
     default:
-      console.error("usage: repo-dsl <mine|publish|gate|verify|verify-expand|expand|explain|refine-language|report> [args]  (see README)");
+      console.error("usage: repo-dsl <mine|publish|gate|verify|verify-expand|expand|explain|language|refine-language|report> [args]  (see README)");
       process.exit(1);
   }
 }

@@ -191,8 +191,9 @@ investigation, kept for its findings; not on any path.
 | `run-tests.js` | **TOOL** | the three-tier test runner (unit / corpus / slow). `npm test` lands here |
 | `verify-register.js` | **TOOL** | evaluates the §R requirements register mechanically. `npm run register`, or `--json` for a caller. `MANUAL` is not a pass |
 | `sdd-clean.js` | **TOOL** | wipes derived content out of CORPUS. Dry-run unless `--wipe-sen --go`. Never touches SOURCE. `npm run clean` |
-| `repo-dsl.js` | **TOOL** | the pipeline-B CLI: `mine\|publish\|gate\|verify\|verify-expand\|expand\|explain\|refine-language\|report`. `npm run gate` |
+| `repo-dsl.js` | **TOOL** | the pipeline-B CLI: `mine\|publish\|gate\|verify\|verify-expand\|expand\|explain\|language\|refine-language\|report`. `npm run gate` |
 | `author-names.js` | **TOOL** (broken input) | proposes names for leaf skeletons. `npm run name:author` — **needs a census file as argv[2] and nothing live produces one**; it crashes without one. See `../../CLAUDE.md` §9 |
+| `language.js` | **LIBRARY**/TOOL | publishes the vocabulary + grammar as machine JSON for a cross-repo consumer. `repo-dsl language <dir> --json`. Hand-authors nothing: every name, param, keyword, marker, tier and token rule is read live from `generators.js`/`dsl.js` at call time, and `engine/language.test.js` fails if this file ever names a composite or leaf literally |
 | `dsl.js` | **LIBRARY** | the readable surface over the composition-tree IR. 30 references — the most-used module here |
 | `generators.js` | **LIBRARY** | the deterministic generator library for the SDD code stage |
 | `expander.js` | **LIBRARY** | composition tree → code |

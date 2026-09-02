@@ -161,6 +161,18 @@ function printTree(tree) {
 const IDENT = /^[A-Za-z_$][\w$.]*$/;
 const MODSPEC = /^(['"]).*\1$/;
 
+/* The lexical surface, named ONCE and exported, so a consumer that publishes the grammar
+ * (language.js -> `repo-dsl language --json`) quotes these exact regexes instead of spelling its
+ * own copy. A second spelling of a token rule is a silent drift vector of precisely the §8B kind:
+ * the published grammar would keep describing the parser this repo used to have. */
+const LEXICAL = Object.freeze({
+  identifier: IDENT,
+  moduleSpecifier: MODSPEC,
+  comment: "#",
+  typeSeparator: "->",
+  importKeyword: "from",
+});
+
 /** Pull an optional `from '<module>'` off the front of a token list -> {module, rest}. */
 function takeFrom(tokens) {
   if (tokens[0] === "from") {
@@ -280,4 +292,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { grammar, classify, printTree, parseText, canonicalModule, renderGrammar };
+module.exports = { grammar, classify, printTree, parseText, canonicalModule, renderGrammar, grammarByKeyword, LEXICAL };

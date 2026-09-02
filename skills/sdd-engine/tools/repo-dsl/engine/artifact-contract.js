@@ -130,6 +130,22 @@ const ARTIFACTS = Object.freeze({
     corpusPinned: false, requires: ["queue", "queueLength", "orphans"],
     role: "re-adoption PROPOSALS for orphaned names, scored by edit distance; a human is the consumer (R-LANG-7)",
   },
+  /* language.json is the VOCABULARY AND GRAMMAR published for a cross-repo consumer (the Kraken
+   * SDD panel's Syntax/Grammar tabs). It is registered for the reason every other kind here is:
+   * so the schema string is read from this table instead of typed by hand at the producer. The
+   * neighbouring `explain` dump does hand-write its own `sdd-repo-dsl/explain/1` string and is NOT
+   * registered — the same shape as the incidents above, noted rather than fixed here because that
+   * dump is per-composition, not per-corpus.
+   *
+   * `home: "cache"` — it is regenerated in full by one command and derives from engine source, so
+   * it is never hand-edited and never needs tracking. `corpusPinned` because the dump carries the
+   * import-resolution state of ONE corpus alongside the corpus-independent grammar; unpinned, dir
+   * A's resolution figures could be read as dir B's. */
+  "language": {
+    schema: "sdd-repo-dsl/language/1", home: "cache", file: "language.json",
+    corpusPinned: true, requires: ["vocabulary", "grammar", "resolution"],
+    role: "the published DSL vocabulary (leaf primitives + composite words) and the auto-derived positional grammar, both read live from generators.js/dsl.js — `repo-dsl language <dir> --json`",
+  },
   "gate": {
     schema: "sdd-repo-dsl/gate/1", home: "cache", file: "gate.json",
     corpusPinned: false, requires: ["pass", "thresholds"],
