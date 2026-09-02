@@ -79,6 +79,62 @@ function constValue(rel, name) {
 
 const exists = (rel) => fs.existsSync(path.join(HERE, rel));
 
+/* CODE WITH ITS COMMENTS BLANKED OUT — offsets and line numbers preserved.
+ *
+ * WHY, stated as measured rather than as first believed. liveGrep used to exempt comments with a
+ * LINE-LEADING marker test, which misses a trailing `code(); /* prose *\/` and a block comment whose
+ * continuation lines carry no `*`. Demonstrated by probe: a line reading
+ * `const probe = 1; /* a comment mentioning path.join(__dirname, "generators-lzw.json") *\/`
+ * appended to a tracked file made R-ART-2 report a FALSE POSITIVE under the old test and is
+ * correctly ignored under this one. So the direction this fixes is a guard CRYING WOLF at prose --
+ * which §3 says is how a guard gets ignored, then removed.
+ *
+ * WHAT IT DOES NOT FIX, and the correction matters because I published the opposite first:
+ * R-MINE-10's false green was NOT prose. Re-measured after this landed -- with comments stripped,
+ * the loose /bucket[\s\S]{0,200}ARBITRATION/ STILL matches, because the report line
+ * `${bucket.ARBITRATION}` is real code. The row was satisfied by a different part of the file than
+ * the one it was about. That is the same FAMILY as sdd-engine-e2's C11 tautology and the A4 fixture
+ * -- the oracle matching something that was never the subject -- but comment-stripping does not
+ * close it. Anchoring on the construct itself does, which is what that row now does.
+ *
+ * Migrating every read() to readCode() changed NO row's verdict and no row's evidence string, on
+ * all 76 mechanized rows. So this is preventive, not a repair: nothing in the register was standing
+ * on prose today.
+ *
+ * NOT a parser, and deliberately not: it is character-scan aware of strings, template literals and
+ * escapes only well enough that a comment marker inside a string is not mistaken for a comment. A
+ * row that needs certainty about a construct should call the TypeScript AST, not this. */
+function stripComments(text) {
+  let out = "", i = 0, n = text.length;
+  const keep = (ch) => (ch === "\n" ? "\n" : " ");
+  while (i < n) {
+    const c = text[i], d = text[i + 1];
+    if (c === "/" && d === "/") { while (i < n && text[i] !== "\n") { out += keep(text[i]); i++; } continue; }
+    if (c === "/" && d === "*") {
+      while (i < n && !(text[i] === "*" && text[i + 1] === "/")) { out += keep(text[i]); i++; }
+      out += "  "; i += 2; continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const q = c; out += c; i++;
+      while (i < n) {
+        out += text[i];
+        if (text[i] === "\\") { i++; if (i < n) out += text[i]; i++; continue; }
+        if (text[i] === q) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+/* read(), with the prose removed. Use this for any row whose subject is CODE. */
+const readCode = (rel) => {
+  const f = read(rel);
+  return f.ok ? { ok: true, text: stripComments(f.text), p: f.p, raw: f.text } : f;
+};
+
 /* RUN a tool or a test, rather than reading it. Behaviour rows need this: a static read cannot tell
  * a guard that fires from one that is merely present, which is the whole of §10.3. Child process so
  * a tool that calls process.exit cannot take this runner with it, and so an exit CODE (a decline is
@@ -173,8 +229,11 @@ function liveGrep(re, opts = {}) {
     if (opts.excludeTests && rel.endsWith(".test.js")) continue;
     const abs = path.join(HERE, rel);
     let text; try { text = fs.readFileSync(abs, "utf8"); } catch { continue; }  // tracked but deleted
-    text.split("\n").forEach((l, i) => {
-      if (/^\s*(?:\/\/|\/\*|\*)/.test(l)) return;                   // exemption 1
+    /* Exemption 1, structurally: comments are BLANKED (stripComments) rather than skipped by a
+     * leading-marker test. The old line test missed a trailing `code(); /* prose *\/` and a block
+     * comment whose continuation lines carry no `*`, so prose could still satisfy a code row. */
+    stripComments(text).split("\n").forEach((l, i) => {
+      if (!l.trim()) return;
       if (re.test(l)) hits.push(`${rel}:${i + 1}`);
     });
   }
@@ -1027,8 +1086,10 @@ const ROWS = [
       if (!f.ok) return FAILS(null, f.why);
       /* ANCHORED ON THE INITIALIZER, not on the file. The first version matched
        * /bucket[\s\S]{0,200}MINER/ anywhere, so deleting ARBITRATION from the bucket left the row
-       * GREEN -- the header comment names all three reasons a few lines above, and prose about the
-       * check satisfied the check. Read the object literal itself instead. */
+       * GREEN. I first reported the cause as the header comment; re-measured, it is NOT -- the
+       * report line `${bucket.ARBITRATION}` is real code and matches with every comment stripped.
+       * The check was satisfied by a different part of the file than the one it was about, which is
+       * why the fix is to read the object literal itself and not to filter prose. */
       const init = /const\s+bucket\s*=\s*\{([^}]*)\}/.exec(f.text);
       if (!init) return FAILS("no `const bucket = { ... }`", "there is no three-way split to inspect");
       const kinds = ["MINER", "GATE", "ARBITRATION"];
