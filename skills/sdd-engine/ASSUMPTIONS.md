@@ -4952,3 +4952,77 @@ which before writing any of it.
 
 This is in the renderer, i.e. my area tonight, and it is a behavioural change to a gate — 120 sites
 that are silent today would start refusing. Not taken without Amir's word.
+
+## A1 — R-PAY-6 priced: 0.66% of the bytes, 99.7% of the files. 2026-09-01
+
+**Lane `sdd-engine-5f`.** New reporter `tools/repo-dsl/measure-id-stability.js` (commit `98a2777`),
+read-only, no mine, no render, no corpus write. Confirmed unclaimed by all four lanes first.
+
+**Verified by running it**, at HEAD `ebeca58`:
+
+| | |
+|---|---|
+| `.en` carrying a word id | **1034 of 1037** (99.7%) |
+| payloads / distinct ids / highest id | 9,617 / 4,565 / 128,147 |
+| id bytes | 45,861 — **0.66%** of the `.en`, 1.38% of the payload |
+| `.en` naming a dictionary fingerprint | **0 of 1037** |
+| dictionary's own fingerprint | `b7410f2366ea1704`, plus a `contentFingerprint` |
+
+**A renumber edits well under 1% of the corpus's bytes and thereby invalidates almost every file in
+it.** A small diff is not a small blast radius, and the two numbers pull in opposite directions if
+you only read one. The producer knows its own identity and the artifact that depends on it does not
+record it anywhere — that gap *is* R-PAY-6.
+
+**Why the ids move**, demonstrated in-process against the allocator rather than by re-mining: the
+allocator is `const id = dict.length` and the alphabet is numbered by first appearance, so an id is
+a **position in mining order**, not a name for a shape. Mining one extra file ahead of unchanged
+streams moved 3 of 8 shared words. The shipped dictionary agrees — 126,338 narrow words keyed
+0..128,317 with 1,980 gaps, 120,654 of them composites making 241,308 id references, and **zero**
+carrying any content key. A renumber cascades *inside* the dictionary as well as across every `.en`
+pointing into it.
+
+**A sentence I wrote and then had to correct, before it shipped.** I first read the 1,980 gaps as
+"promotion renumbers, so a threshold change moves ids with no corpus change". Wrong: the gaps show
+promotion leaves the raw index space **sparse**, i.e. a promoted word *keeps* the index it was
+created with. Measured both knobs — creation gate (`createMinCount` 1→2) moved **3 of 13** shared
+shapes; selection gate (`promote` `minCount` 1→2) moved **0 of 4**. Changing what the renderer may
+USE cannot renumber anything; changing what the miner may CREATE can. That is the same
+creation/selection split R-MINE-1 turned out to sit on (`4a43855`), seen from the id side — and it
+is the second time tonight that reading a structure produced a confident wrong answer that running
+it corrected in seconds.
+
+**Judgment call — no re-mine, on purpose.** A re-mine rewrites the shared dictionary and renumbers
+every id by construction, so it would invalidate all 1037 `.en` and every other lane's in-flight
+measurement; it is behind an explicit ask for that reason. `skills-bb` pointed out that
+`--corpus <scratch>` makes a genuine re-mine safe for the shared tree, and that is true and worth
+knowing — I still did not take it, because the mechanism is a property of the allocator that a
+sample can only illustrate, and the property is decidable in 40ms. Also **every run stamps HEAD and
+whether the tree was dirty**: the renderer moved twice tonight (`89eff24`, `a565df0`, whole-tree
+surface −33%), and a figure read against a differently-rendered tree is renderer churn misread as id
+instability — `sdd-engine-5a`'s warning, and it is the R-LANG-22 failure shape.
+
+**R-PAY-6 is mechanized and red on purpose** — the R-ARCH-15 treatment. The row says MUST, neither
+closure is built, so the honest verdict is FAILS; MANUAL or absence would read as "nothing to see
+here" for a failure mode the register itself calls *a compile producing wrong bytes, not an error*.
+Runner: 48 hold / 2 fail / 4 manual of 54 → **48 / 3 / 4 of 55**. Mutation-checked in a scratch
+corpus in **both** directions — a `.en` with an id and no fingerprint FAILS naming 1 of 1; the same
+file with a fingerprint HOLDS. The green branch is reachable, so the red is a finding, not a
+hard-coded verdict.
+
+**Priced, NOT chosen — this is the part I am deliberately leaving open.**
+
+- **(a) stamp the fingerprint, refuse on mismatch.** Needs no new `.en` header: the payload already
+  carries a `lzw1` tag and `decode()` is a single fail-closed parse point. ~9 B per payload, ~85 KB,
+  one gated re-render, plus a test that the refusal FIRES (§10.3). Buys a loud refusal instead of
+  wrong bytes — which is what makes **A5 buildable at all**. Does not stop the ids moving.
+- **(b) content-addressed ids.** In-tree precedent: `WN.hashOf` / `WN.chunkKeyOf` key by content
+  hash, which is exactly why names survive a re-mine and ids do not. Changes the miner's core
+  contract — allocator, artifact schema, the codec's id grammar, every consumer treating an id as
+  an index.
+
+Which lands, and in which order, is **Amir's**. (b) is entangled with the reserved direction-of-truth
+question — R-PAY-6's harm clause is bounded *"because the `.ts` is authoritative"*, and CLAUDE.md §6
+says that premise must not be resolved by inference. (a) is not so entangled: a stale-`.en` refusal
+is worth having in today's direction, where a `.en` is a report that can silently be a wrong one.
+`sdd-engine-e2` reached the same conclusion independently and corrected its own earlier "R-PAY-6
+sits behind the direction-of-truth call" as overstated for (a). I have built against neither.
