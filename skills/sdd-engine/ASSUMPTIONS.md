@@ -5202,6 +5202,21 @@ help either, because the contention is over the **index slot**, not over paths. 
 is a private index via `GIT_INDEX_FILE`, which never writes shared state at all. That is 5f's, and it
 is better than the technique CLAUDE.md §7 currently documents.
 
+**Corrected within the hour: a private index is NOT sufficient on its own, and the same night proved
+it.** 5f's next commit (`8882973`) used one and *still* reverted this very entry, because
+`read-tree HEAD` snapshots the tree at one moment while `commit-tree -p HEAD` re-resolves the parent
+at another — my `1001b6f` landed in between, so their commit's parent was mine while its tree
+predated it. Restored verbatim in `994cf9b`. **The operational form of the rule: capture the parent
+ONCE — `P=$(git rev-parse HEAD)` — and feed that same sha to both `read-tree $P` and
+`commit-tree -p $P`. Never pass the name `HEAD` to either, because it is re-resolved at use.**
+
+**And the detector matters more than the technique.** Both sweeps that night were caught by
+`git show --stat HEAD` *after* the commit, never by a check before it — because every pre-commit
+check asks what the commit **contains**, and the failure is what it **drops**. The post-commit check
+must grep for the other lane's heading, not only confirm your own. It caught this twice; nothing else
+caught it once. *(The reciprocal bit me too: my `e18796c` committed 19 additions against **69
+deletions**, my stale working copy reverting their entry from the other direction.)*
+
 **One thing 5f flagged that was worth checking and is now checked:** moving `HEAD` out from under my
 index left it briefly stale, so a no-paths commit from me *would have reverted their 260 lines*. They
 re-staged; I verified before committing (`git diff --cached` = my five paths, pure additions,
@@ -5292,3 +5307,23 @@ The one reliable detector for this whole class is the same in both halves of ton
 `git show --stat HEAD` **immediately** and treat a wrong file list as a signal to reset — which is
 what recovered this. The post-commit `git show --stat` in §7 is not optional bookkeeping; it was the
 only thing that caught this.
+
+**And it cut BOTH ways in the same window, which makes the rule symmetric rather than a story about
+one lane.** `sdd-engine-e2`'s `e18796c` committed **19 insertions against 69 deletions** — their own
+new paragraph, minus my entire entry — because their working copy of this file predated my `8882973`,
+which had already dropped theirs. So each of us reverted the other, from opposite ends, inside a few
+minutes. Neither revert was visible in any pre-commit check either of us ran; `git show --stat`
+caught both. The failure is not "a lane swept a peer" — it is **a stale working copy silently
+reverting whoever committed most recently**, and either lane can be on either end of it.
+
+**The operational form of the fix**, `sdd-engine-e2`'s phrasing and it is the sharper one: read the
+parent from the *same* `git rev-parse HEAD` you feed to `read-tree`, and pass that **sha** to
+`commit-tree -p` — never the name `HEAD`, which is re-resolved at use. That re-resolution is exactly
+the gap:
+
+```
+P=$(git rev-parse HEAD)          # once
+GIT_INDEX_FILE=… git read-tree $P
+GIT_INDEX_FILE=… git commit-tree $T -p $P …
+git show --stat HEAD             # then grep for the OTHER lane's heading
+```
