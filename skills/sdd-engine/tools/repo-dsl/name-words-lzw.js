@@ -17,7 +17,8 @@
  * from its first site, and a PROPOSED name (a suggestion for Amir to edit, with a confidence tag).
  * Rows are ordered by occurrence desc so the highest-leverage names sit at the top.
  *
- *   node name-words-lzw.js worksheet [--top N]   -> writes name-words-lzw-worksheet.json
+ *   node name-words-lzw.js worksheet [--top N]
+ *       -> writes <corpus>/.cache/spec-derived/name-words-lzw-worksheet.json
  * Deterministic; zero model calls. Corpus is read-only. The naming itself is Amir's pass.
  */
 const fs = require("fs");
@@ -26,10 +27,19 @@ const ts = require("typescript");
 const EN = require("./engine/enfile");
 const EL = require("./engine/enlzw");
 const CR = require("./engine/corpus-root");
+const AC = require("./engine/artifact-contract");
 
 const CORPUS = CR.corpusRoot();   // WRITE root
 const SRC = CR.sourceRoot();       // READ root: the .ts tree
-const WORKSHEET = path.join(__dirname, "name-words-lzw-worksheet.json");
+/* PRD §8B / R-ART-1: this worksheet is CORPUS-DERIVED — its rows carry verbatim identifiers and
+ * source snippets mined out of SOURCE — so it lives with the corpus, never in the engine tree,
+ * whose remote is public. It was `path.join(__dirname, ...)` until 2026-09-01 and sat here at
+ * 2.2 MB carrying 2,989 "hydra" / 731 "rentsync" / 400 "jamesgmarks" occurrences; only a
+ * hand-written .gitignore line kept it off the remote, and §9.4 is explicit that documenting a
+ * risk is not a control. It is purely derived (a re-run rebuilds it), so it takes the `cache`
+ * home. The layout string comes from AC.HOMES — a second spelling of it is how one kind ends up
+ * written to two places (repo-dsl.js:56). */
+const WORKSHEET = path.join(CORPUS, AC.HOMES.cache, "name-words-lzw-worksheet.json");
 const { SKIP } = require("./engine/walk-skip");   // the ONE canonical corpus walk-skip set
 const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; };
 
@@ -108,6 +118,7 @@ function worksheet(args) {
     columns: ["axis", "id", "depth", "count", "confidence", "proposedName", "tier1", "snippet", "firstFile"],
     rows: chosen,
   };
+  fs.mkdirSync(path.dirname(WORKSHEET), { recursive: true });   // the cache home is gitignored, so it may not exist yet
   fs.writeFileSync(WORKSHEET, JSON.stringify(out, null, 1));
   console.log(`worksheet: ${withNames.length} distinct emitted words; wrote ${chosen.length} rows -> ${WORKSHEET}`);
   console.log(`  confident proposals: ${confident}   unsure: ${unsure}`);

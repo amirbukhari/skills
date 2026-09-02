@@ -58,6 +58,48 @@ ok("the engine tree holds no corpus-derived file on disk", () => {
   assert.deepStrictEqual(hits, [], `corpus-derived files inside the engine tree:\n    ${hits.join("\n    ")}`);
 });
 
+/* (c2) THE SAME CLAIM, WITHOUT AN ALLOWLIST. (c) asks "is this file one of the names we already
+ *      know about?" — so it can only ever catch a leak someone has already met. On 2026-09-01 it
+ *      printed its green with `name-words-lzw-worksheet.json` sitting in this tree at 2.2 MB,
+ *      carrying 2,989 "hydra" / 731 "rentsync" / 400 "jamesgmarks" / 358 "Xero" occurrences. The
+ *      file was invisible to (c) for one reason only: nobody had added its name to DERIVED. A guard
+ *      that enumerates known leaks does not guard against the next one.
+ *
+ *      So ask the question the other way round, with no list to fall out of: corpus-derived output
+ *      is by definition NOT tracked — that is what makes it dangerous and what makes it gitignored.
+ *      Therefore every .json on disk in the engine tree must be tracked by git. Engine config is
+ *      tracked; corpus spill is not. Measured when written: this flags exactly the worksheet and
+ *      nothing else, and zero files once it moves to the corpus cache.
+ *
+ *      This is a CONTENT-INDEPENDENT check on purpose. It cannot be fooled by a leak that happens
+ *      to carry no identifier we thought to grep for. */
+ok("no untracked or ignored .json sits in the engine tree — the check with no allowlist", () => {
+  const { execFileSync } = require("child_process");
+  /* TWO queries, and it must be two. `--ignored` does not ADD ignored files to the untracked list,
+   * it RESTRICTS the listing to only the ignored ones — so the single combined invocation this was
+   * first written as reported gitignored spill and silently missed plain-untracked spill. Caught by
+   * mutation, not by reading: dropping an un-ignored .json in this tree left the guard green.
+   * Both categories are "not tracked", which is the property that matters, so both are asked for.
+   * -z because a path may contain a space. */
+  const ask = (extra) => {
+    try {
+      return execFileSync("git", ["ls-files", "-z", "--others", ...extra, "--exclude-standard", "--", "."],
+        { cwd: ENGINE, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    } catch (e) {
+      /* No git, or not a work tree. Say so and do not pass silently — a guard that cannot run is
+       * not a guard that holds, and that is the exact failure mode (c) had. */
+      assert.fail(`could not ask git what is untracked here, so this guard did not run: ${e.message}`);
+    }
+  };
+  const out = ask([]) + "\0" + ask(["--ignored"]);
+  const spill = [...new Set(out.split("\0").filter(Boolean))]
+    .filter((p) => p.endsWith(".json"))
+    .filter((p) => !p.startsWith("node_modules/") && !p.includes("/node_modules/"));
+  assert.deepStrictEqual(spill, [],
+    `untracked/ignored .json inside the engine tree — corpus-derived output must resolve from the ` +
+    `corpus root (PRD §8B, R-ART-1), and this repo's remote is PUBLIC:\n    ${spill.join("\n    ")}`);
+});
+
 /* (d) The recurrence guard. Finding the files gone is not enough — the bug is code that WRITES
  *     them here, so grep the source for a corpus artifact named relative to the engine itself.
  *     `__dirname` + catalog/results is precisely the shape that produced the leak. */
@@ -73,6 +115,14 @@ ok("no engine source names a corpus artifact relative to __dirname", () => {
       src.split("\n").forEach((line, i) => {
         if (/^\s*[/*]/.test(line)) return;                       // comments describe history; code is the guard
         if (/__dirname\s*,\s*"(catalog|results)"/.test(line) || /path\.join\(__dirname,\s*"\.\.",\s*"catalog"/.test(line)) {
+          bad.push(`${path.relative(ENGINE, p)}:${i + 1}  ${line.trim().slice(0, 90)}`);
+        }
+        /* Any .json anchored to __dirname, not just the two directory names the first leak used.
+         * `name-words-lzw.js:32` was `path.join(__dirname, "name-words-lzw-worksheet.json")` — a
+         * bare filename, so the catalog|results pattern above never saw it. The engine tree holds
+         * engine code and PRD; a .json it WRITES next to itself is corpus output in the wrong root.
+         * Reads are the same hazard: they mean the file is expected to live here. */
+        if (/path\.join\(\s*__dirname\s*,\s*"[^"]*\.json"/.test(line)) {
           bad.push(`${path.relative(ENGINE, p)}:${i + 1}  ${line.trim().slice(0, 90)}`);
         }
       });
