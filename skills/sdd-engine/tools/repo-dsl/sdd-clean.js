@@ -80,6 +80,41 @@ const GO = argv.includes("--go");
 const WIPE_SEN = argv.includes("--wipe-sen");
 const WIPE_CATALOG = argv.includes("--wipe-catalog");
 
+/* A REFUSAL IS NOT A CRASH. The four guards below all decline a run; none of them is a bug, and
+ * every one of them leaves the tree untouched. They were plain Errors, so they reached the user as
+ * an uncaught stack and exit 1, while the flip gate — an equally un-releasable refusal a few lines
+ * down — prints prose and exits 3. Same event, two presentations, and the SOURCE guard (the most
+ * safety-critical refusal this tool has) was on the stack-trace side. A caller distinguishing
+ * "declined, nothing deleted" from "the cleaner broke" got the wrong answer for the wrong one.
+ *
+ * Declines now exit 3 like every other decline. Genuine faults still exit 1 WITH their stack —
+ * the handler below narrows only this class, and rethrows nothing it does not recognise.
+ *
+ * INSTALLED ABOVE THE ROOT RESOLUTION ON PURPOSE. It sat below it at first, which meant a
+ * missing or misconfigured root — thrown by corpus-root.js at CR.corpusRoot() — never reached
+ * this handler at all. Measured: the test that was supposed to prove faults still exit 1 passed
+ * even with the fault branch mutated to exit 3, because it was exercising Node's default
+ * behaviour rather than this code. A handler that does not cover the first thing that can fail
+ * is not a handler.
+ *
+ * `REMOVED` is what earns the words "nothing was deleted". Today every escaping Decline is raised
+ * by plan(), before the removal loop, and the one late call site (the empty-sen prune) is already
+ * inside a catch that swallows it — so the count is always 0 here. It is counted anyway rather
+ * than assumed, because the day a guard moves after the loop, this must report a PARTIAL wipe
+ * instead of confidently claiming an untouched tree. */
+class Decline extends Error {}
+let REMOVED = 0;
+process.on("uncaughtException", (e) => {
+  if (!(e instanceof Decline)) { console.error(e && e.stack ? e.stack : String(e)); process.exit(1); }
+  console.error(`\n${e.message}`);
+  if (REMOVED === 0) {
+    console.error(`\nnothing was deleted — the run was refused at plan time, before any removal.`);
+    process.exit(3);
+  }
+  console.error(`\n${REMOVED} target(s) had ALREADY been removed when this refusal fired — the tree is PARTIALLY wiped.`);
+  process.exit(1);
+});
+
 const CORPUS = CR.corpusRoot();
 const SOURCE = CR.sourceRoot();
 const SEN = CR.LAYOUT.sen;            /* spelled once, in the resolver; never re-spelled here */
@@ -106,16 +141,16 @@ const inside = (child, parent) => child === parent || child.startsWith(parent + 
 function assertRemovable(rel) {
   const abs = path.resolve(CORPUS, rel);
   if (!inside(abs, CORPUS) || abs === CORPUS)
-    throw new Error(`sdd-clean: REFUSING to remove ${abs}\n  it is not inside CORPUS (${CORPUS})`);
+    throw new Decline(`sdd-clean: REFUSING to remove ${abs}\n  it is not inside CORPUS (${CORPUS})`);
   const first = rel.split(/[\\/]/)[0];
   if (PROTECTED.has(first))
-    throw new Error(`sdd-clean: REFUSING to remove ${rel}\n  ${first} is protected — source and the legacy catalog are never wipable`);
+    throw new Decline(`sdd-clean: REFUSING to remove ${rel}\n  ${first} is protected — source and the legacy catalog are never wipable`);
   /* When SOURCE is a SEPARATE tree, nothing inside it may be removed, full stop. When SOURCE ===
    * CORPUS (self-hosting, the default) every path is trivially "inside SOURCE", so this test would
    * forbid everything and the cleaner would be useless; there, PROTECTED above is what keeps the
    * source dirs safe. Distinguishing the two cases is the whole point — do not collapse them. */
   if (SOURCE !== CORPUS && inside(abs, SOURCE))
-    throw new Error(`sdd-clean: REFUSING to remove ${abs}\n  it lies inside SOURCE (${SOURCE}), which is read-only input, full stop`);
+    throw new Decline(`sdd-clean: REFUSING to remove ${abs}\n  it lies inside SOURCE (${SOURCE}), which is read-only input, full stop`);
   /* THE GUARDED-SUBTREE CHECK. Both directions matter: the target may BE the guarded path, or it
    * may be an ancestor that would take it along. Checking only the first would leave the original
    * hole open, because the original hole was exactly an ancestor. */
@@ -123,7 +158,7 @@ function assertRemovable(rel) {
     if (g.allowed()) continue;
     const gabs = path.resolve(CORPUS, g.rel);
     if (inside(gabs, abs))
-      throw new Error(`sdd-clean: REFUSING to remove ${rel}\n  it is or contains ${g.rel}, the §8A SOURCE-PROTECTED artifact home` +
+      throw new Decline(`sdd-clean: REFUSING to remove ${rel}\n  it is or contains ${g.rel}, the §8A SOURCE-PROTECTED artifact home` +
         `\n  pass ${g.token} as well if that is genuinely what you mean`);
   }
 }
@@ -313,6 +348,7 @@ else if (WIPE_SEN) {
 /* Everything above only PLANNED. Deletion happens here, after every guard has run. */
 for (const t of targets) {
   if (GO) fs.rmSync(path.join(CORPUS, t.rel), { recursive: true, force: true });
+  if (GO) REMOVED++;
   console.log(`${GO ? "removed      " : "would remove "}${t.dir ? "dir  " : "file "}${t.rel.padEnd(28)} ${String(t.files).padStart(5)} files  ${mb(t.bytes).padStart(8)} MB`);
 }
 /* PRUNE THE EMPTY SHELL. Enumerating sen/'s children (rather than removing sen/ itself) leaves the
@@ -344,8 +380,11 @@ if (WIPE_CATALOG && !WIPE_SEN)
  *
  * 3, deliberately NOT 2: `sdd-run.js` reserves exit 2 for "the wrapper itself refused" and passes
  * a child's code through unchanged, so a 2 from here would be indistinguishable from the wrapper
- * refusing. 0 = did what was asked · 1 = error (the hard refusals above throw) · 3 = declined,
- * nothing deleted.
+ * refusing. 0 = did what was asked · 1 = error · 3 = declined, nothing deleted.
+ *
+ * This line used to read "1 = error (the hard refusals above throw)", classifying the four
+ * assertRemovable guards as faults. Corrected 2026-09-01: they are declines and now exit 3 (see
+ * the Decline class). Nothing about them was ever a fault — they are the tool working.
  *
  * A dry run is NOT a refusal — it is what was asked for, so it stays 0. Only the path where sen/
  * exists and --wipe-sen was withheld exits 3. */

@@ -258,8 +258,10 @@ ok("the refusal happens at PLAN time, before any removal is attempted", () => {
    * difference on a one-file tree. The stack names the frame. */
   const { src, cor } = makeTwoRoots({ nested: true });
   const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
-  assert.match(r.out, /at plan \(/, `the refusal did not come from plan():\n${r.out}`);
+  assert.match(r.out, /refused at plan time, before any removal/,
+    `the refusal did not report itself as plan-time:\n${r.out}`);
   assert.doesNotMatch(r.out, /^removed/m, "something was reported removed before the refusal");
+  assert.doesNotMatch(r.out, /PARTIALLY wiped/, "the tool believes it had already deleted something");
 });
 
 ok("CONTROL: with the roots DISJOINT the same wipe proceeds, and SOURCE is untouched", () => {
@@ -273,19 +275,35 @@ ok("CONTROL: with the roots DISJOINT the same wipe proceeds, and SOURCE is untou
   assert.ok(fs.existsSync(path.join(cor, "sen/catalog/word-names.json")), "the authored names must survive");
 });
 
-ok("NOTED, NOT FIXED: the SOURCE refusal exits 1 with a stack, where a decline exits 3", () => {
-  /* This file's header states the convention: "It exits 3 on a decline, which is not a crash."
-   * The SOURCE guard throws instead, so the tool's MOST safety-critical refusal is the one a caller
-   * distinguishing decline-from-crash will misclassify. The message itself is good and the refusal
-   * is correct — this is presentation, not safety, which is why it is pinned rather than changed:
-   * altering the exit code of the one destructive tool in the tree belongs to whoever owns the
-   * decline convention, not to a passing lane at night.
+ok("a SOURCE refusal exits 3 like every other decline — not 1 with a stack", () => {
+  /* FIXED 2026-09-01. This case was written the night before as "NOTED, NOT FIXED", pinning
+   * `code === 1` so that whoever fixed it would have to update this deliberately rather than
+   * silently. That is what happened; this is the same property, now asserting the fixed side.
    *
-   * Pinned so the day it IS fixed, this assertion fails and gets updated deliberately (R-TEST-4). */
+   * The inconsistency: the flip gate a few lines below the guard is an equally un-releasable
+   * refusal and it printed prose and exited 3, while the SOURCE guard — the most safety-critical
+   * refusal this tool has — exited 1 with an uncaught stack. Same event, two presentations, and
+   * any caller separating "declined, nothing deleted" from "the cleaner broke" got the wrong
+   * answer for the wrong one.
+   *
+   * sdd-clean.js's own exit-code comment had classified these four guards as "1 = error (the hard
+   * refusals above throw)", so this was a documented decision being reversed, not an oversight
+   * being swept up. The record of what it used to say is kept in that comment. */
   const { src, cor } = makeTwoRoots({ nested: true });
   const r = runRoots(src, cor, ["--wipe-sen", "--go"]);
-  assert.strictEqual(r.code, 1, "if this now exits 3, the inconsistency was fixed — update this case and delete the note");
-  assert.match(r.out, /Error: sdd-clean: REFUSING/, "still an uncaught throw rather than a formatted decline");
+  assert.strictEqual(r.code, 3, `a decline must exit 3, not ${r.code}:\n${r.out}`);
+  assert.doesNotMatch(r.out, /^\s+at [\w.]+ \(/m, `a decline must not present as a stack trace:\n${r.out}`);
+  assert.doesNotMatch(r.out, /^Error: /m, "still formatted as an uncaught Error");
+});
+
+ok("...but a GENUINE fault still exits 1 WITH its stack — the narrowing is real", () => {
+  /* Without this, "make declines exit 3" is indistinguishable from "swallow every error and exit
+   * 3", which would hide real breakage in the one tool that deletes things. A corpus that does not
+   * exist is a fault, not a decline: nothing declined it, the tool could not run. */
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-clean-fault-"));
+  const r = runRoots(base, path.join(base, "no-such-corpus"), ["--wipe-sen", "--go"]);
+  assert.notStrictEqual(r.code, 3, `a missing corpus is not a decline, but it exited 3:\n${r.out}`);
+  assert.strictEqual(r.code, 1, `a fault must exit 1, got ${r.code}:\n${r.out}`);
 });
 
 console.log(`\n${pass} assertions passed`);
