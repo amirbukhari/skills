@@ -5674,3 +5674,37 @@ close it, and neither is git:
   change the rendered English at essentially every emitted span — but rendering was not asked for,
   it is expensive, and the `.en` on disk is a shared artifact other lanes are measuring against.
   `npm run render` is the command; bytes are unaffected either way.
+
+### The render after the apply — clean, and my prediction of its effect was wrong (2026-09-02)
+
+`npm run render` exit **0**: 1037/1037 `.en` written, **1037/1037 `.en` → `.ts` byte-identical (ALL
+PASS)**, English coverage 100%, review surface 1,582 top / 19,776 whole-tree, one-word 1030/1037 —
+every index number identical to before, and the `en-index` fingerprint unchanged
+(`b4073525fc3e23ac`), which is consistent with names being labels only.
+
+**CORRECTION.** Before the render I wrote that chunk names "outrank member composition (R-LANG-19),
+so these 3,566 names change the rendered English at essentially every emitted span". **That was
+wrong, and I got it from the register's summary line instead of the code.** `engine/enfile.js:1043`
+records R-LANG-19 **as amended 2026-09-01**: the original rule was implemented as
+`if (whole) return whole`, one hole-free string standing in for every clause the rules had filled
+with the code's own identifiers — measured blast radius ~23,000 identifiers — so it was changed to a
+**heading over** the content, `whole + ": " + out`, purely additive. A chunk name can now only make
+a label say *more*. Nothing is replaced, which is why the prose reads as it did.
+
+**And the reach is far smaller than 3,566, measured after the render:**
+
+| measured | value |
+|---|---|
+| confident names surfacing as a heading in the `.en` tree | **177 of 3,566** (~839 occurrences) |
+| atomic payload spans in the `.en` tree | 9,617, referencing **4,565 distinct words** |
+| those spans whose word has an applied chunk name | **272 (2.8%)**, across **83 distinct words** |
+
+The cause is a population mismatch, not a bug: the worksheet is built from a **flat** `EL.genSpans`
+pass over top-level emitted words (3,588 distinct, 5,731 spans), while the renderer emits a
+**nested** tree (9,617 atomic + 9,611 structural). Only 83 words are in both sets. So naming the
+worksheet's words names things the renderer mostly does not emit as payload-bearing spans. **Closing
+that would mean generating the worksheet from the renderer's own span population** — not applying
+more of this one. Not done, not assumed: it is a design question for Amir.
+
+The file catted earlier (`sen/files/src/hydra-api/redisJobs.ts.en`, 4,064 bytes) is byte-identical
+after the render. That is the expected outcome of the above, not a failed apply.
