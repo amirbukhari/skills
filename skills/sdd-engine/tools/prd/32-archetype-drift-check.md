@@ -98,11 +98,30 @@ skeleton*. Only the first is about *a file versus its architecture*, and only th
 ## 6. Known gaps — stated, not hidden
 
 - **The archetype artifacts are outside the §8B contract.** `build-archetypes.js` writes
-  `catalog/archetypes.json` and `catalog/archetype-index.json` with hand-written `schema` strings
-  and no `fingerprint`, and neither kind is in the registry — so `AC.validate` can never run on
-  them. This is the shape §8B exists to prevent, and it is the same one found in three other
-  producers on 2026-08-31. Registering them is queued, not done.
-- **The check has not been run against the current corpus.** Measured 2026-09-01:
-  `catalog/archetypes.json` and `catalog/archetype-index.json` are **absent**. Every figure this
-  section could quote would therefore be from a corpus nobody can reproduce, so **no figures are
-  quoted** — per §7, run `node build-archetypes.js` for current values.
+  `<CORPUS>/catalog/archetypes.json` (line 111) and `<CORPUS>/archetype-index.json` (line 132 — the
+  corpus **ROOT**, no `catalog/` prefix) with hand-written `schema` strings and no `fingerprint`, and
+  neither kind is in the registry — so `AC.validate` can never run on them. This is the shape §8B
+  exists to prevent, and it is the same one found in three other producers on 2026-08-31.
+  Registering them is queued, not done — and it is **not** a stamp swap: every registered kind
+  resolves into `AC.HOMES`, so registration would move the index off the corpus root and break both
+  `package-hydra-source.js:205` and the out-of-tree dashboard consumer that reads it there.
+
+  *(This bullet said `catalog/archetype-index.json` until 2026-09-02. It never lived there. The
+  stale path cost a real diagnosis: an error naming `<CORPUS>/archetype-index.json` was read as a
+  consumer looking in the wrong place, when the consumer was right and this sentence was wrong.)*
+- **~~The check has not been run against the current corpus.~~ RUN 2026-09-02.** It was true on
+  2026-09-01, when `catalog/archetypes.json` and the root `archetype-index.json` were both **absent**
+  and no figure here could have been reproduced. `node build-archetypes.js` then
+  `node engine/sdd.js check <CORPUS>`, both roots self-hosting, now give: 1038 files, 17 archetypes,
+  16 named (>=3) covering 99.8%; **140 generative** (Entity 64, RouterModule 35, ReduxModule 36,
+  DtoBuilder 5) and 898 descriptive; **118 of 140 conform, 22 drifted**, and — the second number,
+  kept apart per §2 — **140 of 140 tile byte-identical**, so every non-conformer is *drifted, not
+  broken*. Per archetype: Entity 58/64, RouterModule 23/35, ReduxModule 34/36, DtoBuilder 3/5.
+  16 of the 22 are residual `VariableStatement(const/let)` (12 of those routers).
+
+  Two denominators here do not match, and neither one is wrong: `check()` reports **scanned 943**
+  because `engine/sdd.js:82` narrows to `<projectDir>/src`, while `build-archetypes.js` walks all
+  1038. The generative totals agree exactly, which is the measurement that says **all 140 generative
+  files live under `src/`** — so the roll-up above is unaffected. The three gaps named in §3 are
+  still open: `check()` aggregates no per-archetype breakdown, no byte-identical count (the 140/140
+  above comes from `build-archetypes.js`, not from `check`), and no worst-first ordering.
