@@ -85,7 +85,10 @@ const MUTE_CEILING = 2362;
 
 /* KNOWN OVER-COUNT IN THIS METRIC, MEASURED AND DELIBERATELY NOT CORRECTED.
  * `generic` asks whether a clause quotes a token that appears LITERALLY in the statement's text.
- * Two truthful clause shapes fail that test and are scored mute anyway. Of the 2,330 generic:
+ * Two truthful clause shapes fail that test and are scored mute anyway. Of the 2,293 generic
+ * (this breakdown was measured at the 2,410 ceiling and is carried forward with the counts it was
+ * measured with -- the SHAPES did not change when b571e4d moved the ceiling to 2,362, only the
+ * remainder did; the fractions are marked approximate rather than silently rescaled):
  *
  *   934  the clause carries an ellipsis and its LITERAL FRAGMENTS do appear in the source --
  *        `throw “Invalid data: … must be a number, numeric string, or null”` against
@@ -95,8 +98,7 @@ const MUTE_CEILING = 2362;
  *        "return an empty list", "return". These are maximal descriptions of their statements.
  *  1,071  the remainder, which genuinely says nothing.
  *
- * SO THE TRUE MUTE COUNT IS NEARER 1,151 (1,071 + 80 vacuous) THAN 2,410, AND THE CEILING STAYS
- * 2,410 ANYWAY. Amir, 2026-09-03: "If you ever find yourself editing the definition of mute in the
+ * SO THE TRUE MUTE COUNT IS NEARER ~1,100 THAN 2,362, AND THE CEILING STAYS 2,362 ANYWAY. Amir, 2026-09-03: "If you ever find yourself editing the definition of mute in the
  * same commit as a drop in mutes, stop and tell me." That is exactly the situation -- the template
  * production landed and the metric could not see it -- so the definition is untouched, the
  * discrepancy is measured and written down, and the ruling is his. Adjusting the rule that scores a

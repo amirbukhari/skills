@@ -535,3 +535,84 @@ R-ARCH-9..12 and R-ARCH-17 land when the remaining mechanics settle:
 - **R-MINE-7** — **amended and applied** (§6): refuse an opaque whole-run word; require a
   compositional one.
 - **R-ARCH-15 / R-ARCH-16 / R-LANG-12..14** — in the register already.
+
+---
+
+## R-ARCH-16B — MUTE STATEMENTS, the second metric (2026-09-03)
+
+**Amir's ruling, verbatim:** *"Do NOT redefine `reviewSurface`. It stays exactly as it is,
+unedited. Add a SECOND metric alongside it, never replacing it."* And: *"Report both numbers with
+every kind you finish, side by side, with the old one first."*
+
+**Why two numbers and not one.** `reviewSurface = genSpans + (bodyStatements − collapsed)` counts
+**collapse into words**. It is structurally blind to what a clause *says*: a statement rendered
+*"expect `result.success` to be true"* counts exactly 1, the same as one rendered *"call to be"*.
+So **productions cannot move it on any corpus** — which was discovered by landing a production and
+watching the number not move. The brief was *"statements a human must still read as CODE"*, and
+nobody reads that first clause as code. **The proxy and the definition had come apart.**
+
+The fix is to measure **both**. Replacing `reviewSurface` would lose the only number that cannot be
+talked up by better prose — which is precisely its value on a night spent improving prose.
+
+| metric | counts | moved by |
+|---|---|---|
+| **REVIEW SURFACE** (R-ARCH-16) | statements not collapsed into a word | mining, nesting, scheduling |
+| **MUTE** (R-ARCH-16B) | statements collapsed but still **saying nothing true** | productions |
+
+**Definition — frozen, and adversarially applied.** `MUTE = generic + vacuous`, both read from the
+existing producers, neither redefined here:
+
+- **vacuous** — the clause is in `clause-quality.js`'s frozen `VACUOUS` set.
+- **generic** — the clause quotes nothing (`` ` `` or `"…"`) that appears literally in the
+  statement's own text.
+
+**Narrowing either definition to make this number fall is forbidden.** Amir, 2026-09-03: *"If you
+ever find yourself editing the definition of mute in the same commit as a drop in mutes, stop and
+tell me."* That situation arose the same night — see the known over-count below — and the definition
+was left untouched.
+
+### The baseline, computed retroactively
+
+Amir's hard condition: *"Compute its BASELINE retroactively, at the commit before tonight's
+productions work... Its first published value must not be the post-improvement one. A metric
+introduced at its own best moment is a cooked number even when every individual figure in it is
+true."*
+
+Measured by checking historical renderers out into a **scratch copy** and running today's harness
+against them:
+
+| MUTE | at |
+|---|---|
+| **4,646** | `2d83452` (2026-09-02) through `3a3fc7f` — stable across every commit in between |
+| **3,245** | `8240298`, after the spec-dialect productions |
+| **2,746** | after the return-call production |
+| **2,410** | after the Try/Throw/loop productions (`c4afe90`) |
+| **2,362** | after the guard predicate (`b571e4d`) — **current**, 2,293 generic + 69 vacuous of 33,918 |
+
+**HONEST LIMIT, stated rather than buried.** The series cannot be carried back past `2d83452`.
+Older renderers predate `spanActions` in its current shape, and today's harness reads **0 clauses
+for all 33,918 statements** against them. That is a **harness incompatibility, not a reading of
+33,918 mutes**, and publishing it as an origin would flatter this metric enormously. The series
+starts where it can honestly be measured.
+
+### The known over-count, measured and deliberately NOT corrected
+
+`generic` asks whether a clause quotes a token appearing **literally** in the statement text. Two
+truthful clause shapes fail that test and are scored mute anyway. Of the 2,293 generic:
+
+- **~934** — the clause carries an ellipsis and its literal fragments *do* appear in the source:
+  ``throw "Invalid data: … must be a number, numeric string, or null"`` against
+  ``throw new Error(`Invalid data: ${v} must be a number, numeric string, or null`)``. Fully
+  informative; the substring test cannot match across the hole.
+- **~325** — a complete literal return with no identifier available to quote: *"return false"*,
+  *"return an empty list"*, *"return"*. Maximal descriptions of their statements.
+- **the remainder** — genuinely says nothing.
+
+**So the true mute count is nearer ~1,100 than 2,362, and the published number stays 2,362 anyway.**
+Adjusting the rule that scores a number in the same breath as improving the number is how a metric
+stops meaning anything, even when every individual figure in it is true. The discrepancy is
+measured and written down; the ruling on whether to change the definition is Amir's, in a separate
+pass from any drop it would cause.
+
+**Guard:** `engine/review-surface-ratchet.test.js` carries `MUTE_CEILING` beside the two review-surface
+ceilings and prints all three together, surface first, per the ruling.
