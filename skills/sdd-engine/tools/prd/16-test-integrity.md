@@ -389,3 +389,76 @@ It is the only instance of the shape identified this session that **predates the
 the reason to expect more of them in the older layers rather than fewer. Any claim of the form
 "these N bytes carry zero constructs" must keep its denominator visible — *whitespace-only in 1,809
 of 1,822*, never *"whitespace"*.
+
+## THE TEST YOU WOULD CITE IS NOT ALWAYS THE TEST THAT WOULD CATCH IT (2026-09-03)
+
+**Third occurrence of the currency-vs-consistency split, on the same pair of tests.** The first two
+were the 405-vs-438 gap (`SDD_DERIVE_CHECK`'s internal-consistency question read as
+`en-idempotence`'s currency question) and the 33 `consistent ∧ ¬current` files. This one arrived as a
+challenge to a report, and the challenge was right for the wrong reason.
+
+**The question asked:** *"Did the byte-identity assertion run AFTER the render, not just
+'throughout'?"* — hunting a missing after-assertion.
+
+**The answer:** it had run. `round-trip-fixpoint` was 5/5 before *and* after, 1037/1037 both cells.
+
+**The actual weakness, which the question would not have found:** `round-trip-fixpoint`
+**never opens a persisted `.en`**. Both of its cells render fresh from `.ts`:
+
+```js
+en1 = EN.renderFileEn(source, index).en;   /* ts -> en */
+ts1 = EN.compileFileEn(en1, index);        /* en -> ts */
+en2 = EN.renderFileEn(ts1, index).en;      /* ts -> en again */
+if (ts1 === source) tsFix++;
+if (en2 === en1) enFix++;                  /* two FRESH renders compared to each other */
+```
+
+So a render that wrote **corrupt bytes to disk** would leave this test green in both cells, before
+and after, because the bytes it writes are never read back. The test is correctly scoped and its own
+header says so — currency against disk belongs to `en-idempotence.test.js` HALF 1 — but *its name is
+the one a reader reaches for* when asked "is the corpus byte-identical?", and its label ("`en -> ts
+-> en` is the identity on every file in the corpus") does nothing to stop them.
+
+**What actually covers the on-disk claim** is two other things: `en-idempotence` HALF 1 (the persisted
+`.en` *is* what a fresh render produces) and `write-en-files.js`'s own pre-write gate (each `.en`
+verified `.en -> .ts` byte-identical *before* it is written). Both were green. A third check was run
+directly to close it — compile every persisted `.en` from disk and compare to source: **1037/1037,
+0 wrong bytes, 0 refused.**
+
+**The rule.** When asserting a property of an artifact on disk, cite the test that *opens the
+artifact*, not the test whose name matches the property. A test's name describes what it is about; it
+does not describe what it reads. And the corollary for reviewers: *"did the assertion run after?"* is
+a weaker question than *"which file does that assertion open?"* — the first can be satisfied by a
+test that could never fail.
+
+## THE GOAL METRIC'S OWN DENOMINATOR OMITTED 24% OF THE CODE (2026-09-03)
+
+`the-goal.test.js` printed **"1035 of 1035 non-empty files"**, and that was relayed upward as
+complete coverage of the corpus. It is complete coverage of the files that were **rendered**.
+`write-en-files.js` walks `p.endsWith(".ts") && !p.endsWith(".d.ts")` — so it takes `.ts` and **not
+`.tsx`** — and the source tree holds **332 `.tsx` files** (the `hydra-ui` React components) that are
+never rendered, never compiled and never measured.
+
+*"No TypeScript survives on any page"* was therefore being asserted over a population that silently
+excluded ~24% of the TypeScript in the tree. **This is class 7 — a summary that structurally cannot
+report the bad case — committed inside the goal artifact itself**, which is the one artifact written
+specifically so that no metric could stand in for the goal again.
+
+**Fixed in the report only.** The test now prints the excluded count and its extension, inline and on
+its own line, and the failure message reads *"of 1035 non-empty RENDERED files; 332 source files are
+outside this metric"*. The strip list, the assertions and the constructs count are untouched — the
+change can only ever make the artifact read worse and more honest.
+
+Two deliberate choices in that fix:
+
+- **The count is computed, never pinned.** Printing the literal `332` would be shorter and would go
+  stale silently while reading green — the exact defect this section keeps finding. It is derived
+  from both trees on every run.
+- **A plain `.ts` with no `.en` is counted separately and shouted**, because that would be a
+  *rendering gap* rather than a scope boundary. Measured **0** today. Conflating the two would put a
+  real gap and an intended exclusion under one name, which is class 6.
+
+**Whether `.tsx` should be rendered is not decided here** and is held open for Amir. The scope call is
+probably deliberate — the mandate is engine-only and these are React components — but *probably right
+and written down nowhere* is what the exclusion had been resting on, and the metric implied the
+question was already answered.

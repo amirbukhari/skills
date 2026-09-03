@@ -125,6 +125,48 @@ if (!fs.existsSync(EN_DIR)) {
 }
 const files = walk(EN_DIR);
 
+/* THE DENOMINATOR, AND WHY IT IS PRINTED RATHER THAN ASSUMED (2026-09-03).
+ *
+ * This test read "1035 of 1035 non-empty files" and that was quoted upward as complete coverage of
+ * the corpus. It is complete coverage of the files that were RENDERED. `write-en-files.js` walks
+ * `p.endsWith(".ts") && !p.endsWith(".d.ts")`, so it takes `.ts` and NOT `.tsx` — and the source
+ * tree holds 332 `.tsx` files (the hydra-ui React components) which are never rendered, never
+ * compiled, never measured, and therefore cannot appear in this number.
+ *
+ * So "no TypeScript survives on any page" was being asserted over a population that silently omits
+ * ~24% of the TypeScript in the tree. That is §16's class 7 — a summary that structurally cannot
+ * report the bad case — committed in the goal artifact itself.
+ *
+ * WHAT THIS DOES AND DOES NOT CHANGE. It changes the REPORT only. The strip list, the assertions
+ * and the constructs count are untouched; this can only ever make the artifact read worse and more
+ * honest, which is the direction the frozen-strip rule runs in.
+ *
+ * COMPUTED, NEVER PINNED. It would be shorter to print the literal 332. A pinned number goes stale
+ * silently and reads green while doing it, which is the defect this session kept finding; the count
+ * is derived from the trees on every run so it cannot drift from them.
+ *
+ * A PLAIN `.ts` WITH NO `.en` WOULD BE A DIFFERENT THING ENTIRELY — a rendering gap rather than a
+ * scope boundary — so the two are counted separately and the gap is shouted. Measured 0 today.
+ * Whether `.tsx` SHOULD be rendered is a scope question for Amir and is deliberately not decided
+ * here; this only refuses to let the metric imply it was already answered. */
+const SRC_DIR = CR.sourceRoot();
+const srcWalk = (d, o = []) => {
+  if (!fs.existsSync(d)) return o;
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) srcWalk(p, o); else if (/\.tsx?$/.test(p) && !p.endsWith(".d.ts")) o.push(p);
+  }
+  return o;
+};
+const unrendered = { tsx: 0, ts: 0 };
+for (const abs of srcWalk(SRC_DIR)) {
+  const rel = path.relative(SRC_DIR, abs);
+  if (fs.existsSync(path.join(EN_DIR, rel + ".en"))) continue;
+  if (rel.endsWith(".tsx")) unrendered.tsx++; else unrendered.ts++;
+}
+const outsideMetric = unrendered.tsx + unrendered.ts;
+
 /** strip(text) -> the reading surface, with the by-design-verbatim regions removed. */
 function strip(text) {
   let out = text;
@@ -168,9 +210,19 @@ const clean = files.length - empty - dirty;
 console.log("\n  THE GOAL — surviving TypeScript on the reading surface");
 console.log("    strip list fingerprint ...... " + STRIP_FINGERPRINT + "   (frozen; a drop in the count"
   + " alongside a change here is not a real drop)");
-console.log("    .en files read .............. " + files.length);
+console.log("    .en files read .............. " + files.length
+  + (outsideMetric ? "   (+" + outsideMetric + " source files NOT rendered, outside the metric)" : ""));
+/* Spelled out on its own line as well as inline, because the inline parenthetical is the part a
+ * reader skips and this is the number that made the headline misleading. */
+if (unrendered.tsx) console.log("    .tsx not rendered ........... " + unrendered.tsx
+  + "   <- OUTSIDE this metric entirely: never rendered, never compiled, never measured."
+  + "\n                                     `write-en-files.js` takes .ts and not .tsx. Whether it"
+  + "\n                                     SHOULD is an open scope question, not a result.");
+if (unrendered.ts) console.error("    PLAIN .ts NOT RENDERED ...... " + unrendered.ts
+  + "   <- A RENDERING GAP, not a scope boundary. This is a finding.");
 console.log("    empty (no statements) ....... " + empty + "   <- NOT an existence proof; excluded below");
-console.log("    NON-EMPTY, FULLY CLEAN ...... " + clean + " of " + (files.length - empty));
+console.log("    NON-EMPTY, FULLY CLEAN ...... " + clean + " of " + (files.length - empty)
+  + "   (of RENDERED files; see the .tsx line above)");
 console.log("    with residue ................ " + dirty);
 console.log("    SURVIVING CONSTRUCTS ........ " + totalConstructs);
 console.log("\n    by kind:");
@@ -186,7 +238,9 @@ for (const f of perFile.slice(0, 10)) {
 
 ok(totalConstructs === 0,
   "no TypeScript survives the frozen strip on any .en"
-  + "  (got " + totalConstructs + " constructs across " + dirty + " of " + (files.length - empty) + " non-empty files)");
+  + "  (got " + totalConstructs + " constructs across " + dirty + " of " + (files.length - empty)
+  + " non-empty RENDERED files"
+  + (outsideMetric ? "; " + outsideMetric + " source files are outside this metric" : "") + ")");
 
 /* THE NAMED FILE. Amir read this one and rejected the result on it, so it is asserted BY NAME and
  * not merely as one row in a corpus total. A corpus number can improve while the file a human
