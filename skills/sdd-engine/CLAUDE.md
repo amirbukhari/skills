@@ -254,6 +254,18 @@ This gap was silently forgotten once already.
         the pre-commit blob, so `git status` reads `MM` and the next lane is one `git commit` away
         from reverting you. *Measured 2026-09-01* — observed immediately after the private-index
         commit above, and it is the same stale-index trap that caused two of the three sweeps.
+      - **`unset GIT_INDEX_FILE` FIRST — otherwise this required step SILENTLY NO-OPS.** *Measured
+        2026-09-03, and it is the mechanism behind the `MM` states blamed all night on peer
+        activity.* If the `git add` runs in the same shell that still exports `GIT_INDEX_FILE`, it
+        settles the **private** index — the one you are about to throw away — and leaves the shared
+        index holding the pre-commit blob. That is **exactly the `MM` state the step exists to
+        clear**, so the symptom is identical to having skipped it, while the transcript shows the
+        step was run. The content was committed correctly every time; only the index was stale.
+        **A required step that silently no-ops is worse than a missing one, because the recipe was
+        followed and the check appeared to pass** — the same defect as a guard that cannot fire
+        (§3), now in a *remedy* rather than a detector. Run the `git add` in a FRESH shell, or
+        `unset GIT_INDEX_FILE` before it, and confirm with `git status` that the paths are gone
+        from the list rather than assuming the command did anything.
     - **THE DETECTOR MATTERS MORE THAN THE TECHNIQUE, and it runs AFTER the commit.** All three
       sweeps were caught by `git show --stat HEAD`, none by any pre-commit check — because a
       pre-commit check asks what the commit *contains*, and this failure is what it **drops**. So
@@ -280,6 +292,14 @@ This gap was silently forgotten once already.
         are right, nothing of theirs was carried away. The sweep detector passes, because this is
         not a sweep. It is the same hazard **running backwards**.
       - `git status` reads `M ` or `MM` and looks exactly like ordinary peer activity.
+      - **AND ITS COMMONEST CAUSE IS NOT THIS AT ALL — check the no-op first.** Before concluding a
+        peer stranded you, confirm your own `git add` actually ran against the SHARED index: a still-
+        exported `GIT_INDEX_FILE` makes it a no-op with an identical symptom (see the `unset` bullet
+        above). *2026-09-03* — an `MM` state was reported to Amir as an urgent risk that a peer's
+        uncommitted work was one command from loss; the work was already committed and pushed, and
+        the real cause was the exported variable. **The alarm was relayed onward before it was
+        verified, which cost more than the bug would have.** Diagnose the cheap local cause before
+        escalating a shared-state one.
     - **THE DETECTOR IS THE SWEEP GREP RUN THE OTHER WAY ROUND** — grep for **your own** marker, and
       compare **worktree against HEAD**, not commit against peer:
 
