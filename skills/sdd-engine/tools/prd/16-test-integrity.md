@@ -752,3 +752,54 @@ and escalated rather than clearing it. **But a recipe whose normal operation man
 signature of the thing the rules forbid will burn that vigilance down.** The fix is the recipe's
 documentation, not the vigilance: **a new file needs its `git add` on the real index, and until it
 gets one it will look like you deleted someone's work.**
+
+## AGREEMENT IS NOT VERIFICATION (2026-09-03)
+
+**The failure mode that survives *precisely because* we built the two-lane cross-check.** Filed as
+the sibling of the fourth fence, and it is the rarer of the two.
+
+Two independent lanes priced the `args` front and agreed **to the unit**: 10,651 holes, **22,328
+constructs**. Different code, different session, different derivation. That agreement is the
+strongest signal this project has, and it was **wrong** — 22,328 is the price of *decoded raw hole
+text*, and the goal metric counts the page. The page figure is 18,337.
+
+**The agreement was not weak evidence that happened to fail. It was strong evidence pointing the
+wrong way, for a reason the cross-check cannot see: both lanes called the same helper.**
+`payload.decode()` hands back raw hole text, so **raw is what you get by default** and the page form
+requires deliberately *not* decoding. Two lanes sharing a library share its defaults. **A cross-check
+verifies independence of derivation; it cannot verify independence of population.**
+
+**THE RULE.** When two lanes agree, ask **"are we measuring the same thing, or measuring it the same
+wrong way?"** Agreement raises confidence in the *arithmetic* and says nothing about the *population*.
+The check that works is not another lane — it is **re-deriving the number through a different
+entry point** and seeing whether it still agrees.
+
+**And it recurred immediately, three more times, which is what makes it a rule.**
+
+1. The lane that caught the `args` double-count committed the identical error **one paragraph below
+   catching it**: publishing `obj`/`arr` at **25,814**, which is the raw column, crediting none of the
+   2,042 holes tier 1 had already re-written in English. *Actively looking for this exact error was
+   not sufficient to avoid it*, because the default is raw.
+2. The lane that caught **that** had lifted 22,328 out of the other lane's decoded-raw table **in the
+   same message in which it warned against summing the two populations** — and used it to recommend
+   the target. The recommendation survived only because a type it had *not* recommended (`expr`) was
+   larger on the corrected figure. **The redirect was right for a reason its own argument did not
+   contain.**
+3. Then **both** lanes' "page" figures turned out not to be the page either: the goal test applies
+   the **frozen strip** and *then* counts, and neither page column applied it. Three populations —
+   raw 93,299, field-as-written 73,456, **after-strip 66,982** — and only the last is credited. The
+   strip halves `arr` (6,717 → 3,319), so the overstatement is **type-dependent and unestimable**,
+   from 0.02% on `fn` to 51% on `arr`.
+
+**The compound lesson, which is bigger than any of the three:** *"price what the page carries"* was
+the corrective instruction issued after error 1, and it was **not specific enough to prevent error
+3**, because "the page" had three defensible readings and every lane picked a different one while
+believing it was complying. **A corrective instruction that names a property rather than a procedure
+will be followed and still miss.** The procedure, stated so it cannot be read three ways: *walk the
+payload's fields as written, never decoded; apply the frozen strip; then count with the goal test's
+own CONSTRUCTS table.* That is now the only sanctioned pricing path, and any figure not produced by
+it is to be labelled with which of the three populations it belongs to.
+
+**The connection to `A LABEL OVER A MEASUREMENT`:** "the page" was a **label**, and three different
+measurements answered to it. The defect is the same one, arrived at from the reporting side rather
+than the naming side.

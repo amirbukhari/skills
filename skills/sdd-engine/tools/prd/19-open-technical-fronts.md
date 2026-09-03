@@ -273,8 +273,52 @@ English, which is what produced the 18,337.
 | `gap` | 81,390 | 87 |
 | `id` / `mod` / `num` | 40,033 | **0** |
 
-Note that `expr` at 20,035 outprices `args` at 18,337 on the page while carrying **a quarter** of the
+~~Note that `expr` at 20,035 outprices `args` at 18,337 on the page while carrying **a quarter** of the
 holes — and `obj`/`arr` still carry 25,814 between them *after* tier 1, which says the object work
-reached the wrappers and not the nested content. **Byte mass was the wrong targeting metric (§16);
-hole count is the wrong one too. Constructs-on-the-page is the metric, and it is the only one the
-goal test will credit.**
+reached the wrappers and not the nested content.~~ **Byte mass was the wrong targeting metric (§16);
+hole count is the wrong one too.**
+
+**REFUTED IN PLACE, SAME DAY, AND TWICE OVER — BY ME, IN THE MESSAGE THAT CORRECTED THE FIRST ONE.**
+
+**Error 1: `obj`/`arr` = 25,814 is the RAW column.** 17,291 + 8,523 is decoded hole text. It credits
+none of the 2,042 holes tier 1 already re-wrote in English. **One paragraph below catching exactly
+that double-count on `args`, I committed it on `obj`/`arr`.** The peer lane caught it independently
+and it is the strongest possible evidence for the rule, because I was *actively looking for this
+error* and it still got through. The mechanism is that **raw is the default** — `payload.decode`
+hands you raw text, and the page form requires deliberately *not* decoding.
+
+**Error 2, and both lanes made it: "the page" is not the payload field text either.** The goal test
+applies the **frozen strip** and *then* counts. Neither lane's page column applied it. So there are
+**three** populations, not two:
+
+| type | holes | RAW (decoded) | PAGE (field as written) | **AFTER THE FROZEN STRIP** |
+|---|---|---|---|---|
+| `expr` | 2,993 | 20,035 | 20,035 | **19,998** |
+| `args` | 10,651 | 22,328 | 18,337 | **16,758** |
+| `obj` | 2,031 | 17,291 | 11,959 | **10,587** |
+| `chain` | 1,864 | 7,162 | 7,162 | **7,148** |
+| `fn` | 606 | 5,169 | 5,169 | **5,168** |
+| `arr` | 637 | 8,523 | 6,717 | **3,319** |
+| `str` | 7,906 | 10,248 | 3,042 | **2,975** |
+| `type` | 1,436 | 783 | 779 | **779** |
+| `body` | 34 | 133 | 133 | **133** |
+| `gap` | 81,390 | 87 | 87 | **87** |
+| `bind` | 732 | 1,540 | 36 | **30** |
+| **TOTAL** | | **93,299** | **73,456** | **66,982** |
+
+**Only the last column is the one the goal test credits.** The strip is not a rounding correction:
+it halves `arr` (6,717 → 3,319) because `renderData` emits property values as backtick holes and the
+strip removes a backtick hole whose content is *word-like*. Any target priced without it is
+overstated by however much of its content happens to be word-like — which varies by type from
+0.02% (`fn`) to 51% (`arr`) and **cannot be estimated, only measured.**
+
+**So the `obj`/`arr` front is 13,906, not 25,814 and not 18,676** — 46% of the figure it was first
+published at. The ordering the goal metric actually credits:
+
+`expr` 19,998 · `args` 16,758 · `obj` 10,587 · `chain` 7,148 *(parked)* · `fn` 5,168 · `arr` 3,319 ·
+`str` 2,975
+
+`str` is close to spent: 7,209 of 7,906 holes are already English and 2,975 constructs remain, so the
+residue is far smaller than the 28,911 → 14,251 headline suggests. **Constructs-after-the-strip is
+the metric. It is the only one the goal test will credit, and it is the third definition of "the
+page" this document has published in two days.**
