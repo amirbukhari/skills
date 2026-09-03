@@ -21,6 +21,7 @@
 const fs = require("fs");
 const path = require("path");
 const AC = require("./artifact-contract");
+const CANON = require("./canon-fingerprint");
 const ts = require("typescript");
 const cnl = require("./cnl");
 const DATA = require("./data-english");
@@ -145,8 +146,53 @@ function loadIndex(corpusRoot) {
     idx._lzw = null;
   } else {
     idx._lzw = EL.loadLzw(lzwPath); // throws ArtifactContractError on drift — deliberately uncaught
+    checkCanon(idx._lzw, lzwPath);
   }
   return idx;
+}
+
+/* THE CANON GATE (§8B). A dictionary keyed by skeletons is only usable by a canon that produces the
+ * same skeletons. Nothing checked this until 2026-09-03, and the gap is not theoretical: SDD_BODY_SLOT
+ * shipped default-on in 2d83452 over a catalog mined before it, and the corpus rendered at 3,527
+ * top / 23,935 tree against a 1,582 / 20,999 baseline for a day with every check green — because a
+ * missed lookup falls through to the verbatim path, so BYTE-IDENTITY, the floor we assert first,
+ * cannot see it. Neither can an mtime staleness edge: no artifact moved, the CODE moved underneath
+ * one whose mtime is honestly unchanged.
+ *
+ * ABSENT IS A STATE, NOT A BUG (§8B, no silent fallback in either direction). Every catalog mined
+ * before this field existed lacks it, and refusing those would brick the corpus to install a guard.
+ * Absent warns, loudly, once per path, and names the fix. PRESENT-AND-DIFFERENT is a bug and throws:
+ * at that point we KNOW the skeletons disagree, and rendering on would silently produce a degraded
+ * corpus rather than a broken one — which is the harder failure to notice and the one that already
+ * happened. SDD_CANON_CHECK=0 escapes it for a deliberate side-by-side measurement.
+ *
+ * MINING PARAMETERS ARE NOT CANON and must not trip this. §10 (10-language-and-grammar.md:42): names
+ * key on the canonical skeleton and never on the word id, so "retuning MAXWIN, MIN_COUNT or MIN_SKEL
+ * cannot orphan a name". The fingerprint is behavioural — it hashes what the canon PRODUCES for a
+ * frozen probe set — so those dials leave it unchanged, verified in engine/canon-fingerprint.test.js. */
+const canonWarned = new Set();
+function checkCanon(lzw, lzwPath) {
+  if (process.env.SDD_CANON_CHECK === "0" || !lzw) return;
+  const stored = lzw.canonFingerprint;
+  if (!stored) {
+    if (!canonWarned.has(lzwPath)) {
+      canonWarned.add(lzwPath);
+      console.error("[enfile] catalog records NO canonFingerprint: " + lzwPath
+        + "\n  It was mined before the canon gate existed, so whether its skeletons match this code is UNKNOWN."
+        + "\n  Re-mine (node build-lzw-generators.js) to record one. Rendering continues.");
+    }
+    return;
+  }
+  const live = CANON.fingerprint();
+  if (stored === live) return;
+  throw new Error("CANON MISMATCH — refusing to render against a dictionary keyed by a different canon."
+    + "\n  catalog " + lzwPath
+    + "\n  mined under canon " + stored
+    + "\n  this process is canon " + live
+    + "\n  Every skeleton lookup would silently miss and fall through to verbatim. Byte-identity would"
+    + "\n  still read 1037/1037 while review surface degraded, which is why this is an error and not a"
+    + "\n  warning. Re-mine the corpus, or set SDD_CANON_CHECK=0 for a deliberate side-by-side."
+    + "\n  Diff the canons with: node -e \"console.log(require('./engine/canon-fingerprint').describe())\"");
 }
 
 const isSimpleStmt = (st) => ts.isVariableStatement(st) || ts.isExpressionStatement(st) || ts.isReturnStatement(st) || ts.isThrowStatement(st);

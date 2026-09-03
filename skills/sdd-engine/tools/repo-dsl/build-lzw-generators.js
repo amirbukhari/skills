@@ -20,6 +20,7 @@
 const fs = require("fs");
 const path = require("path");
 const AC = require("./engine/artifact-contract");
+const CANON = require("./engine/canon-fingerprint");
 const ts = require("typescript");
 const G = require("./engine/generators");
 const W = require("./engine/wordlzw");
@@ -179,6 +180,13 @@ const catalog = AC.stamp("generators-lzw", {
   tool: "build-lzw-generators.js",
   node: process.version,
   fileCount: parsed, gap: W.GAP, narrow, wide,
+  /* WHAT CANON THESE SKELETONS WERE PRODUCED BY (engine/canon-fingerprint.js). The dictionary is a
+   * map FROM skeletons, and the renderer computes the skeleton it looks up with the same code — so a
+   * catalog is only usable by a canon that agrees with the one that mined it. Nothing recorded this
+   * before, which is why SDD_BODY_SLOT could ship default-on in 2d83452 and leave every catalog on
+   * disk silently unmatchable while byte-identity kept reading 1037/1037. It goes in the BODY, not
+   * the header, so it is covered by contentFingerprint and by the tamper seal. */
+  canonFingerprint: CANON.fingerprint(),
 }, { corpus: path.resolve(SRC),
   /* §8B constants provenance. A swept value must not be indistinguishable from the settled one:
    * the three constants above were SETTLED by a sweep (see the measurements at the top of this

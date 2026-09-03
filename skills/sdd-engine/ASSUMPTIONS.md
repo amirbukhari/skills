@@ -6203,3 +6203,72 @@ project's rule is that a superseded claim stays visible rather than being quietl
 blocker was `ERR_INVALID_ARG_TYPE` at `argv[2]`, and the write being outside `if (APPLY)` is why it
 never depended on the stamp.
 
+
+## 2026-09-03 — the orphan ledger does NOT round-trip for chunk names (measured, not read)
+
+Exercised on a byte-identical throwaway copy of the corpus (`word-names.json` md5 `2cd40101…` both
+sides), re-mined under the committed canon, then `name:plan` rebuilt and `reconcile-names.js` run
+with `APPLY=1 ALLOW_ORPHANS=1`. The live corpus was never touched — `generators-lzw.json` stayed at
+`491bf65b…` throughout.
+
+**Result: 974 of 3,582 hand-authored CHUNK names are orphaned by the re-mine, and the reconciliation
+machinery cannot see any of them.** `reconcile-names.js:104` iterates `Object.keys(names)` — the
+6-entry LEAF ledger — and never reads `chunks` at all. So it reported `newly orphaned names ....... 2`
+against a corpus where 974 chunk names had just died. The re-adoption scorer walks the same leaf
+ledger, so `re-adoption PROPOSALS ...... 0`, and `name-queue.json` published `newlyOrphaned: 2,
+orphans: 2, proposals: 0` — a queue that is *correct about leaves and silent about chunks*.
+
+Then the write refused, which is the only reason nothing was lost:
+
+    ArtifactContractError: artifact contract REFUSED: word-names at (stamp)
+      expected: body key "chunks" (registry: requires)
+      got:      absent — refusing to publish an artifact its own consumers cannot read
+
+`AC.stamp("word-names", { names, orphans })` omits `chunks` entirely, so an APPLY that succeeded
+would have written a `word-names.json` with **all 3,582 chunk names gone** — not orphaned, absent.
+`Examples/` is gitignored, so there is no git history to restore from; the only copy is the
+8 KB `word-names.pre-worksheet-2026-09-02T11-31-24-317Z.json` snapshot, which predates the worksheet
+that authored them. **§8B's required-key contract is the sole thing standing between a routine
+re-mine and irreversible loss of 3,582 hand-authored names.** word-names.json was byte-identical
+after the refused run (`2cd40101…`).
+
+So the three §5C / R-LANG-7 guarantees hold for LEAVES and are unimplemented for CHUNKS: orphan
+never delete (chunks are never moved to `orphans`), match orphans first (chunk orphans do not exist
+to match), propose never auto-attach (no proposal is ever generated). Sample of the 974:
+
+    wc:6cb104c44d6ebe8b  len=2  "set state.freshbooksaccountid"
+    wc:66758266b95b03c2  len=2  "return cached value if present else conditional result"
+    nc:0fed74d799beef37  len=2  "import query utilities and export builder class"
+
+**JUDGMENT CALL: I did not fix it and did not re-mine.** Adding `chunks` to the stamp would satisfy
+§8B and let the pass publish — while the orphan half is still unwired, which converts a loud refusal
+into a silent drop. That is §5C's own warning ("auto-re-attachment is the producer/consumer drift bug
+in a new costume") one step earlier in the pipeline. The correct fix is to implement chunk orphaning
+and chunk re-adoption proposals, and only then extend the stamp. Escalated rather than taken.
+
+## 2026-09-03 — the canon gate: catalogs now record the canon they were mined under
+
+`engine/canon-fingerprint.js` + the gate in `enfile.js:loadIndex`. The fingerprint is BEHAVIOURAL —
+it canonicalizes 20 frozen probe statements at all three levels and hashes the skeletons — rather
+than a hash of `generators.js`/`operations.js`, because a source hash fires on comment edits and a
+guard that cries wolf gets switched off (§10.3).
+
+Verified to fire and to not over-fire, in subprocesses because the dials are read at require time:
+
+    default (BODY_SLOT on, EXPR_SLOT off)  5df84078902753b1
+    SDD_BODY_SLOT=0                        aa5bfdf5d9d9cdf6
+    SDD_EXPR_SLOT=1                        8744b740a23ea1b3
+    both flipped                           2c920e027a99df76
+    MIN_SKEL / MIN_COUNT / MAXWIN          5df84078902753b1   (unchanged, correctly)
+
+The last row is the one that matters for correctness: §10 (`10-language-and-grammar.md:42`) states
+that retuning `MAXWIN`, `MIN_COUNT` or `MIN_SKEL` cannot orphan a name, because names key on the
+canonical skeleton and never on the word id. A fingerprint that moved on those would be hashing the
+wrong thing. Pinned in `engine/canon-fingerprint.test.js`, 15/15.
+
+**ABSENT WARNS, DIFFERENT REFUSES.** Every catalog mined before today lacks the field, and refusing
+those would brick the corpus in order to install a guard — §8B's "absent is a state" applies. A
+present-and-different fingerprint throws, because at that point the skeletons are KNOWN to disagree
+and rendering on produces a degraded corpus rather than a broken one, which is the harder failure to
+notice and the one that already happened. `SDD_CANON_CHECK=0` escapes it for side-by-side work.
+Byte-identity re-confirmed 1037/1037 both directions with the gate installed.
