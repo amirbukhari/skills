@@ -6626,6 +6626,29 @@ Before R-REND-6 the label region was inert, so all 405 would have compiled quiet
 wrong. That is a guard firing on real drift the same night it shipped — the opposite of §10.3's
 guard that cannot be shown to fire.
 
+## RESOLVED by the render, 2026-09-03 — and both senses of byte-identity now coincide
+
+The entry above measured **405 refusing / 438 drifted / 0 wrong bytes** and said it needed a render,
+not a weaker test. Amir gave the go to both lanes in one message per the new protocol; the render
+ran. Kept rather than edited, per §9, so the resolved state does not erase what was measured.
+
+**Post-render, all 1037 persisted `.en`, catalog `1e5349a1` (unchanged by the render):**
+
+|  | REFUSES | COMPILES |
+|---|---|---|
+| DRIFTED from a fresh render | **0** | **0** |
+| IDENTICAL to a fresh render | **0** | **1037** |
+
+**Wrong bytes: 0.** `engine/enfile.test.js` and `engine/en-idempotence.test.js` — both correctly
+rc=1 before — are rc=0 now, without either being touched. That is the outcome a weakened assertion
+would have counterfeited.
+
+**The one sentence worth keeping from this.** Before the render, *"byte-identity 1037/1037"* was true
+of the **renderer** and false of the **corpus**; today the two senses coincide, and that is a
+property of this moment rather than of the phrase. **The next re-mine separates them again.** So the
+sense has to be stated every time it is claimed (§16 entry 6) — the coincidence is exactly what made
+the substitution invisible for a whole night.
+
 ## 2026-09-03 — I did NOT apply the 19 exact + 8 fuzzy re-adoptions, and the reason is that no applier exists
 
 **The instruction.** Relayed from Amir, 2026-09-03, as item 5 of the post-render report: *"the 8

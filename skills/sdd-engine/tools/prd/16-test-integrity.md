@@ -114,10 +114,34 @@ The three, in the order they happened:
    assertion is *structurally incapable* of seeing the difference. **The same substitution is in my
    own scale number:** the folder/program round-trip of 1038/1038 is also an in-memory render, so
    it measures the renderer too, and I reported it in a sentence about the corpus.
-   **Rule it produced:** an assertion has a **subject**, and the subject is whatever it actually
-   read — not the thing you were thinking about when you wrote it. **Name the subject in the
-   assertion's own text** ("a FRESH render round-trips", not "byte-identity"), because the
-   substitution is invisible at the call site and survives every re-run.
+   **THE GENERAL FORM — ONE NAME OVER TWO PROPERTIES.** State it this way, because it is not a
+   fact about this codebase and the instance is the weaker half of the lesson:
+
+   > A single name comes to cover two distinct properties. Every use of it is locally correct.
+   > Readers substitute whichever property they had in mind, **and nothing ever contradicts them**,
+   > because both properties are true — of different subjects. The name is the defect; no
+   > individual assertion is wrong.
+
+   This is a *third* failure class, distinct from the two above it. A guard that cannot fire
+   (1–4) is silent. A measurement that reads low (5) is wrong in a known direction. **This one is
+   right, every time, about something other than what you asked.** It therefore survives review,
+   re-runs, and independent reproduction — two lanes measured `1037/1037` and both got it, because
+   the number was never in question; only its subject was.
+
+   **Two instances, same night, same shape:**
+
+   | name | property A | property B | who substituted which |
+   |---|---|---|---|
+   | *"byte-identity 1037/1037"* | a **fresh render** round-trips | the **corpus on disk** compiles | both lanes read B; the test measures A |
+   | *"the only check that can see this class"* | **internal consistency** (heading ↔ children) | **currency** (equals today's render) | both lanes read one check as covering both |
+
+   **The rule, and it is a step rather than a caution:** an assertion has a **subject**, and the
+   subject is whatever it actually read — not the thing you were thinking about when you wrote it.
+   **Name the subject in the assertion's own text** ("a FRESH render round-trips", not
+   "byte-identity"; "headings are self-consistent", not "the corpus is fine"). When two checks seem
+   to disagree about one property, **suspect first that it is two properties** — that diagnosis was
+   right both times tonight, and the alternative diagnosis on offer was "one of them is blind",
+   which was wrong both times.
 
    **A corollary, measured while checking the above, and it is the part that would have bitten
    next.** skills-4a's read was that `enfile.test.js`'s persisted-corpus assertion is *"the only
