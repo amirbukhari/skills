@@ -81,7 +81,18 @@ for (const abs of files) {
         rec.sites++;
         let r = null;
         try { r = EN.spanActions([st], sf); } catch (_) { r = null; }
-        const clause = r && r.actions && r.actions.length ? String(r.actions[0]) : null;
+        /* READ BOTH CHANNELS. spanActions returns { actions, guards }, and a guard-shaped `if`
+         * reports through `guards` -- so reading `actions` alone counted a whole clause channel as
+         * silence. Measured 2026-09-03: all 775 IfStatement sites this file called "no clause" carry
+         * a guard clause, and ZERO are genuinely silent. The work order this file exists to produce
+         * had IfStatement as its top priority on the strength of that column.
+         *
+         * This is the measurement-integrity class again, in the direction that costs the most: a
+         * check that cannot fire wastes a guard, but a MEASUREMENT that undercounts sends the work
+         * somewhere it was not needed. Same night as the header-prose `indexOf` and the MIN_SKEL
+         * probe that asserted a dial equals itself (§16). */
+        const clause = r && r.actions && r.actions.length ? String(r.actions[0])
+          : (r && r.guards && r.guards.length ? String(r.guards[0]) : null);
         if (!clause) { rec.none++; continue; }
         if (Q.isVacuous(clause)) { rec.vacuous++; if (!rec.egVacuous) rec.egVacuous = clause; continue; }
         if (isSiteSpecific(clause, st.getText(sf))) rec.specific++;
