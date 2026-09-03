@@ -379,3 +379,71 @@ R-REND-6 makes no claim about them, correctly.
 **Both methods agree and neither could have produced the other's evidence**, which is the whole
 argument for having run them separately. A convergence here would have been worth less than the
 agreement is.
+
+---
+
+## THE TARGET SENTENCE HAS TO BE DERIVED AND VERIFIED, NEVER AUTHORED
+
+*2026-09-03. The argument for the honesty rule, and the worked example is the approved target
+itself.*
+
+Amir was shown `src/routers/links.ts.en`, whose first line was a ~200-word run-on naming all
+fifteen imports and then every route joined by "then", and said **"You lied to me."** Every metric
+reported about that file was true. The picture was false. The consequence taken from it: **no metric
+stands in for the goal any more.**
+
+The approved replacement, his words:
+
+> The `links` router exposes two Freshbooks endpoints, both behind a JWT check.
+
+**That sentence is false about his own code.** `isValidJwt` is imported once and called once, inside
+the FIRST route only. The second route, `/authorized`, is a Freshbooks authorisation callback with
+`validate<void, void, ICode>({ query: validateCode })` and `authorizeFreshbooksAccount(code)`, and
+**no JWT reference anywhere in it** — verified twice independently, at the source, before either of
+us built to it.
+
+Read what the sentence gets right, because that is the point:
+
+| clause | true? | why it survives review |
+|---|---|---|
+| counts — *two* | yes | trivially checkable, and checked |
+| classifies — *Freshbooks endpoints* | yes | recurs in three identifiers across the file |
+| names zero imports | yes | §4B; the thing the run-on got wrong |
+| shared property — *both behind a JWT check* | **NO** | **one route of two** |
+
+Three clauses out of four are right, the sentence is short, declarative and fluent, and the one
+wrong clause is the one a reader would ACT on: it sends him looking for a check that is not there.
+A run-on wastes his time; this misinforms him about his own system. **A wrong summary is worse than
+a long one**, and this is what that costs.
+
+**And a human wrote it, from the file, and approved it.** Not a model, not a generator — the person
+who knows the codebase, working from the source. That is the whole argument, and it is why the
+honesty rule is mechanised rather than trusted:
+
+- **Quantifiers are derived from counts** (`quantify`), so no label can overstate. `both` requires
+  2 of 2; `all` requires n of n; `most` requires a strict majority; a minority is **not stated at
+  all**, because "some behind a `check…` guard" was measured on `src/xero-api/contact.ts` off one
+  function of twelve and read as a classification when it was a coincidence of naming.
+- **A shared property is an intersection**, never a sample. What `links.ts`'s two routes actually
+  share is the `validate` guard, so that is what the engine says:
+  `` The `links` router exposes two Freshbooks GET endpoints under `/links`, both behind a `validate` guard ``
+- **Vacuous is counted, not hidden.** 5.5% of files (57 of 1038) get no claim. Amir: *"I would take
+  an honest 40% vacuous over a plausible 0%."*
+
+The corrected target (his, written in five minutes from the source, and offered with the warning
+*"I am exactly the kind of author that finding warns about"*) holds on every clause. Two things in
+it are still imprecise, reported rather than quietly built around:
+
+1. It says the first route *"redirects to that invoice's share link and notifies user `1`"*. The
+   source notifies **then** redirects. The conjunction reverses the order.
+2. It says the second route *"returns the token's expiry"*. `ctx.body` returns **four** fields —
+   `params`, `request: { query, body }`, `tokenResponseStatus` and `expiry`. Not false; partial.
+
+Neither would mislead him. Both are the same class of defect as the JWT clause, two orders of
+magnitude smaller, and they are recorded here because the rule cuts against whoever is writing —
+including whoever writes the rule.
+
+**The standing consequence:** a label is derived from the AST and cross-checked at compile
+(R-REND-6), or it is not emitted. A sentence that cannot be re-derived from the bytes is not a
+label, however good it reads. `engine/en-file-claim.test.js` §3b asserts, permanently, that the
+engine does **not** say "both behind a JWT check" about this file.

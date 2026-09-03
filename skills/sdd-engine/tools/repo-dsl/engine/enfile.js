@@ -29,6 +29,7 @@ const G = require("./generators");
 const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
 const REF = require("./refusals");
 const P = require("./prose"); // reuse deterministic humanisation helpers (words/list/a) for labels
+const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
 const DATA_PREFIX = /^(an object with |a list of |an empty object$|an empty list$|text: “)/;
@@ -1619,6 +1620,25 @@ function NestRenderer(sf, source, index) {
         stats.labelClauses += spanActions([...frag.statements], frag).actions.length;
       } catch (_) { /* unruled */ }
     }
+    /* THE FILE-SCALE LABEL IS A CLAIM, NOT A CONCATENATION (2026-09-03, `en-file-claim.js`).
+     * Amir read `src/routers/links.ts.en`, whose first line was a ~200-word run-on naming every
+     * import and then every route joined by "then", and said *"You lied to me."* The same defect
+     * was fixed at folder and program scale and left standing one level down.
+     *
+     * IT IS COMPUTED OFF THE RE-PARSED SLICE, NOT OFF `run`, because the ONLY other place a
+     * structural heading is computed — `deriveStructuralGloss` — has nothing but the recompiled
+     * bytes, and R-REND-6 requires the two to agree character for character. `source.slice(start,
+     * end)` is exactly what that function receives as `compiled` when the round trip holds, so the
+     * two calls are the same call on the same string. Anything derived from `run` here would be
+     * unavailable there and every heading in the corpus would refuse. */
+    /* NO DICTIONARY GATE IS NEEDED HERE, and the reason is worth writing down because I added one
+     * and then measured it away. `label()` lives inside `NestRenderer`, which `renderFileEn` only
+     * reaches under `NEST && index._lzw`, so `cat` is non-null on every call — tallied over one
+     * file: 14 truthy, 0 falsy. The gate belongs on `deriveGloss` instead, which IS reached with no
+     * dictionary. Guarding a condition that cannot occur is §3's guard-that-cannot-fire wearing the
+     * other face: harmless, and it invites a reader to believe the risk is handled here. */
+    const claim = FCLAIM.claimForText(source.slice(start, end));
+    if (claim) return sanitizeLabel(claim);
     return sanitizeLabel(s || genLabel(start, end, source, run.length));
   };
 
@@ -1947,6 +1967,27 @@ function renderFileEn(source, index) {
  * SCOPE. Atomic generator chunks only — compileChunk's structural branch returns before the check
  * runs. See the note there before reading a green round-trip as "no hand-edit got through". */
 function deriveGloss(payload, compiled, cat) {
+  /* THE THIRD MIRROR OF THE FILE-SCALE CLAIM, and the one that matters most.
+   *
+   * I read `enfile.js` and concluded there were TWO places a label is computed — the renderer's
+   * `label()` closure and `deriveStructuralGloss`. Wiring both left 533 of 1038 files REFUSING with
+   * "SENTENCE AND PAYLOAD DISAGREE", written "10 constants" against a derived run-on. The reason is
+   * R-ARCH-15: 1030 of 1037 files collapse to a SINGLE ATOMIC word, so their whole-file heading is
+   * an atomic `▶` chunk and is checked here, not there. The site I missed is the site nearly every
+   * file uses. Found by running the round trip, not by reading the code — CLAUDE.md's first rule.
+   *
+   * Same function, same string, same reason as the other two: `compiled` is byte-for-byte the slice
+   * the renderer labelled. All THREE must change together or the corpus refuses. */
+  /* ONLY WHERE A HEADING IS A HEADING. On the flat CNL path there is no payload carrying the bytes,
+   * so the gloss IS the compile source and has to be a compilable sentence; a claim is not one.
+   * Ungated, two `enfile.test.js` fixtures failed with "unknown action (quote it as `...` to
+   * escape)", and they later passed only because the domain-word rules had narrowed until the claim
+   * stopped firing on them — luck, not a guard (§16), so the condition is stated rather than left
+   * as a property of how strict the classifier happens to be. */
+  if (cat) {
+    const claim = FCLAIM.claimForText(compiled);
+    if (claim) { try { return sanitizeLabel(claim); } catch (_) { return null; } }
+  }
   const s = { payload, start: 0, end: compiled.length, stmts: null };
   try { return namedLabel(s, compiled, cat, NAMES.names, NAMES.chunks) || genLabel(0, compiled.length, compiled, null); }
   catch (_) { return null; }   /* a gloss we cannot derive is not evidence of an edit */
@@ -1977,6 +2018,20 @@ function deriveStructuralGloss(compiled, cat) {
   if (frag.parseDiagnostics && frag.parseDiagnostics.length) return null;  /* not a standalone program */
   const stmts = [...frag.statements];
   if (!stmts.length) return null;
+  /* THE MIRROR of the file-scale claim in the render-side `label` closure above. Same function,
+   * same string: `compiled` here is byte-for-byte the `source.slice(start, end)` passed there.
+   * If you change one of these two calls you MUST change the other, or every heading that carries
+   * a claim refuses. That refusal is the design (R-REND-6 cut 2) and not a bug to route around. */
+  /* ONLY WHERE A HEADING IS A HEADING. On the flat CNL path there is no payload carrying the bytes,
+   * so the gloss IS the compile source and has to be a compilable sentence; a claim is not one.
+   * Ungated, two `enfile.test.js` fixtures failed with "unknown action (quote it as `...` to
+   * escape)", and they later passed only because the domain-word rules had narrowed until the claim
+   * stopped firing on them — luck, not a guard (§16), so the condition is stated rather than left
+   * as a property of how strict the classifier happens to be. */
+  if (cat) {
+    const claim = FCLAIM.claimForText(compiled);
+    if (claim) { try { return sanitizeLabel(claim); } catch (_) { return null; } }
+  }
   let w = null;
   try { w = EL.runWord(stmts, frag, compiled, cat); } catch (_) { w = null; }
   let s = null;
