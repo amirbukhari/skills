@@ -268,6 +268,40 @@ This gap was silently forgotten once already.
         Checked against the previous commit before believing it; the strings had never been there.
         **A detector that cannot fire is the same defect as a guard that cannot fire** (§3), one
         layer up — and it fails in the reassuring direction.
+    - **THE MIRROR: the private-index recipe protects THEIR work by leaving YOURS out of the
+      worktree, and neither lane can see it from inside its own diff.** *Measured 2026-09-03, caught
+      before it cost anything.* Two lanes, two shared PRD files both `MM`. The recipe builds your
+      commit from `git show HEAD:<path>` + your edits, so it correctly excludes the peer's
+      uncommitted hunks — **and that means your paragraphs exist in the COMMIT ONLY.** The working
+      tree still holds their version, without yours. From then on:
+      - the next `git add <path>` by **either** lane stages their worktree content over your commit,
+        and one `git commit` reverts you;
+      - **`git show --stat HEAD` says everything is fine** — your files are listed, your line counts
+        are right, nothing of theirs was carried away. The sweep detector passes, because this is
+        not a sweep. It is the same hazard **running backwards**.
+      - `git status` reads `M ` or `MM` and looks exactly like ordinary peer activity.
+    - **THE DETECTOR IS THE SWEEP GREP RUN THE OTHER WAY ROUND** — grep for **your own** marker, and
+      compare **worktree against HEAD**, not commit against peer:
+
+      ```sh
+      # after ANY private-index commit to a file a peer also has open:
+      for f in <the paths you just committed>; do
+        echo -n "$f  worktree="; grep -c '<a distinctive string YOU wrote>' "$f"
+        echo -n "  HEAD=";       git show HEAD:"$f" | grep -c '<same string>'
+      done
+      ```
+
+      `worktree=0 / HEAD=1` is the failure, and it is the *expected* output of the recipe working
+      correctly — so treat it as a required follow-up step, not an alarm. **The fix is to merge
+      forward, never to re-commit:** append your block to the live file (which holds the peer's
+      edits), `git add` it, then re-run the grep and confirm **both** markers — yours and theirs —
+      are present in the worktree. Committing again instead would drop their hunks a second time.
+    - **Grep for the PEER's marker too, in the same pass.** The two greps answer different questions
+      and both are needed: theirs-at-HEAD asks *did I sweep them*, yours-in-worktree asks *did the
+      recipe strand me*. Running only one is how a lane concludes "clean" while half the night's
+      work is one command from gone. *2026-09-03* — the peer's §16 table read present-in-worktree
+      and **absent at HEAD**, i.e. still uncommitted and one careless `git add` from lost; saying so
+      was worth more than the commit that prompted the check.
   - **Never stage a deletion you cannot account for.** If `git status` shows a file gone that you did
     not remove, leave it unstaged and ask. Deletions in this repo have been deliberate manual wipes
     more than once.
