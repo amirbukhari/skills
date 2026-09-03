@@ -102,7 +102,18 @@ console.log(`\nenfile.test: ${pass} passed`);
  *   1. a clean .en compiles byte-identical with the check on (no false positive);
  *   2. with the check OFF, the edit is SILENTLY IGNORED and the compiler emits the
  *      un-edited code — the defect, pinned so it cannot be quietly reintroduced;
- *   3. with the check ON, that same edit THROWS and names both sides.
+ *   3. with the check ON, that same edit is HONOURED — the compiled TypeScript carries
+ *      the renamed identifier.
+ *
+ * >>> POINT 3 USED TO READ "that same edit THROWS and names both sides", and it was
+ * >>> correct until R-REND-6 cut 2 landed. Quoted rather than overwritten, per §9.
+ * The edit this fixture makes is a pure HOLE RENAME (`foo` -> `fooRenamed` inside a
+ * generator gloss), which is exactly the class `repairFromSentence` can prove it
+ * understood: it refills the hole, re-derives the gloss, and the re-derived gloss equals
+ * what was written. So the refusal became an honoured edit — §5C rule 2 working, not a
+ * regression. The assertion below is now the stronger one: the bytes CHANGE and carry
+ * the rename. A clause the repair cannot verify still refuses, and that boundary is
+ * pinned in `hand-authored-en.test.js`.
  * -------------------------------------------------------------------------*/
 {
   const idx = loadIndex();
@@ -128,10 +139,17 @@ console.log(`\nenfile.test: ${pass} passed`);
     assert.equal(compileFileEn(edited, idx, { deriveCheck: false }), source,
       "WITHOUT the check a hand-edit to a generator gloss is silently ignored (this is the defect)");
 
-    assert.throws(() => compileFileEn(edited, idx, CHK), /SENTENCE AND PAYLOAD DISAGREE/,
-      "WITH the check the same hand-edit is refused, not silently compiled");
+    /* WITH the check on, the edit REACHES THE TYPESCRIPT. Asserted as the disjunction that
+     * holds on both sides of the flip, plus the specific outcome we now expect — so this
+     * still fails if the edit is ever silently swallowed again, which is the defect the
+     * whole block exists to guard. */
+    const withCheck = compileFileEn(edited, idx, CHK);
+    assert.notEqual(withCheck, source,
+      "WITH the check the hand-edit must not compile to the pre-edit bytes (that is the defect)");
+    assert.ok(withCheck.includes(tok[1] + "Renamed"),
+      "WITH the check the compiled TypeScript must carry the renamed identifier (R-REND-6 cut 2)");
 
-    console.log("  ok  R-REND-6: a hand-edit to a generator gloss is refused, not silently ignored");
+    console.log("  ok  R-REND-6: a hand-edit to a generator gloss REACHES the compiled TypeScript");
     done = true;
     break;
   }

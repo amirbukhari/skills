@@ -60,7 +60,7 @@ Names outlive the words they were written for, so the naming catalog is append-a
 > asserting a meaning no consumer verified — and the failure is silent by construction, because a
 > wrong name renders as confident prose. The proposal step exists so a human is the consumer.
 
-## The SENTENCE is authoritative — rewritten 2026-08-31
+## The SENTENCE is authoritative — rewritten 2026-08-31, mechanics landed 2026-09-03 (`a5501a7`)
 
 **This section used to say the opposite, and the old text is worth stating so the change is legible:**
 
@@ -69,6 +69,39 @@ Names outlive the words they were written for, so the naming catalog is append-a
 > all. A wrong name therefore yields wrong prose and byte-identical output. This is a structural
 > property of the compiler, not a property maintained by a test — the test would be the weaker
 > guarantee."*
+
+### A STRUCTURAL HEADING IS RULED A REFUSAL, NOT AN HONOURED EDIT (2026-09-03, Amir's ruling)
+
+**This is not a relaxation of rule 2, and it must not be read as one.** The sentence-authority
+suite originally demanded that editing a *structural heading's* English change the compiled
+TypeScript, exactly as it demands for an atomic clause. That demand was **dropped on argument and
+approved**; what replaced it is a harder assertion, not a weaker one.
+
+**Why a heading cannot be honoured.** A heading is not an independent statement about the code — it
+is **computed from its children** (`namedLabel`/`genLabel` over the run), so every identifier in it
+is an *echo* of an identifier in a clause below it. An edit to the heading alone is therefore not
+"the sentence disagreeing with a derived index"; it is **two pieces of English contradicting each
+other**, and there is no principled winner. Honouring the heading would silently rewrite child
+clauses the human never touched and left **visibly saying the old name** — which is the same failure
+shape as automatic re-adoption (R-LANG-7): a plausible inference applied without a human seeing it.
+So the ruling is a **loud refusal naming both sides**.
+
+**Why rule 2 is untouched.** The edit remains fully **expressible** — at the child, where it takes
+effect through the hole-repair path, after which the heading re-derives to match on its own. Every
+semantic edit has an effective home; a heading simply is not it. `engine/sentence-authority.test.js`
+§9 **proves** this end-to-end rather than asserting it, in three rows:
+
+| | edit | outcome |
+|---|---|---|
+| 9a | child clause only, heading untouched | **honoured** — the heading is *behind* the body, not contradicting it, so the body wins |
+| 9b | child and heading edited to agree | **honoured** — consistent English at both levels |
+| 9c | child edited, heading edited to a **different** name | **refused** — a heading the human really did edit is still a contradiction |
+
+**9c is the load-bearing row.** Without it, 9a's allowance could silently degrade into "accept
+anything once a child moved", and every row above it would look identical. The discriminator is
+exact rather than heuristic: re-compile the body with repair off to reproduce the **pre-edit** bytes
+and derive the heading from those — if it matches what the human wrote, the heading is merely stale;
+if it matches neither, they edited it too.
 
 That was a real guarantee, and it is still an accurate description of `compileChunk` today. **It is
 also incompatible with the lifecycle Amir requires** (§5D.0 statement 4): he mines the codebase to

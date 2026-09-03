@@ -2018,7 +2018,17 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, deriveStructuralGloss, repairFromSentence, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
+/* THE FOLDER AND PROGRAM SCALES live in engine/en-scales.js and are re-exported here so the
+ * engine has ONE front door (`require("./enfile")`) at every scale — file, folder, program.
+ * Required lazily INSIDE that module, not at the top of this one, because the dependency runs the
+ * other way: en-scales calls renderFileEn/compileFileEn, and a top-level require here would be a
+ * cycle. Deliberately two lines in this file: enfile.js is the hot file several sessions edit at
+ * once (CLAUDE.md §7), and 270 lines of new scale logic does not belong in it. */
+const SCALES = require("./en-scales");
+
+module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, deriveStructuralGloss, repairFromSentence,
+  renderFolderEn: SCALES.renderFolderEn, compileFolderEn: SCALES.compileFolderEn,
+  renderProgramEn: SCALES.renderProgramEn, compileProgramEn: SCALES.compileProgramEn, SCALES, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,
    * and it is this one — the renderer's. A second copy in the consumer would drift from it silently. */
   SAYS_NOTHING };

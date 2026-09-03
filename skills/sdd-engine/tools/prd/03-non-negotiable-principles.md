@@ -11,7 +11,34 @@
    stale, which is why §Q-2 existed; it is corrected rather than deleted so the old claim cannot be
    re-derived from a stale memory.
 
-2. **The LLM may only propose NAMES — never anything correctness-relevant.** The "librarian" pass (`refine-language.js`) proposes readable names for mined `g_<len>_<hash>` generators and is **gated on byte-identity + coverage invariance**: a rename that changes a single output byte or lowers coverage is rejected. Names are cosmetic by construction.
+2. **The LLM may only propose NAMES — never anything correctness-relevant.** The "librarian" pass (`refine-language.js`) proposes readable names for mined `g_<len>_<hash>` generators and is **gated on byte-identity + coverage invariance**: a rename that changes a single output byte or lowers coverage is rejected.
+
+   **AMENDED 2026-09-03 (Amir's ruling: §5C rule 2 wins).** This principle used to end *"Names are
+   cosmetic by construction."* — quoted here rather than deleted, per the repo's rule, so the old
+   claim cannot be re-derived from a stale memory. That sentence bundled **two** guarantees:
+
+   > **(a)** a name can never silently alter the program, and
+   > **(b)** the label region is inert — the compiler never reads it.
+
+   **(b) is dead.** R-REND-6 cut 2 (`a5501a7`) makes the label region an input to compilation: a
+   hand-edit to a clause's English changes the compiled TypeScript. "Cosmetic" and "authoritative"
+   cannot both describe the same region.
+
+   **(a) survives, and is now stated more strongly than the sentence it replaces:**
+
+   > **A name the compiler cannot re-derive yields IDENTICAL BYTES or a LOUD REFUSAL — never
+   > different bytes, and never silence.**
+
+   That is stronger because it holds **in the presence of an input** rather than by the absence of
+   one. The old form was safe only because nothing looked; the new form is safe because everything
+   that looks must agree, and disagreement is loud. Asserted in `engine/word-names.test.js` (8/8,
+   including a row proving the old claim still holds *literally* with `SDD_DERIVE_CHECK=0`, so the
+   refusal is a policy and not a limitation of the encoding) and in
+   `engine/sentence-authority.test.js` (20/20). Byte-identity 1,037/1,037 with all of it live.
+
+   **Consequence, and it is free safety:** an `.en` rendered under one naming catalog and compiled
+   under another is now a refusal rather than silently absorbed — the naming analogue of the canon
+   gate (§8B, `engine/canon-fingerprint.js`).
 
 3. **A byte-exact gate on every span.** Nothing is ever *guessed* into English. A span is swapped for English only when it re-compiles to its exact source bytes — verified at render time (`engine/enfile.js` render pass; `engine/data-english.js` `dataByteExact`; `engine/cnl.js` compile↔render). Anything that doesn't verify stays verbatim TypeScript. Consequence: **English coverage varies; byte-identity does not.** `compileFileEn(renderFileEn(src)) === src` holds for *every* file.
 

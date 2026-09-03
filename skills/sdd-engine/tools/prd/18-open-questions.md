@@ -12,7 +12,7 @@ must settle so the register stops being ambiguous.
 
 ---
 
-## Q-1 — ~~Direction of truth: does English ever become authoritative?~~ **ANSWERED 2026-08-31 by Amir. YES — the sentence is authoritative.**
+## Q-1 — ~~Direction of truth: does English ever become authoritative?~~ **CLOSED 2026-09-03. Answered 2026-08-31 by Amir (YES); the mechanics landed in `a5501a7` and the last blocker — §2.2 — was ruled the same day.**
 
 **Answered, not deduced.** Amir's §5D.0 statement 4 settles it: mine the codebase to get the `.en`,
 **hand-edit the `.en`**, and it goes back into the codebase — *"neither direction is the derived
@@ -48,11 +48,12 @@ build sequence, not an open question.
   honoured, because a heading is computed from its children and honouring it would silently rewrite
   clauses the human left alone; the edit stays expressible at the child, proved end-to-end in
   `engine/sentence-authority.test.js` §9.
-- **§2.2's "names are cosmetic by construction" now conflicts with §5C rule 2 and needs Amir's
-  word.** The label region is an input to compilation as of the above, so it cannot also be
-  cosmetic. What survives, and is asserted in `engine/word-names.test.js`, is the guarantee that
-  mattered: a name the compiler cannot re-derive yields identical bytes or a loud refusal, **never
-  different bytes**. Recorded, not resolved.
+- ~~**§2.2's "names are cosmetic by construction" conflicts with §5C rule 2.**~~ **RULED 2026-09-03:
+  §5C wins.** §2.2 bundled two guarantees — (a) a name can never silently alter the program, and
+  (b) the label region is inert. Rule 2 kills (b); (a) survives as *"identical bytes or a loud
+  refusal, never different bytes"*, which is **stronger** than the wording it replaces because it
+  holds in the presence of an input rather than by the absence of one. §2.2 amended in place with
+  the superseded sentence quoted. **This was the last open item on Q-1, so Q-1 is CLOSED.**
 - **A human must actually author a `.en` and review the compiled `.ts` as a diff.** Unchanged.
 - **`sen/`'s wipe gate hardens from *"explicit flag"* to *"refuse"*** at the flip (§1B.3). The flip
   now has a direction; the trigger is when `compileChunk` reads sentences.
