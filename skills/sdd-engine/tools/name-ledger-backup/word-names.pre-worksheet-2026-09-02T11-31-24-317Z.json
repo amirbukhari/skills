@@ -1,0 +1,155 @@
+{
+ "schema": "sdd-repo-dsl/word-names/1",
+ "artifactVersion": 1,
+ "generated": "2026-09-02",
+ "fingerprint": "ac4a6ebc8cd9ef44",
+ "names": {
+  "w:c187e9fcf8a6b86f": {
+   "sym": "return ‹id›(‹args›).‹m› > ‹num› ? ‹arr› : null;",
+   "en": "return array if property exceeds threshold else null",
+   "sites": 2,
+   "named": "name-words/model"
+  },
+  "n:cded3857c4bdae4b": {
+   "sym": "export‹gap›default‹gap›‹obj›;",
+   "en": "export a default value",
+   "sites": 1,
+   "named": "name-words/model"
+  },
+  "n:d532860a7f9dd0b6": {
+   "sym": "‹expr›(‹args›);",
+   "en": "call parent constructor",
+   "sites": 1,
+   "named": "name-words/model"
+  },
+  "w:4ad2292cb6c5c2d3": {
+   "sym": "return null;",
+   "en": "return null",
+   "sites": 1,
+   "named": "name-words/model"
+  },
+  "w:4da26b7cf1b2bf78": {
+   "sym": "if‹gap›(‹id›.‹m› !== ‹id› || ‹id›.‹m› !== ‹id›)‹gap›{‹gap›throw‹gap›‹expr›;‹gap›}",
+   "en": "throw if properties mismatch",
+   "sites": 1,
+   "named": "name-words/model"
+  },
+  "w:5d9ddeb5e0ae3ef7": {
+   "sym": "try‹gap›{‹gap›return ‹id›(‹args›);‹gap›}‹gap›catch‹gap›(‹id›)‹gap›{‹gap›‹id›.‹m›(‹args›);‹gap›throw ‹id›;‹gap›}",
+   "en": "try operation and rethrow after logging",
+   "sites": 1,
+   "named": "name-words/model"
+  }
+ },
+ "orphans": {},
+ "chunks": {
+  "wc:a4da75fa9a305113": {
+   "en": "export redux slice actions and default reducer",
+   "len": 2,
+   "note": "redux toolkit pattern exporting both action creators and reducer from a slice"
+  },
+  "nc:167d914170e53ecb": {
+   "en": "import multiple test dependencies and declare suite",
+   "len": 2,
+   "note": "test file setup importing 5+ utilities then opening a describe block"
+  },
+  "nc:201d7951cd6628c5": {
+   "en": "import dependency and export derived function",
+   "len": 2,
+   "note": "wrapping or transforming an imported utility into a new export"
+  },
+  "wc:6cb104c44d6ebe8b": {
+   "en": "assign payload to state and update load status",
+   "len": 2,
+   "note": "redux reducer setting data and marking load complete in one action"
+  },
+  "nc:0d134dc3117cb8e4": {
+   "en": "extend interface replacing field with array variant",
+   "len": 2,
+   "note": "versioning an interface to hold multiple ids instead of a single id"
+  },
+  "nc:1007b8fed2599b42": {
+   "en": "import test target and declare suite",
+   "len": 2,
+   "note": "minimal test file setup with one import and describe call"
+  },
+  "nc:56938b3c9df30ee6": {
+   "en": "log warning and return empty map fallback",
+   "len": 2,
+   "note": "error handling that logs failure and returns safe empty container"
+  },
+  "wc:0be9aacc5ab3594d": {
+   "en": "initialize paired cache objects with type assertions",
+   "len": 2,
+   "note": "setting up two related cache stores indexed by different key types"
+  },
+  "wc:57288624eb9eec80": {
+   "en": "normalize payload to array and assign to state",
+   "len": 2,
+   "note": "ensuring payload is array-wrapped before storing in redux state"
+  },
+  "wc:66758266b95b03c2": {
+   "en": "return cached value if present else conditional result",
+   "len": 2,
+   "note": "cache lookup with fallback to computed or null result"
+  },
+  "wc:7be5064814b33dad": {
+   "en": "calculate aggregate value and log operation result",
+   "len": 2,
+   "note": "computing total/summary then logging the outcome for tracing"
+  },
+  "wc:c7edb13d72c997ef": {
+   "en": "update version state and trigger comparison check",
+   "len": 2,
+   "note": "storing new version and comparing against required version if both present"
+  },
+  "wc:ff1c306f46e73c16": {
+   "en": "assign typed payload data and mark loaded",
+   "len": 2,
+   "note": "redux reducer extracting typed data from payload and setting load flag"
+  },
+  "nc:0fed74d799beef37": {
+   "en": "import query utilities and export builder class",
+   "len": 2,
+   "note": "fluent query builder class built on imported string construction helpers"
+  },
+  "nc:117bc8a1697a41d7": {
+   "en": "import base type and export generic type alias",
+   "len": 2,
+   "note": "wrapping an imported type in a new generic alias with constrained params"
+  },
+  "nc:145bbc10ee546ac8": {
+   "en": "import utility type and declare entity interface",
+   "len": 2,
+   "note": "defining a data entity interface using imported nullable wrapper"
+  },
+  "nc:1856780183f67d78": {
+   "en": "import report helpers and declare test suite",
+   "len": 2,
+   "note": "test file for report functions importing the functions under test"
+  },
+  "nc:1b22398c71651b56": {
+   "en": "import orm decorators and declare entity class",
+   "len": 2,
+   "note": "typeorm entity definition importing decorators then applying them to class"
+  },
+  "nc:1bb2819b2c1dad5d": {
+   "en": "assign current credit note and mark loaded",
+   "len": 2,
+   "note": "redux reducer setting specific credit note and flagging load complete"
+  },
+  "nc:231da98bf9d8e338": {
+   "en": "export component and its props type separately",
+   "len": 2,
+   "note": "barrel export splitting value and type for proper typescript resolution"
+  }
+ },
+ "modelCalls": 0,
+ "retiredBy": {
+  "count": 14,
+  "reason": "a node-kind rule now renders these skeletons (§5D.4E)",
+  "detail": "81207 -> 82975",
+  "at": "2026-09-02"
+ },
+ "contentFingerprint": "e586396d489e7b9b"
+}
