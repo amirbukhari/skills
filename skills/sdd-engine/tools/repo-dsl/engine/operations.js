@@ -38,6 +38,58 @@ function argSpan(call) {
 const lit = (out, s) => { if (s) out.push({ lit: s }); };
 const hole = (out, type, text) => out.push({ hole: true, type, text });
 
+/* ── EXPRESSION IDENTITY IS A SLOT, NOT SKELETON (2026-09-03) ────────────────────────────────────
+ * The callee of a call and the name of a property access used to be emitted as LITERALS, i.e. as
+ * part of the skeleton. So `b(c)` and `a(b(c))` were two unrelated dictionary entries, and `a.b`
+ * and `a.b.c.d` two more — measured on the synthetic mutation table, four of the six COMPOSED rows
+ * failed for exactly this reason and no other. It is the same defect as the nested-statement body
+ * baking fixed in 2d83452, one level down the tree: the PARENT's pattern was carrying the CHILD's
+ * identity.
+ *
+ * WHY A SEPARATE HOLE TYPE PER ROLE (`callee`, `prop`) RATHER THAN REUSING `id`. The type is what
+ * `keyOf` prints into the skeleton, so it is the only thing distinguishing `‹callee›(‹args›)` from
+ * `‹id›(‹args›)` — and those are different shapes worth telling apart when reading a skeleton or
+ * writing a production against one. It costs nothing: `skelBytes` strips every `‹\w+›` alike.
+ *
+ * WHY BYTE-EXACTNESS IS UNAFFECTED. Each hole carries the identifier's exact text, and the
+ * surrounding punctuation stays literal, so `fillOf` is unchanged character for character. Every
+ * caller is still gated by its own `fillOf === exact slice` check.
+ *
+ * ── MEASURED, AND WHY IT SHIPS DEFAULT-OFF (2026-09-03) ────────────────────────────────────────
+ * Four full corpus mines, 1037 files, byte-identity 1037/1037 in every one:
+ *
+ *   EXPR_SLOT  MIN_SKEL   narrow leaves   catalog    top surface   tree     residual
+ *      0          8           4,787       33.76 MB      1,582      20,999      548     <- today
+ *      1          8           2,353       32.69 MB      3,457      23,820    2,423     <- REGRESSION
+ *      0          1           4,787       34.42 MB      1,086      20,214       52
+ *      1          1           2,353       33.68 MB      1,086      20,214       52     <- dominates
+ *
+ * The dictionary result is unambiguous: expression slots HALVE the narrow leaf count (4,787 ->
+ * 2,353) and collapse the narrow axis onto the wide one, which is the whole point — `b(c)` and
+ * `a(b(c))` become one pattern. But at MIN_SKEL=8 that win costs 1,875 top-level review surface,
+ * and the mechanism is arithmetic rather than semantic: `skelBytes` strips every `‹\w+›` before
+ * applying the floor, so every identifier converted from skeleton to slot SUBTRACTS from the length
+ * the floor is applied to. `‹id›.b` measured 2 bytes; `‹id›.‹prop›` measures 1. Skeletons that
+ * cleared 8 under baked identifiers no longer clear it, the word is refused, and the statements it
+ * covered fall through to residual — 548 -> 2,423.
+ *
+ * SO THE TWO CHANGES ARE NOT INDEPENDENT: expression slots are only admissible together with a
+ * lower floor. And MIN_SKEL is fixed at 8 by R-MINE-3 ("MUST stay 8") and §4B, so lowering it is a
+ * PRD amendment and not this file's call. Until that ruling exists the dial ships OFF, because
+ * landing it on would put a measured 1,875-surface regression in the tree in exchange for a
+ * dictionary win nothing yet consumes.
+ *
+ * SDD_EXPR_SLOT=1 turns it on, so the two dictionaries can be mined side by side rather than argued
+ * about. Flip this default in the same commit that lowers MIN_SKEL, never before. */
+const EXPR_SLOT = process.env.SDD_EXPR_SLOT === "1";
+/* emit an identifier that names something (a callee, a property) as a slot or, under the dial, as
+ * the literal it used to be. `pre`/`post` are the punctuation around it, which is always skeleton. */
+const nameSlot = (out, type, text, pre, post) => {
+  if (pre) lit(out, pre);
+  if (EXPR_SLOT) hole(out, type, text); else lit(out, text);
+  if (post) lit(out, post);
+};
+
 function canonArgs(call, out, level) {
   if (level === "op") { const s = argSpan(call); if (s) hole(out, "args", s); return; }
   call.arguments.forEach((a, i) => { if (i) lit(out, ", "); canonExpr(a, out, level); });
@@ -46,7 +98,7 @@ function canonCall(call, out, level) {
   if (level === "op") {
     const { base, segs } = chainSegments(call);
     if (segs.length >= 1 && ts.isCallExpression(base) && ts.isIdentifier(base.expression)) {
-      lit(out, base.expression.text + "(");
+      nameSlot(out, "callee", base.expression.text, "", "(");
       canonArgs(base, out, level);
       lit(out, ")");
       const tail = SF.text.slice(base.getEnd(), call.getEnd());
@@ -56,9 +108,9 @@ function canonCall(call, out, level) {
   }
   if (ts.isPropertyAccessExpression(call.expression)) {
     canonExpr(call.expression.expression, out, level);
-    lit(out, "." + call.expression.name.text + "(");
+    nameSlot(out, "callee", call.expression.name.text, ".", "(");
   } else if (ts.isIdentifier(call.expression)) {
-    lit(out, call.expression.text + "(");
+    nameSlot(out, "callee", call.expression.text, "", "(");
   } else { canonExpr(call.expression, out, level); lit(out, "("); }
   canonArgs(call, out, level); lit(out, ")");
 }
@@ -69,7 +121,7 @@ function canonExpr(n, out, level) {
   if (n.kind === ts.SyntaxKind.TrueKeyword || n.kind === ts.SyntaxKind.FalseKeyword || n.kind === ts.SyntaxKind.NullKeyword) return lit(out, n.getText(SF));
   if (n.kind === ts.SyntaxKind.ThisKeyword) return lit(out, "this");
   if (ts.isIdentifier(n)) return hole(out, "id", n.text);
-  if (ts.isPropertyAccessExpression(n)) { canonExpr(n.expression, out, level); return lit(out, "." + n.name.text); }
+  if (ts.isPropertyAccessExpression(n)) { canonExpr(n.expression, out, level); return nameSlot(out, "prop", n.name.text, ".", ""); }
   if (ts.isElementAccessExpression(n)) { canonExpr(n.expression, out, level); lit(out, "["); canonExpr(n.argumentExpression, out, level); return lit(out, "]"); }
   if (ts.isAwaitExpression(n)) { lit(out, "await "); return canonExpr(n.expression, out, level); }
   if (ts.isNonNullExpression(n)) { canonExpr(n.expression, out, level); return lit(out, "!"); }

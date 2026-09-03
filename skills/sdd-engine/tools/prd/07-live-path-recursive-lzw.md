@@ -44,9 +44,27 @@ These are decisions, not tuning knobs to be re-litigated.
 - **The canonicalizer rolls back rather than lying.** When a sub-expression cannot be refilled
   byte-exactly, it does **not** fail the whole skeleton: it rolls that sub-expression back to an
   opaque hole and keeps the surrounding structure.
-- **THE LIFT — a file is never one word.** The renderer **refuses any word that covers an entire
-  run**. Without it a file can be tiled by a single whole-file span, and the reader sees one opaque
-  reference instead of the file's structure. Every file must render as its constituent words.
+- **THE LIFT — a file is never one *opaque* word.** The renderer **refuses a whole-run word that is
+  unnamed or unexpandable**. A whole-run word that carries a name and an `explain` tree is
+  **permitted, and is the target** (R-ARCH-15).
+
+  *This bullet said, until 2026-09-03:* **"THE LIFT — a file is never one word.** The renderer
+  **refuses any word that covers an entire run**. Without it a file can be tiled by a single
+  whole-file span, and the reader sees one opaque reference instead of the file's structure. Every
+  file must render as its constituent words.*"* **Superseded by Amir's ruling of 2026-09-03**, which
+  resolved a contradiction that had stood since R-MINE-7 was amended on 2026-08-31: the register row
+  had carried the amended form for three days while this prose still carried the original, so the
+  two halves of the PRD asserted opposite rules and `the-lift.test.js` had to report both counts
+  rather than rule. **The prose was the stale half.** The reasoning, in Amir's words: the worry
+  behind THE LIFT was *"the reader sees one opaque reference instead of the file's structure"* — and
+  a **named, expandable** word is not opaque, the structure is one expansion away. His own approved
+  rendering target opens with a short whole-file line that expands. So the amended form is correct
+  and the original was over-broad: it refused the destination in order to forbid the failure mode.
+
+  **Consequence, measured:** the 257 files that render as a single top-level chunk are **not**
+  violations. Under the original wording they were 257 breaches; under the amended wording the
+  number that matters is the **unnamed-or-unexpandable** count, which `engine/the-lift.test.js`
+  now asserts directly instead of reporting a strict figure beside an amended one.
 
 **Settled — do not re-open without new measurement:**
 

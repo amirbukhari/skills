@@ -6,24 +6,26 @@
  * mechanised, so the next attempt fails in a test run instead of in review.
  *
  * ------------------------------------------------------------------------------------------------
- * A PRD CONTRADICTION THIS TEST HAS TO NAVIGATE, STATED RATHER THAN QUIETLY RESOLVED.
+ * THE CONTRADICTION THIS TEST USED TO NAVIGATE IS RESOLVED. Amir ruled on 2026-09-03: the AMENDED
+ * form wins, and §4B's prose was corrected to match R-MINE-7 rather than the reverse (the old
+ * wording is quoted in place in tools/prd/07-live-path-recursive-lzw.md per §9). His reasoning: the
+ * worry behind THE LIFT was "the reader sees one opaque reference instead of the file's structure",
+ * and a NAMED, EXPANDABLE word is not opaque — the structure is one expansion away. His own
+ * approved rendering target opens with a short whole-file line that expands.
  *
- * §4B's prose still reads absolutely: the renderer "refuses any word that covers an entire run".
- * R-MINE-7 and §5D.4 record the same rule AMENDED on 2026-08-31 to refuse only whole-run words that
- * are UNNAMED OR UNEXPANDABLE — a named word with structure beneath it is allowed to span the run.
- * The two readings are not equivalent and they give different corpus numbers, so this test does not
- * pick one silently:
+ * SO THIS TEST NO LONGER REPORTS TWO NUMBERS AND DECLINES TO RULE. It asserts one rule, the amended
+ * one, in both its halves:
  *
- *   THE AMENDED READING IS ASSERTED.  It is what the register says, it is what the renderer was
- *      built to, and it is decidable: a file may not render as ONE top-level chunk that is ATOMIC —
- *      a single sealed word with nothing to expand. That is the exact shape the file-naming pass
- *      created, so the guard covers the mistake it exists to prevent.
- *   THE STRICT READING IS REPORTED, NOT ASSERTED.  The count of files rendering as a single
- *      top-level chunk of any kind is printed below. Under §4B's literal prose that number must be
- *      zero; under R-MINE-7 it is fine. Asserting it would be this test taking a ruling that is
- *      Amir's to make, and asserting the wrong side of an open question is worse than reporting it.
+ *   UNEXPANDABLE  a file may not render as ONE top-level chunk that is ATOMIC — a single sealed
+ *                 word with nothing beneath it to open. This is the shape the 2026-09-02 file-naming
+ *                 pass created, and it is what the guard exists to catch.
+ *   UNNAMED       a whole-run word must also CARRY A NAME. This half was in R-MINE-7 from the day it
+ *                 was amended and was never checked here, because while the strict reading was still
+ *                 live the atomic test alone was the conservative subset. With the ruling in, the
+ *                 omission is no longer covered by anything, so it is asserted.
  *
- * Whichever way that lands, THE AMENDED FORM IS A SUBSET, so nothing asserted here becomes wrong.
+ * The 257 files that render as a single top-level chunk are NOT violations, and are now reported as
+ * what they are — the target shape — rather than as a pending count against a superseded sentence.
  * ------------------------------------------------------------------------------------------------
  */
 const fs = require("fs");
@@ -71,8 +73,18 @@ const SRC = CR.sourceRoot(), CORPUS = CR.corpusRoot();
 const index = EN.loadIndex(CORPUS);
 const files = walk(SRC);
 
-let byteExact = 0, empty = 0, strictOneChunk = 0;
-const sealed = [];   // the amended violation: one top-level chunk, atomic, nothing beneath
+const WN = require("./word-names");
+const wn = (() => { try { return WN.load(CORPUS); } catch (_) { return { names: {}, chunks: {} }; } })();
+/* The hand-authored labels, as TEXT. A name is matched by what it says and never by word id, since
+ * ids are array indices renumbered by every re-mine (R-PAY-6) — comparing by id would make this
+ * assertion pass or fail on whether someone had mined recently. */
+const NAMED_LABELS = new Set();
+for (const rec of Object.values(wn.chunks || {})) if (rec && rec.en) NAMED_LABELS.add(String(rec.en).trim());
+for (const rec of Object.values(wn.names || {})) if (rec && rec.en && rec.named) NAMED_LABELS.add(String(rec.en).trim());
+
+let byteExact = 0, empty = 0, wholeRun = 0;
+const sealed = [];    // unexpandable: one top-level chunk, atomic, nothing beneath
+const unnamed = [];   // named-half: a whole-run word whose label is the bare derived gloss
 
 for (const abs of files) {
   const rel = path.relative(SRC, abs);
@@ -84,8 +96,14 @@ for (const abs of files) {
   /* structurally empty files have nothing to lift and are not violations of anything. */
   if (t.tops === 0) { empty++; continue; }
   if (t.tops === 1 && t.outsideNonWs === 0) {
-    strictOneChunk++;
+    wholeRun++;
     if (t.atomic && !t.hadChild) sealed.push({ rel, bytes: source.length });
+    /* THE UNNAMED HALF. A whole-run word is permitted BECAUSE it carries a name a reader can trust;
+     * a whole-run word wearing only the derived gloss is the opaque reference §4B was written
+     * against, wearing a label. `labelsOf` returns the emitted label, and a named whole-run word is
+     * one whose label is present in the hand-authored chunk ledger. */
+    const label = (P.labelsOf(r.en)[0] || "").trim();
+    if (!label || !NAMED_LABELS.has(label)) unnamed.push({ rel, bytes: source.length, label });
   }
 }
 
@@ -95,10 +113,10 @@ eq(byteExact, files.length, "byte-identity holds for every file while this is me
 console.log("");
 console.log("  files                                    " + files.length);
 console.log("  structurally empty (no chunk at all)     " + empty);
-console.log("  ONE top-level chunk, nothing outside it  " + strictOneChunk + "   <- must be 0 under §4B's literal prose,");
-console.log("                                                 allowed under R-MINE-7 as amended 2026-08-31. REPORTED,");
-console.log("                                                 NOT ASSERTED — this is Amir's ruling to make.");
-console.log("  ...of those, SEALED (atomic, nothing to expand)  " + sealed.length + "   <- asserted below");
+console.log("  whole-run words (one top chunk, nothing outside)  " + wholeRun + "   <- PERMITTED, and the target");
+console.log("                                                        shape (Amir's ruling, 2026-09-03)");
+console.log("  ...of those, SEALED   (atomic, nothing to expand)  " + sealed.length + "   <- asserted: must be 0");
+console.log("  ...of those, UNNAMED  (no hand-authored name)      " + unnamed.length + "   <- asserted: must be 0");
 console.log("");
 if (sealed.length) {
   console.log("  SEALED FILES (largest first — most source hidden behind one unexpandable word)");
@@ -107,7 +125,15 @@ if (sealed.length) {
   console.log("");
 }
 
-eq(sealed.length, 0, "no file renders as a single atomic whole-file word with nothing beneath it (§4B / R-MINE-7)");
+if (unnamed.length) {
+  console.log("  UNNAMED WHOLE-RUN WORDS (largest first — a whole file behind a derived gloss)");
+  unnamed.sort((a, b) => b.bytes - a.bytes);
+  for (const u of unnamed.slice(0, 15)) console.log("    " + String(u.bytes).padStart(7) + " B  " + u.rel + "\n             | " + u.label.slice(0, 90));
+  console.log("");
+}
+
+eq(sealed.length, 0, "no whole-run word is UNEXPANDABLE — no file is a single atomic word with nothing beneath it (R-MINE-7)");
+eq(unnamed.length, 0, "no whole-run word is UNNAMED — every whole-file word carries a hand-authored name (R-MINE-7)");
 
 /* AND THE GUARD IS SHOWN TO FIRE (§10.3). A prohibition that has never rejected anything is
  * indistinguishable from a prohibition that cannot. `topShape` is run against a hand-built .en of

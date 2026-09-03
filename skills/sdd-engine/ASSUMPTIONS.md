@@ -6051,3 +6051,53 @@ Neither `build-archetypes.js` nor `package-hydra-source.js` reaches `generators.
 through those two is currently degraded (review surface 1582 → 3527 under an uncommitted canon
 change) does **not** affect any figure produced here.
 
+
+## 2026-09-03 — MIN_SKEL=8 is the largest single review-surface lever found, and it is a PRD constant
+
+Measured over four full mines of the real corpus (1037 files, byte-identity 1037/1037 in all four),
+each catalog rendered under the same canon it was mined with:
+
+| `SDD_EXPR_SLOT` | `MIN_SKEL` | narrow leaves | catalog | **top surface** | **tree** | residual |
+|---|---|---|---|---|---|---|
+| 0 | 8 | 4,787 | 33.76 MB | **1,582** | 20,999 | 548 |
+| 1 | 8 | 2,353 | 32.69 MB | **3,457** | 23,820 | 2,423 |
+| 0 | 1 | 4,787 | 34.42 MB | **1,086** | 20,214 | 52 |
+| 1 | 1 | 2,353 | 33.68 MB | **1,086** | 20,214 | 52 |
+
+Three things follow, and only the third is a judgment call.
+
+**The whole review-surface win is MIN_SKEL, not expression slots.** Rows 3 and 4 are identical on
+every surface axis. Lowering the floor from 8 to 1 removes 496 top-level surface and 496 residual
+statements, and the tree falls 785 — so it is not trading residual for chunks, it is covering
+statements that were previously uncovered while emitting FEWER chunks. This is the only change
+measured all night that moved the deliverable.
+
+**Expression slots and MIN_SKEL=8 are incompatible, for an arithmetic reason.** `skelBytes` strips
+every `‹\w+›` before the floor is applied, so converting an identifier from skeleton to slot
+subtracts from the length being floored — `‹id›.b` is 2 bytes, `‹id›.‹prop›` is 1. Skeletons that
+cleared 8 with baked identifiers stop clearing it, the word is refused, and its statements fall to
+residual (548 → 2,423). This was NOT foreseen; I expected the derive check and ruled it out by
+measurement (identical numbers with `SDD_DERIVE_CHECK=0`) before finding the floor.
+
+**JUDGMENT CALL: `SDD_EXPR_SLOT` ships default-OFF.** R-MINE-3 says MIN_SKEL "MUST stay 8" and §4B
+lists it as settled, so lowering it is a PRD amendment and not the engine's call. Landing expression
+slots on by default before that ruling would put a measured 1,875-surface regression in the tree in
+exchange for a dictionary win nothing currently consumes. The dial and the table are committed so
+the ruling can be made against numbers rather than argument. **Flip the default in the same commit
+that lowers MIN_SKEL, never before.**
+
+Note that §4B's stated reason for the floor — "lowering it buys files by promoting near-trivial
+two-statement words, a number bought with readability" — is about the one-word-per-file metric, and
+was calibrated when identifiers were baked into skeletons so that 8 bytes meant something different
+than it does now. The measurement above is against a different metric (review surface) and does not
+show the predicted cost: chunk count FELL.
+
+## 2026-09-03 — the live catalog is stale against the committed canon
+
+`2d83452` made statement bodies slots and shipped default-on, but the live catalog was mined under
+the old canon. Key computation and key storage therefore disagree, and measured against the live
+catalog the surface is 3,527 top / 23,935 tree — worse than the 1,582 / 20,999 baseline — while
+byte-identity still holds 1037/1037 because the verbatim fallback absorbs every miss. A re-mine
+restores exactly 1,582 / 20,999. This is the §8B producer/consumer shape in the artifact rather than
+in the code: **any canon change is incomplete until the corpus is re-mined**, and the failure is
+silent in the only metric that is checked first.
