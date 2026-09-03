@@ -6166,3 +6166,40 @@ this shared tree, so a render right now would bake their in-flight canon into al
 The stamped gate is the honest assertion available; a re-render would have been a louder one bought
 by clobbering a peer's lane.
 
+
+### The unmeasurable half of STALE has a named live member — and the render still waits (2026-09-02)
+
+skills-4a cleared the reason I gave for not re-rendering: `operations.js` is committed in `3de2e7a`
+(verified — `git branch -r --contains` puts it on `origin/spec-driven-dev`, carried there by my own
+push) and its dial ships OFF: `operations.js:84` is `process.env.SDD_EXPR_SLOT === "1"`, not
+`!== "0"`. Neither dial is set in this environment. So my stated reason — a peer's uncommitted canon
+change getting baked in — was true when I gave it and is no longer true.
+
+**The conclusion does not change, on their own better reason.** `generators.js:119` is
+`const BODY_SLOT = process.env.SDD_BODY_SLOT !== "0"` — **default ON**, shipped in `2d83452` — and
+the live catalog was mined before it. Both read directly, not relayed. So a render cannot corrupt
+anything (byte-identity holds 1037/1037 throughout, the verbatim fallback absorbing every missed
+lookup) but it would **bake a degraded surface into all 1,037 `.en` files as the on-disk corpus**:
+3,527 top / 23,935 tree against the 1,582 / 20,999 baseline. So: no render until the catalog is
+re-mined, which is held pending Amir's ruling. Right answer, wrong reason, corrected.
+
+**And that is a live instance of the class `STALE` cannot see, now named in `preflight.js`'s header
+at skills-4a's request** — a caveat with a named member is a different object from a caveat in the
+abstract. The canon under the catalog has already moved, key computation and key storage disagree,
+every mtime is innocent, and **the table reads all green.** The header now says which dial, which
+commit, what the only symptom is, and why byte-identity cannot detect it.
+
+**One thing the `ALLOW_ORPHANS` guard deliberately does not cover, annotated so nobody "improves" it
+to.** §10 (`10-language-and-grammar.md:42`), read rather than relayed: because names key on the
+content hash of the canonical skeleton and never on the word id, *"retuning `MAXWIN`, `MIN_COUNT` or
+`MIN_SKEL` cannot orphan a name"*. Lowering `MIN_SKEL` therefore orphans zero and the guard will not
+fire, correctly. A **canonicalizer** change does orphan, and §10 says that is correct behaviour, not
+a failure. The guard exists for the third case only: a census short by accident, which is
+indistinguishable from the second.
+
+**Correction accepted in the other direction too:** skills-4a's original `name-queue` diagnosis (the
+§8B requires violation) was not the blocker, and they've taken that. Recorded here because the
+project's rule is that a superseded claim stays visible rather than being quietly fixed — the
+blocker was `ERR_INVALID_ARG_TYPE` at `argv[2]`, and the write being outside `if (APPLY)` is why it
+never depended on the stamp.
+

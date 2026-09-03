@@ -138,7 +138,16 @@ console.log("named ...................... " + Object.keys(names).length);
 if (APPLY && newlyOrphaned > 0 && process.env.ALLOW_ORPHANS !== "1") {
   /* A census that is merely INCOMPLETE looks exactly like a corpus whose skeletons all moved. The
    * difference is invisible from here, so mass orphaning needs a human to say the number out loud.
-   * Nothing is written on this path — the queue below still publishes. */
+   * Nothing is written on this path — the queue below still publishes.
+   *
+   * WHAT THIS GUARD DELIBERATELY DOES NOT COVER, so nobody later "improves" it to: retuning a
+   * MINING PARAMETER. §10 (10-language-and-grammar.md:42) — read, not relayed — states the property
+   * that must hold: because names key on the content hash of the canonical skeleton and NEVER on the
+   * word id, "retuning MAXWIN, MIN_COUNT or MIN_SKEL cannot orphan a name". So lowering MIN_SKEL
+   * orphans zero and this guard will not fire, correctly. It is a CANONICALIZER change that orphans
+   * — and §10 says that is correct behaviour, not a failure, because those skeletons genuinely
+   * became different skeletons. This guard exists for the third case: a census that is short by
+   * accident, which is indistinguishable from the second. */
   console.error(`\nREFUSING to write ${FILE}: this run would orphan ${newlyOrphaned} name(s).`);
   console.error("  An incomplete census is indistinguishable from a corpus that really moved.");
   console.error("  Re-run with ALLOW_ORPHANS=1 if the orphaning is genuinely intended.");

@@ -40,6 +40,24 @@
  * watching review surface move. Raised by session skills-4a on 2026-09-02, recorded rather than
  * quietly half-solved; closing it needs a canon fingerprint that does not exist yet.
  *
+ * AND THAT UNMEASURABLE HALF HAS A KNOWN LIVE MEMBER RIGHT NOW — on record at skills-4a's request,
+ * because a caveat with a named instance is a different thing from a caveat in the abstract:
+ *
+ *   engine/generators.js:119  const BODY_SLOT = process.env.SDD_BODY_SLOT !== "0"   // DEFAULT ON
+ *
+ * shipped in 2d83452, and <CORPUS>/sen/catalog/generators-lzw.json was mined BEFORE it. Verified by
+ * reading both, not by report. So the canon under the catalog has already moved: key computation and
+ * key storage disagree, every mtime is innocent, and THIS TABLE READS ALL GREEN. The only symptom is
+ * review surface — 3,527 top / 23,935 tree against the 1,582 / 20,999 baseline (skills-4a's
+ * measurement) — and byte-identity stays 1037/1037 the whole time because the verbatim fallback
+ * absorbs every missed lookup, which is exactly what makes it silent.
+ *
+ * CONSEQUENCE FOR ANYONE ABOUT TO RENDER: don't, until the catalog is re-mined. A render cannot
+ * corrupt anything, but it would bake that degraded surface into all 1,037 .en files as the on-disk
+ * corpus. The re-mine is held pending Amir's ruling. (The OTHER dial, SDD_EXPR_SLOT in
+ * operations.js:84, is `=== "1"` — default OFF, measured as a 1,875-surface regression at
+ * MIN_SKEL=8 and deliberately shipped off — so it bakes nothing and is not the reason to wait.)
+ *
  * EXIT CODES. 0 = every artifact with a live producer is present. 2 = at least one is absent —
  * a STATE, and the default. 1 = preflight itself could not run (roots unresolvable). `--strict`
  * makes a MISSING/BLOCKED artifact exit 1 for a caller that wants a hard gate; NO PRODUCER never
