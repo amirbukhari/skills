@@ -1,11 +1,38 @@
 "use strict";
-/* NAMES ARE COSMETIC BY CONSTRUCTION (PRD §2.2).
+/* NAMES CANNOT PRODUCE WRONG BYTES (PRD §2.2, AS NARROWED BY §5C RULE 2 ON 2026-09-03).
  *
- * The claim under test is not "the names we happen to have are harmless" — it is that NO name can
- * ever change a byte. That is structural: renderFileEn emits «▶ label ⟪payload⟫» and compileChunk
- * locates the payload with lastIndexOf(PAY_OPEN), decoding only what follows. The label region is
- * never an input to compilation. These assertions pin that reading, and the hash keying that
- * decides which label is emitted.
+ * >>> THIS HEADER USED TO SAY "NAMES ARE COSMETIC BY CONSTRUCTION", AND THE MECHANISM IT CITED IS
+ * >>> NO LONGER TRUE. Kept verbatim rather than quietly rewritten, per CLAUDE.md §9:
+ * >>>
+ * >>>   "The claim under test is not 'the names we happen to have are harmless' — it is that NO
+ * >>>    name can ever change a byte. That is structural: renderFileEn emits «▶ label ⟪payload⟫»
+ * >>>    and compileChunk locates the payload with lastIndexOf(PAY_OPEN), decoding only what
+ * >>>    follows. The label region is never an input to compilation."
+ *
+ * The last sentence is false as of the R-REND-6 cut-2 commit: the label region IS an input to
+ * compilation now, because §5C rule 2 makes the sentence authoritative. "Cosmetic" and
+ * "authoritative" cannot both describe the same region, and §5C is the settled policy.
+ *
+ * *** THIS IS A PRD-LEVEL CONFLICT AND IT IS NOT MINE TO CLOSE. §2.2's wording ("names are
+ * *** cosmetic by construction") is now in direct tension with §5C rule 2, and reconciling the two
+ * *** is Amir's call, not a test file's. This header records the conflict; it does not resolve it.
+ *
+ * WHAT SURVIVES, AND IT IS THE PART THAT WAS ALWAYS THE POINT. The reason "cosmetic" mattered was
+ * never the mechanism — it was the guarantee that renaming a word cannot corrupt the compiled
+ * output. That guarantee is intact and is now asserted directly rather than via the mechanism:
+ *
+ *     a name the compiler cannot re-derive yields IDENTICAL BYTES or a LOUD REFUSAL — never
+ *     different bytes, and never silence.
+ *
+ * And it now catches something the old form accepted. Assertion 3 renders under a LIED-ABOUT name
+ * catalog and compiles under the real one — which is a producer/consumer mismatch, an `.en` written
+ * by a different naming catalog than the compiler holds. Pre-flip that was silently absorbed;
+ * post-flip it is a refusal naming both sides. That is the naming analogue of the canon gate
+ * skills-4a landed in 90ea07b for skeletons, and the same argument applies: a mismatch that
+ * compiles quietly is the failure that is hard to notice.
+ *
+ * THE REAL PIPELINE IS UNAFFECTED, measured: render and compile read the SAME catalog, so the
+ * derived label always equals the written one — byte-identity 1037/1037 with all of this live.
  *
  * §10 compliance: the oracle is real source through a round-trip. The catalog is an INPUT (§10.2). */
 const assert = require("assert");
@@ -78,14 +105,40 @@ ok("a named leaf reached the label region (non-vacuity)", () => {
     "a name on every leaf skeleton reached no label at all; got:\n" + en.slice(0, 400));
 });
 
-/* 3. DELIBERATELY WRONG names change the prose and CANNOT change the bytes.
- *    Every name is replaced with a lie; the compiled output must be identical anyway. */
-ok("a wrong name changes prose but never bytes", () => {
+/* 3. DELIBERATELY WRONG names change the prose and CANNOT produce WRONG BYTES.
+ *    Every name is replaced with a lie, and the .en is then compiled against the REAL catalog — so
+ *    this is a name the compiler cannot re-derive. Two outcomes are acceptable and one is not:
+ *      identical bytes  -> fine (what happened before the flip, and still happens with the check off)
+ *      loud refusal     -> fine, and better: the mismatch is named instead of absorbed
+ *      DIFFERENT bytes  -> the failure this assertion exists to forbid, in either era.
+ *    Asserted as that disjunction, which is the same shape as sentence-authority.test.js's test 8
+ *    and for the same reason: it is the invariant that holds on both sides of the flip. */
+ok("a wrong name changes prose but never produces wrong bytes", () => {
   const bare = renderWith({});
   const lied = renderWith(probeNames("PURPLE MONKEY DISHWASHER"));
   assert.notStrictEqual(lied, bare, "the lie should have changed the prose");
   assert.ok(lied.includes("PURPLE MONKEY DISHWASHER"), "the lie should appear in the label");
-  assert.strictEqual(EN.compileFileEn(lied, idx), SRC, "wrong names must still compile byte-exact");
+  let outcome;
+  try { outcome = { compiled: EN.compileFileEn(lied, idx) }; }
+  catch (e) { outcome = { threw: e.message.split("\n")[0] }; }
+  if (outcome.compiled !== undefined) {
+    assert.strictEqual(outcome.compiled, SRC,
+      "a wrong name produced DIFFERENT BYTES — this is the one forbidden outcome");
+  } else {
+    assert.match(outcome.threw, /SENTENCE AND PAYLOAD DISAGREE|HEADING AND BODY DISAGREE/,
+      "the refusal must be the R-REND-6 one, naming the disagreement — not an incidental crash");
+  }
+});
+
+/* 3b. AND THE ESCAPE HATCH STILL GIVES THE OLD GUARANTEE LITERALLY. With the derive check off, the
+ *     label region is not read at all, so the original "cosmetic by construction" claim is exactly
+ *     true — which is worth pinning, because it is what makes the refusal above a POLICY and not a
+ *     limitation of the encoding. The bytes were always recoverable; the engine now declines to
+ *     recover them silently from a sentence that disagrees. */
+ok("with the derive check off, a wrong name is still literally cosmetic — byte-exact", () => {
+  const lied = renderWith(probeNames("PURPLE MONKEY DISHWASHER"));
+  assert.strictEqual(EN.compileFileEn(lied, idx, { deriveCheck: false }), SRC,
+    "with the label region unread, wrong names must compile byte-exact");
 });
 
 /* 4. NO names at all still compiles, and still renders — the fallback is spanProse, not failure. */

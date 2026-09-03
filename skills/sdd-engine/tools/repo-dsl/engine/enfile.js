@@ -1728,6 +1728,152 @@ function deriveGloss(payload, compiled, cat) {
   catch (_) { return null; }   /* a gloss we cannot derive is not evidence of an edit */
 }
 
+/* THE STRUCTURAL HEADING, DERIVED (§5C rule 3, closing the branch cecfd70 documented as open).
+ * A structural chunk carries no payload of its own, which is why the derive check skipped it and
+ * why a hand-edit to a heading was silent even with SDD_DERIVE_CHECK=1. But "no payload" is not
+ * "nothing to check against": the heading was computed by the renderer FROM THE RUN, and compiling
+ * the body reproduces that run's source bytes exactly. So the same computation runs again here.
+ *
+ * IT MUST BE THE SAME COMPUTATION, NOT AN EQUIVALENT ONE — the drift shape §8B exists for. The
+ * renderer's `label()` is `sanitizeLabel(namedLabel(...) || genLabel(...))` over `EL.runWord`; this
+ * calls those four in that order on the compiled slice, which is byte-identical to the slice the
+ * renderer labelled. Anything cheaper here re-introduces the "await find one or fail" class of
+ * false positive that the comment above deriveGloss records paying for once already.
+ *
+ * FAIL SOFT, ALWAYS. Every failure path returns null (= "no opinion"), never a throw and never a
+ * guess. A heading we cannot re-derive is not evidence of an edit, and a check that fires on
+ * correct spans is worse than no check at all. The parse-diagnostics gate is part of that: a
+ * structural chunk nested inside a block can hold statements that do not parse as a standalone
+ * program, and labelling a broken parse would fire on a file nobody touched. */
+function deriveStructuralGloss(compiled, cat) {
+  if (!cat || !compiled.trim()) return null;
+  let frag;
+  try { frag = ts.createSourceFile("s.ts", compiled, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS); }
+  catch (_) { return null; }
+  if (frag.parseDiagnostics && frag.parseDiagnostics.length) return null;  /* not a standalone program */
+  const stmts = [...frag.statements];
+  if (!stmts.length) return null;
+  let w = null;
+  try { w = EL.runWord(stmts, frag, compiled, cat); } catch (_) { w = null; }
+  let s = null;
+  try { s = namedLabel({ start: 0, end: compiled.length, payload: w && w.payload }, compiled, cat, NAMES.names, NAMES.chunks); }
+  catch (_) { s = null; }
+  try { return sanitizeLabel(s || genLabel(0, compiled.length, compiled, stmts.length)); }
+  catch (_) { return null; }
+}
+
+/* ================================================================================================
+ * R-REND-6 CUT 2 — THE SENTENCE BECOMES EFFECTIVE (§5C rule 2, §Q-3 mechanics).
+ *
+ * Cut 1 (`deriveGloss` above) made a hand-edited sentence a LOUD REFUSAL instead of a silent no-op.
+ * That satisfies §5C rule 3 and leaves rule 2 unbuilt: "a hand-edit to a clause's English MUST
+ * change the compiled TypeScript". A refusal is not a change. Until this function existed the
+ * engine was a documentation generator — the English described the program and could not BE it,
+ * which is the whole of Amir's goal: he cannot stop reading TypeScript while the English is a
+ * comment.
+ *
+ * WHY THIS IS NOT THE §5E.3.2 GRAMMAR PARSER, and why it does not need to be. Parsing an arbitrary
+ * English clause back into a payload is the open half of §Q-3 and is a large piece of work. But the
+ * payload is `{d,a,w,h}` and `compileSpan` is `refill(template, h)` — the word id `w` picks a
+ * TEMPLATE and the holes `h` are the ONLY per-site content. So every edit that changes what a
+ * clause MEANS about this site, rather than which pattern it is, is an edit to a hole. §5C's own
+ * examples are exactly that class: "an identifier, a status code, a callee". This inverts the hole
+ * layer only, and refuses everything else rather than guessing at it.
+ *
+ * THE LOOP IS CLOSED, WHICH IS WHY IT IS ALLOWED TO GUESS AT ALL. The repair is a HYPOTHESIS, and
+ * it is never trusted on its own reasoning:
+ *
+ *     written gloss  ->  hypothesise a hole substitution  ->  refill  ->  RE-DERIVE the gloss
+ *                                                                              |
+ *                        accept ONLY if the re-derived gloss is byte-equal to what the human wrote
+ *
+ * The acceptance test is the renderer itself. If the repaired payload re-renders to the human's
+ * exact sentence, the edit was understood — not plausibly, provably, because the same function that
+ * writes every clause in the corpus now writes theirs. Anything else is a refusal. There is no
+ * branch where a partially-understood edit compiles.
+ *
+ * ASSERT YOUR OWN DENOMINATOR (skills-4a, 2026-09-03, from the orphan-ledger failure the same day:
+ * `reconcile-names.js` walked a 6-entry leaf ledger and reported a confident "2 newly orphaned"
+ * against a corpus where 974 chunk names had died — it was not wrong about what it looked at, it
+ * looked at the wrong collection and said nothing about the rest). So: EVERY differing token must
+ * be consumed by a substitution. A diff this function cannot account for is a refusal even if the
+ * tokens it DID account for would have verified. Silence about the remainder is the bug class.
+ *
+ * WHAT IT DELIBERATELY DOES NOT REPAIR, each a refusal and not a silent pass:
+ *   - a changed token count or token kind        (the clause was restructured, not re-filled)
+ *   - an old token that is not a hole value      (it came from the template — that is a NEW WORD,
+ *                                                 which is the miner's job, not the compiler's)
+ *   - prose outside the quoted tokens            (adjectives the payload never encoded)
+ *   - anything whose re-derivation does not match (we did not understand it)
+ * ============================================================================================== */
+
+/* the quoted tokens of a gloss, in order, with their kind. A gloss quotes identifiers in `backticks`
+ * and string literals in “curly quotes” (sanitizeLabel guarantees neither can appear in prose), so
+ * these two are the full set of positions where a gloss names something the payload also carries. */
+function glossTokens(g) {
+  const out = [];
+  const re = /`([^`]*)`|“([^”]*)”/g;
+  let m;
+  while ((m = re.exec(g)) !== null) {
+    out.push(m[1] !== undefined ? { kind: "id", text: m[1] } : { kind: "str", text: m[2] });
+  }
+  return out;
+}
+
+/* Attempt to honour a hand-edited sentence. Returns the compiled TypeScript on success, or null —
+ * never a partial result, and never a throw of its own (the caller owns the refusal message). */
+function repairFromSentence(written, obj, cat) {
+  const holes = obj.h || [];
+  if (!holes.length) return null;                 /* nothing per-site to edit */
+
+  /* re-derive the CURRENT sentence so the diff is against what the payload actually says, not
+   * against whatever was on disk — the same call the check above made. */
+  let baseCompiled;
+  try { baseCompiled = EL.compileSpan(obj, cat); } catch (_) { return null; }
+  const derived = deriveGloss(obj, baseCompiled, cat);
+  if (derived === null) return null;
+
+  const dTok = glossTokens(derived), wTok = glossTokens(written);
+  if (dTok.length !== wTok.length || dTok.length === 0) return null;   /* restructured, not refilled */
+
+  /* build the substitution, and refuse the moment anything is unaccounted for. */
+  const subs = new Map();
+  for (let i = 0; i < dTok.length; i++) {
+    if (dTok[i].kind !== wTok[i].kind) return null;
+    if (dTok[i].text === wTok[i].text) continue;
+    const from = dTok[i].text, to = wTok[i].text;
+    if (!holes.includes(from)) return null;       /* came from the template — a new word, not a fill */
+    if (subs.has(from) && subs.get(from) !== to) return null;  /* one token, two fates */
+    subs.set(from, to);
+  }
+  if (subs.size === 0) return null;               /* the difference is prose, not tokens */
+
+  const newH = holes.map((h) => (subs.has(h) ? subs.get(h) : h));
+  if (newH.every((h, i) => h === holes[i])) return null;
+
+  const newObj = { d: obj.d, a: obj.a, w: obj.w, h: newH };
+  let compiled;
+  try { compiled = EL.compileSpan(newObj, cat); } catch (_) { return null; }
+
+  /* THE CLOSED LOOP. Accept only if the repaired payload re-renders to the human's exact sentence. */
+  const reDerived = deriveGloss(newObj, compiled, cat);
+  if (reDerived !== written) return null;
+
+  return compiled;
+}
+
+/* HOW A PARENT KNOWS ITS BODY MOVED BENEATH IT. Monotonic and never reset, so it is safe under
+ * recursion: a caller snapshots it, compiles, and compares. Only repairFromSentence bumps it, so
+ * "greater than my snapshot" means exactly "an honoured hand-edit changed my body's bytes". */
+let honouredEdits = 0;
+
+/* NAME THE FILE IN THE REFUSAL. `compileChunk` has never known which file it is compiling — it is
+ * handed a chunk — so both refusals below could name the clause and not the file, and a caller
+ * compiling 1,037 of them printed a perfect diagnosis of an unidentified file. Threaded as an
+ * optional `opts.file` rather than a required argument so no existing caller changes behaviour:
+ * absent, the message reads exactly as before. */
+function whereFile(opts) { return (opts && opts.file) ? "\n  file:     " + opts.file : ""; }
+
 const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK !== "0";
 
 function compileChunk(chunk, index, opts) {
@@ -1750,7 +1896,59 @@ function compileChunk(chunk, index, opts) {
      * it needs a second producer of the run grouping, which is the shape R-REND-9 forbids. */
     const bo = chunk.indexOf(BODY_OPEN), bc = chunk.lastIndexOf(BODY_CLOSE);
     if (bo < 0 || bc < bo) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
-    return compileFileEn(chunk.slice(bo + 1, bc), index, opts);
+    const body = chunk.slice(bo + 1, bc);
+    const honouredBefore = honouredEdits;
+    const built = compileFileEn(body, index, opts);
+    const childHonoured = honouredEdits > honouredBefore;
+    if (deriveCheck && index && index._lzw) {
+      const written = chunk.slice(1, bo).trim();
+      const derived = deriveStructuralGloss(built, index._lzw);
+      if (derived !== null && derived !== written) {
+        /* STALE BY CONSEQUENCE IS NOT A CONTRADICTION, and telling the two apart is what makes
+         * rule 2 actually reachable. Found by running this, not by reading it: the first version
+         * refused the ATOMIC test case, because the edited clause sits inside a structural chunk
+         * and honouring the child moved the body out from under a heading nobody had touched. The
+         * comment below claimed the edit "remains expressible at the child" while this branch was
+         * making that false — the exact shape §9 of CLAUDE.md is a list of.
+         *
+         * The discriminator is exact, not a heuristic. Re-compile the body with repair OFF, which
+         * reproduces the PRE-EDIT bytes, and derive the heading from those:
+         *   - it matches what the human wrote  -> the heading was right before the child edit and
+         *                                         is merely behind it. The body wins; the heading
+         *                                         re-derives on the next render.
+         *   - it does not match either         -> the human edited the heading TOO, on top of a
+         *                                         child edit. Still a contradiction. Still refused.
+         * Costs one extra compile of the body, and only on a file that carries an honoured edit —
+         * never on the clean corpus, where repair never runs at all. */
+        if (childHonoured) {
+          let preEdit = null;
+          try { preEdit = compileFileEn(body, index, Object.assign({}, opts, { deriveCheck: false })); }
+          catch (_) { preEdit = null; }
+          const derivedPreEdit = preEdit === null ? null : deriveStructuralGloss(preEdit, index._lzw);
+          if (derivedPreEdit !== null && derivedPreEdit === written) return built;
+        }
+        /* WHY THIS REFUSES INSTEAD OF HONOURING THE EDIT, unlike the atomic branch below. A
+         * heading is not an independent statement about the code — it is COMPUTED FROM THE
+         * CHILDREN, and every identifier in it is an echo of an identifier in a child clause. So
+         * an edit to the heading alone is not the sentence disagreeing with a derived index; it is
+         * two pieces of ENGLISH disagreeing with each other, and there is no principled winner:
+         * honouring the heading would silently rewrite child clauses the human did not touch.
+         *
+         * Rule 2 is not weakened by this, because the edit remains EXPRESSIBLE — at the child. Edit
+         * the atomic clause that names the identifier and the repair path honours it, and the
+         * heading then re-derives to match on the next render. Every semantic edit has an
+         * effective home; this one just is not it. */
+        throw new Error(
+          "enfile: HEADING AND BODY DISAGREE (R-REND-6 — the sentence is authoritative)" +
+          whereFile(opts) + "\n" +
+          "  written:  " + written + "\n" +
+          "  derived:  " + derived + "\n" +
+          "  A structural heading is computed from the clauses beneath it, so an edit to the heading\n" +
+          "  alone contradicts them. Make the edit in the child clause that names the identifier —\n" +
+          "  the heading follows from it. It is NOT compiled silently.");
+      }
+    }
+    return built;
   }
   if (chunk[0] === GEN) { // multi-line generator: refill catalog template with per-site holes
     const a = chunk.lastIndexOf(PAY_OPEN), b = chunk.lastIndexOf(PAY_CLOSE);
@@ -1766,13 +1964,25 @@ function compileChunk(chunk, index, opts) {
       const written = chunk.slice(1, a).trim();
       const derived = deriveGloss(obj, compiled, index._lzw);
       if (derived !== null && derived !== written) {
+        /* §5C RULE 2 FIRST, RULE 3 ONLY AS THE FALLBACK. The sentence is authoritative, so before
+         * refusing a disagreement we try to HONOUR it: repairFromSentence inverts the hole layer
+         * and accepts only a repair that re-derives to this exact sentence. Rule 3's refusal is
+         * what happens when the sentence says something we cannot prove we understood — never a
+         * tie the payload wins, and never a silent compile of the pre-edit bytes. */
+        const honoured = repairFromSentence(written, obj, index._lzw);
+        if (honoured !== null) { honouredEdits++; return honoured; }
         throw new Error(
-          "enfile: SENTENCE AND PAYLOAD DISAGREE (R-REND-6 — the sentence is authoritative)\n" +
+          "enfile: SENTENCE AND PAYLOAD DISAGREE (R-REND-6 — the sentence is authoritative)" +
+          whereFile(opts) + "\n" +
           "  written:  " + written + "\n" +
           "  derived:  " + derived + "\n" +
-          "  The English in this clause is not what its payload compiles to. Either the prose was\n" +
-          "  hand-edited (the payload has not caught up — re-render, or wait for grammar parsing to\n" +
-          "  make the edit effective) or the payload is stale. It is NOT compiled silently.");
+          "  The English in this clause is not what its payload compiles to, AND the repair path could\n" +
+          "  not prove it understood the difference — so it refused rather than compile a guess.\n" +
+          "  An edit is honoured when it renames what a hole carries (an identifier, a callee, a\n" +
+          "  literal) and the clause otherwise reads the same. It is refused when it adds or reworks\n" +
+          "  prose the payload cannot encode, changes how many things the clause names, or renames\n" +
+          "  something that came from the pattern rather than this site — that last case is a NEW\n" +
+          "  WORD, which the miner owns, not the compiler. It is NOT compiled silently either way.");
       }
     }
     return compiled;
@@ -1808,7 +2018,7 @@ function compileFileEn(en, index, opts) {
   return out;
 }
 
-module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
+module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, deriveStructuralGloss, repairFromSentence, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,
    * and it is this one — the renderer's. A second copy in the consumer would drift from it silently. */
   SAYS_NOTHING };

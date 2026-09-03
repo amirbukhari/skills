@@ -11,13 +11,30 @@
  * Today the answer is "nothing, or an error" — never "the code changes". That is A2, the largest
  * single gap on the flip, and it has been prose until now.
  *
- * >>> THIS TEST IS EXPECTED TO FAIL THE DAY THE FLIP LANDS, AND THAT IS THE POINT. <<<
- * It asserts a LIMITATION, not a desired behaviour. When §5E.3.2's grammar parser makes an edited
- * sentence authoritative (R-REND-6), assertions 3, 5 and 6 below SHOULD go red. Do not "fix" them by
- * loosening them — rewrite the file to assert the new contract, and delete this banner. A green run
- * here means English is still a report, not a source.
+ * >>> THE FLIP HAS LANDED (2026-09-03) AND THIS FILE IS STILL GREEN. READ WHY BEFORE TRUSTING IT. <<<
+ * The banner here used to say this test was expected to FAIL the day an edited sentence became
+ * authoritative. That day came — `repairFromSentence` in enfile.js inverts the payload's hole layer
+ * and honours an edit it can prove it understood — and every assertion below still passes. That is
+ * not the tripwire failing to fire; it is this fixture sitting on the far side of the boundary the
+ * flip drew, and the distinction is worth stating exactly because a green run here is now easy to
+ * misread as "English is still a report".
  *
- * Measured 2026-09-01, and every assertion below was observed before it was written.
+ * WHY THIS FIXTURE IS STILL REFUSED, AND CORRECTLY. The edit below is
+ *     "compute `total`"  ->  "compute `grandTotal` by adding tax"
+ * which does two things at once: it renames a hole fill (honourable) AND adds prose the payload has
+ * no way to encode (not). The repair path is a closed loop — it refills the holes, re-derives the
+ * gloss from the repaired payload, and accepts ONLY a byte-equal match against what the human
+ * wrote. "by adding tax" can never appear in a re-derived gloss, so the loop cannot close, so the
+ * edit is refused. The engine does not half-understand a sentence and compile the half it got.
+ *
+ * WHAT CHANGED HERE, THEN. Assertion 5's name, and only its name — it claimed "NO setting makes an
+ * edited sentence authoritative", which became false engine-wide the moment one setting does. The
+ * assertion body is unchanged and still passes; it has been renamed to the property it actually
+ * establishes, which is the more useful one now: an edit the engine cannot PROVE it understood is
+ * refused under every setting. Nothing was loosened. See `sentence-authority.test.js`, which pins
+ * the near side of the same boundary and is green for the opposite reason.
+ *
+ * Measured 2026-09-01; the boundary above re-measured 2026-09-03.
  */
 const assert = require("assert");
 const { renderFileEn, compileFileEn, loadIndex } = require("./enfile");
@@ -74,16 +91,22 @@ ok("CHECKED: the same edit throws R-REND-6 rather than taking effect", () => {
     "deriveCheck did not reject a sentence that disagrees with its payload");
 });
 
-/* 5. The gap itself, stated as a property over BOTH settings rather than asserted twice. There is
- *    no configuration under which editing the English changes the code. */
-ok("NO setting makes an edited sentence authoritative — this is the A2 gap", () => {
+/* 5. THE BOUNDARY, stated as a property over BOTH settings rather than asserted twice. This used to
+ *    read "there is no configuration under which editing the English changes the code", which was
+ *    true when it was written and is now false: an edit confined to hole fills IS authoritative
+ *    (sentence-authority.test.js section 7). What remains true, and is the property worth pinning,
+ *    is that an edit the engine cannot PROVE it understood — here, one that adds prose the payload
+ *    cannot encode — is refused under every setting rather than partially applied. */
+ok("an edit the engine cannot PROVE it understood is refused under every setting (added prose)", () => {
   const outcomes = [false, true].map((deriveCheck) => {
     try { return { compiled: compileFileEn(EDITED, idx, { deriveCheck }) }; }
     catch (e) { return { threw: e.message.split("\n")[0] }; }
   });
   const changedTheCode = outcomes.some((o) => o.compiled !== undefined && o.compiled !== SRC);
   assert.strictEqual(changedTheCode, false,
-    `a setting made the edit take effect: ${JSON.stringify(outcomes)} — the flip may have landed`);
+    `a setting compiled an edit whose prose the payload cannot encode: ${JSON.stringify(outcomes)}\n` +
+    `      That is a half-understood sentence being compiled, which is the one outcome forbidden ` +
+    `in every version of the engine.`);
 });
 
 /* 6. English written from scratch, the way a person actually would: a sentence and no payload.

@@ -32,8 +32,27 @@ build sequence, not an open question.
 - **R-PAY-6 must close first.** Word ids renumber on every re-mine, so authoritative English on top
   of mining-order ids lets one re-mine silently invalidate every `.en`. §5E.3.2's content-addressed
   ids are the fix.
-- **`compileChunk` must derive the payload from the sentence** rather than only reading it (§5E.5,
-  open mechanic 5).
+- ~~**`compileChunk` must derive the payload from the sentence** rather than only reading it (§5E.5,
+  open mechanic 5).~~ **BUILT 2026-09-03, for the hole layer.** `enfile.js repairFromSentence`
+  inverts the payload's holes from the written sentence and accepts a repair **only** if
+  re-deriving the gloss from the repaired payload reproduces the human's sentence byte-for-byte;
+  anything it cannot prove it understood is the loud refusal §5C rule 3 requires. Measured: a
+  hand-edit to a real `.en` (`src/hydra-api/redisJobs.ts.en`, `` `ESocketEvents` `` →
+  `` `renamedByHand` ``) changes the compiled TypeScript; the same clause with added prose is
+  refused naming file, written and derived. Byte-identity **1037/1037** before and after.
+  The structural branch is closed too (`deriveStructuralGloss`): it holds an opinion on **9,611 of
+  9,611** structural chunks and disagrees with **0**, so a heading edit is no longer silent.
+  **Still open:** the §5E.3.2 grammar parser, i.e. an edit that restructures a clause, adds prose,
+  or renames something the TEMPLATE supplied rather than a hole — that last case is a new word and
+  belongs to the miner. Ruled deliberately: a **structural heading** edit alone is REFUSED, not
+  honoured, because a heading is computed from its children and honouring it would silently rewrite
+  clauses the human left alone; the edit stays expressible at the child, proved end-to-end in
+  `engine/sentence-authority.test.js` §9.
+- **§2.2's "names are cosmetic by construction" now conflicts with §5C rule 2 and needs Amir's
+  word.** The label region is an input to compilation as of the above, so it cannot also be
+  cosmetic. What survives, and is asserted in `engine/word-names.test.js`, is the guarantee that
+  mattered: a name the compiler cannot re-derive yields identical bytes or a loud refusal, **never
+  different bytes**. Recorded, not resolved.
 - **A human must actually author a `.en` and review the compiled `.ts` as a diff.** Unchanged.
 - **`sen/`'s wipe gate hardens from *"explicit flag"* to *"refuse"*** at the flip (§1B.3). The flip
   now has a direction; the trigger is when `compileChunk` reads sentences.

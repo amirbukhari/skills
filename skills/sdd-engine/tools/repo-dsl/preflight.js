@@ -40,23 +40,46 @@
  * watching review surface move. Raised by session skills-4a on 2026-09-02, recorded rather than
  * quietly half-solved; closing it needs a canon fingerprint that does not exist yet.
  *
- * AND THAT UNMEASURABLE HALF HAS A KNOWN LIVE MEMBER RIGHT NOW — on record at skills-4a's request,
- * because a caveat with a named instance is a different thing from a caveat in the abstract:
+ * THE CLASS IS REAL AND HAS NO KNOWN LIVE MEMBER. It briefly had one here, and it was wrong.
  *
- *   engine/generators.js:119  const BODY_SLOT = process.env.SDD_BODY_SLOT !== "0"   // DEFAULT ON
+ * >>> RETRACTED 2026-09-03. This block used to name BODY_SLOT as a live member and tell the reader
+ * >>> not to render. Kept verbatim per CLAUDE.md §9, because the retraction is the useful part:
+ * >>>
+ * >>>   "AND THAT UNMEASURABLE HALF HAS A KNOWN LIVE MEMBER RIGHT NOW [...]
+ * >>>    engine/generators.js:119  const BODY_SLOT = process.env.SDD_BODY_SLOT !== "0"  // DEFAULT ON
+ * >>>    shipped in 2d83452, and <CORPUS>/sen/catalog/generators-lzw.json was mined BEFORE it.
+ * >>>    Verified by reading both, not by report. [...] The only symptom is review surface —
+ * >>>    3,527 top / 23,935 tree against the 1,582 / 20,999 baseline [...]
+ * >>>    CONSEQUENCE FOR ANYONE ABOUT TO RENDER: don't, until the catalog is re-mined."
  *
- * shipped in 2d83452, and <CORPUS>/sen/catalog/generators-lzw.json was mined BEFORE it. Verified by
- * reading both, not by report. So the canon under the catalog has already moved: key computation and
- * key storage disagree, every mtime is innocent, and THIS TABLE READS ALL GREEN. The only symptom is
- * review surface — 3,527 top / 23,935 tree against the 1,582 / 20,999 baseline (skills-4a's
- * measurement) — and byte-identity stays 1037/1037 the whole time because the verbatim fallback
- * absorbs every missed lookup, which is exactly what makes it silent.
+ * ALL OF THAT IS FALSE, AND THE CATALOG IS CURRENT. Re-measured here, behaviourally, rather than
+ * taken on report a second time:
+ *   - the live catalog holds 25,064 `type:"body"` hole markers and 0 `‹callee›` ones. That marker
+ *     IS the body slot — 2d83452 is the commit that introduces `{hole:true, type:"body"}` — so the
+ *     catalog was demonstrably mined by body-slot code and its canon matches this tree.
+ *   - the timing detail in the retracted text was wrong in BOTH directions and neither mattered:
+ *     the catalog's mtime (2026-09-02 22:51:41 -0400) is two minutes BEFORE 2d83452's commit
+ *     (22:53:36), i.e. it was mined from an uncommitted working tree. skills-4a said "mined after";
+ *     I said "mined before". Both were reading clocks. The hole census settles it, and it is the
+ *     only evidence here that could.
+ *   - the 3,527 / 23,935 figure was measured by skills-4a at a moment when their own SDD_EXPR_SLOT
+ *     change was uncommitted AND default-on, so the renderer was computing expr-slot keys against a
+ *     body-slot catalog — a canon mismatch introduced seconds earlier in one working tree, not a
+ *     property of the corpus. They retracted it; I verified the retraction before acting on it.
  *
- * CONSEQUENCE FOR ANYONE ABOUT TO RENDER: don't, until the catalog is re-mined. A render cannot
- * corrupt anything, but it would bake that degraded surface into all 1,037 .en files as the on-disk
- * corpus. The re-mine is held pending Amir's ruling. (The OTHER dial, SDD_EXPR_SLOT in
- * operations.js:84, is `=== "1"` — default OFF, measured as a 1,875-surface regression at
- * MIN_SKEL=8 and deliberately shipped off — so it bakes nothing and is not the reason to wait.)
+ * SO: RENDERING IS NOT BLOCKED BY THIS. It remains held only because Amir has not ruled on the
+ * re-mine, which is a different reason and his to lift. The lesson is the one at the top of
+ * CLAUDE.md: BOTH sessions reasoned from timestamps and file-reading and both got it wrong; one
+ * behavioural measurement — count the holes — answered it immediately.
+ *
+ * AND THE CLASS ITSELF IS NOW GUARDED, which is why it needs no named member. skills-4a's
+ * engine/canon-fingerprint.js (90ea07b) gives a catalog a behavioural record of the canon it was
+ * mined under — 20 frozen probes canonicalized at exact/narrow/wide and hashed — and
+ * enfile.js:loadIndex refuses a present-and-different fingerprint. Absent only warns, which every
+ * catalog on disk currently triggers, because refusing those would brick the corpus to install a
+ * guard (§8B: absent is a state). That is strictly stronger than an mtime edge for this class:
+ * it moves when two builds would key the dictionary differently and stays put across MIN_SKEL,
+ * MIN_COUNT and MAXWIN retunes, asserted in engine/canon-fingerprint.test.js.
  *
  * EXIT CODES. 0 = every artifact with a live producer is present. 2 = at least one is absent —
  * a STATE, and the default. 1 = preflight itself could not run (roots unresolvable). `--strict`

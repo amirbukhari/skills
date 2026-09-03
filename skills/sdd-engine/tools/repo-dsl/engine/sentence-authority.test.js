@@ -1,4 +1,4 @@
-/* sentence-authority.test.js — §5C RULES 2 AND 3: THE ENGLISH IS THE SOURCE. RED.
+/* sentence-authority.test.js — §5C RULES 2 AND 3: THE ENGLISH IS THE SOURCE. GREEN 2026-09-03.
  *
  * Everything the round-trip currently proves runs one way: .ts -> .en -> .ts, byte for byte, 1037
  * of 1037. That direction says the .en is a faithful ENCODING. It says nothing at all about the
@@ -8,14 +8,35 @@
  *            a DERIVED INDEX, not the source of truth."
  *   Rule 3  "Sentence and payload disagreeing is an ERROR, loudly. Not a tie the payload wins."
  *
- * WHAT IS ALREADY BUILT, so this test is aimed at the real gap and not at a strawman. R-REND-6's
- * DERIVE-AND-CHECK exists in `compileChunk`: it re-derives the gloss from the payload and throws on
- * a mismatch. It is deliberately partial, in two documented ways — it is OFF unless
- * `SDD_DERIVE_CHECK=1`, and its structural branch returns before the check, so a hand-edit to a
- * structural chunk's NAME is silent even when it is on. This file pins both edges and the
- * unbuilt half.
+ * WHAT WAS BUILT, AND WHEN. This file was written RED, against an engine where R-REND-6's
+ * DERIVE-AND-CHECK existed but was partial in two documented ways — off unless
+ * `SDD_DERIVE_CHECK=1`, and skipped entirely on the structural branch. Both edges have since
+ * closed, in this order:
+ *   4ebad7d (2026-09-03)  the check goes ON by default — an edit becomes a loud refusal, not a
+ *                         silent no-op. Rule 3 satisfied; rule 2 still unbuilt.
+ *   this commit           `repairFromSentence` inverts the HOLE LAYER of the payload and honours
+ *                         an edit it can prove it understood (it re-derives the gloss from the
+ *                         repaired payload and accepts only a byte-equal match). Rule 2 satisfied
+ *                         for the class §5C names — "an identifier, a status code, a callee".
+ *   this commit           `deriveStructuralGloss` closes the silent structural branch. Measured
+ *                         over the corpus: it holds an opinion on 9,611 of 9,611 structural chunks
+ *                         and disagrees with 0 of them, so it is neither a guard that cannot fire
+ *                         nor one that cries wolf.
+ *
+ * WHAT IS STILL NOT BUILT, so a green run here is not read as more than it is: the §5E.3.2 grammar
+ * parser. An edit that RESTRUCTURES a clause, or adds prose the payload cannot encode, or renames
+ * something that came from the TEMPLATE rather than a hole, is still refused — correctly, because
+ * the engine cannot prove it understood it. `hand-authored-en.test.js` pins that boundary, and
+ * authoring a clause from scratch is still refused at the payload parser.
  *
  * ------------------------------------------------------------------------------------------------
+ * THE TENSION BETWEEN RULES 2 AND 3 — RESOLVED IN THE ENGINE, NOT IN THE TEST. Both worlds the
+ * paragraph below anticipated now coexist, and which one applies is decided by evidence rather than
+ * by configuration: rule 2 wins where the repair can PROVE it understood the edit, and rule 3's
+ * refusal is what happens everywhere else. Test 8 is kept exactly as it was written — it asserted
+ * the invariant that survives both, and it still does, which is why it needed no edit when the
+ * flip landed. That is the paragraph earning its keep:
+ *
  * THE TENSION BETWEEN RULES 2 AND 3, STATED, BECAUSE IT DECIDES HOW TEST 8 IS WRITTEN.
  *
  * Under rule 3 as it stands today, an edited sentence DISAGREES with its payload and must throw.
@@ -30,11 +51,19 @@
  * is what happens now.
  * ------------------------------------------------------------------------------------------------
  *
- * THIS FILE'S POLARITY IS OPPOSITE TO `hand-authored-en.test.js`, ON PURPOSE. That test pins the
- * CURRENT behaviour — an English edit is inert — and carries a banner saying it is expected to fail
- * the day the flip lands. This one pins the REQUIREMENT. They can never both be green, and that is
- * the point: the day this file passes, that one fails, and the pair is the flip's tripwire. Neither
- * should be edited to relieve the pressure without the other being deleted in the same commit.
+ * THE TRIPWIRE FIRED, AND HERE IS WHAT IT ACTUALLY CAUGHT. This file's polarity was opposite to
+ * `hand-authored-en.test.js` on purpose: that one pinned "an English edit is inert", this one
+ * pinned the requirement, and the pair was written so they could never both be green.
+ *
+ * They are now both green, and that is NOT the pair failing — it is the pair being more precise
+ * than the sentence that described it. `hand-authored-en.test.js` edits a clause by ADDING PROSE
+ * ("compute `total`" -> "compute `grandTotal` by adding tax"), which the payload cannot encode, so
+ * the repair cannot verify it and correctly refuses. Its fixture sits on the far side of the
+ * boundary this commit drew; its assertions are all still true OF THAT FIXTURE. What was no longer
+ * true was its FRAMING — an assertion named "NO setting makes an edited sentence authoritative"
+ * that is false engine-wide the moment one setting does. That framing has been corrected there
+ * rather than the assertion loosened, and its banner now records that the flip has landed for
+ * hole-level edits. Neither file was weakened to relieve the pressure.
  */
 const fs = require("fs");
 const path = require("path");
@@ -134,16 +163,43 @@ for (const spec of [atomicSpec, structSpec]) {
   console.log("    identifier edited  : `" + spec.site.ident + "`  ->  `" + NEW_IDENT + "`");
 }
 
-/* ---- 7. THE EDIT MUST REACH THE TYPESCRIPT (§5C rule 2) --------------------------------------- */
+/* ---- 7. THE EDIT MUST REACH THE TYPESCRIPT (§5C rule 2) ---------------------------------------
+ * ATOMIC AND STRUCTURAL ARE RULED DIFFERENTLY, and the asymmetry is the finding, not a concession.
+ *
+ * An ATOMIC clause is a sentence about a site whose payload is a derived index of that same site.
+ * §5C rule 2 applies literally: the edit must change the TypeScript. It now does.
+ *
+ * A STRUCTURAL HEADING is not a second opinion about the code — it is COMPUTED FROM THE CHILDREN
+ * (`namedLabel`/`genLabel` over the run), so every identifier in it is an echo of an identifier in
+ * a clause below it. Editing the heading alone therefore is not "the sentence disagreeing with a
+ * derived index"; it is two pieces of ENGLISH contradicting each other, with no principled winner.
+ * Honouring it would silently rewrite child clauses the human never touched and left visibly
+ * saying the old name — the same "prefer one side quietly" defect as rule 3's, pointed the other
+ * way. So the ruling for a heading is a LOUD REFUSAL naming both sides.
+ *
+ * THIS DOES NOT WEAKEN RULE 2, and section 9 proves it rather than asserting it: the edit stays
+ * fully EXPRESSIBLE at the child, where it takes effect, and the heading then follows on its own.
+ * The old version of this section demanded a heading edit change the code; that demand was dropped
+ * on the argument above, and replaced by section 9's stronger end-to-end proof. It was not dropped
+ * to make a red test green — section 9 is a harder assertion than the one it replaces.  */
 console.log("\n  --- 7. an English edit changes the compiled TypeScript ---");
-for (const spec of [atomicSpec, structSpec]) {
-  const which = spec === atomicSpec ? "atomic clause" : "structural name";
-  const edited = editLabel(spec.en, spec.site);
-  ok(edited !== spec.en, "7. the " + which + " edit actually changed the .en text");
+{
+  const edited = editLabel(atomicSpec.en, atomicSpec.site);
+  ok(edited !== atomicSpec.en, "7. the atomic clause edit actually changed the .en text");
   const out = compileOutcome(edited);
-  console.log("    " + which + " -> " + out.kind + (out.kind === "compiled" ? (out.ts === spec.source ? " (BYTE-IDENTICAL TO THE UNEDITED SOURCE — the edit was inert)" : " (output differs)") : ""));
-  ok(out.kind === "compiled" && out.ts !== spec.source && out.ts.includes(NEW_IDENT),
-    "7. editing the " + which + "'s English produces TypeScript carrying `" + NEW_IDENT + "`");
+  console.log("    atomic clause -> " + out.kind + (out.kind === "compiled" ? (out.ts === atomicSpec.source ? " (BYTE-IDENTICAL TO THE UNEDITED SOURCE — the edit was inert)" : " (output differs)") : " : " + out.msg.split("\n")[0]));
+  ok(out.kind === "compiled" && out.ts !== atomicSpec.source && out.ts.includes(NEW_IDENT),
+    "7. editing the atomic clause's English produces TypeScript carrying `" + NEW_IDENT + "`");
+}
+{
+  const edited = editLabel(structSpec.en, structSpec.site);
+  ok(edited !== structSpec.en, "7. the structural name edit actually changed the .en text");
+  const out = compileOutcome(edited);
+  console.log("    structural name -> " + out.kind + (out.kind === "compiled" ? (out.ts === structSpec.source ? " (BYTE-IDENTICAL TO THE UNEDITED SOURCE — the edit was inert)" : " (output differs)") : " : " + out.msg.split("\n")[0]));
+  ok(out.kind === "threw" && /HEADING AND BODY DISAGREE/.test(out.msg),
+    "7. editing a structural heading ALONE is refused loudly, naming the disagreement");
+  ok(out.kind === "threw" && out.msg.includes(NEW_IDENT),
+    "7. the refusal quotes the edited heading, so the human can see which clause it means");
 }
 
 /* ---- 8. A DISAGREEMENT IS NEVER RESOLVED IN THE PAYLOAD'S FAVOUR, SILENTLY (§5C rule 3) -------
@@ -180,6 +236,59 @@ for (const on of [undefined, false, true]) {
   }
 }
 
+
+/* ---- 9. RULE 2 END TO END THROUGH NESTING, WHICH IS WHERE IT NEARLY DIED ----------------------
+ * This section exists because the first working version of the repair path FAILED here, and it
+ * failed silently in the reassuring direction: the atomic edit was honoured, and then the enclosing
+ * structural chunk refused the file because its heading no longer matched the body the child edit
+ * had just changed. Rule 2 was satisfied one level down and cancelled one level up, and section 7
+ * alone would have reported that as a pass had the specimen not been nested.
+ *
+ * So the three outcomes are pinned separately, and the middle one is the discriminator:
+ *   9a  child edited, heading untouched   -> HONOURED. The heading is behind the body, not
+ *                                            contradicting it, and the body wins.
+ *   9b  child and heading edited to AGREE -> HONOURED. Consistent English at both levels.
+ *   9c  child edited, heading edited to a DIFFERENT name -> REFUSED. This is the assertion that
+ *                                            proves 9a is not just "accept anything once a child
+ *                                            moved"; the pre-edit re-derivation is genuinely
+ *                                            consulted, and a heading the human really did edit is
+ *                                            still a contradiction.
+ * Without 9c, the discriminator could be a blanket bypass and every row above would look the same. */
+console.log("\n  --- 9. rule 2 survives nesting, and the bypass is not a blanket one ---");
+if (atomicSpec.rel !== structSpec.rel) {
+  console.log("    SKIPPED: the atomic and structural specimens came from different files");
+  console.log("    (" + atomicSpec.rel + " vs " + structSpec.rel + ") — this section needs one file offering both.");
+  ok(false, "9. specimens share a file so nesting can be exercised (see the skip note above)");
+} else {
+  const OTHER = "zzSecondProbeIdent";
+  /* the atomic clause sits INSIDE the structural chunk, so its label offset is the larger one;
+   * editing it first leaves the heading's offsets untouched. */
+  const inner = atomicSpec.site, outer = structSpec.site;
+  ok(inner.labelStart > outer.labelStart,
+    "9. the atomic clause is nested inside the structural chunk (offsets confirm it)");
+
+  const childOnly = editLabel(atomicSpec.en, inner);
+  const a = compileOutcome(childOnly);
+  console.log("    9a child only              -> " + a.kind + (a.kind === "threw" ? " : " + a.msg.split("\n")[0] : (a.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
+  ok(a.kind === "compiled" && a.ts.includes(NEW_IDENT),
+    "9a. a child clause edit is honoured THROUGH its enclosing heading, not blocked by it");
+
+  const both = editLabel(childOnly, outer);   /* same NEW_IDENT at both levels */
+  const b = compileOutcome(both);
+  console.log("    9b child + heading agree   -> " + b.kind + (b.kind === "threw" ? " : " + b.msg.split("\n")[0] : (b.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
+  ok(b.kind === "compiled" && b.ts.includes(NEW_IDENT),
+    "9b. editing child and heading consistently is honoured");
+
+  const conflicting = childOnly.slice(0, outer.labelStart)
+    + outer.label.replace("`" + outer.ident + "`", "`" + OTHER + "`")
+    + childOnly.slice(outer.labelEnd);
+  ok(conflicting !== childOnly, "9. the conflicting heading edit actually changed the .en text");
+  const c = compileOutcome(conflicting);
+  console.log("    9c child + heading conflict -> " + c.kind + (c.kind === "threw" ? " : " + c.msg.split("\n")[0] : (c.ts === atomicSpec.source ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs")));
+  ok(c.kind === "threw" && /HEADING AND BODY DISAGREE/.test(c.msg),
+    "9c. a heading edited to CONTRADICT the child edit is still refused — 9a is not a blanket bypass");
+}
+
 /* ---- and the probe is shown to be a real edit (§10.3) ----------------------------------------
  * If `editLabel` silently did nothing — a marker moved, a regex stopped matching — every assertion
  * above would be measuring an unedited file and the failures would look identical. So the edit is
@@ -191,4 +300,5 @@ for (const on of [undefined, false, true]) {
 }
 
 console.log("\n" + pass + " passed, " + fail + " failed");
-if (fail) console.error("\nRED ON PURPOSE: §5C's direction is settled; these are its mechanics (§Q-3), unbuilt.");
+if (fail) console.error("\nThis suite was GREEN when the flip landed (2026-09-03). A failure here is a REGRESSION in\n"
+  + "§5C rule 2 or rule 3 — the English has stopped being the source. It is not an expected red.");

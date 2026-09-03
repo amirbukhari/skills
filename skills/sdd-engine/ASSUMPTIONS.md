@@ -6095,7 +6095,7 @@ show the predicted cost: chunk count FELL.
 ## 2026-09-03 — ~~the live catalog is stale against the committed canon~~ **RETRACTED, FALSE**
 
 **This entry was wrong. The live catalog is NOT stale and never was.** Retracted 2026-09-03, same
-day, in commit `2b0d9ff`; the claim also appears in `90ea07b`'s commit message, which cannot be
+day, in commit `b099933`; the claim also appears in `90ea07b`'s commit message, which cannot be
 rewritten, and in `preflight.js`'s header where a peer session had adopted it on my word.
 
 *The retracted text, quoted in place per §9:* "`2d83452` made statement bodies slots and shipped
@@ -6336,3 +6336,77 @@ going forward, so a name always knows what it names even after its key stops res
 only possible at all because the pre-body-slot catalogs happen to still exist in a scratch directory
 — which is not a recovery strategy, it is luck, and it is exactly what the schema change removes the
 need for.
+
+## Q-1 — the flip landed for the hole layer, and one demand was dropped on argument (2026-09-03, sdd-engine-56)
+
+**What shipped.** §5C rule 2 is live: a hand-edit to a clause's English changes the compiled
+TypeScript. `enfile.js repairFromSentence` inverts the payload's HOLE layer — the only per-site
+content, since `compileSpan` is `refill(template, h)` — and the loop is closed: it refills, then
+**re-derives the gloss from the repaired payload and accepts only a byte-equal match** against what
+the human wrote. The acceptance test is the renderer itself, so a honoured edit is proved
+understood, not plausibly understood. Everything else is rule 3's loud refusal. `compileChunk`'s
+structural branch, silent since it was written, now derives the heading from the compiled body.
+
+**Verified by running, not by reading.** Byte-identity 1037/1037 before and after (`test-gen-roundtrip.js`,
+read-only — no re-render, which is parked). Structural check measured over the corpus: an opinion on
+**9,611 of 9,611** structural chunks, **0** disagreements on an unedited corpus, so it is neither a
+guard that cannot fire nor one that cries wolf. Demonstrated on a real `.en` on disk:
+`src/hydra-api/redisJobs.ts.en`, `` `ESocketEvents` `` → `` `renamedByHand` `` produced
+`import { renamedByHand } from '@src/hydra-ui/...'`; the same clause with prose added
+("and also silently delete the audit log") was refused naming file, written and derived.
+`sentence-authority.test.js` 20/20 (was 10/14). `word-names.test.js` 8/8, `hand-authored-en.test.js`
+6/6, `enfile.test.js`, `dialect-guard.test.js` 8/8, `nested-rendering`, `structural-grouping`,
+`round-trip-fixpoint` 5/5, `enfile-label-sanitize`, `rule-refusals` 27/27, `naming-gate` 13/13 all
+green. `orphan-ledger.test.js` (2/5) and `english-complete.test.js` (1/2) fail **identically with
+`SDD_DERIVE_CHECK=0`**, so they are pre-existing and not caused by this.
+
+**A DEFECT IN MY OWN DESIGN, CAUGHT BY RUNNING IT.** The first working version honoured the atomic
+edit and was then refused by the *enclosing* structural chunk, whose heading no longer matched the
+body the child edit had just changed — rule 2 satisfied one level down and cancelled one level up.
+I had written a comment claiming the edit "remains expressible at the child" while this branch was
+making that false. The fix is a discriminator, not a bypass: recompile the body with repair OFF to
+reproduce the pre-edit bytes and derive the heading from those — if it matches what the human wrote,
+the heading is merely BEHIND the body and the body wins; if it matches neither, the human edited the
+heading too and it is still a contradiction. `sentence-authority.test.js` §9c pins the second branch
+specifically, so §9a cannot degrade into "accept anything once a child moved".
+
+**One demand was dropped, on argument, and replaced by a harder one.** The suite used to require
+that editing a STRUCTURAL HEADING change the code. It now requires a loud refusal instead. A heading
+is computed from its children (`namedLabel`/`genLabel` over the run), so every identifier in it is an
+echo of a child's; editing it alone is not the sentence disagreeing with a derived index but two
+pieces of English contradicting each other, with no principled winner — honouring it would silently
+rewrite clauses the human left visibly saying the old name. Rule 2 is not weakened, and §9 *proves*
+rather than asserts it: the edit stays expressible at the child, where it takes effect, and the
+heading follows. This was not dropped to turn a red green — §9 is a stronger assertion than the one
+it replaced, and it caught the nesting defect above.
+
+**A PRD CONFLICT I DID NOT RESOLVE.** §2.2's "names are cosmetic by construction" cannot coexist
+with §5C rule 2: the label region is now an input to compilation. `word-names.test.js` asserted the
+mechanism ("the label region is never an input"), which is false, so it now asserts the guarantee
+that was always the point — *a name the compiler cannot re-derive yields identical bytes or a loud
+refusal, never different bytes* — plus a new row proving the old claim is still literally true with
+the check off. Reconciling §2.2 with §5C is Amir's, and is recorded in `18-open-questions.md` under
+Q-1 rather than decided here.
+
+**Consequence worth knowing:** an `.en` rendered under one naming catalog and compiled under another
+is now a refusal rather than silently absorbed. That is the naming analogue of skills-4a's canon
+gate (`90ea07b`) and the same argument applies.
+
+## RETRACTED: the BODY_SLOT staleness claim I shipped in preflight.js (2026-09-03, sdd-engine-56)
+
+I recorded BODY_SLOT as the known live member of the class STALE cannot see, at skills-4a's request
+and on their measurement. **It was wrong and I shipped it.** They retracted it; I verified the
+retraction behaviourally before acting, which is what neither of us did the first time.
+
+The live catalog holds **25,064 `type:"body"` hole markers and 0 `‹callee›`** ones, and `2d83452` is
+the commit that introduces `{hole:true, type:"body"}` — so the catalog was mined by body-slot code
+and its canon matches this tree. The 3,527/23,935 figure came from a moment when skills-4a's own
+`SDD_EXPR_SLOT` was uncommitted and default-on, i.e. a canon mismatch in one working tree, not a
+property of the corpus. Both of us also had the timing wrong in opposite directions — the catalog's
+mtime is two minutes *before* 2d83452's commit, so it was mined from an uncommitted tree; they said
+"after", I said "before", and the hole census is the only evidence that could settle it.
+
+**So rendering is not blocked by this.** It stays held only because Amir has not ruled on the
+re-mine — a different reason, and his to lift. The class is real and now has no live member; it is
+also guarded, by `canon-fingerprint.js`. The old wording is kept verbatim in `preflight.js`'s header
+per CLAUDE.md §9.

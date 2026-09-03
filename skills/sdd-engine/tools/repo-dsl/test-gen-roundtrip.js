@@ -20,7 +20,7 @@ const topFiles = [];
 for (const abs of files) {
   let src; try { src = fs.readFileSync(abs, "utf8"); } catch { continue; }
   let en, stats, back;
-  try { const r = EN.renderFileEn(src, index); en = r.en; stats = r.stats; back = EN.compileFileEn(en, index); }
+  try { const r = EN.renderFileEn(src, index); en = r.en; stats = r.stats; back = EN.compileFileEn(en, index, { file: path.relative(SRC, abs) }); }
   catch (e) { bad++; badList.push([path.relative(SRC, abs), "EXC:" + e.message]); continue; }
   if (back !== src) { bad++; badList.push([path.relative(SRC, abs), "BYTE-MISMATCH"]); continue; }
   ok++;

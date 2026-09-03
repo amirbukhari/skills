@@ -94,7 +94,7 @@ for (const abs of src) {
   const rel = path.relative(SRC, abs);
   let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
   let r, back;
-  try { r = EN.renderFileEn(source, index); back = EN.compileFileEn(r.en, index); }
+  try { r = EN.renderFileEn(source, index); back = EN.compileFileEn(r.en, index, { file: rel }); }
   catch (e) {
     failures.push([rel, "THREW: " + e.message]);
     prog.file({ rel, done: ++seen, total: src.length, byteIdentical: false, why: "THREW", message: e.message });
