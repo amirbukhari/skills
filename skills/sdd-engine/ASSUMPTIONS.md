@@ -5828,3 +5828,40 @@ an artifact of the fixture rather than a finding about the engine.
 **The three archetype specimen targets I drafted (a data-access handler, an interface, a redux
 slice) were dropped unreviewed** when Amir retired that whole line of work. They were never
 approved and should not be cited.
+
+---
+
+## 2026-09-03 (later) — body-as-slot, and the re-mine I did NOT run
+
+**`SDD_BODY_SLOT` defaults ON.** A nested statement body is now a hole rather than skeleton
+(`generators.js` `appendKid`). Byte-identity 1037/1037 verified against both the live catalog and a
+fresh mine; review surface unmoved. `SDD_BODY_SLOT=0` restores the old behaviour and is how the
+before/after dictionary comparison was produced.
+
+**I did not re-mine the live corpus, and this is the reason.** A re-mine under the new skeletons
+**orphans 974 of the 3,582 applied chunk names (27%)** — the Tier-2 worksheet names applied in
+`3c4b413`. Chunk names are keyed by `sha256` of a word's ordered leaf skeletons
+(`word-names.js chunkKeyOf`), so a skeleton that changes shape takes its name with it. Measured, not
+estimated: 3,582/3,582 still addressable under `SDD_BODY_SLOT=0`, 2,608/3,582 under the new
+behaviour. Leaf names are barely affected (4 of 6 survive) because there are only six of them.
+
+**So the code and the live catalog are now deliberately out of step.** Nothing breaks — the catalog
+is a build artifact and every test passes against it — but the next `npm run mine` will change 897
+narrow skeletons and cost those 974 names. **That re-mine is Amir's call, not mine**, and it should
+be sequenced with a decision about whether the orphaned names are re-attached (real work, not a
+flag) or re-authored. Other lanes read this catalog concurrently, which is a second reason not to
+swap it unilaterally.
+
+**The derive check default flip was measured before it was made**, not assumed: 1037/1037 with it on
+and off, 5,484 ms vs 5,779 ms, zero refusals corpus-wide. The comment in `enfile.js` claiming a
+hot-path cost was wrong and has been replaced with the measurement.
+
+**`hand-authored-en.test.js`'s "PRODUCTION" case was renamed, not relaxed.** It passes
+`{deriveCheck:false}` explicitly, so after the flip it tests the ESCAPE HATCH. Renaming it was
+necessary to stop it asserting something untrue about the default; the assertion itself is unchanged.
+
+**The remaining composition failures are expression-level, not body-level.** Baked callees
+(`= b(<args>)` vs `= a(<args>)`), baked property names (`a.b.c.d`), and arrow functions absorbed
+whole into `<args>`. Same defect one level down, in `ops.canonExpr`/`pushExpr` rather than
+`appendKid`. **Not attempted in this pass** — it changes far more skeletons than the body fix and
+would need its own before/after on the real corpus.
