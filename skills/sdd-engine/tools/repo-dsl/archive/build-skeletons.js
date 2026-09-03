@@ -18,15 +18,30 @@
  *
  *   node build-skeletons.js
  */
+/*
+ * ARCHIVED 2026-09-02, by ruling, not by preference. Amir's standing instruction: "If we ain't
+ * using it put it in the archive folder."
+ *
+ * THIS TIER COULD NOT RUN AT ALL. Line 39 (as it then was) read <CORPUS>/catalog/compose-words.json
+ * UNGUARDED, and that artifact's only producer -- archive/build-compositions.js -- is itself
+ * archived AND hardcodes /home/amir/Documents/Rentsync/delonix/..., a path this project must not
+ * touch. MEASURED against two throwaway roots, not read off the code: this script exits ENOENT
+ * before writing anything. So skeleton-index.json, catalog/skeletons.json and sen/skeletons/ were
+ * never "a missing run" -- they were unproducible, and nothing on the goal path consumes them.
+ *
+ * A compose-words replacement was explicitly REFUSED as the fix: that is building a tier to feed a
+ * tier nobody reads. Requires were repointed ../engine/ so the move did not silently break them;
+ * engine/skeleton.js, engine/named-idioms.js and engine/idioms.js all stay live for other callers.
+ */
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { walkDir } = require("./engine/pipeline");
-const { tokenize } = require("./engine/fanout");
-const { extractBodies, nameSkeleton } = require("./engine/skeleton.js");
-const { findThrowError, findAssertOrThrow } = require("./engine/named-idioms.js");
-const { findFetchAndValidate } = require("./engine/idioms.js");
-const CR = require("./engine/corpus-root");
+const { walkDir } = require("../engine/pipeline");
+const { tokenize } = require("../engine/fanout");
+const { extractBodies, nameSkeleton } = require("../engine/skeleton.js");
+const { findThrowError, findAssertOrThrow } = require("../engine/named-idioms.js");
+const { findFetchAndValidate } = require("../engine/idioms.js");
+const CR = require("../engine/corpus-root");
 
 const PROJECT = CR.corpusRoot();   // WRITE root
 const SRC = CR.sourceRoot();       // READ root

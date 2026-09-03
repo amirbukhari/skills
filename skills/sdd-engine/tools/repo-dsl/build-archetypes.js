@@ -110,7 +110,7 @@ function main() {
   };
   /* `catalog/` must be created, not assumed. This write had no mkdirSync until 2026-09-02: it
    * happened to work only because the dir already existed, and would ENOENT on a corpus that had
-   * been wiped and re-populated from SOURCE. build-skeletons.js:222 already did this. */
+   * been wiped and re-populated from SOURCE. archive/build-skeletons.js (then build-skeletons.js:222) already did this. */
   fs.mkdirSync(path.join(PROJECT, "catalog"), { recursive: true });
   fs.writeFileSync(path.join(PROJECT, "catalog", "archetypes.json"), JSON.stringify(catalog, null, 1));
 

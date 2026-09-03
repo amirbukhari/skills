@@ -17,10 +17,15 @@
  * it did not produce; filling those gaps is this command, typed on purpose.
  *
  * A BLOCKED STAGE IS SKIPPED, NOT ATTEMPTED. `preflight.js` is the single source of truth for what
- * can be produced. The skeleton stage is BLOCKED today (build-skeletons.js:39 reads the retired
- * `catalog/compose-words.json` unguarded and dies ENOENT), so running it could only produce a stack
- * trace where a reason belongs. Skipping with the reason is not hiding a failure — the reason is
- * printed in full, and the artifacts stay listed as BLOCKED in preflight.
+ * can be produced: if any of a stage's artifacts is BLOCKED, running the stage could only produce a
+ * stack trace where a reason belongs, so it prints the reason instead. That machinery has no
+ * occupant right now and is kept deliberately — the skeleton stage WAS the occupant until
+ * 2026-09-02, when it was archived rather than skipped (build-skeletons.js read the retired
+ * catalog/compose-words.json unguarded and exited ENOENT before writing anything). Two stages left:
+ *
+ *   archetypes -> package
+ *
+ * The middle one is gone, not disabled. `git log -- tools/repo-dsl/archive/build-skeletons.js`.
  */
 const cp = require("child_process");
 const path = require("path");
@@ -33,13 +38,10 @@ const STAGES = [
   { id: "archetypes", script: "build-archetypes.js",
     artifacts: ["archetype-index.json", "catalog/archetypes.json", "sen/archetypes"],
     note: "17 archetypes over every file; byte-verifies the 4 generative ones" },
-  { id: "skeletons", script: "build-skeletons.js",
-    artifacts: ["skeleton-index.json", "catalog/skeletons.json", "sen/skeletons"],
-    note: "control-flow skeleton words with typed holes" },
   { id: "package", script: "package-hydra-source.js",
     artifacts: ["COVERAGE.json", "word-library.json", "catalog/mined-library.v6.json", ".sdd-code-provenance.json"],
-    optionalInputs: ["skeleton-index.json", "archetype-index.json"],
-    note: "the rollups; reads the two indexes above if present (both in catch (_) {}), so it degrades rather than fails" },
+    optionalInputs: ["archetype-index.json"],
+    note: "the rollups; names any tier it could not find in its own output rather than omitting it silently" },
 ];
 
 function main(argv) {

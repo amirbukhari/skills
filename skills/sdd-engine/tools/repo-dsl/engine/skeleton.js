@@ -13,7 +13,7 @@
  * This module extracts bodies, labels statement kinds (recognizing the named
  * idioms), computes a skeleton signature, and names the recurring ones
  * deterministically. Fill attribution + byte-verify + clustering live in the
- * runner (build-skeletons.js), which needs the compose dictionary.
+ * runner (archive/build-skeletons.js — ARCHIVED 2026-09-02, it needed the retired compose dictionary).
  *
  * Exports: extractBodies, classifyStatement, nameSkeleton, KINDS.
  */

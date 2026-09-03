@@ -118,7 +118,13 @@ const isState = (s: string): boolean => s === 'active';
   {
     const r = S.mine({ projectDir: proj });
     ok(r.executed === false, "mine: dry-run by default");
-    ok(r.plan.some((p) => /build-archetypes\.js/.test(p)) && r.plan.some((p) => /build-skeletons\.js/.test(p)), "mine: plan wires the builders");
+    /* build-skeletons.js was ARCHIVED 2026-09-02 (it read the retired catalog/compose-words.json
+     * unguarded and exited ENOENT before writing anything), so the plan is two stages, not three.
+     * Asserting its ABSENCE too, both directions: a plan that quietly re-acquired a stage pointing
+     * at a path in archive/ would fail at spawn time, not here. */
+    ok(r.plan.some((p) => /build-archetypes\.js/.test(p)), "mine: plan wires the archetype builder");
+    ok(r.plan.some((p) => /package-hydra-source\.js/.test(p)), "mine: plan wires the package rollup");
+    ok(!r.plan.some((p) => /build-skeletons\.js/.test(p)), "mine: plan does NOT wire the archived skeleton builder");
   }
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

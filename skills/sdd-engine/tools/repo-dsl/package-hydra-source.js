@@ -173,19 +173,38 @@ function main() {
   const commentChars = R.residueChars.C;
   const commentPct = +(100 * commentChars / R.chars).toFixed(2);
 
+  /* OMITTED TIERS ARE NAMED, NOT SWALLOWED. Until 2026-09-02 each optional tier below was read
+   * inside a bare `catch (_) {}`, so a whole tier could be missing — or a present one could fail to
+   * parse — and this script still printed a healthy-looking rollup. That is the `catch { return
+   * null }` class CLAUDE.md §8 names, and it is producer/consumer drift wearing the producer's
+   * clothes: the step failed quietly and reported fine. Every absence now carries its reason into
+   * the artifact AND onto stdout. Absence is still not fatal — these tiers are genuinely
+   * optional — but it is never invisible. */
+  const omittedTiers = [];
+  const optionalTier = (name, file, read) => {
+    try { return read(); }
+    catch (e) {
+      omittedTiers.push({ tier: name, file, reason: e.code === "ENOENT" ? "absent" : (e.code || e.name), detail: e.message.slice(0, 160) });
+      return null;
+    }
+  };
+
   // ---- authored spec modules (from author-hydra-modules.js) ----
   let authoredModules = { count: 0, expandVerify: "node hydra-expand.js <projectDir> <module> --verify", index: "sen/modules-index.json", modules: [] };
-  try {
+  optionalTier("authored modules", "sen/modules-index.json", () => {
     const idx = JSON.parse(fs.readFileSync(path.join(CR.senDir(), "modules-index.json"), "utf8"));
     authoredModules = { count: idx.modulesAuthored, tier: idx.tier, expandVerify: idx.expandVerify, index: "sen/modules-index.json", modules: idx.modules };
-  } catch (_) {}
+    return true;
+  });
 
-  // ---- skeleton tier (from build-skeletons.js, if present) ----
+  /* ---- skeleton tier ---- RETIRED 2026-09-02: build-skeletons.js is in archive/ and its
+   * producer chain was unrunnable. This read is kept so an OLD corpus that still carries the file
+   * is described rather than ignored; on a current corpus the tier is reported as omitted. */
   // High-level control-flow skeleton words: a body = a SEQUENCE of statement kinds
   // with typed holes filled by idioms/words/literal slots. Structure recurs even
   // where expressions diverge (holes absorb the divergence).
   let skeletonTier = null;
-  try {
+  optionalTier("skeleton tier", "skeleton-index.json", () => {
     const sk = JSON.parse(fs.readFileSync(path.join(PROJECT, "skeleton-index.json"), "utf8"));
     skeletonTier = {
       catalog: "catalog/skeletons.json", index: "skeleton-index.json", perFile: "sen/skeletons/<rel>.skel.json",
@@ -194,21 +213,23 @@ function main() {
       structureVsBespoke: { scaffoldPct: sk.structureVsBespoke.scaffoldPct, slotPct: sk.structureVsBespoke.slotPct, bespokePct: sk.structureVsBespoke.bespokePct },
       byteVerify: sk.byteVerify, allByteIdentical: sk.allByteIdentical,
     };
-  } catch (_) {}
+    return true;
+  });
 
   // ---- archetype tier (from build-archetypes.js, if present) ----
   // The TOP of the DSL: a FILE is a word. 17 architectural archetypes; the 4
   // generative ones (Entity/Router/Redux/Builder) regenerate byte-identical from
   // archetype+typed-slots where they conform (no residual top-level code).
   let archetypeTier = null;
-  try {
+  optionalTier("archetype tier", "archetype-index.json", () => {
     const at = JSON.parse(fs.readFileSync(path.join(PROJECT, "archetype-index.json"), "utf8"));
     archetypeTier = {
       catalog: "catalog/archetypes.json", index: "archetype-index.json", perFile: "sen/archetypes/<rel>.arch.json",
       distinctArchetypes: at.distinctArchetypes, namedArchetypes: at.namedArchetypes,
       zipfHead: at.zipfHead, generativeVsDescriptive: at.generativeVsDescriptive,
     };
-  } catch (_) {}
+    return true;
+  });
 
   // ---- COVERAGE.json ----
   const coverage = {
@@ -267,12 +288,18 @@ function main() {
       words: idiomWordsFull.map((w) => ({ name: w.name, sites: w.sites, files: w.files, byteIdentical: w.byteIdentical })),
     },
     idiomWords: idiomWordsFull.map(idiomSummary),
-    // Skeleton tier: high-level control-flow words (statement-kind sequences with
-    // typed holes). Present when build-skeletons.js has run. See skeleton-index.json.
+    // Skeleton tier: RETIRED 2026-09-02 (build-skeletons.js is in archive/). `null` here means
+    // omitted, and `unavailable` below says so by name — never read a null as a measured zero.
     skeletonTier,
     // Archetype tier: the TOP — a FILE is a word (17 archetypes, 4 generative).
     // Present when build-archetypes.js has run. See archetype-index.json.
     archetypeTier,
+    /* Which optional tiers this rollup could NOT include, and why. An empty array means every tier
+     * was read; it never means "no tiers exist". A consumer that treats a null tier as zero
+     * coverage is reading a fabricated number, which is exactly what the bare catch used to
+     * permit. */
+    omittedTiers,
+    unavailable: Object.fromEntries(omittedTiers.map((o) => [o.tier, `${o.file} — ${o.reason}: ${o.detail}`])),
   };
 
   // ---- catalog v6 (additive; full self-expanding words) ----
@@ -354,6 +381,13 @@ function main() {
     `throwError ${throwError.sites}/${throwError.byteIdentical}bi,`,
     `assertOrThrow ${assertOrThrow.sites}/${assertOrThrow.byteIdentical}bi  (${namedIdiomSites} distinct constructs)`);
   console.log("whole-file words:", wfRes.stats.minedWords, "  mine:", mineSecs + "s");
+  if (omittedTiers.length) {
+    console.log("\nOMITTED TIERS (named, not swallowed — this rollup does NOT describe them):");
+    for (const o of omittedTiers) console.log(`  - ${o.tier.padEnd(18)} ${o.file}  [${o.reason}]`);
+    console.log("  A null tier in COVERAGE.json means OMITTED, never a measured zero. See .unavailable.");
+  } else {
+    console.log("\nomitted tiers: none — every optional tier was read.");
+  }
 }
 
 main();

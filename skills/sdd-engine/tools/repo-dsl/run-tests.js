@@ -168,7 +168,17 @@ const CORPUS_TIER = new Map([
   ["engine/operation-idioms.test.js", {
     needs: [],
     files: [path.join("catalog", "operation-idioms.json"), path.join("catalog", "function-archetypes.json")],
-    why: "reads the legacy STEP-4 catalog/ tree, which no §8B artifact kind covers",
+    /* THESE TWO ARTIFACTS ARE RETIRED, NOT PENDING — 2026-09-02, Amir: "If we ain't using it put it
+     * in the archive folder." Their only producer, archive/build-operation-idioms.js, is archived
+     * AND hardcodes a forbidden delonix root at line 26, so it does not load and nothing will
+     * produce these again. The test SKIPS with exit 2 and says so honestly at
+     * engine/operation-idioms.test.js:30-36 — this entry used to read as "just needs a run", and an
+     * honest skip that misdescribes WHY is still a wrong answer. Kept in the suite rather than
+     * archived with the producer: the day someone revives the idiom tier, this is the executable
+     * specification of what it has to satisfy. Retire the test only with Amir's word. */
+    why: "reads the legacy STEP-4 catalog/ tree, which no §8B artifact kind covers. Its two files " +
+      "are RETIRED (producer archived + delonix-hardcoded), so it PERMANENTLY skips with exit 2 — " +
+      "not a missing run, and not a failure",
   }],
   ["engine/sdd.test.js", {
     needs: [],

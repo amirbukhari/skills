@@ -99,7 +99,10 @@ function mine({ projectDir, run } = {}) {
   const engineDir = __dirname, toolDir = path.dirname(engineDir);
   const steps = [
     { name: "archetypes", cmd: ["node", path.join(toolDir, "build-archetypes.js"), projectDir] },
-    { name: "skeletons", cmd: ["node", path.join(toolDir, "build-skeletons.js"), projectDir] },
+    /* The skeletons stage was REMOVED 2026-09-02, not disabled: build-skeletons.js is in archive/
+     * because it read the retired catalog/compose-words.json unguarded and exited ENOENT before
+     * writing anything. `npm run tiers` (run-tiers.js) is the maintained driver for what remains.
+     * This plan is kept for the CLI's own callers and is asserted in engine/sdd.test.js. */
     { name: "package", cmd: ["node", path.join(toolDir, "package-hydra-source.js"), projectDir] },
   ];
   if (!run) return { executed: false, plan: steps.map((s) => `${s.name}: ${s.cmd.join(" ")}`), note: "dry-run — pass --run to execute (rebuilds catalogs; writes into the project's sen/ + catalog/)" };
