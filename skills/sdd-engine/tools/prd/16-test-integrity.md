@@ -803,3 +803,62 @@ it is to be labelled with which of the three populations it belongs to.
 **The connection to `A LABEL OVER A MEASUREMENT`:** "the page" was a **label**, and three different
 measurements answered to it. The defect is the same one, arrived at from the reporting side rather
 than the naming side.
+
+### THE PROCEDURE WAS PRECISE ABOUT METHOD AND SILENT ABOUT SCOPE — POPULATION ERROR SIX
+
+**The sanctioned procedure above closed the method hole and left the scope hole open, and the peer
+lane found it within the hour.** *Fields as written → frozen strip → the goal test's `CONSTRUCTS`
+table* produces a correct number **for payload field content**, and says nothing whatever about what
+fraction of the goal *is* field content.
+
+Measured by blanking **every** hole field on **every** page and re-running the goal test's own strip
+and count in situ:
+
+| | constructs | share of the goal |
+|---|---|---|
+| reachable by ANY hole-type rule | 66,972 | 59.7% |
+| **THE CEILING — residue** | **45,233** | **40.3%** |
+| reachable + residue | 112,205 | exact, asserted by `===` |
+
+**A rule table over hole types, perfected to the last construct, cannot take 112,205 below 45,233.**
+Every board published in the last two days — raw, field-as-written, after-strip — priced a subset
+nobody had bounded, so `expr` at 19,998 is **30% of the reachable population**, not 18% of the goal.
+That is the fourth board in one night and the largest population error of the six.
+
+**So the procedure gains a fourth step, and it is the one that would have caught all six:**
+
+> **fields as written, never decoded → apply the frozen strip → count with the goal test's own
+> `CONSTRUCTS` table → and state WHICH POPULATION the count is over, as a fraction of the
+> baseline.**
+
+A construct figure without its denominator is not a measurement, it is a magnitude. **Every one of
+the six errors would have been visible the moment the number was written as a fraction** — 22,328 of
+112,205 is 20% of a goal whose field content is only 60%, which is impossible on its face for a
+single hole type.
+
+**And where the residue sits proves it is a bound and not a backlog.** 35,111 constructs are
+structural body text with no chunk around it — `export const csvToJson = <T extends unknown>(`,
+`) => {`, `if (lines.length < 2) {`, and roughly 7,100 lines that are nothing but a closing
+delimiter — plus 9,724 payload marks. That is precisely the interior production's territory, and the
+interior production is priced at **+1,403, a loss** (fourth fence). So the 40% is not headroom
+awaiting a rule; **it is the part the only available mechanism has already been measured to make
+worse.**
+
+**One clean result inside it, worth stating because it is the thing that was actually accused.**
+Every English gloss, heading and inter-chunk region in the corpus carries **509 constructs
+combined — under 1% of the goal.** Whatever else is true, *the prose the renderer writes is not the
+problem.* The reading surface Amir objected to is bad because of what the payload carries and what
+the raw scaffolding never entered, not because the English is dirty.
+
+### A HARNESS THAT REWRITES THE PAGE NEEDS AN IDENTITY CHECK ON THE EMPTY CASE
+
+The ceiling measurement's first run priced `expr` at 2,424 and put the ceiling at 102,837 — *"the
+entire board can only reach 8% of the goal"* — and was seconds from being reported as the finding of
+the night. Cause: a structural chunk's `lastIndexOf(PAY_OPEN)` finds a **descendant's** payload
+rather than its own, so the rewriter blanked the last nested payload and skipped the recursion.
+
+**What caught it was a guard asserting that blanking NOTHING reproduces all 1,037 pages
+byte-for-byte** — and the stated reason that guard existed at all is that *the result was too good.*
+**A measurement whose harness rewrites the artifact must assert the identity of the empty case, or
+every marginal it reports is measuring the harness.** An 8× error in the reassuring direction, caught
+by the one check written out of suspicion rather than design.
