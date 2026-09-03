@@ -5865,3 +5865,96 @@ necessary to stop it asserting something untrue about the default; the assertion
 whole into `<args>`. Same defect one level down, in `ops.canonExpr`/`pushExpr` rather than
 `appendKid`. **Not attempted in this pass** — it changes far more skeletons than the body fix and
 would need its own before/after on the real corpus.
+
+### Two panel surfaces, one class: the corpus-root index artifacts have no live pipeline (2026-09-02)
+
+`files-index.json` failed the same way `archetype-index.json` did. It is not a coincidence and it is
+not two bugs — it is **one missing pipeline**, and this is the enumeration.
+
+#### 1. Every index/catalog artifact a consumer expects, measured against disk
+
+**§8B registry kinds** (`AC.pathFor`, all resolve into `sen/catalog` or `.cache/spec-derived`):
+
+| artifact | producer | on disk |
+|---|---|---|
+| `sen/catalog/generators-lzw.json` | `build-lzw-generators.js` (`npm run mine`) | EXISTS |
+| `sen/catalog/mined-library.json` | `repo-dsl.js` (`npm run gate`) | EXISTS |
+| `sen/catalog/import-resolution.json` | `resolve-imports.js` | EXISTS |
+| `sen/catalog/word-names.json` | `name-words.js` / `apply-worksheet-names.js` | EXISTS |
+| `.cache/spec-derived/naming-plan.json` | `name-words.js` | EXISTS |
+| `.cache/spec-derived/corpus-coverage.json` | `repo-dsl.js` | EXISTS |
+| `.cache/spec-derived/en-index.json` | `write-en-files.js` (`npm run render`) | EXISTS |
+| `.cache/spec-derived/language.json` | `language.js` | EXISTS |
+| `.cache/spec-derived/gate.json` | `repo-dsl.js` | EXISTS |
+| `.cache/spec-derived/name-queue.json` | `reconcile-names.js` (`npm run reconcile`) | **ABSENT** |
+
+`name-queue` is the only registered kind missing, and its absence is evidence for what session
+skills-4a reported independently: `reconcile-names.js` stamps `{names, orphans}` and the
+`word-names` registry entry requires `chunks`, so it has **never** successfully published.
+
+**Corpus-ROOT and legacy `catalog/` artifacts — none of them in the registry:**
+
+| artifact | producer | reachable how | on disk |
+|---|---|---|---|
+| `archetype-index.json` | `build-archetypes.js:132` | `node engine/sdd.js mine <dir> --run` only | EXISTS *(I built it 2026-09-02)* |
+| `catalog/archetypes.json` | `build-archetypes.js:111` | same | EXISTS *(same run)* |
+| `skeleton-index.json` | `build-skeletons.js:224` | same | **ABSENT** |
+| `catalog/skeletons.json` | `build-skeletons.js:223` | same | **ABSENT** |
+| `COVERAGE.json` | `package-hydra-source.js:340` | same | **ABSENT** |
+| `catalog/mined-library.v6.json` | `package-hydra-source.js:341` | same | **ABSENT** |
+| `word-library.json` | `package-hydra-source.js:342` | same | **ABSENT** |
+| `.sdd-code-provenance.json` | `package-hydra-source.js:343` | same | **ABSENT** |
+| `files-index.json` | was `archive/build-compositions.js:134` → **now `build-files-index.js`** | `npm run files-index` | EXISTS *(built today)* |
+| `catalog/compose-words.json` | `archive/build-compositions.js:86` | archived, delonix-hardcoded | **ABSENT** |
+| `catalog/named-idioms.json` | `archive/supersede-hashes.js:151` | archived | **ABSENT** |
+| `catalog/operation-idioms.json` | `archive/build-operation-idioms.js:173` | archived, forbidden root | **ABSENT** |
+| `catalog/function-archetypes.json` | `archive/build-operation-idioms.js:174` | same | **ABSENT** |
+| `catalog/mined-library.v5.json` | `wholefile-mine.js:119` | no npm script | **ABSENT** |
+| `catalog/coined-words.json` | **hand-curated** (§5, PROTECTED) | n/a | EXISTS |
+| `catalog/mined-library.v1.json` | legacy, no live producer found | n/a | EXISTS |
+| `sen/archetypes/<rel>.arch.json` | `build-archetypes.js` | same as archetypes | EXISTS (140) |
+| `sen/skeletons/` | `build-skeletons.js` | same | **ABSENT** |
+
+**Where I can only infer:** Kraken is out of bounds, so for both failing surfaces I can prove the
+path the producer *writes* and cannot read the path the consumer *asks for*. Both error strings
+appear nowhere in this repo. Everything above is measured from this tree.
+
+#### 2. `files-index.json` — the producer was archived AND pointed at delonix
+
+`archive/build-compositions.js:21` is `PROJECT = "/home/amir/Documents/Rentsync/delonix/hydra-source"`
+— hard-coded, the forbidden path, naming no root through `corpus-root.js`. So this artifact had **no
+live producer at all**; running the archived one is out of bounds and would have written to a tree
+this project must not touch. `build-files-index.js` is the replacement: 1037 rows derived **entirely
+from the stamped `en-index`**, re-measuring nothing, refusing with exit 3 and naming `npm run render`
+if `en-index` is absent. Written and verified at the exact path the panel printed
+(568,443 bytes, fingerprint `6497cffe3790401a`, self-check matches, all five §8B header keys).
+Compose-era fields with no live equivalent are **named in `.unavailable`, not zero-filled** — a
+dashboard cannot tell a fabricated 0 from a real one.
+
+#### 3. Why they were never written — the actual cause
+
+Not "a step that stops short". **Two disjoint pipelines, only one of which has a driver.**
+
+- `npm run build` = `mine && name && render && measure`. That is the **LZW/live tier**, and it
+  produces exactly the registry artifacts — all present.
+- The corpus-ROOT indexes come from three producers (`build-archetypes.js`, `build-skeletons.js`,
+  `package-hydra-source.js`) whose **only** caller in the entire tree is `engine/sdd.js:101-103`
+  (`mine`, dry-run unless `--run`). `engine/sdd.js` has **no npm script and no in-tree caller** —
+  grepped. It is reachable only by a human typing the path. Nobody typed it.
+- And the corpus's own `.gitignore:11` still says *"Everything else is DERIVED and regenerable by
+  `node sdd-build.js`"*, listing `sdd-clean.js sdd-build.js` at line 9 as tracked corpus files.
+  **Neither exists in the corpus any more.** CLAUDE.md §4 records that the corpus was wiped by hand
+  on 2026-08-31 and `<corpus>/sdd-clean.js` went with it; `sdd-clean.js` was rebuilt in the engine,
+  **`sdd-build.js` was not**. `tools/sdd-build.js` exists but is an unrelated tool (the scrutinize
+  gate for LLM generation) — the name collides, which is why the gap reads as filled.
+
+So: **the single command that should produce all of them was deleted in the 2026-08-31 wipe and
+never rebuilt, and its replacement half (`engine/sdd.js mine`) is an orphan with no npm entry.**
+That is the real bug. Each surface then failed one at a time with its own bespoke message.
+
+#### 4. `build-archetypes.js:111` — the mkdirSync landmine, fixed
+
+`catalog/` was assumed, not created; it worked only because the dir happened to exist.
+`build-skeletons.js:222` already did it correctly. Mutation-checked both directions in a temp dir:
+with the `mkdirSync` the write lands, without it `ENOENT`.
+

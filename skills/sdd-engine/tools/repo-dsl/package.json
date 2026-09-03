@@ -27,6 +27,7 @@
     "reconcile": "node reconcile-names.js",
     "apply:worksheet-names": "node --max-old-space-size=3072 apply-worksheet-names.js",
     "render": "node write-en-files.js",
+    "files-index": "node build-files-index.js",
     "measure": "node measure-english.js",
     "measure:uncollapsed": "node measure-uncollapsed.js",
     "stamp:check": "node stamp-artifacts.js --check",
