@@ -862,7 +862,20 @@ function spanActions(win, sf) {
     if (isGuardThrow(st)) {
       const msg = throwMessage(throwStmtOf(st.thenStatement));
       if (msg) guards.push('“' + msg + '”');
-      else { const c = firstCallName(st); guards.push(c ? "a " + P.words(c) + " check fails" : "a check fails"); }
+      else {
+        /* QUOTE THE PREDICATE, DO NOT DE-CAMEL-CASE IT. `P.words` turned
+         * `ThirdPartyLedger.instance.isThirdPartyError(x)` into the sentence "a is third party
+         * error check fails", which is not English and names nothing greppable. The predicate's own
+         * identifier is the clearest available word (§3) and is what the reader will search for.
+         * Prefer the condition's dotted text -- for `errors.length > 0` that is `errors` -- and
+         * fall back to the callee. */
+        const cd = dottedText(st.expression, sf)
+          || (ts.isPrefixUnaryExpression(st.expression) ? dottedText(st.expression.operand, sf) : null)
+          || (ts.isBinaryExpression(st.expression) ? dottedText(st.expression.left, sf) : null);
+        const c = firstCallName(st.expression) || firstCallName(st);
+        if (cd) guards.push(q(cd) + " does not hold");
+        else guards.push(c ? q(c) + " does not hold" : "a check fails");
+      }
       continue;
     }
 

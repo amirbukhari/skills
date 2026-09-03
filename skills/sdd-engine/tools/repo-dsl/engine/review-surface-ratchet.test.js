@@ -81,7 +81,7 @@ const TREE_CEILING = 20214;
  * current shape and today's harness reads 0 clauses for all 33,918 statements against them -- that
  * is a harness incompatibility, NOT a reading of 33,918 mutes, and publishing it as an origin would
  * flatter this metric enormously. So the series starts where it can honestly be measured. */
-const MUTE_CEILING = 2410;
+const MUTE_CEILING = 2362;
 
 /* KNOWN OVER-COUNT IN THIS METRIC, MEASURED AND DELIBERATELY NOT CORRECTED.
  * `generic` asks whether a clause quotes a token that appears LITERALLY in the statement's text.
