@@ -5708,3 +5708,61 @@ more of this one. Not done, not assumed: it is a design question for Amir.
 
 The file catted earlier (`sen/files/src/hydra-api/redisJobs.ts.en`, 4,064 bytes) is byte-identical
 after the render. That is the expected outcome of the above, not a failed apply.
+
+### The archetype tier, built — and the PRD's path for the index was wrong, not the consumer's (2026-09-02)
+
+Amir hit `no archetype index at <CORPUS>/archetype-index.json`. §5F §6 says
+`build-archetypes.js` writes `catalog/archetypes.json` and **`catalog/archetype-index.json`**, so the
+first question was whether a consumer was reading a path nothing writes — in which case building the
+artifact would have written to one place and been read from another, and the "fix" would have looked
+like a fix while changing nothing.
+
+**Measured, and it is the PRD prose that is wrong.** `build-archetypes.js:111` writes
+`path.join(PROJECT, "catalog", "archetypes.json")`; `build-archetypes.js:132` writes
+`path.join(PROJECT, "archetype-index.json")` — **the corpus ROOT, no `catalog/` prefix**, and its own
+header comment at line 13 says so too. The error's path is the producer's path exactly. The other
+in-tree consumer agrees: `package-hydra-source.js:205` reads `path.join(PROJECT,
+"archetype-index.json")`. So: no consumer bug, one stale sentence in §5F §6. Corrected there; not
+"fixed" in code, because moving the file is the registration decision below, not a typo.
+
+The exact error string appears **nowhere in this repo** (`grep` for it across the whole skills tree
+returns nothing), so its emitter is outside this tree — §5F's own header says Kraken's dashboard
+drives the check over `GET /api/sdd/check`, and Kraken is out of bounds. Two consequences worth
+recording rather than assuming: I could not read the emitter's path literal, only prove that the path
+it printed is the path the producer writes; and `engine/sdd.js check()` **reads no index at all**
+(§5F §4 — it recomputes), so requiring an index before checking is the caller's own precondition.
+
+**Built.** `node build-archetypes.js`, 0.5s, both roots self-hosting. 1038 files, 17 archetypes, 16
+named (>=3) covering 99.8%; Zipf head 4 archetypes to 50%, 8 to 80%. **140 generative** (Entity 64,
+RouterModule 35, ReduxModule 36, DtoBuilder 5) and **898 descriptive** — only the 140 can drift.
+Wrote `<CORPUS>/archetype-index.json` (8,082 B), `<CORPUS>/catalog/archetypes.json` (72,449 B) and
+140 `sen/archetypes/<rel>.arch.json`. `catalog/` already existed; note that line 111 has **no
+`mkdirSync`**, so on a wiped corpus that write would ENOENT.
+
+**Drift check, the two numbers kept apart per §5F §2.** `node engine/sdd.js check <CORPUS>`:
+**118 of 140 generative files conform, 22 drifted.** Separately, **140 of 140 tile byte-identical** —
+losslessness holds everywhere; every one of the 22 is *drifted, not broken*. Per archetype:
+Entity 58/64, RouterModule 23/35, ReduxModule 34/36, DtoBuilder 3/5. 16 of the 22 are residual
+`VariableStatement(const/let)` at the top level (12 of them routers); the other 6 fail a structural
+condition (`no new Router()`, `expected 1 @Entity class, found 0`, `no createSlice/createAction`,
+`no chainable (return this) methods`).
+
+**Two denominator mismatches found while cross-checking, neither a defect in the numbers above:**
+
+- `check()` reports **scanned 943** against build-archetypes' **1038**, because
+  `engine/sdd.js:82` narrows to `<projectDir>/src` when that exists, excluding `packages/` and
+  `tests/`. The generative totals agree exactly (140/118/22), so **all 140 generative files live
+  under `src/`** — verified by the agreement, not assumed.
+- `check({ projectDir })` walks `.ts` under the **CORPUS** root, not `SOURCE`. Invisible today
+  because the two are the same dir; it would read the wrong tree the moment they diverge.
+- 1038 `.ts` vs 1037 `.en`: the one file with no `.en` is `coined-demo/syncWhenProd.ts` (424 B),
+  outside `src/`, `packages/` and `tests/`. Not a render gap.
+
+**§8B registration — keep it OUT of s1's naming work.** The two artifacts carry hand-written
+`schema` strings (`sdd-archetype-index/1`) and, confirmed by reading the written file's keys, **no
+`fingerprint`**; neither kind is in the registry, so `AC.validate` can never run on them. Same
+producer/consumer shape s1 is closing on the naming side — but registering these is not the same
+change: every registered kind resolves into `AC.HOMES` (`sen/catalog` or `.cache/spec-derived`), so
+registration **moves both files off the corpus root**, breaking the path just confirmed above and
+`package-hydra-source.js:205` with it, plus a consumer outside this repo that I cannot read. That is
+a coordinated path move needing Amir's word, not a stamp swap. Sequence it after s1, separately.
