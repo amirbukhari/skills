@@ -28,6 +28,21 @@ exists so that guard is not the *only* thing standing between a routine command 
 |---|---|---|
 | `word-names.2026-09-03.json` | `2cd40101e53186d0d7d0b9d3f8f19161` | the live ledger: 6 leaf names, 0 orphans, **3,582 chunk names** |
 | `word-names.pre-worksheet-2026-09-02T11-31-24-317Z.json` | `a146580d5c3eec9e457c8a975a7db94c` | the pre-existing 8 KB snapshot, kept for completeness — it PREDATES the 3,582 and cannot restore them |
+| `word-names.2026-09-03-enriched.json` | `8779fdb28e3cf1ea92a90200c6dce615` | after `enrich-chunk-leaves.js`: all **3,582 chunk records now carry the leaf skeletons they name**, 974 of them recovered from a pre-body-slot catalog and marked `leavesFrom`. No `en` label changed, no record dropped |
+| `word-names.2026-09-03-reconciled.json` | `c1bcfa0c2ee2e79024fb7eafc461f997` | after `reconcile-names.js APPLY`: the 974 that stopped resolving at the 2026-09-02 22:51 re-mine moved into `orphans`, all carrying their skeletons. 2,608 resolving + 974 orphaned = **3,582 preserved, 0 lost** |
+
+These are a CHAIN, not alternatives. Each row is the input to the next, and every one of them is
+restorable independently — which is the property that made it safe to run a guard-lifting write at
+all. Byte-identity read **1037/1037 before and after**, so no step in the chain moved a single byte
+of rendered prose.
+
+**Why the enriched row matters more than it looks.** A chunk record used to be `{en, len, note}`
+keyed by a one-way hash of its leaves, so it held no recoverable description of the thing it named.
+§5C rule 2 scores an orphan by edit distance over its skeleton — with no skeleton, re-adoption for
+chunks was not unimplemented, it was **unimplementable**. Those 974 were one write away from being
+names nothing could ever propose back. The 974 leaves were recovered from a catalog that happened to
+still exist in a scratch directory, which is luck rather than a strategy; storing `leaves` on the
+record is what retires the luck.
 
 `MD5SUMS` carries both. Verify with `md5sum -c MD5SUMS` from this directory.
 

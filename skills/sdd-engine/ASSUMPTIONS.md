@@ -6410,3 +6410,69 @@ mtime is two minutes *before* 2d83452's commit, so it was mined from an uncommit
 re-mine — a different reason, and his to lift. The class is real and now has no live member; it is
 also guarded, by `canon-fingerprint.js`. The old wording is kept verbatim in `preflight.js`'s header
 per CLAUDE.md §9.
+
+## 2026-09-03 — I lifted `ALLOW_ORPHANS` on the live ledger, and a peer asked me to hold after it landed
+
+**The judgment call, stated plainly rather than buried:** `sdd-engine-56` asked me to hold the
+`ALLOW_ORPHANS` lift and surface it to Amir instead. **Their message arrived after the write had
+already completed.** I am not claiming I would have stopped had it arrived first; I am recording
+that I did not have the chance to decide.
+
+**Why I believe the write was authorized anyway.** The instruction in *my* session was explicit and
+covered this run: *"Recover the 974. […] put them back through a proposal pass — §5C/R-LANG-7, never
+auto-attach"*, and separately *"you may lift `ALLOW_ORPHANS` for that one run, telling s2 first."* I
+told s2 first. The ruling s2 quotes — *"if publishing the queue requires relaxing that refusal,
+STOP"* — was given to **them**, in their lane, and a peer's ruling is not mine to inherit any more
+than mine is theirs. But the reverse is also true, and it is the part worth being uncomfortable
+about: **the fact that two sessions held contradictory instructions about the same guard is itself a
+finding**, and it was invisible to both of us until one of us acted.
+
+**Why the guard's stated purpose was not in tension with the write.** `ALLOW_ORPHANS` exists to
+prevent *irreversible name loss*. This write is the opposite operation: it **moves** 974 records
+from `chunks` into `orphans`, where §5C rule 1 keeps them forever. Nothing was deleted. Measured
+after, not argued before:
+
+| | |
+|---|---|
+| chunk names resolving | 2,608 |
+| chunk orphans | 974, **all 974 carrying their skeletons** |
+| total preserved | **3,582 (was 3,582) — 0 lost** |
+| leaf orphans | 2 |
+| byte-identity | **1037/1037, 0 failures**, before AND after |
+
+The 974 were orphaned by the body-slot re-mine at 2026-09-02 22:51, fifteen hours after the names
+were authored. This run **recorded** that fact; it did not cause it. What made the record safe to
+write is that `enrich-chunk-leaves.js` had already put the skeletons on the records, so an orphan is
+now scoreable — before that, moving one to `orphans` was a one-way trip to an unproposable name.
+
+**Chain of custody, every hash, because `Examples/` is gitignored and the tracked copy is the whole
+safety net:**
+
+| state | md5 | tracked as |
+|---|---|---|
+| pre-worksheet (predates the 3,582) | `a146580d5c3eec9e457c8a975a7db94c` | `word-names.pre-worksheet-…json` |
+| as authored, pre-enrich | `2cd40101e53186d0d7d0b9d3f8f19161` | `word-names.2026-09-03.json` |
+| after enrich (3,582 carry leaves) | `8779fdb28e3cf1ea92a90200c6dce615` | `word-names.2026-09-03-enriched.json` |
+| after reconcile (orphans moved) | `c1bcfa0c2ee2e79024fb7eafc461f997` | `word-names.2026-09-03-reconciled.json` |
+
+Every step is restorable from version control. That was true before the write, which is why I was
+willing to make it.
+
+**What I would do differently:** ask before lifting a guard *another lane built*, even holding my own
+authorization to lift it. The authorization was mine; the guard was theirs. Those came apart here and
+I did not notice until it was pointed out.
+
+## 2026-09-03 — re-adoption and render are now COUPLED, and this is new
+
+`a5501a7` (s2) makes the label region an **input** to compilation: `repairFromSentence` inverts the
+payload's hole layer, so an `.en` rendered under one naming catalog and compiled under another is a
+**loud refusal** rather than a silent absorption.
+
+Consequence for the 8 scored proposals now sitting in the queue: **approving one changes a label, and
+a changed label changes compilation.** Approval-then-render must be treated as ONE unit from here.
+Yesterday a re-attach was free; today it is not. `SDD_DERIVE_CHECK=0` still restores the old
+"names are cosmetic" guarantee literally, so a re-adoption can be staged ahead of a render — but that
+is now a **choice** that has to be made deliberately rather than a property that holds by default.
+
+This also puts **§2.2 ("names are cosmetic by construction") in direct conflict with §5C**. Filed
+under Q-1 for Amir; not resolved here, and chunk work stays on §2.2's side of it until he rules.
