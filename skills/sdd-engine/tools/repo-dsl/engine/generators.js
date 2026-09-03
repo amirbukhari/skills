@@ -113,6 +113,11 @@ const isCFStmt = (st) => ts.isIfStatement(st) || ts.isForStatement(st) || ts.isF
 const isDeclStmt = (st) => ts.isImportDeclaration(st) || ts.isInterfaceDeclaration(st) ||
   ts.isTypeAliasDeclaration(st) || ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) ||
   ts.isExportDeclaration(st) || ts.isExportAssignment(st) || ts.isEnumDeclaration(st);
+/* THE ONE DIAL FOR THE CHANGE ABOVE. Default on; `SDD_BODY_SLOT=0` restores the pre-2026-09-03
+ * behaviour so the two dictionaries can be mined and compared side by side rather than argued
+ * about. Read once at module load, like every other dial in this engine. */
+const BODY_SLOT = process.env.SDD_BODY_SLOT !== "0";
+
 function pushExpr(node, out, wide) { const tmp = []; if (wide) wExpr(node, tmp); else ops.canonExpr(node, tmp, "op"); for (const x of tmp) out.push(x); }
 function genericParts(node, sf, wide, out) {
   let cursor = node.getStart(sf);
@@ -130,7 +135,36 @@ function appendKid(kid, sf, wide, out) {
     else out.push({ lit: kid.getText(sf) }); // keyword / punctuation -> skeleton
     return;
   }
-  if (ts.isBlock(kid) || ts.isStatement(kid)) { const p = generalStmtPartsInner(kid, sf, wide); if (p) for (const x of p) out.push(x); else out.push({ hole: true, type: "expr", text: kid.getText(sf) }); return; }
+  if (ts.isBlock(kid) || ts.isStatement(kid)) {
+    /* A NESTED STATEMENT OR BLOCK IS A SLOT, NOT SKELETON (2026-09-03).
+     *
+     * This line used to INLINE the nested statement's parts into the parent's, which baked the
+     * whole body into the parent's skeleton. `if (x > 0) { return x; }` and `if (x > 0) { return
+     * x + 1; }` — the same guard over different work — therefore produced two unrelated dictionary
+     * entries, and neither could ever be reused for the other. Measured on the synthetic benchmark:
+     * showing the miner `f(x){return x+1}` and `if(x>0){return x}` separately and then their
+     * combination forced TWO NEW LEAF SKELETONS, one spanning the entire function. On Amir's
+     * criterion that is a code-template compressor, not a language.
+     *
+     * The same defect, one line, explained four separate failures: structurally identical files
+     * sharing no pattern because the callee was baked (`return three(‹args›);` vs `return
+     * four(‹args›);`), `a(b(c))` not composing out of `b(c)`, and `a.b.c.d` not composing out of
+     * `a.b`.
+     *
+     * WHY THIS LOSES NOTHING. The body's own structure is not discarded — it is simply not the
+     * PARENT's business. The renderer already drills into inner runs independently
+     * (`innerRunRanges` -> a nested chunk per sub-run), which is why the render half already
+     * composed while the dictionary half memorised. Holing the body at the miner is what lets the
+     * two halves agree.
+     *
+     * WHY IT CANNOT BREAK BYTE-IDENTITY. The hole carries the body's EXACT SOURCE BYTES, exactly as
+     * the pre-existing `expr` fallback below does, and `genericExact` still refuses any statement
+     * whose parts do not refill to the exact slice. The gate is untouched.
+     *
+     * SDD_BODY_SLOT=0 restores the old inlining. */
+    if (BODY_SLOT) { out.push({ hole: true, type: "body", text: kid.getText(sf) }); return; }
+    const p = generalStmtPartsInner(kid, sf, wide); if (p) for (const x of p) out.push(x); else out.push({ hole: true, type: "expr", text: kid.getText(sf) }); return;
+  }
   if (isExprNode(kid)) {
     /* The expression canon cannot express every shape (e.g. `new Koa<T>()` drops its type
      * arguments, some optional-chaining conditionals). When its output does not refill this kid
