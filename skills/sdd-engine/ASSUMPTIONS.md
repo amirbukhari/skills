@@ -6675,3 +6675,59 @@ is shaped to prevent.
 `tools/name-readoption-batch-2026-09-03.md` (`33b6ae8`), the render that was blocking it has landed,
 and the 19 exact / 8 fuzzy split is unchanged post-render (re-measured, not carried forward). What
 is missing is a human word and an applier, in that order.
+
+## 2026-09-03 — English payload holes (tier 1), judgment calls
+
+**1. The data English is emitted UNWRAPPED, and that costs the number deliberately.** The frozen
+strip list already exempts `«an object with …»` as verbatim-by-design. An object hole rendered into
+that *wrapped* form would vanish from the goal metric entirely. It is emitted bare instead, inside
+the payload, where every construct it still carries is **counted**. Wrapping would have been a larger
+apparent reduction obtained by moving text into an already-exempt form — which is the cheat shape
+Amir forbade ("widening 'verbatim by design' to make the number fall"), even though it would not have
+edited the strip list. The reduction reported (−26,182) is entirely from constructs that genuinely
+stopped existing.
+
+**2. Only single-quoted string holes are encoded.** `'x'` and `"x"` would both render `“x”`, so the
+original quote character would not be recoverable and byte-identity would fail. 213 double-quoted and
+480 backtick/template holes are left raw and pay for it in the goal number. Guessing the quote back
+is the trade that produces wrong bytes.
+
+**3. Template-bearing data holes are REFUSED, not escaped.** `renderData` writes a nested template
+literal as `“…”`, which is the string rule's wrapper. Escaping it would be correct and would put
+`⟡8`/`⟡9` pairs on Amir's page. Unreadable-but-correct is not what this exercise is for, so the hole
+falls back to raw. Cost: part of the 16.7% of `obj`/`arr` holes that do not convert.
+
+**4. `⟦ ⟧` chosen as the data wrapper, and verified free before use.** Not a sentinel anywhere in the
+engine (grepped) and 0 occurrences in the `.ts` corpus. It then joined the payload escape table, so a
+raw hole that *were* `⟦…⟧` arrives at the discriminator as an escape pair and cannot impersonate a
+wrapper. Discriminating on the English prefix ("starts with `an object with `") was rejected: it is
+implausible-but-possible that a raw hole begins with those bytes, and that path produces **wrong
+bytes silently**. Absence in today's corpus is luck; the escape table is the guarantee.
+
+**5. The codec stayed TYPELESS even though the type was available.** `expandKey` makes a hole's type
+recoverable (150,313/150,313, 0 mismatches) and a type-directed rule was the obvious design. Rejected
+because it would make `decode` depend on the catalog, and a file rendered *with* a catalog and
+compiled *without* one then produces wrong bytes. Every question the rules ask is decidable from the
+hole text alone. Unplanned benefit: the string rule fires on 1,121 `args` holes a `str`-directed rule
+would have missed — 13% of its own reach.
+
+**6. `payload.js` gained dependencies, and the old header claim was withdrawn rather than left.** It
+now requires `data-english.js` and, through it, `typescript`. The previous header said the file
+"keeps its only dependency: itself" — false as of the object/array rule. Both new dependencies are
+pure text functions with no catalog, so the encode/decode symmetry argument survives; the
+self-containment claim does not, and it was struck in place.
+
+**7. DID NOT re-render on a single-lane instruction.** "Carry on with the payload" was addressed to
+this lane alone; a render is shared state, and the protocol is that neither lane acts on a
+shared-state instruction naming one lane. The 8,321-construct reduction sat unbanked and
+`en-idempotence` HALF 1 sat red (965 drifted, 0 threw) until a render was authorised to both lanes.
+That red was **correct, not a regression**, and both lanes said so in writing so nobody "fixed" it.
+
+**8. Rendered at `09cdd98`, not the `0afa257` the order named — flagged before acting, not after.**
+`0afa257` was the string rule alone (−8,321); `09cdd98` adds object/array holes (−26,182 total).
+Rendering the named commit would have required a *second* full render of shared state to bank the
+rest. Two commits, one render, deviation surfaced with an offer to redo it at the named commit.
+
+**9. No commit exists for the render itself.** The corpus lives under `Examples/`, excluded by
+`.gitignore:32`, so the 1,037 rendered `.en` are untracked. This is the same condition that made
+`tools/name-ledger-backup/` necessary and is stated here so the absence is not read as an omission.

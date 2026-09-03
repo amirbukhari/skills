@@ -251,3 +251,117 @@ missing. It was present the whole time at `10-language-and-grammar.md:316`, word
 `CLAUDE.md` §7 already forbids grepping a commit **subject** for this reason; a paraphrase of a
 peer's prose is the same defect with a friendlier disguise, and it fails in the alarming direction
 rather than the reassuring one.
+
+## THE ASYMMETRY: AN ALARMING ERROR SURVIVES LONGER THAN A REASSURING ONE (2026-09-03)
+
+Amir's statement of it, after a night in which four separate false alarms were raised, relayed and
+acted on before any of them was checked:
+
+> **The alarming error survives longer than the reassuring one, because nobody argues with bad news.**
+
+This is the generalisation of class 6 (*one name over two properties*) rather than a new class. What
+makes it operational is the direction: a detector reporting catastrophe is granted a credibility that
+the same detector reporting success would never get, **because catastrophe feels like diligence**.
+The night's four, all of which ran alarming and all of which were wrong:
+
+| claim | reality | who caught it |
+|---|---|---|
+| a peer's §16 table is uncommitted, "one careless commit from gone" | committed and pushed two moves earlier; the measurement's subject was a stale parent | the peer |
+| 163 file labels are concatenations of their children | **5**. The detector tested "contains the child's label", which fires on `2 constants and 1 shape` overlapping a child labelled `1 shape` — two honest claims, not a concatenation. 30× over | the other lane's stricter detector |
+| a paraphrase of a peer's prose returns zero hits, so their work is missing | present the whole time, worded differently (`10-language-and-grammar.md:316`) | re-reading the file |
+| 139,871 of 150,313 payload holes resolve to no template | **0**. The probe found a `.words` table nested under ONE axis and used it for both, so every hole on the other axis "failed" | the 93% figure being implausible on its face |
+
+**The rule that comes out of it is not "check your detector".** It is that *a detector reporting
+catastrophe must clear the same bar as one reporting success*, and nothing enforces that today
+because nobody asks a bad number to justify itself.
+
+### AND THE ONE THAT RAN THE OTHER WAY — WHICH IS WHY IT SURVIVED LONGEST
+
+The inside/outside split of the goal number was published as **93,162 inside / 35,491 outside** and
+relayed to Amir. It never summed to the 138,387 headline it sat beneath, and nobody noticed —
+including its author, across two reports. Re-measured with the frozen strip applied it was
+**102,886 / 35,491**: the inside term was ~10,000 low, **in the flattering direction**.
+
+It is the only one of the five that erred reassuringly, and it is the only one that was relayed
+twice before being caught. That is the asymmetry stated from the other side: *the reassuring error
+survives because nobody argues with good news either — they repeat it.*
+
+The mechanism was a measurement whose subject had quietly changed: the split counted **decoded hole
+text**, while the headline counted the **stripped page**. Two different populations under one name,
+which is class 6 again, and the arithmetic that would have exposed it — *do the parts sum to the
+whole?* — was never performed because neither part looked wrong on its own.
+
+## A PROJECTED REDUCTION AND A MEASURED ONE ARE TWO PROPERTIES (2026-09-03)
+
+Both lanes hit this within an hour of each other, in **opposite directions**, which is what makes it
+a rule rather than an anecdote.
+
+- **Too high.** The English-hole work projected its value from a table of constructs-per-hole-type:
+  8,321 (`str`) + 9,167 (`obj`/`arr`) = **17,488**. Measured on the stripped page after re-encoding
+  all 9,724 corpus payloads: **26,182**. The projection missed that rendering an object also converts
+  the string literals *nested inside* it — `{ headers: { accept: '*/*' } }` takes its own braces and
+  every quoted value with it.
+- **Too low.** The interior-production spike priced if-blocks at **−1,795** by charging itself for
+  `if (`, `)` and the braces. Those are **skeleton**: they live in the dictionary and never reach the
+  page. Corrected: **−2,215**. In that lane's own words, *"I priced a model of the measurement
+  instead of the measurement."*
+
+**The rule.** A projection counts *holes*; a reduction counts *what actually leaves the page*. They
+are two properties, and the projection is the one that gets quoted. A projected number is publishable
+only alongside the measurement that confirms it — and when a projection comes in **low**, that is not
+good news to bank, it is a signal the model of the page is wrong. The −18.9% above was predicted
+end-to-end (112,205) *before* the render and the render returned 112,205 exactly; that is the
+standard, not the 50% surprise that prompted it.
+
+## BYTE MASS IS THE WRONG TARGETING METRIC (2026-09-03)
+
+The arrow-opener population was selected as the next target off **3,855 fragments and 333 KB** — the
+largest byte mass on the board. Measured per kind, it is worth **exactly zero**:
+
+| kind | sites | byte-exact | `body=skel` | now | after | NET |
+|---|---|---|---|---|---|---|
+| `IfStatement` | 1822 | 1809 (99%) | 1809/1809 | 4408 | 2193 | **−2215** |
+| `const =` arrow/fn | 1535 | 1524 (99%) | **0/1524** | 8367 | 8367 | **0** |
+| `function` decl | 130 | 126 (97%) | 126/126 | 580 | 135 | **−445** |
+| call w/ arrow arg | 384 | 380 (99%) | **0/380** | 2636 | 2406 | **−230** |
+
+The mechanism generalises (2,030 of 2,049 byte-exact, 0 wrong bytes); **the value does not.** The
+entire arrow signature — `(`, `)`, `:`, `=>`, `[`, `]`, `{`, `}` — is *one* `fn` hole, so nothing
+comes off the page and a payload mark is added.
+
+**What decides value is the granularity the existing skeleton already reaches**, and that is readable
+per kind from `expandKey` output *before anyone builds anything*. The negative result is pinned by an
+assertion that fires if that row ever starts paying, so the target cannot be re-selected off the byte
+table.
+
+**One qualification, or the row will be misread.** `NET 0` for arrows is a property of **the current
+canon** coining a single `fn` hole over the whole signature — *not* a property of arrows. A canon
+splitting `fn` into `‹params›`/`‹ret›`/`‹body›` would move that row to PAYS with no renderer change
+at all. Record it as *"0 under the current canon"*. Recording it as *"0 by construction"* is class 6
+committed in the act of documenting class 6.
+
+## `gap` — THE ONE INSTANCE THAT PREDATES US (2026-09-03)
+
+`gap` is the most-used hole type in the corpus: **81,390 holes**. It is universally read as "the
+whitespace between two statements". Measured:
+
+- whitespace-only: **81,314** (99.91%)
+- **not whitespace: 76** — every one a *comment*
+
+```
+"\n  // created: Date;\n  // createdUserId: number;\n  // modified: Date |"
+" // eslint-disable-line max-len\n  "
+"\n  // console.log(uri);\n  "
+```
+
+Those 76 holes carry **87 constructs** in the goal metric, so "a `gap` hole is construct-free" is
+false. The two lanes met this population from opposite ends on the same night — one counting
+non-whitespace `gap` holes corpus-wide (76), the other counting if-block spikes that failed because
+*a gap held a comment* (9) — and they are the same defect: **"the bytes between two statements" and
+"whitespace" are two properties under one name**, and the name has carried both since `gap` was
+coined.
+
+It is the only instance of the shape identified this session that **predates the session**, which is
+the reason to expect more of them in the older layers rather than fewer. Any claim of the form
+"these N bytes carry zero constructs" must keep its denominator visible — *whitespace-only in 1,809
+of 1,822*, never *"whitespace"*.

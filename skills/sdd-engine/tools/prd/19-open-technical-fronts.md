@@ -32,3 +32,82 @@ renders through depth ≥ 2, which needs one real mine.
    `generators.maxDepth ≥ 2`, is met and is now a standing gate (R-COMP-7) rather than a target.
    Its one genuine residue — the manifest did not expose the field the gate reads — is fixed.
 5. **Measurement discipline.** Keep the measure-first scripts as the source of truth; refresh the stale `gate.json` snapshot so the gate reflects the current library. **Corrected 2026-08-31 — the list here named three scripts that do not exist** (`measure-bytes.js`, `measure-middle-tier.js`, `measure-windows.js`; not on disk, not even archived), which is the failure mode §7's measurement discipline is meant to prevent: a "source of truth" nobody had run. What actually exists and is live: `measure-uncollapsed.js` (the frozen §7.3 classifier), `measure-operations.js`, `measure-callgraph.js`, `measure-english.js`, `measure-logic-english.js`, `measure-bespoke-composites.js`, and `write-en-files.js --dry-run` for the manifest. The WIDE canon is `engine/generators.js generalStmtParts(st, sf, wide)`, not a measure script.
+
+## FRONT: TYPESCRIPT ON THE READING SURFACE — SIZED, AND HALF OF IT SPENT (2026-09-03)
+
+The front opened when Amir read `sen/files/src/routers/links.ts.en` and said *"You lied to me."* He
+was right: the reported metrics — review surface 1,086/20,214, MUTE 2,362, byte-identity 1037/1037 —
+were all true and the picture they painted was false. The file still read as TypeScript with
+narration wrapped around it. `engine/the-goal.test.js` exists so that no metric can stand in for the
+goal again, and it reports **surviving TypeScript constructs after a frozen strip**, corpus-wide,
+detected by punctuation and never by keyword (the dialect legitimately contains the words
+`import`/`return`/`if`/`await`).
+
+### THE SIZING ANSWER: BOUNDED, NOT A PAYLOAD REDESIGN — AND "BOUNDED" IS NOT "CLOSE"
+
+Asked whether removing the payload-borne TypeScript was bounded engineering or a format redesign.
+It is **bounded**, and the evidence is mechanical rather than architectural:
+
+**A hole's type is already recoverable at both ends.** `expandKey(axis, w)` yields the template and
+its `‹type›` markers pair positionally with the payload's `h` array — measured **150,313 of 150,313
+holes, 0 unknown word ids, 0 arity mismatches**. So the payload **format does not change at all**:
+same tag, same axis, same word id, same hole introducer. Only each hole's *text encoding* moves,
+per rule, gated by a byte-exact inversion with per-hole fallback to raw. That is the `dataByteExact`
+construction one level down — worst case no improvement, **never a wrong byte**.
+
+Nothing new needs inventing. The existing hole mechanism needs lifting.
+
+**But the work splits into two tiers of very different size**, and reporting them as one number is
+how "bounded" becomes "nearly done":
+
+| tier | hole types | constructs | status |
+|---|---|---|---|
+| 1 | `str`, `obj`, `arr` | 36,062 (38.7% of inside) | **spent.** `data-english.js` already renders and compiles these |
+| 2 | `args`, `expr`, `chain`, `fn` | 55,856 (59%) | **open.** No English exists for these today |
+
+Tier 1 landed at −26,182 (−18.9%), taking the headline **138,387 → 112,205**. Tier 2 is the
+remainder and it is not a plumbing exercise: `jest.mock('@src/…', () => ({…}))` and
+`qb.select([…]).innerJoinAndSelect(…)` are *a call's argument list with an arrow or a chain inside
+it* — the same **"complete node minus the extents its children cover"** shape the interior-production
+work identified at structural headings, occurring inside a payload hole. The two are one problem seen
+from two ends.
+
+**The honest sentence:** bounded, nothing new needs inventing, and tier 1 was ~26% of the headline.
+Dirty files went **1035 → 1035**. Not one file comes clean, and there is still no existence proof
+that one can.
+
+### THE PRICE OF THE INTERIOR-PRODUCTION WIN IS PAID IN THE WRONG COLUMN
+
+Moving structural scaffolding off the prose surface and into a `«▷ heading ⟪payload⟫ ⟨children⟩»`
+production makes the goal number look almost flat: `payload-spill` fires on any `⟪lzw`, so 1,809
+if-block productions arrive as 1,809 new payload marks, and the net reads **−2,215, about −1.3% of
+the headline**.
+
+**That headline understates the change, and the reason must not be lost:**
+
+> As **raw prose bytes**, that scaffolding is addressable by **nothing** — no mechanism in the engine
+> can reach it. As **typed payload holes**, it becomes addressable by exactly the hole-encoding
+> machinery tier 1 just proved out. It is a transfer from an **unfixable column into a fixable one.**
+
+The visible half of the transfer is the 1,809 payload marks and +14 call-parens; the invisible half
+is 3,618 braces that stop existing. A reader looking only at the net will conclude the spike failed
+when it succeeded.
+
+**This is recorded here rather than left to the number because the number structurally cannot say
+it** — which is §16 class 7, and the reason the goal test's total is kept as the headline anyway:
+re-classifying payload text as non-page would lower the number by redefining the page instead of
+cleaning it, and that is the cheat the goal test was written to forbid. The split (inside/outside)
+stays published *beneath* the total so the work can be aimed, and the inside term is **never**
+published alone as "the" number.
+
+### WHAT DID NOT MOVE, AND WHY THAT IS THE MAP OF TIER 2
+
+After tier 1, the buckets that did not budge by a single construct are the whole of the remaining
+problem: `call-paren` 19,751 · `arrow-fn` 8,369 · `semicolon` 5,026 · `template-interp` 4,212, plus
+38,783 braces that are **block bodies rather than object literals**. Every one of them sits in an
+`args`/`expr`/`chain`/`fn` hole.
+
+The cheap discriminator for what is reachable is **`body=skel`** — whether the existing skeleton
+already reaches inside the construct. A hole type reading `0/N` is one the canon treats as a single
+opaque blob, and the only thing that moves it is decomposition *inside* the hole. Recorded with the
+qualification §16 requires: `0/N` is a fact about **the current canon**, not about the construct.
