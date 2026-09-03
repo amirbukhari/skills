@@ -274,6 +274,14 @@ for (const k in G) {
     + String(S.before).padStart(7) + String(S.after).padStart(7) + String(net).padStart(8)
     + (net < 0 ? "   PAYS" : "   LOSES"));
 }
+/* NET IS MEASURED UNDER THE CURRENT CANON, and that qualifier is load-bearing. A row reading 0 is
+ * not a property of the node kind — it is a property of the canon having coined ONE `fn` hole over
+ * a whole signature. A canon splitting `fn` into `params`/`ret`/`body` would move that row to PAYS
+ * with no renderer touched. (s1's correction, 2026-09-03; not a proposal — a canon change moves the
+ * fingerprint and re-mines every catalog.) The number is right; "by construction" claimed more than
+ * the measurement, which is §16 class 6 in the name over my OWN table. */
+console.log("  NET is measured under the CURRENT canon — a row reading 0 is a fact about the"
+  + "\n  canon's hole granularity, not about the node kind.");
 
 ok("the mechanism generalises — 3 more kinds, still 0 wrong bytes", () => {
   let n = 0, exact = 0, wrong = 0;
@@ -282,11 +290,15 @@ ok("the mechanism generalises — 3 more kinds, still 0 wrong bytes", () => {
   assert.ok(exact / n > 0.95, "only " + exact + " of " + n + " reconstructed");
 });
 
-ok("BUT arrow/fn openers DO NOT PAY — byte mass is the wrong targeting metric", () => {
+ok("BUT arrow/fn openers do NOT pay UNDER THE CURRENT CANON — byte mass is the wrong metric", () => {
   /* THE NEGATIVE RESULT, PINNED. I called this "the next target after if-blocks" off 3,855
    * fragments and 333KB. It reconstructs at 99% with zero wrong bytes and saves NOTHING, because
    * its whole signature is a single `fn` hole. Anyone reading the byte table and targeting this
-   * kind will spend the effort and move the number by ~0. */
+   * kind will spend the effort and move the number by ~0.
+   *
+   * IT LOSES UNDER THE CURRENT CANON, NOT BY CONSTRUCTION. Those 1,524 `fn` holes are one opaque
+   * blob because that is how the canon spells them today, so the reduction lives INSIDE the hole
+   * (s1's tier 2), not in a renderer. Read this row as "0 today", never as "0 about arrows". */
   const S = G["const = arrow/fn"];
   assert.ok(S && S.exact > 1000, "the arrow/fn population vanished — re-read this test");
   assert.strictEqual(S.bodyHole, 0, "its skeleton now HAS a body hole — re-price it, it may pay now");
