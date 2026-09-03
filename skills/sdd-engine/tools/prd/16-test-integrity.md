@@ -325,10 +325,49 @@ a rule rather than an anecdote.
   all 9,724 corpus payloads: **26,182**. The projection missed that rendering an object also converts
   the string literals *nested inside* it — `{ headers: { accept: '*/*' } }` takes its own braces and
   every quoted value with it.
-- **Too low.** The interior-production spike priced if-blocks at **−1,795** by charging itself for
+- **Too low.** ~~The interior-production spike priced if-blocks at **−1,795** by charging itself for
   `if (`, `)` and the braces. Those are **skeleton**: they live in the dictionary and never reach the
-  page. Corrected: **−2,215**. In that lane's own words, *"I priced a model of the measurement
+  page. Corrected: **−2,215**.~~ In that lane's own words, *"I priced a model of the measurement
   instead of the measurement."*
+
+  **REFUTED IN PLACE, 2026-09-03, per §9 — and this bullet is now the sharpest instance in the
+  section rather than an example of the fix.** The braces are **not** skeleton. Measured
+  corpus-wide: the `if (` and `)` are skeleton, the braces are **hole text**, and hole text is on
+  the page.
+
+  ```
+  if‹gap›(‹id›.length < ‹num›)‹gap›‹body›       braces in skeleton 0 / hole text 1,822
+  ```
+
+  So the net is `4408 → 5811`, **+1,403** — if-blocks **lose**. `function` decl moves
+  −445 → −193. Corrected table below.
+
+  **Why this is the worst instance and not merely a stale number: a section about mis-priced
+  projections was citing a mis-priced projection as the moment pricing got honest.** The
+  −1,795 → −2,215 correction is quoted here as the lane's turn from pricing a model to pricing
+  the measurement. It wasn't. It priced a *second model*, more carefully — and the extra care is
+  precisely what made it credible enough to be relayed and written into the PRD as settled.
+
+  **THE CLAUSE THAT WOULD HAVE CAUGHT IT: A CORRECTION IS A NEW PROJECTION.** It inherits none of
+  the trust it earns by being a correction. This one went from wrong to
+  **wrong-in-the-other-direction while looking like convergence**, and nobody re-derived it
+  *because it had already been fixed once*. The relaying lane recorded that it passed −2,215 on
+  with **more** confidence than it had given −1,795, *for the sole reason that it was a
+  correction*. That is a reporting rule as much as an engineering one, and it is the mechanism by
+  which a single bad number reached three documents.
+
+  **AND THE SITE COUNT IS ITSELF AN INSTANCE.** The refutation was first reported as being in *two*
+  places, from a targeted grep of §16 — because §16 was the file under review. It was in three;
+  the third inverted an argument rather than a number. **A claim's blast radius is the number of
+  times it was RELAYED, not the number of places you remember writing it.** The sweep costs one
+  grep. Both lanes had by then audited a *file* rather than a *claim*.
+
+  **WHAT FOUND IT, WHICH RE-READING DID NOT.** The pricing code was read three times, once
+  *specifically* to correct it, and found nothing. What found it in seconds was a stubbed
+  `compileChild` that returned the inner statements and produced `if (c) throw new Error(...)`
+  with the braces **visibly gone** — a test written afterwards, for a different purpose, that
+  could fail. That is the argument for writing the test that could fail over the test that
+  confirms, and it belongs next to the merged rule below.
 
 **The rule.** A projection counts *holes*; a reduction counts *what actually leaves the page*. They
 are two properties, and the projection is the one that gets quoted. A projected number is publishable
@@ -344,10 +383,23 @@ largest byte mass on the board. Measured per kind, it is worth **exactly zero**:
 
 | kind | sites | byte-exact | `body=skel` | now | after | NET |
 |---|---|---|---|---|---|---|
-| `IfStatement` | 1822 | 1809 (99%) | 1809/1809 | 4408 | 2193 | **−2215** |
+| `IfStatement` | 1822 | 1809 (99%) | 1809/1809 | 4408 | ~~2193~~ **5811** | ~~−2215~~ **+1403** |
 | `const =` arrow/fn | 1535 | 1524 (99%) | **0/1524** | 8367 | 8367 | **0** |
-| `function` decl | 130 | 126 (97%) | 126/126 | 580 | 135 | **−445** |
+| `function` decl | 130 | 126 (97%) | 126/126 | 580 | ~~135~~ **387** | ~~−445~~ **−193** |
 | call w/ arrow arg | 384 | 380 (99%) | **0/380** | 2636 | 2406 | **−230** |
+
+**The `after` column was wrong for the same reason twice, and the reason has a name (below): it was
+named `after` and it computed what the model INTENDED to exclude, not what the page would carry.**
+The line responsible, quoted rather than described, because quoting is what makes a §16 row
+checkable:
+
+```js
+if (types[i] === "body") continue;   // "becomes the child slot: empty text"
+```
+
+The comment is the whole defect. The body hole does not become empty text — it carries the block,
+braces included, and the braces stay on the page. **Not one kind in this table moves into the
+positive column, and `IfStatement` moves out of it.**
 
 The mechanism generalises (2,030 of 2,049 byte-exact, 0 wrong bytes); **the value does not.** The
 entire arrow signature — `(`, `)`, `:`, `=>`, `[`, `]`, `{`, `}` — is *one* `fn` hole, so nothing
@@ -390,7 +442,16 @@ the reason to expect more of them in the older layers rather than fewer. Any cla
 "these N bytes carry zero constructs" must keep its denominator visible — *whitespace-only in 1,809
 of 1,822*, never *"whitespace"*.
 
-## THE TEST YOU WOULD CITE IS NOT ALWAYS THE TEST THAT WOULD CATCH IT (2026-09-03)
+## A LABEL OVER A MEASUREMENT (2026-09-03)
+
+> **A name says what something is *about*. It does not say what it *reads*.**
+
+**The merged row. Each lane supplied one half on the same night, one layer apart, and they are not
+two lessons.** One was a **test** named for a property it never read; the other a **measurement**
+named for an intent it never checked. Filed together because the merged rule is the one that
+generalises, and because either half alone reads as a local slip.
+
+### HALF ONE — the test you would cite is not always the test that would catch it
 
 **Third occurrence of the currency-vs-consistency split, on the same pair of tests.** The first two
 were the 405-vs-438 gap (`SDD_DERIVE_CHECK`'s internal-consistency question read as
@@ -421,15 +482,64 @@ the one a reader reaches for* when asked "is the corpus byte-identical?", and it
 
 **What actually covers the on-disk claim** is two other things: `en-idempotence` HALF 1 (the persisted
 `.en` *is* what a fresh render produces) and `write-en-files.js`'s own pre-write gate (each `.en`
-verified `.en -> .ts` byte-identical *before* it is written). Both were green. A third check was run
-directly to close it — compile every persisted `.en` from disk and compare to source: **1037/1037,
-0 wrong bytes, 0 refused.**
+verified `.en -> .ts` byte-identical *before* it is written). Both were green. **Two** further checks were then run
+directly to close it, in different sessions against the same disk — each opening every persisted
+`.en` and compiling it against source:
+
+| run by | at | result |
+|---|---|---|
+| the payload lane | `527fcb1` | 1037/1037 byte-identical, 0 wrong bytes, 0 refused |
+| the interior lane, independently | `a7d2d55` | 1037/1037 byte-identical, 0 wrong bytes, 0 refused, 1037/1037 with a `.ts` counterpart |
+
+**Two lanes, one disk, one independently derived number is worth more than one lane's**, and it was
+the gap the second lane had itself named as unrun. Re-run at `633127d` either side of the dispatch
+landing: 1037/1037, 0 wrong bytes, 0 refused, 0 unmatched.
+
+**Read the defect as the NAME, not the test.** `round-trip-fixpoint` is correctly scoped, its header
+says so, and a reader who takes this row as *"round-trip-fixpoint is broken"* will delete a good
+test.
 
 **The rule.** When asserting a property of an artifact on disk, cite the test that *opens the
 artifact*, not the test whose name matches the property. A test's name describes what it is about; it
 does not describe what it reads. And the corollary for reviewers: *"did the assertion run after?"* is
 a weaker question than *"which file does that assertion open?"* — the first can be satisfied by a
 test that could never fail.
+
+### HALF TWO — the column named `after` computed what the model intended to exclude
+
+The interior-production pricing table (above, now corrected) carried a column named `after`, meaning
+*the constructs the page would carry after the change*. It computed something else. The line, quoted
+rather than described:
+
+```js
+if (types[i] === "body") continue;   // "becomes the child slot: empty text"
+```
+
+**`after` was the name; "what I intend to exclude" was the computation.** The body hole does not
+become empty text — it carries the block, braces included, and the braces stay on the page. The
+column read 2193 where the page would read 5811, and the sign of the whole front flipped: −2,215
+became **+1,403**.
+
+**What makes it the same defect as half one, one level up:** in both, a name asserted a *subject*
+and a reader inferred a *reading*. `round-trip-fixpoint` is about the round-trip fixpoint and reads
+two fresh in-memory renders. `after` is about the after-state and reads the model's exclusion list.
+Neither name is a lie about what it is about; both are silent about what they touch, and **silence
+is where the reader supplies the wrong answer.**
+
+### THE OPERATIONAL FORM
+
+- Name a check for **what it opens**, not for what it concerns. `round-trip-fixpoint-in-memory`
+  would have ended half one before it began.
+- For a derived column, name the **derivation**, not the intent — `after-excluding-body-holes`, not
+  `after`. A name that states its own exclusions cannot hide one.
+- **When citing a property of an artifact, cite the check that opens the artifact.** Reviewer's
+  question: not *"did it run?"* but *"which file did it open?"*
+- And the finding that generalises furthest, because it cost the most: **re-reading found neither
+  half.** The pricing code was read three times, once specifically to correct it. What found it was
+  a stubbed `compileChild` producing `if (c) throw new Error(...)` with the braces visibly gone — a
+  test written afterwards, for a different purpose, **that could fail.** Half one was found the same
+  way: not by re-reading `round-trip-fixpoint`, but by running the check it does not perform.
+  Reading a thing confirms what you already believe it says. **Write the test that could fail.**
 
 ## THE GOAL METRIC'S OWN DENOMINATOR OMITTED 24% OF THE CODE (2026-09-03)
 

@@ -6731,3 +6731,50 @@ rest. Two commits, one render, deviation surfaced with an offer to redo it at th
 **9. No commit exists for the render itself.** The corpus lives under `Examples/`, excluded by
 `.gitignore:32`, so the 1,037 rendered `.en` are untracked. This is the same condition that made
 `tools/name-ledger-backup/` necessary and is stated here so the absence is not read as an omission.
+
+## 2026-09-03 — the interior-production dispatch lands unused, and why the wrapper cannot leave
+
+**Judgment call: `compileSpan`'s child dispatch THROWS rather than returning null on any refusal.**
+`G.refill` splices its argument positionally, so a null lands the four characters `null` in the
+output. Byte-identity would then report the file as WRONG BYTES with no indication of which hole
+did it. Loud refusal is cheaper than a silent four-byte corruption. Same reasoning for refusing when
+a payload carries a `c` mark but the caller supplies no `compileChild`: the payload was written by an
+encoder that believed the bytes live elsewhere, so its hole text is NOT the source and defaulting to
+it would be a wrong-bytes path that reads as a success.
+
+**Judgment call: `c`-mark indices are STRICTLY INCREASING, enforced at both ends.** This is a
+canonicalisation, not decoration — it makes `encode(decode(x)) === x`, so a payload has exactly one
+spelling and a corpus diff means a real change rather than a reordering. Placement between the word
+id and the first hole is deliberate: the id is digits and `c` is not, so the pre-existing digit scan
+terminates on it unchanged and every payload written before the mark decodes and re-encodes
+byte-for-byte identically (verified).
+
+**Assumption made explicit: the braces have exactly two possible homes, and this is what closes the
+front.** A hole is where per-site content goes; braces are that content's delimiters. So they are
+either literal skeleton text in a dictionary word (off-page) or hole text (on-page). Recursion
+relocates the dilemma rather than resolving it — a child chunk's own braces arrive at the same fork.
+Measured three ways, each of which could have said otherwise:
+
+1. 244,795 dictionary words across both axes; 232 wrap a hole in braces; of those `if=0 for=0
+   while=0 arrow=0 function=0`, and the wrapped hole is `gap` in 232/232 (`import` 191, `class` 22,
+   `type` 10, `export` 7, `interface` 2 — empty-bodied declarations). No word in either axis wraps a
+   CONTENT hole in braces.
+2. 1,822 simple if-blocks with a non-empty body: braces in skeleton 0, in hole text 1,822.
+3. The residual wrapper a wired `compileChild` would leave is encodable by the tier-1 rule table in
+   **0 of 1,822** sites. `{}` DOES encode (`⟦an empty object⟧`, 2 constructs to 0) but real source
+   never writes `{}` around a body — it writes `{\n    \n  }`, 24 distinct indentation variants, and
+   encoding those as "an empty object" would emit wrong bytes, so the byte-exactness gate refuses
+   them. The refusal is the contract working, not a gap to widen.
+
+**Stated as "under the current canon", NOT "by construction."** Moving the braces to skeleton means
+the canon spelling a block as `{‹child›}` rather than `‹body›`, which moves the fingerprint and
+re-mines every catalog — forbidden tonight, not impossible forever. This is the same qualification
+insisted upon for the arrow row, now applied to this one. `interior-production.test.js` asserts the
+price is not a reduction and fires if the braces ever do leave the page, so the door is held open in
+code rather than in memory.
+
+**Judgment call: the dispatch is landed rather than deleted despite nothing wiring it.** An unused
+code path is a maintenance cost and normally would not land. It lands here because the alternative
+is that the whole finding survives only as prose, and §16's own history is that a claim held in prose
+gets re-derived wrongly. A test that fires on the condition changing is a stronger record than a
+paragraph saying it has not.

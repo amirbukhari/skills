@@ -80,8 +80,8 @@ that one can.
 
 Moving structural scaffolding off the prose surface and into a `«▷ heading ⟪payload⟫ ⟨children⟩»`
 production makes the goal number look almost flat: `payload-spill` fires on any `⟪lzw`, so 1,809
-if-block productions arrive as 1,809 new payload marks, and the net reads **−2,215, about −1.3% of
-the headline**.
+if-block productions arrive as 1,809 new payload marks, and the net reads ~~**−2,215, about −1.3% of
+the headline**~~ **+1,403 — the wrong sign; see the refutation below.**
 
 **That headline understates the change, and the reason must not be lost:**
 
@@ -89,9 +89,61 @@ the headline**.
 > can reach it. As **typed payload holes**, it becomes addressable by exactly the hole-encoding
 > machinery tier 1 just proved out. It is a transfer from an **unfixable column into a fixable one.**
 
-The visible half of the transfer is the 1,809 payload marks and +14 call-parens; the invisible half
+~~The visible half of the transfer is the 1,809 payload marks and +14 call-parens; the invisible half
 is 3,618 braces that stop existing. A reader looking only at the net will conclude the spike failed
-when it succeeded.
+when it succeeded.~~
+
+**REFUTED IN PLACE, 2026-09-03, per §9. The struck paragraph is the most confidently wrong thing
+either lane wrote that night, and it reads as the most careful one, because it anticipates a
+misreading and corrects it in advance. Pre-empting an objection is not evidence of being right
+about it.** Those 3,618 braces (2 per site × 1,809) **do not stop existing** — they are the body
+hole's text, and hole text is on the page. So the paragraph warns a reader against concluding the
+spike failed *at a point where the spike does in fact lose*: the net is **+1,403**, not −2,215.
+
+This site is also where **"a correction is a new projection"** (§16) gets its sharpest evidence.
+This section was written **after** the −1,795 → −2,215 correction. It spent the corrected number as
+though it were measured, built an argument on top of it, and then pre-empted a reader's doubt about
+it. The correction did not merely carry unearned trust — **it accrued more, three times over, and
+each relay added confidence instead of a check.**
+
+**THE QUALITATIVE HALF SURVIVES, AND IT IS THE PART WORTH KEEPING.** The block quote above is still
+true, and the measurement is what makes it true rather than rhetorical: the braces land in a
+`‹body›` **hole**, and a hole is exactly what the tier-1 rule table can reach. What dies is *"stop
+existing"* and *"−2,215"*; what lives is *"become addressable"*. **The honest version is a transfer
+at par — +1,403 with the payload mark counted — justified by reachability rather than by any
+immediate reduction.** That is a weaker claim and a real one.
+
+**AND THE REACHABILITY CLAIM WAS THEN TESTED, BECAUSE "ADDRESSABLE" IS NOT "ENCODABLE".** The one
+route to the braces leaving the page without a canon change is for the rule table to encode the
+residual wrapper a wired `compileChild` would leave behind. Measured:
+
+| | |
+|---|---|
+| `{}` encodable by the rule table | **yes** — `⟦an empty object⟧`, exact round-trip, 2 constructs → 0 |
+| simple if-blocks with a non-empty body | 1,822 |
+| distinct residual wrappers at those sites | 24 |
+| residual **encodable** | **0 of 1,822** |
+
+**`{}` encodes; `{}` never occurs.** Real source writes `{\n    \n  }` — brace, newline, indent,
+newline, brace — in 24 indentation variants, and encoding those as "an empty object" would emit
+wrong bytes, so the byte-exactness gate refuses them. **Correctly**: the refusal is the contract
+working, not a gap to widen. To encode the whitespace the English must carry it, which puts the
+braces back on the page or ends byte-identity.
+
+So the braces have exactly two possible homes — **skeleton (off-page) or hole text (on-page)** — and
+recursion relocates the dilemma rather than resolving it, because a child chunk's own braces arrive
+at the same fork. Of **244,795** dictionary words across both axes, 232 wrap a hole in braces;
+`if=0 · for=0 · while=0 · arrow=0 · function=0`, and the wrapped hole is `gap` in **232/232**
+(`import` 191 · `class` 22 · `type` 10 · `export` 7 · `interface` 2 — empty-bodied declarations;
+`interface X { }` is a word because the body *is* whitespace). **No word in either axis wraps a
+content hole in braces.** Putting them there means the canon spelling a block as `{‹child›}` rather
+than `‹body›` — a canon change, so the fingerprint moves and every catalog re-mines.
+
+**RULING (2026-09-03): under the current canon, closed. The interior production is landed-but-unused
+and nothing is wired through it.** Stated as *"under the current canon"* and **not** *"by
+construction"* — the same qualification this front insisted on for the arrow row, now applying to
+its own. `interior-production.test.js` asserts the price is not a reduction and **fires if the
+braces ever do leave the page**, so the door is held open in code rather than in memory.
 
 **This is recorded here rather than left to the number because the number structurally cannot say
 it** — which is §16 class 7, and the reason the goal test's total is kept as the headline anyway:
