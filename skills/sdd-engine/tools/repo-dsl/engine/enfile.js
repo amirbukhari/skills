@@ -432,6 +432,114 @@ function literalGloss(n, sf) {
   return null;
 }
 
+/* ---- PRODUCTIONS FOR THE SPEC DIALECT (§5C) ---------------------------------------------------
+ * Measured 2026-09-03: 2,036 of the 7,329 ExpressionStatement sites in the corpus produced a clause
+ * with nothing from the site in it, and ~1,960 of those are two shapes from the test dialect.
+ * `expect(result.success).toBe(true)` rendered as "call to be" -- which is not only contentless, it
+ * is not English, because it was assembled from the METHOD NAME of a fluent matcher. And
+ * `it('should generate SUIP records ...')` rendered as "call `it`", discarding a sentence the author
+ * had already written in plain English three characters away.
+ *
+ * These are the highest-yield productions in the corpus and among the safest, because the assertion
+ * dialect is closed: a fixed matcher vocabulary, a fixed argument shape.
+ *
+ * THE HONESTY RULE (§5C) IS LOAD-BEARING HERE, and both productions decline rather than waffle. If
+ * the thing under assertion cannot be named truthfully, the production returns null and the site
+ * falls through to the vacuous clause AND STAYS COUNTED. A matcher outside the table is not guessed
+ * at by de-camel-casing its name -- that is exactly the move that produced "call to be". */
+
+/* the fluent matcher vocabulary. Keys are matcher identifiers, values read after "to". Frozen in the
+ * sense that it MAY be added to, never loosened into a fallback: an unknown matcher declines. */
+const MATCHERS = {
+  toBe: "be", toEqual: "equal", toStrictEqual: "equal", toMatchObject: "match",
+  toHaveLength: "have length", toContain: "contain", toContainEqual: "contain",
+  toMatch: "match", toThrow: "throw", toThrowError: "throw",
+  toBeTruthy: "be truthy", toBeFalsy: "be falsy", toBeNull: "be null",
+  toBeUndefined: "be undefined", toBeDefined: "be defined", toBeNaN: "be NaN",
+  toBeGreaterThan: "be greater than", toBeGreaterThanOrEqual: "be at least",
+  toBeLessThan: "be less than", toBeLessThanOrEqual: "be at most",
+  toBeCloseTo: "be close to", toBeInstanceOf: "be an instance of",
+  toHaveProperty: "have property", toHaveBeenCalled: "have been called",
+  toBeCalled: "have been called", toHaveBeenCalledWith: "have been called with",
+  toBeCalledWith: "have been called with", toHaveBeenCalledTimes: "have been called",
+  toHaveBeenLastCalledWith: "have been last called with",
+};
+
+/* Name the thing under assertion. Order matters: a dotted path is the most informative, a call is
+ * named by its callee, and a thunk is named by what it calls -- which is the whole point of
+ * `expect(() => f()).toThrow(...)`, where the interesting name is INSIDE the arrow. */
+function assertSubject(n, sf) {
+  if (!n) return null;
+  const dotted = dottedText(n, sf);
+  if (dotted) return q(dotted);
+  if (ts.isCallExpression(n)) {
+    const c = dottedText(n.expression, sf) || (ts.isIdentifier(n.expression) ? n.expression.text : null);
+    return c ? "the result of " + q(c) : null;
+  }
+  if (ts.isAwaitExpression(n)) { const inner = assertSubject(n.expression, sf); return inner || null; }
+  if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) {
+    const c = firstCallName(n.body);
+    return c ? "calling " + q(c) : null;
+  }
+  if (ts.isElementAccessExpression(n)) { const b = dottedText(n.expression, sf); return b ? q(b) + "'s entry" : null; }
+  const lit = literalGloss(n, sf);
+  return lit && lit !== "some text" ? lit : null;
+}
+
+/** `expect(<actual>)[.not].<matcher>(<expected>)` -> a sentence, or null to decline (§5C). */
+function matchAssertion(st, sf) {
+  if (!ts.isExpressionStatement(st)) return null;
+  let e = st.expression;
+  if (ts.isAwaitExpression(e)) e = e.expression;
+  if (!ts.isCallExpression(e) || !ts.isPropertyAccessExpression(e.expression)) return null;
+  const matcherName = e.expression.name.text;
+  const phrase = MATCHERS[matcherName];
+  if (!phrase) return null;                       // unknown matcher: decline, do not de-camel-case it
+  /* walk back through `.not` / `.resolves` / `.rejects` to the expect(...) call itself */
+  let recv = e.expression.expression, negated = false, mood = null;
+  while (ts.isPropertyAccessExpression(recv)) {
+    const w = recv.name.text;
+    if (w === "not") negated = true;
+    else if (w === "resolves" || w === "rejects") mood = w;
+    else return null;
+    recv = recv.expression;
+  }
+  if (!ts.isCallExpression(recv)) return null;
+  const head = ts.isIdentifier(recv.expression) ? recv.expression.text : null;
+  if (head !== "expect" || recv.arguments.length !== 1) return null;
+  const subject = assertSubject(recv.arguments[0], sf);
+  if (!subject) return null;                      // cannot name it truthfully -> vacuous, and counted
+  let out = "expect " + subject + (mood === "rejects" ? " to reject" : "") + (negated ? " not" : "") + " to " + phrase;
+  const arg = e.arguments[0];
+  if (arg) {
+    const v = literalGloss(arg, sf) || assertSubject(arg, sf);
+    if (v) out += " " + v;
+  }
+  return out;
+}
+
+/** `describe|it|test('<sentence>', ...)` -> the author's own sentence, which beats anything we build. */
+function matchSpecBlock(st, sf) {
+  if (!ts.isExpressionStatement(st)) return null;
+  let e = st.expression;
+  if (ts.isAwaitExpression(e)) e = e.expression;
+  if (!ts.isCallExpression(e)) return null;
+  let head = e.expression;
+  /* it.each(...)`...`, it.skip(...), describe.only(...) — take the base identifier */
+  while (ts.isPropertyAccessExpression(head) || ts.isCallExpression(head) || ts.isTaggedTemplateExpression(head)) {
+    head = ts.isPropertyAccessExpression(head) ? head.expression : (head.expression || head.tag);
+  }
+  if (!ts.isIdentifier(head)) return null;
+  const kind = head.text;
+  if (kind !== "describe" && kind !== "it" && kind !== "test") return null;
+  const first = e.arguments[0];
+  if (!first || !(ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first))) return null;
+  const text = String(first.text).trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  const label = text.length <= 90 ? text : text.slice(0, 87).trimEnd() + "…";
+  return (kind === "describe" ? "describe " : "specify ") + "“" + label + "”";
+}
+
 /* the distinct dotted values an expression READS, in source order, capped so a sentence stays a
  * sentence. Used where the operation itself cannot be named honestly but its inputs can. */
 function inputsOf(n, sf, out, seen) {
@@ -834,6 +942,22 @@ function spanActions(win, sf) {
     }
 
     if (ts.isExpressionStatement(st)) {
+      /* THE SPEC DIALECT FIRST (§5C productions). It must precede the general call handling below,
+       * not follow it: that handler quotes a plain dotted receiver and otherwise de-camel-cases the
+       * CALLEE, which is what turned `expect(result.success).toBe(true)` into "call to be" -- a
+       * clause assembled from the method name of a fluent matcher, contentless and not English.
+       *
+       * Placing it first is safe precisely because both productions DECLINE rather than guess: an
+       * unknown matcher, or a subject that cannot be named truthfully, returns null and falls
+       * straight through to the handling below exactly as before. (First attempt put these at the
+       * generic fall-through at the bottom of the loop, where this branch had already claimed every
+       * site and the measured numbers did not move at all. The clause table said so immediately --
+       * 2,161 generic before, 2,161 after.) */
+      const spec = matchSpecBlock(st, sf);
+      if (spec) { actions.push(spec); continue; }
+      const assertion = matchAssertion(st, sf);
+      if (assertion) { actions.push(assertion); continue; }
+
       const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
       if (ts.isDeleteExpression(inner)) {
         const t = dottedText(inner.expression, sf) || (elemAccess(inner.expression, sf) && null);
