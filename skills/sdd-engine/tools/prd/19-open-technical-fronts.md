@@ -362,9 +362,84 @@ with the per-field walk.** Re-running the ceiling measurement after the render:
 | every gloss, heading, inter-chunk region | 509 | 488 |
 
 **The residue did not move by a single construct**, which is the strongest available evidence that
-the rule took constructs off *field content* and nothing else — a rule that had accidentally reached
-raw scaffolding, or changed what the strip removes, would show here and nowhere else. Reachable fell
-by 5,944, matching the per-field delta exactly.
+the rule reached only encoding and nothing structural — a rule that had accidentally reached raw
+scaffolding, or changed what the strip removes, would show here and nowhere else. Reachable fell by
+5,944, matching the per-field delta exactly.
+
+**CORRECTED IN PLACE, same day, per §9: "off field content and nothing else" was wrong, and the
+509 → 488 in the table above is the tell.** Glosses and headings did **not** move — every construct
+kind identical on both. The whole 21 sits in the *between chunks* bucket, and it is inline **data
+spans** whose marker is a letter rather than `▶` or `▷`: `«an empty object»` 197, `«an empty list»`
+153, `«an object with params = …»` 83, `` «a list of `sub`» `` 38. So the rule reached **payload
+field content AND inline data spans** — both are encoding, neither is structural. The accurate
+sentence is *"off payload field content and inline data spans, and nothing structural."* I published
+the stronger claim and the peer lane, holding both sides of the partition, corrected it.
+
+**And the containment evidence is stronger than the aggregate I first cited, so cite the per-kind
+identity instead.** The raw-scaffolding bucket is unchanged across **all seven** construct classes
+individually — brace 16,717 · arrow 4,679 · call-paren 4,195 · semicolon 4,745 · bracket 2,344 ·
+quote 2,414 · interp 17 — plus payload marks 9,724, structural headings 259 (all six kinds) and
+atomic glosses 151 (all five kinds). **An aggregate can hold still while two kinds swap; seven
+holding still individually cannot happen by cancellation.**
+
+**One caveat that must travel with it: the per-bucket attribution's looseness GREW over the render,
+4,388 → 5,768**, because every new `⟦call …⟧` span creates another region where a strip pattern can
+cross a bucket edge. The buckets are upper bounds and the bound got looser. The four unmoved buckets
+are unaffected — an upper bound identical on seven kinds before and after is still evidence — but
+**the partition total is not a total and is not to be quoted as one.** What is exact is the
+character-level `===`, which is what makes the partition exhaustive.
+
+**The page reads better and not merely lighter, which is the claim that actually matters here**,
+because a falling count is precisely what Amir was shown when he said *"you lied to me."* Measured
+rather than generalised from a first impression: **48 of 1,920 callees still carry `( ) { } [ ]` —
+97.5% read clean.** Typical output is `` ⟦call `setLoadedState` with `'error'`⟧ ``,
+`` ⟦call `date.setHours` with `0`, `0`, `0`, `0`⟧ ``, and nested
+`` (call `creationData.credits.map` with `(credit) => credit.generatedSubscriptionId`) ``. The worst
+case is a multi-line regex chain standing where a callee should be, which reads worse than it
+counts — and it is 2.5%, not the norm. The 2,229 spans reconcile to the unit against `⟦call `
+occurrences on the page, 49 of them `with no arguments`.
+
+### THE LAST SHARED ENTRY POINT IS CLOSED — CLEAN (2026-09-03)
+
+`engine/hole-type-order.test.js`, 5/5. Both lanes derived every hole TYPE SEQUENCE the same way —
+`expandKey(axis, w)` on the payload's word id — so a defect there produced identical wrong answers
+in both lanes while the cross-check reported agreement.
+
+**Byte-identity does not cover this, and that is the whole point.** `refill` substitutes
+positionally and ignores types, so a key whose hole types are mislabelled still reproduces the exact
+source bytes; byte-identity reads 1037/1037 either way. The types are load-bearing for exactly two
+things it never touches: every per-type construct figure, and `compileSpan`'s child dispatch. And
+the render path gates on `wp.fill === source.slice(start, end)` — a claim about **bytes**, silent
+about **labels**.
+
+The independent derivation: `expandKey` builds the key from the **dictionary**; `windowParts` builds
+it from the **source AST**. Round-tripping every payload back to its source bytes and re-deriving
+through the canon:
+
+| | |
+|---|---|
+| payloads on the page | 9,724 |
+| **dictionary key === source-derived key** | **9,723** |
+| keys differing | **0** |
+| type sequences differing | **0** |
+| hole texts differing | **0** |
+| not re-derivable | **1**, accounted for |
+
+The one exception is pinned rather than allowed as slack:
+`src/tools/entityInterfaces/interfaces/hydra/index.ts:61` is **genuinely invalid TypeScript** —
+`internalNotes?: INoteComment[], | null;` — so its source does not parse and no re-derivation is
+possible. The engine renders and compiles that file byte-identically regardless, which is the
+verbatim fallback working. The assertion reads `=== 1`, not `<= 5`, because a ratchet with slack
+permits the regression it was written to catch.
+
+**AND THE FIRST RUN REPORTED 9 MISMATCHES THAT WERE ENTIRELY THE HARNESS'S OWN DOING.** Re-parsing
+a slice in isolation makes it a **script** rather than a module, and TypeScript then reads top-level
+`await` as an ordinary identifier: `await (getManager(a)).find(b)` becomes a CallExpression on a
+function named `await`, **with zero parse diagnostics**, so nothing announces it. Appending
+`export {};` fixed it and all 9 disappeared. **A measurement whose harness re-parses the artifact
+must reproduce the artifact's PARSE CONTEXT, not merely its bytes** — the sibling of *a harness that
+rewrites the page needs an identity check on the empty case*, and it was caught only because 9 of
+9,724 all shared one keyword, which is a suspiciously narrow shape for a real defect.
 
 **AND THE HEADLINE IS NOT THIS NUMBER.** The ceiling is: **45,233 constructs, now 42.6% of the goal,
 are unreachable by any hole-type rule.** `expr` has 17,852 left, `args` and `obj` sit behind it, and
