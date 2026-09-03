@@ -228,3 +228,53 @@ It is neither a statement nor an expression without a receiver. Every other row 
 parse away from decomposition; this one needs a receiver synthesised, or the hole re-cut at mine
 time. 7.7% of the inside term, and the only row that is not reachable by lifting the existing
 mechanism.
+
+### THE `args` REDIRECT — AND ITS PUBLISHED TARGET IS 18% TOO HIGH (2026-09-03)
+
+`args` is the correct next target: **10,651 holes**, the largest bucket left, a **100% fixed point**
+under the canon, and reachable by the tier-1 rule table with **no canon change and no fingerprint
+move**. Both lanes independently priced it at **22,328 constructs** and agreed to the unit.
+
+**Both lanes priced the wrong population, and the agreement is why it would have survived.** 22,328
+is the price of the **decoded raw hole text**. The goal metric counts **what the page carries**:
+
+| | constructs |
+|---|---|
+| `args` priced as decoded raw text — *the figure both lanes quoted* | 22,328 |
+| `args` priced as the page carries it — **the only one that can move the goal** | **18,337** |
+| difference, already off the page | 3,991 |
+
+Of the 10,651, **2,420 holes are already English-encoded on the page** by the tier-1 rules — their
+content was taken off in the string and object/array work and re-counting it as available is
+double-counting the win already banked.
+
+**So the honest ceiling for the `args` front is 18,337, not 22,328 — an 18% overstatement, in the
+flattering direction, caught before anything was built on it.** This is the third time in two days
+that a raw-hole-text figure has been quoted as a page figure (the earlier 93,162, then the 93,299 /
+19,879 pairing), and it is now the single most repeated error in this document's history. **The
+populations are not summable and not substitutable.** Every future target on this front is to be
+priced by walking the payload's fields **as written** and pricing an English-encoded field as
+English, which is what produced the 18,337.
+
+**The full page-priced board, so the next target is selected off the right column:**
+
+| type | holes | constructs ON THE PAGE |
+|---|---|---|
+| `args` | 10,651 | 18,337 |
+| `expr` | 2,993 | 20,035 |
+| `obj` | 2,031 | 17,291 |
+| `str` | 7,906 | 10,248 |
+| `arr` | 637 | 8,523 |
+| `chain` | 1,864 | 7,162 |
+| `fn` | 606 | 5,169 |
+| `bind` | 732 | 1,540 |
+| `type` | 1,436 | 783 |
+| `body` | 34 | 133 |
+| `gap` | 81,390 | 87 |
+| `id` / `mod` / `num` | 40,033 | **0** |
+
+Note that `expr` at 20,035 outprices `args` at 18,337 on the page while carrying **a quarter** of the
+holes — and `obj`/`arr` still carry 25,814 between them *after* tier 1, which says the object work
+reached the wrappers and not the nested content. **Byte mass was the wrong targeting metric (§16);
+hole count is the wrong one too. Constructs-on-the-page is the metric, and it is the only one the
+goal test will credit.**
