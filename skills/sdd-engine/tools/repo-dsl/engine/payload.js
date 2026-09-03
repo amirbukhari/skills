@@ -37,10 +37,16 @@ const H_MARK = "⟨", ESC = "⟡";
 const ESCAPES = [
   [ESC, "0"], ["⟨", "1"], ["⟩", "2"], ["⟪", "3"],
   ["⟫", "4"], ["«", "5"], ["»", "6"], ["▶", "7"],
+  /* The dialect's own string quotes. These are NOT sentinels — nothing scanning the .en looks for
+   * them — they are escaped so that the ENGLISH HOLE discriminator below can be structural rather
+   * than lucky. A raw hole whose text happens to be `“x”` would otherwise decode to `'x'`: wrong
+   * bytes, silently. Measured 0 occurrences across 150,313 corpus holes, which is exactly the kind
+   * of luck this module's header says the dialect work removed. */
+  ["“", "8"], ["”", "9"],
 ];
 const ENC_MAP = new Map(ESCAPES.map(([ch, d]) => [ch, ESC + d]));
 const DEC_MAP = new Map(ESCAPES.map(([ch, d]) => [d, ch]));
-const NEEDS_ESC = /[⟡⟨⟩⟪⟫«»▶]/g;
+const NEEDS_ESC = /[⟡⟨⟩⟪⟫«»▶“”]/g;
 
 function escapeHole(s) { return s.replace(NEEDS_ESC, (ch) => ENC_MAP.get(ch)); }
 
@@ -57,6 +63,66 @@ function unescapeHole(s) {
   return out;
 }
 
+/* =========================== ENGLISH-ENCODED HOLES (tier 1) ===========================
+ *
+ * WHY. A hole's text is RAW SOURCE, and holes are on the page Amir reads (§1). `engine/the-goal.test.js`
+ * counts surviving TypeScript on that page and 74.4% of it sits inside `⟪…⟫` payloads, so a payload
+ * carrying raw bytes is the single largest reason a rendered .en still reads as code. This is the
+ * narrowest possible first cut at it: a hole whose ENTIRE text is a single-quoted string literal is
+ * written in the dialect's own quotes instead.
+ *
+ *   raw       'invoice.id'          on the page as   'invoice.id'
+ *   encoded   “invoice.id”          on the page as   “invoice.id”
+ *
+ * It is TYPELESS ON PURPOSE, and that is the whole reason the change is 40 lines rather than a
+ * redesign. A hole's type IS recoverable — `expandKey(axis, w)` yields the template and its `‹type›`
+ * markers pair positionally with `h` (measured: 150,313 of 150,313, 0 unknown ids, 0 arity
+ * mismatches). But needing it here would make `decode` depend on the catalog, and then a file
+ * rendered WITH a catalog and compiled WITHOUT one produces wrong bytes. "Is this text exactly a
+ * single-quoted literal" is decidable from the text alone, so encode and decode stay symmetric and
+ * this file keeps its only dependency: itself.
+ *
+ * A pleasant consequence of being typeless: it catches string-valued holes of EVERY type, not just
+ * `str`. Measured 8,330 holes — 7,209 `str` and 1,121 `args` — which a type-directed rule aimed at
+ * `str` would have missed by 13%.
+ *
+ * WHAT IT IS WORTH, honestly. Those holes carry 8,356 constructs; 35 survive the change, because a
+ * `;` or `,` INSIDE the string is still a `;` or `,` on the page (`'en-US,en;q=0.9'`). True
+ * reduction 8,321 of a 138,387 headline — 6.0%. It is a first cut, not a fix.
+ *
+ * BYTE-IDENTITY IS BY CONSTRUCTION, TWICE.
+ *   1. The per-hole gate is INLINE in `encode`: the English form is used only if it decodes back to
+ *      the exact raw bytes. A hole that fails falls back to raw ON ITS OWN, so the worst case is no
+ *      improvement, never a wrong byte. Same construction as `dataByteExact` one level down.
+ *   2. The discriminator runs on the ESCAPED hole text, BEFORE `unescapeHole`. So the wrapper quotes
+ *      an encoder wrote are literal `“ ”` in that stream, while a raw hole's own curly quote is
+ *      `⟡8`/`⟡9` and cannot be mistaken for a wrapper. Ambiguity is removed by the escape table
+ *      rather than by an assumption about what the corpus contains.
+ *
+ * WHAT IT DELIBERATELY DOES NOT DO. Double-quoted (213) and backtick/template (480) string holes are
+ * left raw: `'x'` and `"x"` would both render `“x”`, so the original quote character would not be
+ * recoverable and byte-identity would fail. Encoding only the single-quoted form keeps the inversion
+ * total. Widening this to guess the quote back is exactly the trade that produces wrong bytes.
+ */
+const Q_OPEN = "“", Q_CLOSE = "”";
+/* No backslash and no newline inside: an escape sequence's meaning is quote-dependent, so `'a\'b'`
+ * has no faithful `“ ”` form and is left raw rather than approximated. */
+const SINGLE_QUOTED = /^'([^'\\\n]*)'$/;
+
+/* raw source hole -> dialect text, or null if this hole is not a plain single-quoted literal. */
+function toEnglishHole(raw) {
+  if (raw.indexOf(Q_OPEN) !== -1 || raw.indexOf(Q_CLOSE) !== -1) return null;
+  const m = SINGLE_QUOTED.exec(raw);
+  return m === null ? null : Q_OPEN + m[1] + Q_CLOSE;
+}
+
+/* dialect text -> raw source hole, or null if this text is not an English-encoded hole.
+ * Operates on ESCAPED text: see BYTE-IDENTITY note 2 above. */
+function fromEnglishHole(escaped) {
+  if (escaped.length < 2 || escaped[0] !== Q_OPEN || escaped[escaped.length - 1] !== Q_CLOSE) return null;
+  return "'" + unescapeHole(escaped.slice(1, -1)) + "'";
+}
+
 /* obj: { d:"lzw", a:"n"|"w", w:<int>, h:[string,...] } -> payload text */
 function encode(obj) {
   if (obj.d !== undefined && obj.d !== "lzw") throw new Error(`payload: refusing to encode dialect ${JSON.stringify(obj.d)}`);
@@ -67,6 +133,14 @@ function encode(obj) {
   let out = TAG + " " + axis + obj.w;
   for (const h of holes) {
     if (typeof h !== "string") throw new Error(`payload: hole must be a string, got ${typeof h}`);
+    /* THE GATE, inline so it cannot be bypassed by a future caller: the dialect form is used only
+     * if it inverts to the exact raw bytes. Note the escape asymmetry — the wrapper quotes stay
+     * literal while the inner text is escaped, which is what `fromEnglishHole` relies on. */
+    const en = toEnglishHole(h);
+    if (en !== null) {
+      const escaped = Q_OPEN + escapeHole(en.slice(1, -1)) + Q_CLOSE;
+      if (fromEnglishHole(escaped) === h) { out += H_MARK + escaped; continue; }
+    }
     out += H_MARK + escapeHole(h);
   }
   return out;
@@ -94,9 +168,14 @@ function decode(text) {
   if (i < text.length) {
     if (text[i] !== H_MARK) throw new Error(`payload: expected ${H_MARK} at offset ${i}, got ${JSON.stringify(text[i])}`);
     // Escaping guarantees no hole body contains H_MARK, so splitting on it is exact, not heuristic.
-    for (const part of text.slice(i + 1).split(H_MARK)) h.push(unescapeHole(part));
+    for (const part of text.slice(i + 1).split(H_MARK)) {
+      /* Discriminate BEFORE unescaping — a raw curly quote arrives here as ⟡8/⟡9 and so cannot
+       * impersonate a wrapper. Falls through to the raw path for every unencoded hole. */
+      const en = fromEnglishHole(part);
+      h.push(en !== null ? en : unescapeHole(part));
+    }
   }
   return { d: "lzw", a: axis, w, h };
 }
 
-module.exports = { TAG, encode, decode, escapeHole, unescapeHole };
+module.exports = { TAG, encode, decode, escapeHole, unescapeHole, toEnglishHole, fromEnglishHole };
