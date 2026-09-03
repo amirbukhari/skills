@@ -299,3 +299,38 @@ the same substitution as *"byte-identity 1037/1037"* covering both the **rendere
 **corpus** (§16 entry 6), one layer out: **one name over two properties.** Neither a guard that
 could not fire nor a measurement that read low — a *name* that quietly spanned two subjects. Name
 the subject in the assertion's own text.
+
+### The drift, measured a second way — line-level, from the other lane
+
+Two lanes answered the 405-vs-438 question with different methods on purpose (Amir, 2026-09-03:
+*"Measure independently — do NOT converge methods with s2 first"*). The section above counts
+STRUCTURAL HEADINGS and finds 350/350 checked, zero skips. This one counts DRIFTED LINES, and it
+corroborates the same conclusion from a direction the heading census cannot see — because a heading
+census can only look where a heading already is, which is precisely the blind spot being tested for.
+
+**All 217 drifted lines across the 33 `consistent ∧ ¬current` files**, classified by whether each
+side of the pair carries a chunk heading (`«▶` or `«▷`):
+
+| drifted lines | shape |
+|---|---|
+| **161** | neither side is a chunk heading — inline atom / value-span prose only |
+| **38** | disk has **no** heading, fresh **does** — a new chunk where the older render was flat |
+| **11** | disk **has** a heading, fresh does not |
+| **7** | both are headings, and the heading text differs |
+
+**Why this is the load-bearing half of the answer.** The 38 are the case that *looks* like a derive
+hole and is not: at those sites the persisted file contains **no heading at all**, so there is
+nothing for a heading-vs-children check to disagree with. It is tempting to call that "the check
+was blind there". It is not blindness — **there is no claim at that site to be right or wrong
+about.** The file asserts nothing about a chunk it does not contain. The check has no subject there,
+which is a different thing from having a subject and missing it, and conflating the two is how a
+correct fail-soft path gets "fixed" into a false positive.
+
+The 161 settle the other direction: the **majority** of the drift never touches the chunk layer at
+all. It is inline value spans — `«an object with abnormalRows»`, `«a list of …»`, `«text: "…"»` —
+which the productions now fold into chunks. Those compile byte-identically from either dialect, and
+R-REND-6 makes no claim about them, correctly.
+
+**Both methods agree and neither could have produced the other's evidence**, which is the whole
+argument for having run them separately. A convergence here would have been worth less than the
+agreement is.

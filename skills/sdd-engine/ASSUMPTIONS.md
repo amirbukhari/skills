@@ -6625,3 +6625,30 @@ same render.
 Before R-REND-6 the label region was inert, so all 405 would have compiled quietly and silently
 wrong. That is a guard firing on real drift the same night it shipped — the opposite of §10.3's
 guard that cannot be shown to fire.
+
+## 2026-09-03 — I did NOT apply the 19 exact + 8 fuzzy re-adoptions, and the reason is that no applier exists
+
+**The instruction.** Relayed from Amir, 2026-09-03, as item 5 of the post-render report: *"the 8
+fuzzy + 19 exact re-adoptions applied, with the reviewable list for Amir."*
+
+**Why I did not.** `reconcile-names.js` under `APPLY=1` prints, in its own words,
+`"wrote <file> (orphans moved; proposals NOT applied)"`. I read the APPLY branch
+(`reconcile-names.js:301`) rather than inferring from the flag name: it stamps
+`{ names, orphans, chunks }` with orphans MOVED and re-adoptions untouched. **There is no code path
+anywhere in the tree that attaches a re-adoption**, exact or fuzzy. That is deliberate — §5C rule 3
+is "propose, never auto-attach", and the report text says re-adoption *"still needs a human"*.
+
+So "apply them" is not a command I could execute; it would mean **writing a new applier tonight and
+pointing it at the shared name catalog** in the same pass that reports on the render.
+
+**The conflict I did not resolve by guessing.** The same message that asks for them applied also
+says *"Amir approves the batch in one pass; nothing auto-attaches."* Those cannot both be satisfied.
+Between "build an applier and mutate the catalog" and "hand over the reviewable list and wait", the
+second is the one that is recoverable if I have read the intent wrong. The 8 fuzzy are edit-distance
+guesses at 4.8–18.2% drift; attaching a wrong name to a skeleton is exactly the failure §5C rule 2
+is shaped to prevent.
+
+**Stated so it is not mistaken for an oversight:** the batch is assembled and committed at
+`tools/name-readoption-batch-2026-09-03.md` (`33b6ae8`), the render that was blocking it has landed,
+and the 19 exact / 8 fuzzy split is unchanged post-render (re-measured, not carried forward). What
+is missing is a human word and an applier, in that order.
