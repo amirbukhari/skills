@@ -54,6 +54,17 @@ const walk = (d, o = []) => {
 const PAYLOAD_RE = /⟪(lzw1 [^⟫]*)⟫/g;
 const typesOf = (key) => (key.match(/‹(\w+)›/g) || []).map((s) => s.slice(1, -1));
 
+/* EVERY EXIT PATH IS COUNTED, and that is not tidiness. The first version of this test `continue`d
+ * out of two catches -- expandKey throwing, refill throwing -- without incrementing anything, while
+ * the report printed re-derivable as `payloads - unparseable`. A payload lost to either catch was
+ * therefore counted as re-derivable having been compared to nothing.
+ *
+ * MEASURED, NOT REASONED: injecting a throw into expandKey for 500 payloads gave keyAgree 9223,
+ * keyDiffer 0, unparseable 1, payloads 9724 -- and ALL FIVE ASSERTIONS PASSED while the report line
+ * read "re-derivable 9723". A silent shrink of the verified population, in the reassuring direction,
+ * inside the test written to close the last unverified channel. The accounting assertion at the
+ * bottom is what makes that impossible rather than unlikely. §16: a guard that cannot fire. */
+let marks = 0, undecodable = 0, noKey = 0, noRefill = 0;
 let payloads = 0, keyAgree = 0, keyDiffer = 0, unparseable = 0, holeAgree = 0, holeDiffer = 0;
 let typeAgree = 0, typeDiffer = 0, arityDiffer = 0;
 const examples = [];
@@ -63,16 +74,19 @@ for (const abs of walk(EN_DIR)) {
   let m;
   while ((m = PAYLOAD_RE.exec(en)) !== null) {
     let pl = null;
-    try { pl = PAY.decode(m[1]); } catch (_) { continue; }
+    marks++;
+    /* counted BEFORE payloads++, because a mark that will not decode is invisible to every other
+     * counter in this file -- it never becomes a "payload" at all. */
+    try { pl = PAY.decode(m[1]); } catch (_) { undecodable++; continue; }
     payloads++;
     const axis = pl.a === "n" ? cat.narrow : cat.wide;
     let dictKey = null;
-    try { dictKey = EL.expandKey(axis, pl.w); } catch (_) { continue; }
+    try { dictKey = EL.expandKey(axis, pl.w); } catch (_) { noKey++; continue; }
 
     /* THE SOURCE BYTES, from the dictionary key plus the payload's own hole texts. This is the
      * same operation the compiler performs, so if it is wrong the corpus would not compile. */
     let slice = null;
-    try { slice = G.refill(dictKey, pl.h); } catch (_) { continue; }
+    try { slice = G.refill(dictKey, pl.h); } catch (_) { noRefill++; continue; }
 
     /* RE-DERIVE THROUGH THE CANON, from those bytes and nothing else.
      *
@@ -109,8 +123,13 @@ for (const abs of walk(EN_DIR)) {
 }
 
 console.log("\n  HOLE TYPE ORDER — dictionary derivation vs source derivation");
-console.log("    payloads on the page ........................ " + payloads);
-console.log("    re-derivable through the canon .............. " + (payloads - unparseable));
+console.log("    payload marks on the page ................... " + marks);
+console.log("    marks that would not DECODE ................. " + undecodable);
+console.log("    payloads decoded ............................ " + payloads);
+console.log("    no dictionary key (expandKey threw) ......... " + noKey);
+console.log("    no refill (refill threw) .................... " + noRefill);
+/* the compared population, stated as what it IS rather than as a subtraction that can drift */
+console.log("    ACTUALLY COMPARED .......................... " + (keyAgree + keyDiffer));
 console.log("    not re-derivable in isolation ............... " + unparseable);
 console.log("    KEY identical (dictionary === source) ....... " + keyAgree);
 console.log("    key differs ................................. " + keyDiffer);
@@ -129,6 +148,17 @@ for (const e of examples) {
  * NOT VACUOUS, and stated first because a guard over an empty population is the defect this whole
  * session has been chasing. If the corpus is unrendered or the walk is wrong, this fires. */
 ok(payloads > 9000, "the probe actually reached the corpus (" + payloads + " payloads, expected >9000)");
+/* THE ACCOUNTING ASSERTION. Every decoded payload ends in exactly one bucket; if the buckets do not
+ * sum to the population, some payload was reported without being checked. This is the assertion
+ * whose absence let 500 injected failures pass as a clean run. */
+ok(keyAgree + keyDiffer + unparseable + noKey + noRefill === payloads,
+  "every decoded payload was actually COMPARED or explicitly accounted for"
+  + "  (" + (payloads - keyAgree - keyDiffer - unparseable - noKey - noRefill)
+  + " fell through unaccounted; compared " + (keyAgree + keyDiffer)
+  + ", unparseable " + unparseable + ", no key " + noKey + ", no refill " + noRefill + ", of " + payloads + ")");
+ok(undecodable === 0, "every payload mark on the page decodes  (" + undecodable + " of " + marks + " did not)");
+ok(noKey === 0 && noRefill === 0, "no payload was lost to a throwing expandKey or refill"
+  + "  (expandKey " + noKey + ", refill " + noRefill + ")");
 /* PINNED, NOT ALLOWED AS SLACK. Exactly one payload is not re-derivable, and it is accounted for:
  * src/tools/entityInterfaces/interfaces/hydra/index.ts:61 is genuinely invalid TypeScript --
  *

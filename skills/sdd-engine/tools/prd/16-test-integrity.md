@@ -862,3 +862,71 @@ byte-for-byte** — and the stated reason that guard existed at all is that *the
 **A measurement whose harness rewrites the artifact must assert the identity of the empty case, or
 every marginal it reports is measuring the harness.** An 8× error in the reassuring direction, caught
 by the one check written out of suspicion rather than design.
+
+---
+
+## A SILENT SHRINK OF THE VERIFIED POPULATION — AND THE FIX THAT DISARMS THE FIX
+
+`hole-type-order.test.js` was written to close the last shared entry point: hole *types* live in the
+dictionary key, `refill` splices holes positionally, so byte-identity is structurally incapable of
+detecting a type-order defect. The test re-derives every payload's key from its own source bytes and
+compares. It reported, and this was published:
+
+```
+payloads on the page 9724 · re-derivable through the canon 9723 · keyDiffer 0 · typeDiffer 0 · holeDiffer 0
+```
+
+s2 read the file and found three `continue`s that shrink the compared population without moving any
+assertion: the `expandKey` catch and the `refill` catch `continue` after `payloads++` without
+incrementing anything, and the `PAY.decode` catch sits *before* `payloads++`, so a mark that will not
+decode is invisible to every counter in the file. "Re-derivable" was printed as `payloads − unparseable`
+— a subtraction over a population no assertion pinned.
+
+**Not accepted on report — proven by fault injection.** A scratch copy with `expandKey` forced to
+throw for the first 500 payloads:
+
+```
+KEY identical ....... 9223      ok - the probe actually reached the corpus (9724 payloads)
+key differs ......... 0         ok - exactly one payload is not re-derivable ...
+TYPE SEQ identical .. 9223      ok - every payload's DICTIONARY key equals the key re-derived ...
+hole TEXTS identical  9223      ok - the HOLE TYPE SEQUENCE is the same both ways ...
+                                ok - the hole TEXTS are the same both ways
+5 passed, 0 failed
+```
+
+**All five assertions green while 501 payloads went uncompared, and the report line still read
+"re-derivable 9723".** Latent, not live: today 9,723 + 1 = 9,724 reconciles exactly, so nothing
+published was unsound. But the test written to close the last unverified channel could not tell the
+difference between checking 9,723 things and checking 9,223.
+
+### THE PART THAT IS NOT THE DEFECT
+
+s2's proposed fix was one assertion, and it would have fired: with no `noKey`/`noRefill` terms,
+`keyAgree + keyDiffer + unparseable` falls 500 short of `payloads`.
+
+The landed fix added those two counters — and **that edit disarms that assertion.** Once the buckets
+are in the sum, the sum reconciles at 0 unaccounted *by construction*, on the injected run as much as
+the clean one. Re-injected against the patched file:
+
+```
+ok   - every decoded payload was actually COMPARED or explicitly accounted for  (0 fell through
+       unaccounted; compared 9223, unparseable 1, no key 500, no refill 0, of 9724)
+FAIL - no payload was lost to a throwing expandKey or refill  (expandKey 500, refill 0)
+```
+
+The conservation check passes. The *bucket* check is what fires. So:
+
+**A CONSERVATION CHECK AND A BUCKET CHECK ARE DIFFERENT GUARDS, AND MAKING THE ACCOUNTING COMPLETE IS
+THE SAME EDIT THAT MAKES IT SILENT.** Every counter added to a total-conservation assertion must land
+with a zero-pin on the bucket it names, or the conservation assertion has been converted into a
+tautology by the act of completing it. The completed sum is still worth having — it catches a *new*
+fall-through nobody counted — but it can no longer catch the ones it was written for.
+
+### THE DETECTOR WE ACTUALLY HAVE
+
+Both catches tonight — s2's `9d5d81b9e2e2` transcription slip and this one — came from a result
+looking wrong in a suspiciously specific way, not from a check anyone designed in advance. s2's words:
+*"our best detector is currently an instinct and instincts don't survive a context window."* That is
+the argument for the accounting assertion existing at all, and it generalises: every figure this
+project publishes over a filtered population should state the population as a count that an assertion
+pins, never as a subtraction the reader is invited to trust.

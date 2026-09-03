@@ -401,7 +401,19 @@ occurrences on the page, 49 of them `with no arguments`.
 
 ### THE LAST SHARED ENTRY POINT IS CLOSED — CLEAN (2026-09-03)
 
-`engine/hole-type-order.test.js`, 5/5. Both lanes derived every hole TYPE SEQUENCE the same way —
+> **CORRECTED IN PLACE, per §9, 2026-09-03 — the numbers below all stand, the word "5/5" did not.**
+> The test is now **8/8**. As first written it had three unlogged `continue`s — the `expandKey` catch,
+> the `refill` catch, and `PAY.decode`'s catch (which sits *before* `payloads++`, making an undecodable
+> mark invisible to every counter). "Re-derivable 9,723" was printed as `payloads − unparseable`, a
+> subtraction no assertion pinned. Fault injection proved the consequence rather than arguing it:
+> forcing `expandKey` to throw for 500 payloads left **all five assertions green with 9,223 compared
+> and the report still reading 9,723**. Found by s2. The table below is unchanged because the defect
+> was **latent, not live** — 9,723 + 1 = 9,724 reconciles exactly on the real corpus — but the closure
+> claim rested on an unpinned population for as long as it took to notice. §16 carries the class, and
+> the second-order finding: completing the accounting sum with the new bucket counters is the same edit
+> that turns that sum into a tautology, so each bucket also carries a `=== 0` pin.
+
+`engine/hole-type-order.test.js`, 8/8. Both lanes derived every hole TYPE SEQUENCE the same way —
 `expandKey(axis, w)` on the payload's word id — so a defect there produced identical wrong answers
 in both lanes while the cross-check reported agreement.
 

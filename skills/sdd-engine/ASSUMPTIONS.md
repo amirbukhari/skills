@@ -6826,3 +6826,24 @@ holes and 19 of 8,345 constructs — it would have priced the whole front as wor
 precondition test that mattered was whether a call reconstructs byte-exactly from callee + argument
 spans + source gaps: **1,077 of 1,077, multi-line included.** The restriction was never measured; it
 was inherited from a worry.
+
+## 2026-09-03 — accounting assertions in hole-type-order.test.js
+
+**Judgment call: I put `noKey`/`noRefill` into the conservation sum AND pinned each at zero,
+rather than leaving them out of the sum.** s2's proposed single assertion (buckets omitted from the
+sum) would have fired on the injection; including them makes the sum reconcile by construction. I
+kept both because they answer different questions: the sum catches a fall-through path nobody has
+counted yet (the failure mode that will exist after the next edit to this file), the zero-pins catch
+a counted-but-lost payload (the failure mode injected). Dropping either leaves a real gap.
+Consequence to be aware of: **every future counter added to that sum must arrive with its own
+zero-pin**, or it silently converts the sum into a tautology. Recorded in §16.
+
+**Judgment call: `undecodable === 0` is a hard assertion, not a report.** A payload mark on a
+rendered page that will not decode means the renderer emitted something the reader cannot read; there
+is no benign value. If a legitimate case ever appears, it should fail loudly first and be argued
+about, not absorbed by a `<=` threshold.
+
+**Assumption: `marks` counts regex matches of the payload pattern, so a literal `lzw1` sequence
+appearing inside prose would inflate it.** Today `marks === payloads === 9724`, matching the goal
+test's independent payload count, so nothing is being over-counted. If those two ever diverge, the
+regex is the first suspect, not the corpus.
