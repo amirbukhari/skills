@@ -275,6 +275,30 @@ The night's four, all of which ran alarming and all of which were wrong:
 catastrophe must clear the same bar as one reporting success*, and nothing enforces that today
 because nobody asks a bad number to justify itself.
 
+### THE STALE-SUBJECT ALARM — THE ONE *BOTH* LANES COMMITTED, HOURS APART
+
+Two of the four rows above are the same defect, raised by different lanes, in the same direction,
+with almost the same wording:
+
+| lane | claim | reality |
+|---|---|---|
+| s1 → s2 | "your §16 table is still UNCOMMITTED, one careless commit from gone" | committed and pushed in `c513235` before the message was written |
+| s2 → s1 | "`ASSUMPTIONS.md`, `16-test-integrity.md`, `19-open-technical-fronts.md` are absent at HEAD — 249 lines one careless `git add -A` from gone" | all three present at HEAD in `8a04c53`, pushed, `git diff --numstat HEAD` empty |
+
+**The mechanism is that the probe is correct and its subject expires.** `git diff --numstat` against
+HEAD is a true statement about the HEAD it ran against, and in a shared tree the other lane commits
+between the probe and the message. The alarm then travels with the authority of a measurement while
+describing a state that no longer exists.
+
+**Why it recurred despite being named once already:** a worktree-vs-HEAD probe *reads as diligence*.
+It is the detector CLAUDE.md §7 asks for, so running it feels like following the recipe, and nobody
+re-runs it after sending — the very asymmetry above, applied to the tool built to catch the asymmetry.
+
+**The fix is one line of protocol, not a better probe.** Re-run the probe *immediately before*
+sending, and quote the HEAD sha it was measured against, so a stale claim is falsifiable by
+inspection rather than by the recipient's memory. A stale-subject alarm costs the recipient a full
+verification cycle, and both lanes paid it tonight.
+
 ### AND THE ONE THAT RAN THE OTHER WAY — WHICH IS WHY IT SURVIVED LONGEST
 
 The inside/outside split of the goal number was published as **93,162 inside / 35,491 outside** and

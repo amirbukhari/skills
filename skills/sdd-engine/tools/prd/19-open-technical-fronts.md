@@ -111,3 +111,68 @@ The cheap discriminator for what is reachable is **`body=skel`** — whether the
 already reaches inside the construct. A hole type reading `0/N` is one the canon treats as a single
 opaque blob, and the only thing that moves it is decomposition *inside* the hole. Recorded with the
 qualification §16 requires: `0/N` is a fact about **the current canon**, not about the construct.
+
+### CORRECTED: TIER 2 IS NOT "NO MACHINERY EXISTS". THE CANON ALREADY REACHES INTO 91% OF IT
+
+Tier 2 was described above, and reported to Amir, as having *"no English today"*. **That was wrong.**
+Measured by running the WIDE canon (`generalStmtParts(st, sf, true)`) over every payload hole's raw
+text and asking whether it yields a skeleton with *both* literals and holes — i.e. whether the canon
+decomposes the content or treats it as one atom:
+
+| hole type | holes | constructs | canon reaches in | one atom | unparseable |
+|---|---|---|---|---|---|
+| `args` | 10651 | 22328 | 7122 / **22168** | 8 / 16 | 20 / 144 |
+| `expr` | 2993 | 20035 | 2721 / **19950** | 4 / 85 | 0 |
+| `obj` | 2031 | 17291 | 1961 / **17151** | 70 / 140 | 0 |
+| `str` | 7906 | 10248 | 7898 / **10248** | 0 | 0 |
+| `arr` | 637 | 8523 | 637 / **8523** | 0 | 0 |
+| **`chain`** | 1864 | 7162 | **0 / 0** | 0 | **1864 / 7162** |
+| `fn` | 606 | 5169 | 606 / **5169** | 0 | 0 |
+| `bind` | 732 | 1540 | 732 / 1540 | 0 | 0 |
+| `type` | 1436 | 783 | 78 / 225 | 0 | 252 / 558 |
+| `body` | 34 | 133 | 26 / 125 | 6 / 6 | 2 / 2 |
+| `gap` | 81390 | 87 | 0 | 0 | 21 / 87 |
+| **TOTAL** | 110280 | 93299 | 21781 / **85099** | 88 / 247 | 2159 / 7953 |
+
+**So the missing piece is not a mechanism and not a canon change — it is RECURSION**: applying the
+existing hole mechanism to hole *content*, i.e. a nested payload inside a hole. That is the same
+conclusion the interior-production work reached for structural headings, arriving one level down. The
+sentence covers both lanes' remaining work: *nothing new needs inventing; the existing hole mechanism
+needs lifting.*
+
+**THIS TABLE IS AN UPPER BOUND, NOT A FORECAST.** "The canon yields parts with holes" is *necessary
+and not sufficient*. It does not say a dictionary word exists for that content, does not say a word
+would refill byte-exact, and does not say the result would read as English. The if-block spike
+verified all three; this verifies one. 85,099 is the ceiling on what decomposition could reach and
+the measured figure will be lower — on this session's evidence, lower by a lot rather than a little.
+Recorded this way because publishing it as a forecast is the exact failure this section exists for.
+
+**Counted in decoded RAW hole text, not on the stripped page.** The subject is "can the canon
+decompose this source?", so 93,299 here is *not* comparable to the 76,704 inside-payload page figure.
+Two populations; summing them is what produced the 93,162 error above.
+
+### `fn` READS 606/606 HERE AND 0/1524 THERE, AND BOTH ARE RIGHT
+
+The two measurements ask different questions and the shared name is a live class-6 risk:
+
+- `body=skel` **0/1524** — can the canon reach inside an *arrow statement*? **No.** The entire
+  signature (`(`, `)`, `:`, `=>`, `[`, `]`, `{`, `}`) is one `fn` hole.
+- canon-reach **606/606** — can the canon decompose the *text inside that hole* once it is handed
+  over? **Yes.**
+
+That is the seam stated numerically: **one lane cannot open the hole, the other can decompose what is
+in it, and neither finishes alone.** Either figure quoted without its question attached is wrong.
+
+### `chain` IS THE ONE ROW THAT IS ARCHITECTURE RATHER THAN PLUMBING
+
+1,864 holes, 7,162 constructs, and **0 the canon can even parse** — not "will not decompose",
+*cannot parse*. A `chain` hole is a fragment beginning with a dot:
+
+```
+"\n    .select([\n      'creditNote.id',\n      'creditNote.noteNumber',\n …"
+```
+
+It is neither a statement nor an expression without a receiver. Every other row on the board is a
+parse away from decomposition; this one needs a receiver synthesised, or the hole re-cut at mine
+time. 7.7% of the inside term, and the only row that is not reachable by lifting the existing
+mechanism.
