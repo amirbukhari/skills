@@ -5766,3 +5766,65 @@ change: every registered kind resolves into `AC.HOMES` (`sen/catalog` or `.cache
 registration **moves both files off the corpus root**, breaking the path just confirmed above and
 `package-hydra-source.js:205` with it, plus a consumer outside this repo that I cannot read. That is
 a coordinated path move needing Amir's word, not a stamp swap. Sequence it after s1, separately.
+
+---
+
+## 2026-09-03 — the standards suite and the synthetic structural suite
+
+**Judgment calls made while writing ten test files, listed so none of them passes as settled.**
+
+**The whole-tree review surface baseline is 20,999, not the published 19,776.** I did not adopt the
+published figure. `write-en-files.js` reports `chunks + residual` where `chunks = atomic +
+structural`, but `renderVerbatim` (enfile.js:1315) emits a fourth kind of chunk — leaf spans,
+counted into `stmtSpans`/`dataSpans` and never into `chunks`. Corpus-wide those are 95 + 1,128 =
+**1,223**, which closes the gap to the byte. `review-surface-ratchet.test.js` therefore counts off
+the emitted bytes. **The published number needs correcting at the source; I have not touched
+`write-en-files.js`.**
+
+**§4B and R-MINE-7 contradict each other and I did not pick a side.** §4B's prose still reads "the
+renderer refuses any word that covers an entire run"; R-MINE-7 and §5D.4 record it amended
+2026-08-31 to refuse only *unnamed or unexpandable* whole-run words. `the-lift.test.js` **asserts**
+the amended form (257 files violate it) and **reports** the strict count (1,030 of 1,037). The
+amended form is a subset, so nothing asserted goes stale either way. **Amir's ruling needed on which
+reading is live.**
+
+**`sentence-authority.test.js` has the opposite polarity to `hand-authored-en.test.js`.** The latter
+pins the current inert behaviour and carries a banner about the day the flip lands. They can never
+both be green. This is deliberate — the pair is the flip's tripwire — but it means a green run of
+one is a failing run of the other, and neither should be edited without deleting the other.
+
+**Test 8 asserts a disjunction, not "it throws".** §5C rule 3 says a sentence/payload disagreement
+is an error; §5C rule 2 fully built means the payload is re-derived from the sentence and
+disagreement cannot arise. Asserting "it throws" would pin a behaviour the finished engine grows out
+of. So the assertion is the invariant that survives both worlds: **the pre-edit TypeScript is never
+returned silently.** If Amir wants the stronger form pinned instead, it is a one-line change.
+
+**GENERIC is my own bucket, not §5C's.** `statement-kind-coverage.test.js` counts a third category
+beside site-specific and frozen-vacuous: a clause quoting nothing from its own site. The frozen set
+catches only the thirteen exact strings someone thought to freeze, and "define the class" for every
+class is just as contentless while being invisible to the vacuous metric. **This widens what counts
+as a failure beyond what the PRD currently defines**, and the numbers move a lot with it (65 vacuous
+vs 4,193 generic).
+
+**"Both programs must not render as identical English" is not on Amir's mutation table.** It fell
+out of running the table — 8 of 20 rows change the program and leave the prose word-for-word
+identical. I asserted it because an ambiguous sentence breaks §5C's lifecycle outright, but it is
+**an addition to the brief, not an item from it.** The file-move row is exempted by comparing
+sources rather than by naming the row.
+
+**The synthetic fixtures are mined fresh rather than read through the hydra catalog**, because the
+dictionary is the subject: rendering a fixture against hydra's vocabulary asks a question about
+hydra. Both roots are repointed with `SOURCE=`/`CORPUS=` at a temp dir; **the real corpus is never
+read or written**, and fixtures are swept on exit (kept with `SDD_KEEP_SYNTH=1`).
+
+**Patterns are compared by SKELETON TEXT, never by word id.** Ids are array indices and every
+re-mine renumbers them (R-PAY-6), so an id comparison across two mines measures nothing. Every
+mutation row mines base and mutant **in one corpus** so their words are comparable at all.
+
+**Two of each family in the novel-composition fixture, not one.** `MIN_COUNT` gates promotion on
+recurrence, so a pattern shown once may never become a word — and "it did not compose" would then be
+an artifact of the fixture rather than a finding about the engine.
+
+**The three archetype specimen targets I drafted (a data-access handler, an interface, a redux
+slice) were dropped unreviewed** when Amir retired that whole line of work. They were never
+approved and should not be cited.
