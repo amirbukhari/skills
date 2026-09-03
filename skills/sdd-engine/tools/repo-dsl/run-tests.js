@@ -134,6 +134,10 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "both round-trip directions are fixpoints: ts->en->ts AND en->ts->en (GREEN)",
   }],
+  ["engine/orphan-ledger.test.js", {
+    needs: ["word-names"],
+    why: "§5C's steady state end to end — the orphan ledger does not reach chunk names (RED: 3,582 of 3,588)",
+  }],
   /* ── THE SYNTHETIC STRUCTURAL SUITE (2026-09-03) ─────────────────────────────────────────────
    * These three do NOT read the real corpus. Each builds a throwaway fixture in a temp directory,
    * mines it, and asks what the dictionary learned — because the real corpus is one codebase in one
