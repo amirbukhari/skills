@@ -171,7 +171,12 @@ const RULES = [
       const d = sf.statements[0] && sf.statements[0].declarationList
         && sf.statements[0].declarationList.declarations[0];
       const e = d && d.initializer;
-      if (!e || (!ts.isObjectLiteralExpression(e) && !ts.isArrayLiteralExpression(e))) return null;
+      /* A CALL JOINS THIS RULE RATHER THAN GETTING A WRAPPER OF ITS OWN. The wrapper selects the
+       * rule and the rule asks data-english what it can say; a fourth delimiter pair would add two
+       * characters to the escape table and two more ways for a raw hole to impersonate a wrapper,
+       * for no gain -- `⟦…⟧` already means "data-english wrote this", not "this is an object". */
+      if (!e || (!ts.isObjectLiteralExpression(e) && !ts.isArrayLiteralExpression(e)
+        && !ts.isCallExpression(e))) return null;
       if (e.getStart(sf) !== pre.length || e.getEnd() !== pre.length + raw.length) return null;
       let en = null;
       try { en = DE.renderData(e, sf); } catch (_) { return null; }

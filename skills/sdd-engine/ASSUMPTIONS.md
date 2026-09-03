@@ -6778,3 +6778,51 @@ code path is a maintenance cost and normally would not land. It lands here becau
 is that the whole finding survives only as prose, and §16's own history is that a claim held in prose
 gets re-derived wrongly. A test that fires on the condition changing is a stronger record than a
 paragraph saying it has not.
+
+## 2026-09-03 — the call rule: a call is a list with a name in front of it
+
+**Judgment call: a call joins the EXISTING `⟦…⟧` rule rather than getting a wrapper pair of its
+own.** A fourth delimiter pair would add two characters to the escape table and two more ways for a
+raw hole to impersonate a wrapper, for no gain. `⟦…⟧` means "data-english wrote this", not "this is
+an object" — the wrapper selects the rule and the rule asks data-english what it can say.
+
+**Judgment call: the call HEAD is carried literally as one atom, never parsed.** Everything from the
+node start to the open paren — the callee, a `?.`, any type arguments — is a single atom. This means
+an optional call, a generic call and a dotted callee need no cases of their own, and a head this
+form cannot express (one containing a backtick or a dialect delimiter) is refused by `atom` rather
+than mangled. `node.arguments.pos` is the byte after the open paren and is the only reliable way to
+locate it: searching for `"("` finds the wrong one in `f()()`.
+
+**Judgment call: `joinWithSourceGaps` gained an explicit `span` override rather than a copy.** An
+object's or list's brackets ARE its first and last bytes, so the original default holds; a call's
+parens are not, and assuming otherwise slices the callee into the first gap and fails the gate. One
+parameter, default preserved, no second implementation of the gap discipline to drift.
+
+**Judgment call: a zero-argument call is only expressible when the inter-paren gap is empty.** With
+no arguments there are no items to hang the gap on, so `f()` renders and `f(  )` is refused. Measured
+as a real population, not a hypothetical.
+
+**Assumption made explicit, and it is the one that makes this safe:** every path reaches
+data-english through `dataByteExact` / the inline gate in `encodeHoleEnglish`, which renders,
+compiles back, and compares against the source bytes. A hole whose round-trip fails is left exactly
+as it is today. **The worst case of a bug in `renderCall` is NO IMPROVEMENT, never a wrong byte** —
+which is why widening the rule was preferred to restricting it to shapes proven safe by inspection.
+
+**Measured, not projected, and by the sanctioned procedure** (fields as written → frozen strip →
+the goal test's own CONSTRUCTS table), over all 9,724 corpus payloads re-encoded in memory:
+2,229 new spans, **0 round-trip failures**, payload constructs 66,980 → 61,035, **−5,945**.
+call-paren −3,248, straight-quote-string −1,167, brace-block −892, bracket −638.
+
+**FENCED: −5,945 is a payload-text delta, NOT a headline forecast.** The headline is measured over
+the whole `.en` page and the strip regexes can match across a payload boundary — that is exactly the
+mechanism behind the earlier 10-construct discrepancy in the inside/outside split. The
+end-to-end figure requires a render, which is shared state and is not mine to take alone. Predicted
+112,205 → ~106,260, stated as a prediction so that a render disagreeing with it is a finding rather
+than an embarrassment.
+
+**My earlier no-newline restriction was a design assumption and it was wrong.** A first pass at
+sizing this front required calls to be single-line and comment-free, which admitted 11 of 1,077
+holes and 19 of 8,345 constructs — it would have priced the whole front as worthless. The
+precondition test that mattered was whether a call reconstructs byte-exactly from callee + argument
+spans + source gaps: **1,077 of 1,077, multi-line included.** The restriction was never measured; it
+was inherited from a worry.

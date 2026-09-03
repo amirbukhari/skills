@@ -48,12 +48,14 @@ const atom = (text) => SAFE.test(text) ? null : "`" + text + "`";
 
 /* ============================ RENDER (TS -> English) ============================ */
 function renderData(node, sf) {
-  if (ts.isObjectLiteralExpression(node) || ts.isArrayLiteralExpression(node) || ts.isTemplateExpression(node)) return renderVal(node, sf, false);
+  if (ts.isObjectLiteralExpression(node) || ts.isArrayLiteralExpression(node) || ts.isTemplateExpression(node)
+    || ts.isCallExpression(node)) return renderVal(node, sf, false);
   return null; // not a structural data leaf — caller handles atoms
 }
 function renderVal(node, sf, nested) {
   if (ts.isObjectLiteralExpression(node)) { const s = renderObject(node, sf); return s == null ? null : (nested ? "(" + s + ")" : s); }
   if (ts.isArrayLiteralExpression(node)) { const s = renderArray(node, sf); return s == null ? null : (nested ? "(" + s + ")" : s); }
+  if (ts.isCallExpression(node)) { const s = renderCall(node, sf); return s == null ? null : (nested ? "(" + s + ")" : s); }
   if (ts.isTemplateExpression(node)) return renderTemplate(node, sf); // “…” self-delimits
   if (ts.isSpreadElement(node)) { const inner = atom(node.expression.getText(sf)); return inner == null ? null : "spread " + inner; }
   return atom(node.getText(sf));
@@ -81,8 +83,11 @@ function gapText(sf, from, to) {
    * cannot carry, and it bails rather than silently dropping it (365 nodes, measured). */
   return /^[\s,]*$/.test(t) ? t : null;
 }
-function joinWithSourceGaps(node, sf, items, nodes, eatOneSpace) {
-  const open = node.getStart(sf) + 1, close = node.getEnd() - 1;
+function joinWithSourceGaps(node, sf, items, nodes, eatOneSpace, span) {
+  /* `span` overrides the delimiter positions. An object's or list's brackets ARE its first and last
+   * bytes, so the default holds; a CALL's parens are not -- they sit after the callee -- and
+   * assuming otherwise would slice the callee into the first gap and fail the byte-exact gate. */
+  const open = span ? span.open : node.getStart(sf) + 1, close = span ? span.close : node.getEnd() - 1;
   let lead = gapText(sf, open, nodes[0].getStart(sf));
   /* `an object with ` already ends in a space, so a canonical `{ a: 1 }` would otherwise render
    * with two. The English keeps its own word boundary and the SOURCE's single space is folded into
@@ -123,6 +128,31 @@ function renderArray(node, sf) {
   const body = joinWithSourceGaps(node, sf, vals, [...node.elements], false);
   return body == null ? null : "a list of " + body;
 }
+/* A CALL IS A LIST WITH A NAME IN FRONT OF IT, which is why this is nine lines and not ninety: the
+ * argument list is joined by exactly the same source-gap discipline as an array literal, so layout,
+ * trailing commas and multi-line calls all round-trip for the same reason they do there.
+ *
+ * THE HEAD IS CARRIED LITERALLY, NOT PARSED. Everything from the start of the node to the open paren
+ * -- the callee, a `?.`, any type arguments -- is one atom. That is deliberate: it means an optional
+ * call, a generic call and a dotted callee need no cases of their own, and a head this form cannot
+ * express (one containing a backtick or a dialect delimiter) is refused by `atom` rather than
+ * mangled. `node.arguments.pos` is the byte after the open paren, which is the only reliable way to
+ * find it -- searching for "(" would find one inside the callee of `f()()`. */
+function renderCall(node, sf) {
+  const openParen = node.arguments.pos - 1;
+  const head = atom(sf.getFullText().slice(node.getStart(sf), openParen));
+  if (head == null) return null;
+  if (node.arguments.length === 0) {
+    /* No arguments means no items to hang the gap on, so the gap has nowhere to live. An empty gap
+     * is expressible and anything else -- `f(  )`, a comment between the parens -- is refused. */
+    return sf.getFullText().slice(openParen + 1, node.getEnd() - 1) === "" ? "call " + head + " with no arguments" : null;
+  }
+  const vals = [];
+  for (const a of node.arguments) { const v = renderVal(a, sf, true); if (v == null) return null; vals.push(v); }
+  const body = joinWithSourceGaps(node, sf, vals, [...node.arguments], false,
+    { open: openParen + 1, close: node.getEnd() - 1 });
+  return body == null ? null : "call " + head + " with " + body;
+}
 function renderTemplate(node, sf) {
   const strip = (t, lead, tail) => t.slice(lead, t.length - tail);
   const lit0 = strip(node.head.getText(sf), 1, 2); // `…${  ->  …
@@ -154,6 +184,18 @@ function parseVal(s) {
   s = s.replace(/^\s+/, "");               /* left-trim only: the RIGHT side carries the layout */
   if (s.startsWith("an object with ")) {
     return "{" + reassemble(s.slice("an object with ".length), parseField, true) + "}";
+  }
+  /* The mirror of renderCall. The head is delimited by backticks and `atom` guarantees it contains
+   * none, so this match is exact rather than a longest-wins guess. "with " consumes exactly one
+   * space -- the word boundary the English owns -- and every remaining byte is the source's own
+   * layout, which is why the capture is NOT trimmed. */
+  {
+    const m = /^call `([^`]*)` with ([\s\S]*)$/.exec(s);
+    if (m !== null) {
+      const head = m[1], body = m[2];
+      if (body === "no arguments") return head + "()";
+      return head + "(" + reassemble(body, (c) => parseVal(c), false) + ")";
+    }
   }
   if (s.startsWith("a list of ")) {
     return "[" + reassemble(s.slice("a list of ".length), (c) => parseVal(c), false) + "]";
