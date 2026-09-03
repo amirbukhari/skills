@@ -229,3 +229,73 @@ not. The superseded test comment that reasoned about the old cascade is quoted i
 **0 of 216 labels over 24 words**, vacuous **3/216 (1.4%)**, unclassified files **16/1038 (1.5%)**,
 round-trip **byte-identical 1038/1038**, program `.en` **10,002,931 → 6,759,155 bytes** (−32%, all of
 it run-on headings). `engine/en-scales.test.js` **55/55**.
+
+---
+
+## R-REND-6 CUT 2, PROVEN ON REAL DRIFT — 405 stale files, ZERO wrong bytes (2026-09-03)
+
+The guarantee had only ever been demonstrated on fixtures. On 2026-09-03 it fired on the whole
+corpus, unplanned, the same night it shipped.
+
+**The situation.** `sen/files/**.en` was rendered under catalog `491bf65b`. The `MIN_SKEL=1` re-mine
+(`5e080ec`) and the ExpressionStatement productions (`8240298`) then moved the prose — a persisted
+heading reads `loop over handler` where the engine now derives `loop over` \`handler\`.
+
+**The measurement, all 1037 persisted `.en`:**
+
+|  | REFUSES | COMPILES |
+|---|---|---|
+| **DRIFTED** from a fresh render | **405** | 33 |
+| **IDENTICAL** to a fresh render | **0** | 599 |
+
+**Compiled but produced WRONG BYTES: 0. In every cell.**
+
+**That zero is the guarantee.** 405 files drifted and not one produced wrong TypeScript. Before
+`a5501a7` the label region was an inert comment, so all 405 would have compiled **silently wrong** —
+a compile producing the wrong program with nothing anywhere saying so, which is exactly the failure
+`tools/prd/14-two-roots.md` §1B.5 names as the reason byte-identity alone cannot license the flip.
+It is now demonstrated against real drift rather than a fixture.
+
+### The 405-vs-438 gap, resolved — NEITHER check is blind
+
+`engine/en-idempotence.test.js` HALF 1 counts **438** drifted where the compile check refuses
+**405**. Amir, 2026-09-03: *"are the 33 drifted but not refusing (a hole in the derive check —
+serious, it means R-REND-6 has a blind spot) or refusing but not counted as drifted (a hole in
+idempotence)? One of the two checks is blind and I want to know which."*
+
+**Neither. The two checks ask different questions, and both answer theirs correctly.**
+
+| check | property | question |
+|---|---|---|
+| R-REND-6 derive check | **internal consistency** | does each heading derive from the children beneath it *in this file*? |
+| `en-idempotence` HALF 1 | **currency** | is this file what *today's* renderer produces? |
+
+The 33 are exactly `consistent ∧ ¬current`.
+
+**Hole 1 ruled out by measurement, and it was the one worth fearing.** `compileChunk` gates on
+`derived !== null && derived !== written`, so **a null `derived` is a silent skip** — the fail-soft
+path in `deriveStructuralGloss`. Replicating that call on every `▷` heading:
+
+| cell | structural headings | CHECKED | SKIPPED (`derived===null`) | disagreements |
+|---|---|---|---|---|
+| the 33 (drifted, compiles) | 350 | **350** | **0** | 0 |
+| the 599 (identical) | 1488 | **1488** | **0** | 0 |
+
+**Zero skips.** The check fires on all 350 headings in the 33 and all 350 agree.
+
+**Hole 2 ruled out:** the refusing-but-identical cell is **0**, so refusal is a strict subset of
+drift and idempotence sees everything the compile check sees plus 33 more.
+
+**What the drift actually is**, checked rather than assumed: in `src/csvUtils.ts` the persisted `.en`
+carries inline value spans — `«an object with abnormalRows»`, `«text: "All rows must have…"»` — where
+a fresh render emits a `«▶ … ⟪lzw1 n5009 …⟫»` chunk. Those inline spans are a legitimate older
+dialect form, not marker-less garbage: they compile to `{ abnormalRows }` and to the template
+literal, with no guillemet leak and byte-identical output. The productions are collapsing more into
+chunks. **The drift is the renderer improving.**
+
+**The §16 lesson, and it is not the one either session expected.** The two checks were never in
+conflict; they were two different questions that both sessions independently read as one. That is
+the same substitution as *"byte-identity 1037/1037"* covering both the **renderer** and the
+**corpus** (§16 entry 6), one layer out: **one name over two properties.** Neither a guard that
+could not fire nor a measurement that read low — a *name* that quietly spanned two subjects. Name
+the subject in the assertion's own text.
