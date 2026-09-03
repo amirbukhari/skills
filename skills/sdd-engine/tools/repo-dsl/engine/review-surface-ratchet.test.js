@@ -50,7 +50,11 @@ const le = (a, b, m) => ok(a <= b, m + "  (got " + a + ", ceiling " + b + ")");
  * removing between `genSpans` and `runWord`, one level down, in the metric rather than the render.
  * Counting what the file actually contains is the one definition that cannot drift from it. */
 const TOP_CEILING = 1086;
-const TREE_CEILING = 20214;
+/* Tightened 20214 -> 20152 on 2026-09-03, off the test's own printed NOTE, after the interior-label
+ * work moved a heading into a child chunk. A ratchet left slack is a ratchet that permits a
+ * regression it was written to catch: at 20214 the tree could have grown 62 statements of review
+ * surface and still read green. The NOTE exists so this never has to be noticed by accident. */
+const TREE_CEILING = 20152;
 
 /* ---- THE SECOND METRIC: MUTE STATEMENTS -------------------------------------------------------
  * Amir, 2026-09-03, ruling: "Do NOT redefine reviewSurface. It stays exactly as it is, unedited.
