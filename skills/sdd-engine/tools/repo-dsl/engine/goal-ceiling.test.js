@@ -43,38 +43,63 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fail++; process.ex
 const OPEN = "«", CLOSE = "»", GEN = "▶", GEN_NEST = "▷";
 const PAY_OPEN = "⟪", PAY_CLOSE = "⟫", BODY_OPEN = "⟨", BODY_CLOSE = "⟩";
 
-/* ---- THE FROZEN LISTS, LIFTED BY REFERENCE AND GUARDED ------------------------------------------
- * Copied text drifts silently, and a drifted copy here would price a DIFFERENT metric while
- * reporting the goal's name. So every pattern is re-read out of the-goal.test.js on every run and a
- * missing one REFUSES. This is the same reason the goal test computes its denominator instead of
- * pinning 332: a pinned constant goes stale reading green. */
-const GOAL_SRC = fs.readFileSync(path.join(__dirname, "the-goal.test.js"), "utf8");
-const WORD_LIKE = /^[^{}()[\];`]*$/;
-const STRIP = [
-  { name: "backtick hole (word-like only)", re: /`[^`]*`/g,
-    guard: (m) => WORD_LIKE.test(m.slice(1, -1)) && !m.includes("${") && !m.includes("=>") },
-  { name: "«text: …» inline span", re: /«text:[^»]*»/g },
-  { name: "«an object with …» inline span", re: /«an object with[^»]*»/g },
-];
-const CONSTRUCTS = [
-  ["payload-spill", /⟪lzw/g], ["brace-block", /[{}]/g], ["arrow-fn", /=>/g],
-  ["call-paren", /[A-Za-z0-9_$]\(/g], ["semicolon", /;/g], ["bracket", /[[\]]/g],
-  ["straight-quote-string", /'[^']*'|"[^"]*"/g], ["template-interp", /\$\{/g],
-];
-const missing = [];
-for (const s of STRIP) if (!GOAL_SRC.includes(s.re.source)) missing.push("STRIP " + s.re.source);
-for (const [, re] of CONSTRUCTS) if (!GOAL_SRC.includes(re.source)) missing.push("CONSTRUCT " + re.source);
-if (missing.length) {
-  console.error("REFUSING: these patterns are no longer in the-goal.test.js, so this test would\n" +
-                "price a different metric under the goal's name:\n  " + missing.join("\n  "));
+/* ---- THE FROZEN LISTS, TAKEN FROM the-goal.test.js ITSELF AND NEVER COPIED --------------------
+ * This file used to hold its own transcription of STRIP and CONSTRUCTS, with a guard that every
+ * regex SOURCE still appeared in the goal test. s1 found the hole in that within the hour: the hash
+ * is computed over the `name` and the guard TEXT as well as the pattern, so a cosmetic edit to
+ * either file would move this file's printed fingerprint away from the goal's while every pattern
+ * still matched and every assertion still passed. A gate number that can drift silently is the
+ * defect this whole project exists to remove, and a fingerprint is the worst place to have it —
+ * a wrong digit in a report is indistinguishable from the thing the fingerprint exists to detect.
+ * It happened, too: I reported 9d5d81b9e2e2 from a scratch script and it took a peer diffing the
+ * two STRIP literals byte-for-byte to establish that the divergence was in my message, not the code.
+ *
+ * SO THE LISTS ARE NOW EVALUATED OUT OF THE GOAL TEST'S OWN SOURCE TEXT. Drift is not guarded
+ * against; it is impossible. If the extraction fails this REFUSES rather than falling back to a
+ * copy, because a fallback copy is exactly the thing being removed. */
+const GOAL_PATH = path.join(__dirname, "the-goal.test.js");
+const GOAL_SRC = fs.readFileSync(GOAL_PATH, "utf8");
+function lift(decl) {
+  /* Each of these is written in the goal test as `const X = …` closing with `];` or `;` at column 0.
+   * Bracket-depth parsing would be wrong here -- the patterns themselves contain `[` and `]`
+   * (`/[{}]/g`, `/[[\]]/g`), so the only reliable delimiter is the source's own formatting. */
+  const at = GOAL_SRC.indexOf("const " + decl + " = ");
+  if (at < 0) return null;
+  const close = GOAL_SRC.indexOf("\n];", at);
+  const semi = GOAL_SRC.indexOf(";\n", at);
+  const cut = close >= 0 && close < semi ? close + 3 : (semi >= 0 ? semi + 1 : -1);
+  if (cut < 0) return null;
+  return GOAL_SRC.slice(at, cut);
+}
+const parts = ["WORD_LIKE", "STRIP", "CONSTRUCTS"].map((d) => [d, lift(d)]);
+const unliftable = parts.filter(([, t]) => !t).map(([d]) => d);
+if (unliftable.length) {
+  console.error("REFUSING: cannot lift " + unliftable.join(", ") + " out of\n  " + GOAL_PATH +
+                "\n  This file measures the goal's own metric and will not fall back to a copy of it.");
   process.exit(3);
 }
+let WORD_LIKE, STRIP, CONSTRUCTS;
+try {
+  ({ WORD_LIKE, STRIP, CONSTRUCTS } =
+    new Function(parts.map(([, t]) => t).join("\n") +
+      "\nreturn { WORD_LIKE, STRIP, CONSTRUCTS };")());
+} catch (e) {
+  console.error("REFUSING: the frozen lists in " + GOAL_PATH + " no longer evaluate in isolation:\n  " +
+                e.message);
+  process.exit(3);
+}
+if (!Array.isArray(STRIP) || !STRIP.length || !Array.isArray(CONSTRUCTS) || !CONSTRUCTS.length ||
+    !STRIP.every((s) => s.re instanceof RegExp) || !CONSTRUCTS.every((c) => c.re instanceof RegExp)) {
+  console.error("REFUSING: the lists lifted from " + GOAL_PATH + " are not the expected shape");
+  process.exit(3);
+}
+/* Computed the same way the goal test computes it, over the SAME objects. It cannot disagree. */
 const STRIP_FINGERPRINT = require("crypto").createHash("sha256")
   .update(STRIP.map((s) => s.name + "|" + s.re.source + "|" + (s.guard ? String(s.guard) : "")).join("||"))
   .digest("hex").slice(0, 12);
 
 const strip = (t) => { let o = t; for (const s of STRIP) o = o.replace(s.re, (m) => (s.guard && !s.guard(m) ? m : "")); return o; };
-const count = (t) => { let n = 0; for (const [, re] of CONSTRUCTS) { const m = t.match(re); n += m ? m.length : 0; } return n; };
+const count = (t) => { let n = 0; for (const { re } of CONSTRUCTS) { const m = t.match(re); n += m ? m.length : 0; } return n; };
 const score = (t) => count(strip(t));
 
 const matchClose = (en, o) => {
@@ -288,7 +313,7 @@ for (const [k, arr] of B) {
   const t = strip(arr.join("\n"));
   const per = [];
   let n = 0;
-  for (const [kind, re] of CONSTRUCTS) { const m = t.match(re); const c = m ? m.length : 0; n += c; if (c) per.push(kind + " " + c); }
+  for (const { kind, re } of CONSTRUCTS) { const m = t.match(re); const c = m ? m.length : 0; n += c; if (c) per.push(kind + " " + c); }
   rows.push([k, n, per.join(", ")]); partTotal += n;
 }
 rows.sort((a, b) => b[1] - a[1]);
