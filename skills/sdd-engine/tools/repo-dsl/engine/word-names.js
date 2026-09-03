@@ -77,6 +77,35 @@ function chunkNameFor(cat, payload, chunks) {
   return rec && rec.en ? rec.en : null;
 }
 
+/* chunkIndexOf(cat) -> Map(chunkKey -> { axis, id, leaves }) over the WHOLE catalog.
+ *
+ * WHY THE WHOLE CATALOG AND NOT THE USED WORDS. §5C rule 1 is "a name whose hash is no longer IN
+ * THE CATALOG moves to orphans". It says catalog, not "in use", and the difference is not academic:
+ * a name whose skeleton still exists but which no file currently renders through is NOT orphaned —
+ * its skeleton is right there. Deriving the census from the used-word set instead would orphan
+ * names for a reason §5C does not give, and orphaning is the operation the whole ledger exists to
+ * make rare.
+ *
+ * Two words with the same leaf sequence share one key (that is the point of hashing the leaves), so
+ * the first id wins and later ones are dropped — the caller wants existence and a skeleton, and
+ * either id yields the same skeleton by construction. */
+function chunkIndexOf(cat) {
+  const out = new Map();
+  for (const axisName of ["narrow", "wide"]) {
+    const axis = cat[axisName];
+    if (!axis || !axis.words) continue;
+    for (const id of Object.keys(axis.words)) {
+      const w = axis.words[id];
+      if (!w || w.len < 2) continue;             // a one-leaf "chunk" is a leaf; `names` owns it
+      const leaves = leavesOf(axis, +id);
+      if (leaves.length < 2) continue;
+      const key = axisName[0] + "c:" + crypto.createHash("sha256").update(leaves.join(GAP), "utf8").digest("hex").slice(0, HASH_LEN);
+      if (!out.has(key)) out.set(key, { axis: axisName, id: +id, leaves });
+    }
+  }
+  return out;
+}
+
 /* Contract-checked (PRD §8B). ABSENT is a state — names are optional, and an unnamed corpus is
  * the honest default — so a missing file returns empty AND SAYS SO on stderr. PRESENT-BUT-WRONG is
  * a bug and throws: incident 5 was exactly a v0-shaped file read as v1, returning null for all 48
@@ -105,4 +134,4 @@ function clausesFor(cat, payload, names) {
   return any ? out : null;
 }
 
-module.exports = { HASH_LEN, hashOf, chunkKeyOf, chunkNameFor, leavesOf, load, clausesFor };
+module.exports = { HASH_LEN, hashOf, chunkKeyOf, chunkIndexOf, chunkNameFor, leavesOf, load, clausesFor };

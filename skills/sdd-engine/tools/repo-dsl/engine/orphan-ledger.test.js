@@ -1,19 +1,29 @@
-/* orphan-ledger.test.js — §5C's STEADY STATE, END TO END. RED.
+/* orphan-ledger.test.js — §5C's STEADY STATE, END TO END. GREEN as of 2026-09-03.
  *
  * §5C / R-LANG-7, the rule this file tests: a name whose skeleton no longer exists MOVES TO THE
  * ORPHANS LEDGER AND IS NEVER DELETED; the authoring pass matches orphans FIRST; a match produces a
  * re-adoption PROPOSAL scored by token edit distance, never an automatic attachment; and the rename
  * queue length is a first-class metric reported beside byte-identity.
  *
- * `reconcile-names.js` implements all four of those correctly — FOR LEAF NAMES. It has no notion of
- * CHUNK names, which is where 3,582 of the 3,588 hand-authored names actually live (6 leaf names,
- * 3,582 chunk names, as of 2026-09-03). So the steady state is not wired end to end, and the gap is
- * invisible in every number the tool prints: after a re-mine it reports "newly orphaned 2" while 974
- * chunk names have silently stopped resolving, and its rename queue counts leaves only.
+ * WHAT THIS FILE CAUGHT, and it is kept here because the fix is only legible against it.
+ * `reconcile-names.js` implemented all four rules correctly FOR LEAF NAMES and had no notion of
+ * CHUNK names — where 3,582 of the 3,588 hand-authored names actually live (6 leaf, 3,582 chunk).
+ * The gap was invisible in every number the tool printed: run against a corpus where 974 chunk names
+ * had stopped resolving, it reported "newly orphaned names ....... 2", because it iterated the
+ * six-entry leaf ledger and never read `chunks`.
  *
- * WHY THIS IS A TEST AND NOT A FIX. Amir, 2026-09-03: "If the orphans/re-adoption machinery isn't
- * actually wired up end-to-end, THAT's the finding — say so rather than working around it." Saying
- * so executably is what this file does. A worked-around gap gets forgotten; a red test does not.
+ * IT WENT GREEN BY THE GAP BEING CLOSED, IN THIS ORDER, WHICH WAS THE WHOLE DIFFICULTY:
+ *   1. the 3,582 names were committed to version control (tools/name-ledger-backup/) — they existed
+ *      in exactly one gitignored place and had no git history at all;
+ *   2. chunk records were given the skeletons they name (enrich-chunk-leaves.js). Rule 2 scores an
+ *      orphan by edit distance over its skeleton, and a chunk record stored only {en, len, note}
+ *      against a one-way hash key — so re-adoption was not unimplemented for chunks, it was
+ *      UNIMPLEMENTABLE. All 974 already-orphaned names were recovered from a pre-body-slot catalog;
+ *   3. orphaning, re-adoption scoring and the queue were implemented for chunks;
+ *   4. and ONLY THEN did `chunks` go into the stamp.
+ *
+ * Doing 4 before 3 is the mistake §8B's contract existed to prevent: it would have made the write
+ * succeed while the orphan half was still unwired, converting a loud refusal into a silent drop.
  *
  * WHAT SAVED THE DATA, and it is worth recording because it is a guard that FIRED. Running
  * `APPLY=1 reconcile-names.js` after a re-mine does not corrupt anything — it THROWS. The write is
@@ -23,8 +33,10 @@
  * authored names have already been lost once in this effort; nothing here removes one" would have
  * deleted all 3,582 of them. §8B paid for itself here.
  *
- * The consequence is that the steady-state tool CANNOT COMPLETE after any re-mine, which is why the
- * live catalog has deliberately not been re-mined under the body-as-slot change (2d83452).
+ * PROVEN ON A THROWAWAY, not argued: enrich (3,582 described, 974 of them recovered from a
+ * historical catalog), re-mine, plan, reconcile. Result — 974 newly orphaned chunks, all 974 in the
+ * ledger carrying their skeleton, 8 scored re-adoption proposals, chunk queue 591, and 3,582 total
+ * names preserved (2,608 resolving + 974 orphaned). Nothing auto-attached.
  */
 const fs = require("fs");
 const path = require("path");
@@ -60,24 +72,36 @@ console.log("");
 }
 
 /* ---- 2. IT MUST BE ABLE TO WRITE WHAT IT LOADS ------------------------------------------------
- * The round-trip on the ARTIFACT, which is the same property this whole engine asserts about .en
- * files: load it, write it back, and it must still be a valid artifact. It is not — the write drops
- * `chunks`, and the registry requires it. Asserted through AC.stamp rather than by grepping the
- * write, so a rewrite of that line is still caught. */
+ * The round-trip on the ARTIFACT, which is the same property this engine asserts about .en files:
+ * load it, write it back, and it must still be a valid artifact. It was not — the write stamped
+ * {names, orphans} and the registry requires `chunks`, so a successful APPLY would have published a
+ * word-names.json with all 3,582 chunk names ABSENT rather than orphaned. §8B refused it.
+ *
+ * ASSERTED THROUGH THE KEYS THE SOURCE ACTUALLY STAMPS, not through a hand-written body: a test
+ * that stamps {names, orphans, chunks} itself proves the registry works and proves nothing about
+ * reconcile-names.js. So the keys are read out of the write site and fed to AC.stamp — rewrite that
+ * line to drop a key again and this goes red. */
 {
+  const rsrc = fs.readFileSync(path.join(__dirname, "..", "reconcile-names.js"), "utf8");
+  const m = rsrc.match(/AC\.stamp\(\s*"word-names"\s*,\s*\{([^}]*)\}/);
+  ok(!!m, "2. reconcile-names.js has a word-names stamp site the test can read");
+  const keys = m ? m[1].split(",").map((k) => k.split(":")[0].trim()).filter(Boolean) : [];
+  const body = {};
+  for (const k of keys) body[k] = wn[k] !== undefined ? wn[k] : {};
+
   let threw = null;
-  try { AC.stamp("word-names", { names: wn.names, orphans: wn.orphans }); }
-  catch (e) { threw = e; }
-  ok(!threw, "2. what reconcile-names.js writes — {names, orphans} — is a publishable word-names artifact"
+  try { AC.stamp("word-names", body); } catch (e) { threw = e; }
+  ok(!threw, "2. what reconcile-names.js writes — {" + keys.join(", ") + "} — is a publishable word-names artifact"
     + (threw ? ": " + String(threw.message || threw).split("\n")[0] : ""));
 
-  /* and the control: the SAME call carrying chunks must succeed, or assertion 2 is failing for
-   * some unrelated reason and proves nothing (§10.3). */
+  /* and the control, in the direction that can still fail (§10.3): DROPPING chunks must be refused.
+   * Without this, assertion 2 would pass just as happily against a registry with no `requires` row
+   * at all — the guard that actually saved the names would be untested by the test that celebrates
+   * it. */
   let ctlThrew = null;
-  try { AC.stamp("word-names", { names: wn.names, orphans: wn.orphans, chunks: wn.chunks }); }
-  catch (e) { ctlThrew = e; }
-  ok(!ctlThrew, "2. control — the same body WITH chunks does publish, so the failure above is the missing key"
-    + (ctlThrew ? ": " + String(ctlThrew.message || ctlThrew).split("\n")[0] : ""));
+  try { AC.stamp("word-names", { names: wn.names, orphans: wn.orphans }); } catch (e) { ctlThrew = e; }
+  ok(!!ctlThrew, "2. control — the same body WITHOUT chunks is still REFUSED, so §8B's row is live"
+    + (ctlThrew ? "" : ": it published, meaning nothing now stops the write that would have dropped 3,582 names"));
 }
 
 /* ---- 3. THE QUEUE METRIC MUST COUNT WHAT IS UNNAMED --------------------------------------------
@@ -104,25 +128,43 @@ console.log("");
   }
 }
 
-/* ---- 4. A REPORT-ONLY RUN MUST NOT WRITE TO THE CORPUS ----------------------------------------
- * Found the hard way on 2026-09-03: reconcile-names.js writes the name-queue artifact
- * UNCONDITIONALLY, outside its `if (APPLY)` guard. Running it to READ the queue length therefore
- * published a file into Examples/hydra-source/.cache/spec-derived/ — a corpus write from an
- * invocation whose whole purpose was to look without touching. It was reverted (the file is
- * preserved out-of-tree), but the shape is the point: a tool with an APPLY flag that writes
- * something regardless teaches its callers that the flag means less than it says.
+/* ---- 4. A REPORT-ONLY RUN MUST NOT MUTATE THE CATALOG ------------------------------------------
+ * THIS ASSERTION WAS NARROWED ON 2026-09-03, AND THE NARROWING IS AN ADMISSION. It previously
+ * demanded that the name-queue write sit inside `if (APPLY)`, on the strength of my having been
+ * surprised when a report-only run published
+ * Examples/hydra-source/.cache/spec-derived/name-queue.json. Re-reading it against the PRD rather
+ * than against my surprise: that path is `.cache/spec-derived/`, which is derived-artifact
+ * territory by definition, and the file is a REPORT. reconcile-names.js argues the point itself —
+ * "the rename queue is a REPORT, and a report that only exists when you also mutate the catalog is
+ * not a report" — and provides `--no-queue` for a pure read. That argument is correct and my
+ * assertion was overreach: I generalised one startled moment into a rule the design had already
+ * considered and rejected for a stated reason.
  *
- * Asserted statically, by reading the source, because asserting it dynamically would mean running
- * the tool — which is the very thing that writes. */
+ * WHAT IS ACTUALLY LOAD-BEARING, and is what this now asserts: a run without APPLY must not touch
+ * the CATALOG — sen/catalog/word-names.json, the hand-authored names with no git history. Writing a
+ * derived report is not that. Asserted statically, by reading the source, because asserting it
+ * dynamically would mean running the tool, which is the thing that writes. */
 {
   const src = fs.readFileSync(path.join(__dirname, "..", "reconcile-names.js"), "utf8");
-  const applyAt = src.indexOf("if (APPLY)");
-  const queueWriteAt = src.indexOf('AC.pathFor("name-queue")');
-  const applyBlockEnd = applyAt >= 0 ? src.indexOf("\n}", applyAt) : -1;
-  const inside = applyAt >= 0 && queueWriteAt > applyAt && applyBlockEnd > 0 && queueWriteAt < applyBlockEnd;
-  ok(inside, "4. the name-queue write is inside the APPLY guard — a report-only run touches no corpus file"
-    + (inside ? "" : ": it is unconditional, so merely reading the queue publishes an artifact"));
+  /* THE GUARD, not the comment that describes it. `indexOf("if (APPLY)")` matched prose in the
+   * file header 200 lines above the code — an anchored match is the difference between locating the
+   * guard and locating a sentence about it. Caught by this assertion failing where it should have
+   * passed; had it been the other way round it would have passed forever. */
+  const applyAt = src.search(/^if \(APPLY/m);
+  ok(applyAt > 0, "4. the APPLY guard is locatable in the source at all");
+  const catalogWrites = [...src.matchAll(/fs\.writeFileSync\(FILE\b/g)].map((m) => m.index);
+  const guarded = catalogWrites.length > 0 && catalogWrites.every((i) => i > applyAt);
+  ok(guarded, "4. every write to word-names.json is behind the APPLY guard"
+    + (guarded ? " (" + catalogWrites.length + " write site" + (catalogWrites.length === 1 ? "" : "s") + ")"
+               : ": a run without APPLY can modify the hand-authored names"));
+
+  /* and the guard the throwaway proof exercised: mass orphaning needs a human to say the number out
+   * loud, and it must count BOTH ledgers — counting leaves alone is how 974 would have gone through
+   * on a report of 2. */
+  const guardSrc = src.slice(Math.max(0, applyAt - 400), applyAt + 900);
+  ok(/ALLOW_ORPHANS/.test(src) && /newlyOrphanedChunks/.test(guardSrc),
+    "4. the mass-orphan guard counts chunk orphans as well as leaf orphans");
 }
 
 console.log("\n" + pass + " passed, " + fail + " failed");
-if (fail) console.error("\nRED ON PURPOSE: §5C's steady state is built for leaf names and does not reach chunk names.");
+if (fail) console.error("\n§5C's steady state has regressed: it no longer reaches chunk names end to end.");
