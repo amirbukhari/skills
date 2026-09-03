@@ -230,6 +230,20 @@ reassuring, so nothing prompts a second look.
 | `reconcile-names.js` | `word-names.json` | `names` (6 leaf entries) | `chunks` (3,582 entries) | "newly orphaned 2" | 974 chunk names had stopped resolving |
 | `orphan-ledger.test.js` | the same | leaf ledger | chunk ledger | steady state green | §5C unwired for 3,582 of 3,588 names |
 | `statement-kind-coverage.test.js` | `spanActions()` | `.actions` | `.guards` | "775 sites with no clause" | 0 silent; all 775 carry a guard clause |
+| `reconcile-names.js` | the catalog | names that LEFT it | names that CAME BACK | "newly orphaned 0", "proposals 8" | 19 orphans had their exact key restored, in neither column |
+
+**The fourth is a variation worth stating separately, because it is not a missed key or a missed
+field — it is a missed SET.** §5C rule 1 asks which names left the catalog, and the tool answered it
+correctly. Nobody had asked which names *came back*, so no code enumerated that set, and after the
+`MIN_SKEL=1` re-mine 19 chunk orphans had their exact content-hash keys restored while every column
+the tool printed was silent: `newly orphaned 0`, `PROPOSALS 8`, the 19 in neither. The channel was
+not unread — **it did not exist**. That is the same failure wearing different clothes: *the tool was
+silent about a set it never enumerated*, and silence read as absence.
+
+(Their handling is in §5C: an exact match on `sha256(ordered leaf skeletons)` is provably the same
+word, so it is ranked above the fuzzy proposals — but it still does **not** auto-attach, because
+§5C/R-LANG-7 is a rule about *who decides*, not about confidence, and since `a5501a7` a label is an
+input to compilation, so an auto-attach would silently change compiled output.)
 
 The third is the one that shows the real cost. The first two failed toward **danger** and were caught
 by a refusal. The third failed toward **wasted work**: it made `IfStatement` the top priority of the

@@ -518,6 +518,44 @@ function matchAssertion(st, sf) {
   return out;
 }
 
+/* Collection verbs whose result is worth naming in the reader's terms rather than the callee's.
+ * Closed table, same discipline as MATCHERS: an entry may be added, but an unknown method is NEVER
+ * de-camel-cased into a phrase -- it falls to "the result of `<dotted callee>`", which is still
+ * true and still site-specific, or declines entirely. */
+const RETURN_VERBS = {
+  map: "mapped", filter: "filtered", reduce: "reduced", sort: "sorted",
+  slice: "sliced", flat: "flattened", flatMap: "mapped and flattened",
+  reverse: "reversed", join: "joined", concat: "with more appended",
+};
+
+/** `return <call>` -> a clause naming the RECEIVER, not just the method. Null to decline (§5C). */
+function returnCallGloss(e, sf) {
+  if (!e) return null;
+  let inner = e, awaited = false;
+  while (ts.isAwaitExpression(inner) || ts.isParenthesizedExpression(inner)) {
+    if (ts.isAwaitExpression(inner)) awaited = true;
+    inner = inner.expression;
+  }
+  if (!ts.isCallExpression(inner)) return null;
+  const lead = awaited ? "return what " : "return ";
+  if (ts.isPropertyAccessExpression(inner.expression)) {
+    const method = inner.expression.name.text;
+    const recv = dottedText(inner.expression.expression, sf);
+    /* `rounded.map(...)` -> "return `rounded` mapped". The receiver is the thing the reader is
+     * tracking; the method is how it was transformed. Naming only the method -- "return map" --
+     * is the same defect as "call to be", one statement kind over. */
+    if (recv && RETURN_VERBS[method]) return "return " + q(recv) + " " + RETURN_VERBS[method];
+    const dotted = dottedText(inner.expression, sf);
+    if (dotted) return (awaited ? "return what " + q(dotted) + " gives" : "return the result of " + q(dotted));
+    return null;                                  // receiver is itself a call -> cannot name it truthfully
+  }
+  if (ts.isIdentifier(inner.expression)) {
+    const n = inner.expression.text;
+    return awaited ? "return what " + q(n) + " gives" : "return the result of " + q(n);
+  }
+  return null;
+}
+
 /** `describe|it|test('<sentence>', ...)` -> the author's own sentence, which beats anything we build. */
 function matchSpecBlock(st, sf) {
   if (!ts.isExpressionStatement(st)) return null;
@@ -887,6 +925,8 @@ function spanActions(win, sf) {
         if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
         const bl = literalGloss(bare, sf);
         if (bl) { actions.push("return " + bl); continue; }
+        const brc = returnCallGloss(bare, sf);
+        if (brc) { actions.push(brc); continue; }
         const bc = firstCallName(bare);
         if (bc) { actions.push("return " + P.words(bc)); continue; }
       }
@@ -901,6 +941,14 @@ function spanActions(win, sf) {
       if (rg) { actions.push("return " + rg); continue; }
       const eg = elemAccess(e, sf);
       if (eg) { actions.push("return " + eg); continue; }
+      /* NAME THE RECEIVER, NOT JUST THE METHOD. `firstCallName` below yields the callee's last
+       * segment, so `return rounded.map(...)` became "return map" and `return
+       * subscriptionsBuiltQuery.getMany()` became "return get many" -- the same defect as "call to
+       * be", one statement kind over: a clause assembled from a method name, with the thing the
+       * reader is actually tracking discarded. Measured 2026-09-03: 61 + 35 + 31 + 29 + 22 sites in
+       * the top five clusters alone. Declines (receiver is itself a call) fall through unchanged. */
+      const rcg = returnCallGloss(e, sf);
+      if (rcg) { actions.push(rcg); continue; }
       const c = firstCallName(st);
       if (c) { actions.push("return " + P.words(c)); continue; }
       /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we

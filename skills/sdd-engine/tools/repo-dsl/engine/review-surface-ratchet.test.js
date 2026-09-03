@@ -23,6 +23,7 @@
  * says why.
  */
 const fs = require("fs");
+const ts = require("typescript");
 const path = require("path");
 const EN = require("./enfile");
 const CR = require("./corpus-root");
@@ -50,6 +51,37 @@ const le = (a, b, m) => ok(a <= b, m + "  (got " + a + ", ceiling " + b + ")");
  * Counting what the file actually contains is the one definition that cannot drift from it. */
 const TOP_CEILING = 1086;
 const TREE_CEILING = 20214;
+
+/* ---- THE SECOND METRIC: MUTE STATEMENTS -------------------------------------------------------
+ * Amir, 2026-09-03, ruling: "Do NOT redefine reviewSurface. It stays exactly as it is, unedited.
+ * Add a SECOND metric alongside it, never replacing it." Published together, always, surface first.
+ *
+ * WHY TWO NUMBERS AND NOT ONE. reviewSurface = genSpans + (bodyStatements - collapsed): it counts
+ * COLLAPSE INTO WORDS. It is structurally blind to what a clause SAYS -- a statement rendered
+ * "expect `result.success` to be true" counts exactly 1, the same as one rendered "call to be". So
+ * productions, which are §5C's larger half, cannot move it on any corpus. The brief was "statements
+ * a reader must still read as CODE", and nobody reads that first clause as code: the PROXY and the
+ * DEFINITION had come apart. The fix is to measure both, not to swap one for the other -- replacing
+ * it loses the only number that cannot be talked up by better prose.
+ *
+ * MUTE = generic + vacuous, by the EXISTING frozen definitions, adversarially applied:
+ *   vacuous  the clause is in clause-quality.js's frozen VACUOUS set.
+ *   generic  the clause quotes nothing (`...` or “...”) that appears in the statement's own text.
+ * Both are read from the existing producers. Neither is redefined here, and NARROWING EITHER TO
+ * MAKE THIS NUMBER FALL IS FORBIDDEN -- same §5C honesty rule the productions obey, where an
+ * unknown matcher stays "call to weird custom thing" and stays counted. If a commit ever lowers
+ * mutes AND touches the definition of mute, that commit is wrong.
+ *
+ * BASELINE, COMPUTED RETROACTIVELY rather than published at its own best moment. Measured by
+ * checking out historical renderers into a scratch copy and running today's harness against them:
+ *   4,646   2d83452 (2026-09-02) through 3a3fc7f -- stable across every commit in between
+ *   3,245   8240298  after the spec-dialect productions
+ *   2,746   after the return-call production
+ * HONEST LIMIT: it cannot be carried back past 2d83452. Older renderers predate spanActions in its
+ * current shape and today's harness reads 0 clauses for all 33,918 statements against them -- that
+ * is a harness incompatibility, NOT a reading of 33,918 mutes, and publishing it as an origin would
+ * flatter this metric enormously. So the series starts where it can honestly be measured. */
+const MUTE_CEILING = 2746;
 
 const walk = (d, o = []) => {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -84,6 +116,39 @@ for (const abs of files) {
   worst.push({ rel, top: r.stats.reviewSurface, tree: n + r.stats.residualStatements });
 }
 
+/* MUTE STATEMENTS, over the same walk. Uses the SAME producers and the SAME frozen list as
+ * statement-kind-coverage.test.js, which reports the per-kind breakdown; this reports only the
+ * total, so the two can never drift into two different definitions of the same word.
+ * Reads BOTH of spanActions' output channels — `actions` AND `guards` — because reading one is how
+ * 775 guard-shaped ifs were counted as silent (§8B.9.1). */
+const mute = (() => {
+  const Q = require("./clause-quality");
+  let sites = 0, generic = 0, vacuous = 0;
+  const quotesTheSite = (clause, text) => {
+    const qs = clause.match(/`[^`]+`|“[^”]+”/g) || [];
+    for (const qq of qs) { const b = qq.slice(1, -1).trim(); if (b.length >= 2 && text.includes(b)) return true; }
+    return false;
+  };
+  for (const abs of files) {
+    let src2; try { src2 = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
+    const sf = ts.createSourceFile(abs, src2, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const visit = (n) => {
+      if ((ts.isBlock(n) || ts.isSourceFile(n)) && n.statements.length) for (const st of n.statements) {
+        sites++;
+        let r2 = null; try { r2 = EN.spanActions([st], sf); } catch (_) { r2 = null; }
+        const clause = r2 && r2.actions && r2.actions.length ? String(r2.actions[0])
+          : (r2 && r2.guards && r2.guards.length ? String(r2.guards[0]) : null);
+        if (!clause) { vacuous++; continue; }      // no clause at all is at least as mute as a vacuous one
+        if (Q.isVacuous(clause)) { vacuous++; continue; }
+        if (!quotesTheSite(clause, st.getText(sf))) generic++;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  }
+  return { sites, generic, vacuous, total: generic + vacuous };
+})();
+
 /* THE FLOOR FIRST — a surface reduction bought by dropping a byte is not a reduction. */
 eq(byteExact, files.length, "byte-identity holds for every file while this is measured");
 
@@ -93,6 +158,8 @@ console.log("  chunks (all depths)   " + chunks);
 console.log("  residual statements   " + residual);
 console.log("  REVIEW SURFACE top    " + top + "   (ceiling " + TOP_CEILING + ")");
 console.log("  REVIEW SURFACE tree   " + tree + "   (ceiling " + TREE_CEILING + ")");
+console.log("  MUTE statements       " + mute.total + "   (ceiling " + MUTE_CEILING + ")"
+  + "   [" + mute.generic + " generic + " + mute.vacuous + " vacuous of " + mute.sites + " statements]");
 worst.sort((a, b) => b.top - a.top);
 console.log("\n  HEAVIEST FILES (top-level surface)");
 for (const w of worst.slice(0, 10)) console.log("    " + String(w.top).padStart(4) + " top / " + String(w.tree).padStart(5) + " tree   " + w.rel);
@@ -100,11 +167,13 @@ console.log("");
 
 le(top, TOP_CEILING, "top-level review surface never rises above its 2026-09-03 baseline");
 le(tree, TREE_CEILING, "whole-tree review surface never rises above its 2026-09-03 baseline");
+le(mute.total, MUTE_CEILING, "mute statements never rise above their baseline (§5C productions ratchet)");
 
 /* AND THE RATCHET IS AUDITED. If the real number has fallen well below a ceiling, the ceiling has
  * gone slack and stopped guarding anything — so say so loudly rather than reporting a pass. This is
  * a warning, not a failure: the fix is a one-line baseline edit in the commit that earned it. */
 if (top < TOP_CEILING) console.error("  NOTE: top ceiling is slack by " + (TOP_CEILING - top) + " — lower TOP_CEILING to " + top + ".");
 if (tree < TREE_CEILING) console.error("  NOTE: tree ceiling is slack by " + (TREE_CEILING - tree) + " — lower TREE_CEILING to " + tree + ".");
+if (mute.total < MUTE_CEILING) console.error("  NOTE: mute ceiling is slack by " + (MUTE_CEILING - mute.total) + " — lower MUTE_CEILING to " + mute.total + ".");
 
 console.log("\n" + pass + " passed, " + fail + " failed");
