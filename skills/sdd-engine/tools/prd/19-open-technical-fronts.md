@@ -322,3 +322,53 @@ published at. The ordering the goal metric actually credits:
 residue is far smaller than the 28,911 → 14,251 headline suggests. **Constructs-after-the-strip is
 the metric. It is the only one the goal test will credit, and it is the third definition of "the
 page" this document has published in two days.**
+
+### RENDERED: 112,205 → 106,261, AGAINST A PREDICTED 106,260 (2026-09-03)
+
+**The call rule is banked.** Byte-identity from disk **1037/1037, 0 wrong bytes, 0 refused, 0
+unmatched — before AND after the render.** `en-idempotence` HALF 1: 1037 compared, 0 drifted, 0
+threw. Strip fingerprint `9bf5e7699261`, unchanged. Review surface 1086 top / 20152 tree and MUTE
+2362 all read **exactly at ceiling**, unmoved.
+
+| | |
+|---|---|
+| GOAL before | 112,205 |
+| **GOAL after** | **106,261** |
+| delta | **−5,944 (−5.3%)** |
+| predicted, on the record before the render | ~106,260 |
+| **error** | **1 construct** |
+| `src/routers/links.ts.en` — the file Amir read | **37 → 31** |
+
+`call-paren` 19,754 → 16,506 · `straight-quote-string` 14,251 → 13,084 · `brace-block` 38,783 →
+37,891 · `bracket` 12,089 → 11,451.
+
+**The prediction is stated here as a prediction that could have failed, and the reason it held is
+worth more than the accuracy.** The measurement was taken by the sanctioned procedure over payloads
+re-encoded in memory, and fenced as a *payload-text delta, not a headline forecast*, because the
+strip regexes can match across a payload boundary. That fence was correct and the boundary effect
+turned out to be **one construct** on this change — but the fence is what made the number
+publishable, not the outcome. Tier 1 predicted 112,205 and returned 112,205; this predicted 106,260
+and returned 106,261. **Two for two is now the standard for this front, and a third that misses is a
+finding about the boundary effect rather than a failure of the rule.**
+
+**INDEPENDENTLY CONFIRMED BY SUBTRACTION, which is the entry point that does not share a helper
+with the per-field walk.** Re-running the ceiling measurement after the render:
+
+| | before | after |
+|---|---|---|
+| reachable by ANY hole-type rule | 66,972 | **61,028** |
+| **THE CEILING — residue** | **45,233** | **45,233** |
+| `expr`, the front being worked | 19,984 | 17,852 |
+| every gloss, heading, inter-chunk region | 509 | 488 |
+
+**The residue did not move by a single construct**, which is the strongest available evidence that
+the rule took constructs off *field content* and nothing else — a rule that had accidentally reached
+raw scaffolding, or changed what the strip removes, would show here and nowhere else. Reachable fell
+by 5,944, matching the per-field delta exactly.
+
+**AND THE HEADLINE IS NOT THIS NUMBER.** The ceiling is: **45,233 constructs, now 42.6% of the goal,
+are unreachable by any hole-type rule.** `expr` has 17,852 left, `args` and `obj` sit behind it, and
+the entire remaining board sums to 61,028. **Perfecting every rule on every hole type cannot take
+106,261 below 45,233.** Going lower needs a canon change — the residue is raw structural body text
+and payload marks, which is the interior production's territory, priced at **+1,403, a loss.** The
+bound is a bound, not a backlog.
