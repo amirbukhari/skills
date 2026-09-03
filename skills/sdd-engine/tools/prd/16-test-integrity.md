@@ -208,3 +208,46 @@ still correctly held, precisely because a protocol that yields whenever the meri
 a protocol. A lane that would act on a favourable reading of an incomplete instruction has no
 detector at all; it has a habit that happened not to have cost anything yet.
 
+### THE MIRROR OF THE SWEEP — a shared doc left `MM` across lanes
+
+`CLAUDE.md` §7 documents the **sweep**: committing a path whose working-tree copy holds a peer's
+work takes it into your commit. **This is its mirror, and it is not covered there.** Cross-referenced
+rather than restated; the rule below is the addition.
+
+Both lanes hit it on the same two files on 2026-09-03 (`10-language-and-grammar.md`,
+`16-test-integrity.md`). A private-index commit correctly **excludes** a peer's uncommitted edits —
+that is what it is for — but the result is that **your paragraphs exist in the commit only, while
+the working tree still holds their version without them.** One ordinary `git add` from either lane
+then stages your work out of existence, in the reverse direction from the sweep.
+
+> **A shared PRD or notes file is committed by whoever edits it, promptly, and is never left `MM`
+> across lanes.** If you must leave it, say so to the other lane by name and file.
+
+**The detector is the sweep detector run the other way round:** after committing, grep your own
+marker in the **worktree** and at **HEAD**. `worktree: 0 / HEAD: 1` means your text is committed and
+missing from the live file — merge it forward. `worktree: 1 / HEAD: 0` is the ordinary uncommitted
+case. Both lanes caught their own instance this way.
+
+**And a mechanism worth naming, because I got it wrong while following the recipe correctly.**
+`CLAUDE.md` §7 requires a `git add` on the committed paths after `update-ref`, to settle the
+**shared** index. I ran it **with `GIT_INDEX_FILE` still exported**, so it settled the *private*
+index and left the shared one stale — the file stayed `MM`, which is the exact state the step exists
+to clear. The step is only load-bearing when the variable is gone:
+
+```sh
+unset GIT_INDEX_FILE
+git add -- <the paths you just committed>
+git status --short -- <those paths>     # must be empty
+```
+
+**A required step that silently no-ops is worse than a missing one**, because the recipe was
+followed and the check appeared to pass — the same shape as §16's guards that cannot fire, in a
+procedure instead of a test.
+
+**Grep a string you have CONFIRMED EXISTS in the peer's file, never your own paraphrase of their
+message.** *2026-09-03:* I searched for `"inline value-span prose"` — my wording from a peer's
+summary — got zero hits in worktree, HEAD **and** their own commit, and briefly read their work as
+missing. It was present the whole time at `10-language-and-grammar.md:316`, worded differently.
+`CLAUDE.md` §7 already forbids grepping a commit **subject** for this reason; a paraphrase of a
+peer's prose is the same defect with a friendlier disguise, and it fails in the alarming direction
+rather than the reassuring one.

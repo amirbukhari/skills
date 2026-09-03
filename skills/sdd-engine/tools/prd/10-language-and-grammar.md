@@ -286,6 +286,51 @@ path in `deriveStructuralGloss`. Replicating that call on every `▷` heading:
 **Hole 2 ruled out:** the refusing-but-identical cell is **0**, so refusal is a strict subset of
 drift and idempotence sees everything the compile check sees plus 33 more.
 
+### `derived === null` IS NOT A BUG — do not "fix" the fail-soft path
+
+**Read this before touching `deriveStructuralGloss` or the `derived !== null` gate in
+`compileChunk`.** It is the single line in this area most likely to be mistaken for a defect by a
+later reader, and "fixing" it converts a correct check into a false-positive generator.
+
+`compileChunk` gates on `derived !== null && derived !== written`. A `null` means the engine could
+not derive a heading for that site **at all**, and the check is skipped. That reads like a hole. It
+is not, and skills-4a's line-level census of the same 33 files (below) is what makes the reason
+concrete rather than asserted:
+
+| drifted lines | shape |
+|---|---|
+| **161** | neither side is a chunk heading — inline atom / value-span prose only |
+| **38** | **disk has NO heading where a fresh render DOES** |
+| 11 | disk has a heading, fresh does not |
+| 7 | both have headings and the text differs |
+
+**The 38 are the ones that look like blindness and are not.** With no heading at that site, the
+file **asserts nothing there** — so there is no claim that could be right or wrong. **Having no
+subject is a different thing from having a subject and missing it**, and only the second is a
+blind spot. A check that invented a verdict where the file made no claim would be manufacturing
+disagreements out of silence.
+
+That is the *one name over two properties* lesson (§16 entry 6) landing one level down — on the
+**site** rather than on the **check**. "The check didn't fire here" spans *it had nothing to check*
+and *it failed to check something*, and those want opposite responses.
+
+**Two measurements bound it, from directions that cannot see each other**, which is why both lanes
+were told to measure independently:
+
+- **Heading census (this lane):** every `▷` heading in the 33 — **350 checked, 0 skipped
+  (`derived===null`), 0 disagreements**; and in the 599 clean files, **1488 checked, 0 skipped**.
+  So on every site that *does* carry a heading, the check fires. Structurally cannot see sites with
+  no heading.
+- **Line census (skills-4a):** the 217 drifted lines above. Sees exactly those sites, and shows the
+  majority of the drift (161) never touches the chunk layer at all — the strongest form of *the
+  drift is the renderer improving*: most of it is inline spans the productions now fold in.
+
+So: **a `null` return is the correct behaviour for a site that carries no heading.** If a future
+change makes `null` mean "I failed to parse something I should have parsed", that is a different
+condition and it needs a **different signal** — a counter, or a distinct sentinel — not a
+repurposing of `null`. Both were measured at zero here; a nonzero skip count is the finding.
+
+
 **What the drift actually is**, checked rather than assumed: in `src/csvUtils.ts` the persisted `.en`
 carries inline value spans — `«an object with abnormalRows»`, `«text: "All rows must have…"»` — where
 a fresh render emits a `«▶ … ⟪lzw1 n5009 …⟫»` chunk. Those inline spans are a legitimate older
