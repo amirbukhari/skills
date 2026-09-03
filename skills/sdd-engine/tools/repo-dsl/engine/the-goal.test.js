@@ -50,8 +50,26 @@ const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fail++; process.ex
 /* ---- THE FROZEN STRIP LIST — verbatim by design, and nothing else ------------------------------
  * Amir, 2026-09-03: "Strip every region that is verbatim by design — the backtick-quoted word-like
  * holes and the «text: "…"» / «an object with …» inline forms." Three entries. That is the list. */
+/* WORD-LIKE, AND THE WORD IS LOAD-BEARING. Amir said "the backtick-quoted WORD-LIKE holes", and
+ * the first version of this file stripped ANY backtick region — which is looser than the spec I
+ * was handed, and the looseness was worth 14,941 constructs.
+ *
+ * MEASURED WITHIN THE HOUR OF WRITING THIS TEST, and it is a hole in the test itself, not in the
+ * renderer: `` `${inv.id}` `` and `` `{ a: 1 }` `` are backtick regions containing a template
+ * interpolation and an object literal. They are TypeScript, they are on the page, and the first
+ * strip made them invisible — 8,509 braces, 4,118 `${`, 987 call-parens hidden in total.
+ *
+ * A hole is word-like when it names something: identifiers, dotted paths, routes, module
+ * specifiers. It is NOT word-like the moment it carries block, call, index or interpolation
+ * syntax, and at that point it is smuggling code through the one gap the strip list opens.
+ *
+ * THIS TIGHTENING RAISES THE NUMBER, which is the direction that tells you it is honest. The
+ * frozen-list rule forbids WIDENING to make the count fall; closing an evasion that makes it rise
+ * is the opposite move and is always allowed. */
+const WORD_LIKE = /^[^{}()[\];`]*$/;
 const STRIP = [
-  { name: "backtick hole", re: /`[^`]*`/g },
+  { name: "backtick hole (word-like only)", re: /`[^`]*`/g,
+    guard: (m) => WORD_LIKE.test(m.slice(1, -1)) && !m.includes("${") && !m.includes("=>") },
   { name: "«text: …» inline span", re: /«text:[^»]*»/g },
   { name: "«an object with …» inline span", re: /«an object with[^»]*»/g },
 ];
@@ -59,7 +77,8 @@ const STRIP = [
  * the same commit, the drop is not a real one. It is cheaper to make this visible than to rely on
  * anyone remembering the rule. */
 const STRIP_FINGERPRINT = require("crypto").createHash("sha256")
-  .update(STRIP.map((s) => s.name + "" + s.re.source).join("")).digest("hex").slice(0, 12);
+  .update(STRIP.map((s) => s.name + "|" + s.re.source + "|" + (s.guard ? String(s.guard) : "")).join("||"))
+  .digest("hex").slice(0, 12);
 
 /* ---- WHAT COUNTS AS SURVIVING TYPESCRIPT -------------------------------------------------------
  * DETECTED BY PUNCTUATION, NEVER BY KEYWORD, and the reason matters. The English dialect legitimately
@@ -109,7 +128,7 @@ const files = walk(EN_DIR);
 /** strip(text) -> the reading surface, with the by-design-verbatim regions removed. */
 function strip(text) {
   let out = text;
-  for (const s of STRIP) out = out.replace(s.re, "");
+  for (const s of STRIP) out = out.replace(s.re, (m) => (s.guard && !s.guard(m) ? m : ""));
   return out;
 }
 
