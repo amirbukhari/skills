@@ -106,6 +106,10 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "re-renders every persisted .en against the dictionary and compares bytes (A5, half 1)",
   }],
+  ["engine/links-standard.test.js", {
+    needs: ["generators-lzw"],
+    why: "renders one real corpus file and compares it to the rendering Amir approved (RED by design)",
+  }],
   ["engine/unit-boundary.test.js", {
     needs: ["generators-lzw"],
     why: "reads the recursive dictionary (enlzw.loadLzw)",
