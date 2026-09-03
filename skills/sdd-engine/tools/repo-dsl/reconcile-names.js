@@ -179,6 +179,27 @@ for (const k of Object.keys(chunks)) {
   newlyOrphanedChunks++;
 }
 
+/* 1b. THE MIRROR OF RULE 1, AND IT WAS MISSING. Rule 1 catches a name whose skeleton left the
+ * catalog. Nothing caught a name whose skeleton CAME BACK. Measured on the live tree after the
+ * MIN_SKEL=1 re-mine: 19 chunk orphans had their EXACT content-hash key restored, and every number
+ * this tool printed was silent about it — `newly orphaned chunks 0` and `PROPOSALS 8`, with the 19
+ * in neither.
+ *
+ * These are a different KIND of thing from a proposal, and collapsing them would be wrong in both
+ * directions. A proposal is a fuzzy match scored by edit distance over skeletons, and it can be
+ * wrong. This is an exact match on `sha256(ordered leaf skeletons)` — the key IS the content, so
+ * the word in the catalog today is provably the same word the name was authored for. Certainty and
+ * a guess do not belong in one bucket.
+ *
+ * IT STILL DOES NOT AUTO-ATTACH. §5C/R-LANG-7 is a rule about who decides, not about confidence,
+ * and re-attaching a chunk name now CHANGES A LABEL — which since a5501a7 is an input to
+ * compilation, so an .en rendered under the old naming and compiled under the new one is a refusal.
+ * Certainty about WHICH name it is does not make the re-attach free. Reported, ranked first,
+ * applied by a human alongside a render. */
+const resurrected = Object.entries(orphans)
+  .filter(([k]) => isChunkKey(k) && liveChunks.has(k))
+  .map(([k, o]) => ({ key: k, en: o.en, len: o.len, orphanedAt: o.orphanedAt, recovered: !!o.leavesFrom }));
+
 /* The chunk orphans that CANNOT be proposed back, because the record never stored what it named.
  * Counted and named rather than quietly scored against nothing — a scorer fed an undefined skeleton
  * returns a confident number, and a confident number about nothing is how the leaf ledger reported
@@ -242,6 +263,16 @@ if (undescribable) {
   console.log("                                    can never propose them. Run enrich-chunk-leaves.js");
   console.log("                                    BEFORE the re-mine that orphans them.");
 }
+if (resurrected.length) {
+  console.log("  EXACT RE-ADOPTIONS ........ " + resurrected.length + "  <- these orphans' content-hash keys are BACK in");
+  console.log("                                    the catalog. Not a guess: the key is the hash of the");
+  console.log("                                    skeleton, so this is provably the same word. Still");
+  console.log("                                    needs a human + a render (a label is now an input to");
+  console.log("                                    compilation), so nothing auto-attaches.");
+  for (const r of resurrected.slice(0, 10))
+    console.log("     " + r.key + "  len=" + r.len + (r.recovered ? "  [recovered]" : "") + '  "' + r.en + '"');
+  if (resurrected.length > 10) console.log("     \u2026 and " + (resurrected.length - 10) + " more");
+}
 console.log("  chunks in use ............. " + inUseChunks.length);
 console.log("  re-adoption PROPOSALS ..... " + chunkProposals.length + "  (review required — nothing auto-attaches)");
 for (const p2 of chunkProposals.slice(0, 10))
@@ -294,6 +325,8 @@ fs.writeFileSync(queuePath, JSON.stringify(AC.stamp("name-queue", {
   /* The chunk half, reported beside the leaf half rather than in a second artifact: they are two
    * ledgers of one naming effort, and splitting the report is how the chunk side went unwatched. */
   chunkNewlyOrphaned: newlyOrphanedChunks,
+  chunkExactReadoptions: resurrected.length,
+  chunkResurrected: resurrected,
   chunkOrphans: chunkOrphans.length,
   chunkOrphansUndescribable: undescribable,
   chunkProposals,

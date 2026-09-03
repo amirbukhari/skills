@@ -98,8 +98,23 @@ These are decisions, not tuning knobs to be re-litigated.
   what the 299 orphans are. The whole gain is `MIN_SKEL`; the whole cost is the slots. Taking the two
   apart was worth the four mines it took to measure.
 
-  *Why they cannot help:* the LZW dictionary composes over **statement sequences**. Expression slots
-  vary structure **within** a statement, below the level anything composes at.
+  **WHY THEY CANNOT HELP — this is the permanent guard, and it outranks the table above.** The
+  measurement says they *didn't* help. This says they *can't*, and only the second one survives a
+  future corpus. **The LZW dictionary composes over STATEMENT SEQUENCES.** A word is a run of
+  statements; a composite is `[prefixWord, appendedWord]` over that run (§2.1). Expression slots vary
+  structure **within** a single statement — strictly below the level at which anything composes.
+  Making the inside of a statement more general cannot create a longer run, because runs are built
+  from whole statements either way. The only thing it changes is *which* skeletons exist, and that is
+  how it orphans names without buying coverage.
+
+  So: **do not re-try expression slots to lower review surface.** They are not a smaller version of
+  the right idea; they operate at the wrong level. The lever that works at the statement level is
+  `MIN_SKEL` (above), and the lever above the statement level is **productions** (§5C) — reading the
+  site and saying something true about it. `SDD_EXPR_SLOT` remains in the code as a measurable dial
+  precisely so this claim stays falsifiable; if someone believes it, they should re-run the four
+  mines rather than delete the flag. *Amir, 2026-09-03, on bundling the two dials into one ruling:
+  "the mistake was mine, not a bad measurement — I bundled two dials into one package on a
+  recommendation, without requiring they be measured independently first."*
 - **Holes stay verbatim TypeScript.** See the hole taxonomy in §5C.
 - **"Write the `.en` and get the file back" is the STANDING STATE, not a roadmap item.** Byte-identity
   already holds across the corpus. Every criterion in §7 is a question about *how the `.en` reads*,

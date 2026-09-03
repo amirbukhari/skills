@@ -211,3 +211,42 @@ the skeleton it names; a chunk record stored `{en, len, note}` against a one-way
 §5C rule 2 scores an orphan by edit distance over its skeleton — so re-adoption for chunks was not
 unimplemented, it was **unimplementable**. Chunk records now carry `leaves`, which is the change that
 stops this recurring rather than the one that recovered it.
+
+### §8B.9.1 — a producer with two channels and a consumer reading one
+
+The near-miss above was one instance of a shape that turned up **three times in a single night**,
+each time in a different file, each time reading low and each time silent about it. It is promoted
+here from an observation to a checklist item because three occurrences is no longer a coincidence.
+
+**The shape.** A producer emits its output over more than one channel — two keys in a record, two
+fields on a return value, two collections. A consumer reads one of them and reports a number as if
+it had read all of them. Nothing errors. The number is simply **too low**, and low numbers are
+reassuring, so nothing prompts a second look.
+
+**The three instances, named:**
+
+| consumer | producer | channel read | channel missed | reported | true |
+|---|---|---|---|---|---|
+| `reconcile-names.js` | `word-names.json` | `names` (6 leaf entries) | `chunks` (3,582 entries) | "newly orphaned 2" | 974 chunk names had stopped resolving |
+| `orphan-ledger.test.js` | the same | leaf ledger | chunk ledger | steady state green | §5C unwired for 3,582 of 3,588 names |
+| `statement-kind-coverage.test.js` | `spanActions()` | `.actions` | `.guards` | "775 sites with no clause" | 0 silent; all 775 carry a guard clause |
+
+The third is the one that shows the real cost. The first two failed toward **danger** and were caught
+by a refusal. The third failed toward **wasted work**: it made `IfStatement` the top priority of the
+production work order, and the next step would have been building productions for 775 sites that
+already speak. A guard that cannot fire wastes itself; **a measurement that reads low spends your
+time instead**, and it never announces that it is doing so.
+
+**The rule, as a step and not a sentiment:**
+
+> **When you measure a producer, enumerate its output channels FIRST and assert that you read all of
+> them.** Not "check you handled the data" — *list the channels*, in the test, and make the omission
+> of one a failure rather than a smaller number.
+
+For a return value that is an object, that means naming its keys. For a record format, it means
+reading the artifact registry's `requires` list rather than the keys you happen to remember. The
+registry already knows the answer — §8B's `requires` row is exactly a machine-readable list of the
+channels an artifact publishes, which is why it was the thing that fired when nothing else did.
+
+*Recorded at Amir's instruction, 2026-09-03: "the pattern now has enough occurrences to be a
+checklist item."*

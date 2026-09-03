@@ -48,8 +48,8 @@ const le = (a, b, m) => ok(a <= b, m + "  (got " + a + ", ceiling " + b + ")");
  * producer that does not see every emission is the §8B drift shape — the same shape STEP 2 is
  * removing between `genSpans` and `runWord`, one level down, in the metric rather than the render.
  * Counting what the file actually contains is the one definition that cannot drift from it. */
-const TOP_CEILING = 1582;
-const TREE_CEILING = 20999;
+const TOP_CEILING = 1086;
+const TREE_CEILING = 20214;
 
 const walk = (d, o = []) => {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
