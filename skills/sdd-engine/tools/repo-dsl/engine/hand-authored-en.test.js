@@ -52,10 +52,15 @@ ok("the hand-edit actually changed the .en — otherwise this file proves nothin
   assert.ok(EDITED.includes("grandTotal"), "the edited text is not present in the fixture");
 });
 
-/* 3. The production path. deriveCheck is OFF unless SDD_DERIVE_CHECK=1, so this is what a real
- *    compile does with edited English: it finds the payload with lastIndexOf(PAY_OPEN) and never
- *    reads the sentence at all. */
-ok("PRODUCTION: an edited sentence is a SILENT NO-OP — the .ts is unchanged", () => {
+/* 3. THE ESCAPE HATCH — NO LONGER THE PRODUCTION PATH. Until 2026-09-03 deriveCheck was off unless
+ *    SDD_DERIVE_CHECK=1, so this WAS what a real compile did with edited English: find the payload
+ *    with lastIndexOf(PAY_OPEN) and never read the sentence. The default is now ON (measured free:
+ *    1037/1037 either way, 5,484 ms vs 5,779 ms), so an ordinary caller gets the refusal asserted in
+ *    (4) and only an explicit `deriveCheck:false` still gets the silent no-op. This assertion is
+ *    kept, with its argument now explicit and its name corrected, because the hatch still exists and
+ *    what it does is still the wrong behaviour — the day the hatch is removed, this is the line that
+ *    says so. */
+ok("ESCAPE HATCH: with deriveCheck:false an edited sentence is a SILENT NO-OP — the .ts is unchanged", () => {
   const out = compileFileEn(EDITED, idx, { deriveCheck: false });
   assert.strictEqual(out, SRC,
     "the edited English changed the compiled .ts — if that is intentional, the flip has landed and " +

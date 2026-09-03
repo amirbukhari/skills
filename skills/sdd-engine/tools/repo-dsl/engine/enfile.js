@@ -1658,10 +1658,21 @@ function renderFileEn(source, index) {
  * renderer produced the written gloss by calling these same two functions on these same bytes, so
  * agreement is guaranteed unless a human changed something.
  *
- * COST. One extra parse per generator span at compile time, and it needs the catalog (already
- * required for compileSpan). Off unless asked for, because the .en -> .ts round-trip is on the hot
- * path of every test; `SDD_DERIVE_CHECK=1` or `{deriveCheck:true}` turns it on. It is ON by default
- * in the round-trip tests, which is where a drifted gloss must not slip through.
+ * COST. MEASURED, AND IT IS NOTHING. This was off by default on the reasoning that it costs "one
+ * extra parse per generator span at compile time" and the .en -> .ts round-trip is on the hot path
+ * of every test. Measured over the whole corpus on 2026-09-03: byte-identity 1037/1037 with the
+ * check OFF in 5,779 ms and 1037/1037 with it ON in 5,484 ms — the same, inside noise, with ZERO
+ * refusals. The cost the default was protecting does not exist.
+ *
+ * SO IT IS ON BY DEFAULT (Amir's approval, 2026-09-03). The trade is one-sided: with it off, a
+ * hand-edited sentence compiles the OLD code and reports success, which is the worst of the three
+ * possible behaviours — worse than refusing and worse than honouring the edit. With it on, that
+ * same edit is a loud refusal naming the clause. `SDD_DERIVE_CHECK=0` or `{deriveCheck:false}`
+ * turns it back off for a caller that genuinely needs the old behaviour.
+ *
+ * WHAT IT STILL DOES NOT COVER, unchanged by this flip: compileChunk's structural branch returns
+ * before the check, so a hand-edit to a structural chunk's NAME is silent even now. See the note
+ * there before reading a green round-trip as "no hand-edit got through".
  *
  * SCOPE. Atomic generator chunks only — compileChunk's structural branch returns before the check
  * runs. See the note there before reading a green round-trip as "no hand-edit got through". */
@@ -1671,7 +1682,7 @@ function deriveGloss(payload, compiled, cat) {
   catch (_) { return null; }   /* a gloss we cannot derive is not evidence of an edit */
 }
 
-const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK === "1";
+const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK !== "0";
 
 function compileChunk(chunk, index, opts) {
   const deriveCheck = (opts && opts.deriveCheck !== undefined) ? opts.deriveCheck : DERIVE_CHECK;

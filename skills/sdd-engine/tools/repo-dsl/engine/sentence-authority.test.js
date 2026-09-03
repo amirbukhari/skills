@@ -150,18 +150,33 @@ for (const spec of [atomicSpec, structSpec]) {
  * Asserted as the disjunction argued for in the header: refuse, or honour. Returning the pre-edit
  * TypeScript and reporting success is the one outcome forbidden in every version of the engine. */
 console.log("\n  --- 8. sentence/payload disagreement is never silently resolved ---");
-for (const on of [false, true]) {
+/* THREE SETTINGS, and the first one is the one that matters. `undefined` means NO OPTION PASSED —
+ * the behaviour an ordinary caller gets. It is listed separately from an explicit `false` because
+ * this test previously conflated them: it passed `{deriveCheck:false}` and labelled the row
+ * "[default]", so when the default flipped on 2026-09-03 the row went on reporting the old
+ * behaviour and the flip looked like it had done nothing. A test that hardcodes the value it claims
+ * to be observing is measuring its own argument. */
+for (const on of [undefined, false, true]) {
   for (const spec of [atomicSpec, structSpec]) {
-    const which = (spec === atomicSpec ? "atomic clause" : "structural name") + (on ? " [SDD_DERIVE_CHECK=1]" : " [default]");
+    const which = (spec === atomicSpec ? "atomic clause" : "structural name")
+      + (on === undefined ? " [default — no option passed]" : on ? " [deriveCheck:true]" : " [deriveCheck:false]");
     const edited = editLabel(spec.en, spec.site);
     let out;
-    try { out = { kind: "compiled", ts: EN.compileFileEn(edited, index, { deriveCheck: on }) }; }
+    try { out = { kind: "compiled", ts: EN.compileFileEn(edited, index, on === undefined ? undefined : { deriveCheck: on }) }; }
     catch (e) { out = { kind: "threw", msg: e.message }; }
     const silentlyPreferredPayload = out.kind === "compiled" && out.ts === spec.source;
     if (out.kind === "threw") console.log("    " + which + " -> REFUSED: " + out.msg.split("\n")[0]);
     else console.log("    " + which + " -> compiled" + (silentlyPreferredPayload ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs"));
-    ok(!silentlyPreferredPayload,
-      "8. the " + which + " does not compile the pre-edit TypeScript and report success");
+    /* the explicit-off row is EXPECTED to be silent — it is the escape hatch, asserted only so the
+     * hatch is shown to still exist and to still be the wrong behaviour. Everything else must not
+     * silently prefer the payload. */
+    if (on === false) {
+      ok(silentlyPreferredPayload || out.kind === "threw",
+        "8. deriveCheck:false is still an available escape hatch for the " + (spec === atomicSpec ? "atomic" : "structural") + " case");
+    } else {
+      ok(!silentlyPreferredPayload,
+        "8. the " + which + " does not compile the pre-edit TypeScript and report success");
+    }
   }
 }
 
