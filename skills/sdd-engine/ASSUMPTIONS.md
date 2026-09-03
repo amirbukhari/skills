@@ -6476,3 +6476,61 @@ is now a **choice** that has to be made deliberately rather than a property that
 
 This also puts **§2.2 ("names are cosmetic by construction") in direct conflict with §5C**. Filed
 under Q-1 for Amir; not resolved here, and chunk work stays on §2.2's side of it until he rules.
+
+---
+
+## The §2.2 conflict above is RULED — §5C wins (2026-09-03)
+
+The entry immediately above closes with *"Filed under Q-1 for Amir; not resolved here, and chunk work
+stays on §2.2's side of it until he rules."* **He ruled: §5C rule 2 wins.** Kept rather than edited
+in place, per §9, so a stale memory cannot re-derive the hold.
+
+§2.2's *"names are cosmetic by construction"* bundled two claims: **(a)** a name can never silently
+alter the program, and **(b)** the label region is inert. Rule 2 kills (b). (a) survives, and is now
+stated *more strongly* — **identical bytes or a loud refusal, never different bytes** — because it
+holds **in the presence of an input** rather than by the absence of one. §2.2 is amended to that
+wording, superseded text quoted in place, citing `a5501a7` and `sentence-authority.test.js` at 20/20.
+**Q-1 is CLOSED.** Chunk work no longer stays on §2.2's side of anything.
+
+## Folder and program scales — the largest nameable thing is no longer a file (2026-09-03, `954795c`)
+
+`engine/en-scales.js`. A folder is a word made of its files' words; a program is a word made of its
+folders' words — the same LZW recursion, one and two levels up. Separate module on purpose, to keep
+this lane out of the per-site-production lane's functions.
+
+**Assumption made, and it is a real one:** the round-trip contract at scale is a **MAP, not a byte
+stream**. `compileFolderEn(renderFolderEn(files).en)` returns `rel → source`, every byte. Rendering
+to one concatenated stream would have been simpler and would have **silently made file boundaries
+part of the contract** — an inserted newline between two files would then be a compile difference.
+If anyone later wants a single byte stream at program scale, that is a new contract, not a tightening
+of this one.
+
+Measured, read-only, nothing written: 1037 files, 215 folders, maxDepth 8, 9,784,984 bytes of program
+`.en`, **round-trip byte-identical 1037/1037**, and file-scale byte-identity re-confirmed separately
+at 1037/1037. No re-render, no re-mine; verified against catalog `491bf65b…`.
+
+**Reported honestly rather than hidden: 2 folder names are UNCHECKED.** `_uncheckedNames` counts
+containers with no path witness (a synthetic or fully-relative container, `pathDepth < 0`). Their
+names are neither verified nor refused. That is a denominator, and it is exposed on the returned map
+precisely so nobody reads "0 disagreements" as "all names checked" — the §16 defect class in advance.
+
+**Four defects, every one caught by running it, none by reading it** — the fourth time in one night
+that exercising beat reading, which is now §16's standing lesson:
+
+1. **The folder-name check could not fire.** On compile the name was recovered by slicing the written
+   heading up to its first `":"`, so any name edit was **self-fulfilling**. Fixed *structurally*, not
+   by a better slice: `SEP = "▸"` makes the name its own field, cross-checked against the **file
+   paths** rather than against itself. A guard that reads its own input cannot fail.
+2. **Doubled `root src: src: alpha:`** — the program wrapped a FOLDER named `src` inside a PROGRAM
+   named `src`. Fixed by descending through single wrapping directories and taking the name from the
+   paths.
+3. **`pathDepth` conflated with nesting depth** — a nested *relative* folder checked its name against
+   `parts[1]` of a path whose `parts[0]` **was** the name: a confident mismatch on a correct
+   container. The opposite failure to (1) — a guard firing when it should not — and it has its own
+   pinning assertion (§7 of `en-scales.test.js`) so the fix for one cannot re-break the other.
+4. **A false positive the fixture could never have shown.** The corpus root has three top-level
+   dirs, so the program root consumed no path segment and every depth was off by one
+   (`named: enums / paths say: EDocumentType.ts`). Six-file fixtures agree with any depth convention.
+   The PROGRAM entry now records its **consumed prefix** (`"."` = synthetic). **The lesson is the
+   fixture's, not the code's:** a synthetic corpus shares the shape you gave it, so it cannot
+   contradict the assumption you built it under.

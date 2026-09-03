@@ -76,7 +76,63 @@ The three, in the order they happened:
    non-default value must state the default it is contrasting with**, and changing a default means
    auditing every guard that mentions it. A guard has a shelf life.
 
+5. **A MEASUREMENT that read low — a different cost from a guard that cannot fire, and the only
+   one on this list that spends your time rather than its own.**
+   `statement-kind-coverage.test.js` produces the **production work order**: which of the fourteen
+   statement kinds to build first. It classified each site by `spanActions(...).actions[0]` — but
+   `spanActions` returns `{ actions, guards }`, and a guard-shaped `if` speaks through **guards**.
+   An entire clause channel was counted as silence. All **775** `IfStatement` sites it reported as
+   "no clause" carry a guard clause; **zero** are genuinely silent, and among the ones it scored as
+   nothing were *"no data in this file"* and *"incorrectly formatted file"*. `IfStatement` was the
+   work order's top priority on the strength of that column; corrected, it is 417 generic and 77%
+   site-specific — mid-tier. Found by skills-4a, 2026-09-03 (`0769400`), one step before building
+   productions against 775 sites that already spoke.
+   **Rule it produced — and why it is filed apart from 1–4.** Those four were **guards** that could
+   not fire, and *a guard that cannot fire wastes itself*. This was a **measurement that
+   undercounted**, and a bad measurement does not fail in place: **it sends the work somewhere it
+   wasn't needed.** Failing silent and measuring low are different costs, and only the second one
+   spends your time. The mechanism — *a producer with two channels and a consumer reading one* — is
+   ruled as a checklist step in **§8B.9.1**, with all three of its instances named; it is not
+   restated here. The lesson that belongs here is the *direction* of the failure: **a low number is
+   reassuring, so nothing prompts the second look that a crash would have forced.**
+
 **The shape they share:** every one of these failed in the **reassuring** direction — a confident
 zero, a comment agreeing with itself, two sessions agreeing with each other. §3's *"a guard that
 cries wolf gets ignored, then removed"* has a mirror, and it is worse: **a check that cannot fire,
 or a claim that cannot be contradicted, reports success no matter what is true.**
+
+---
+
+## THE SAME DEFECT ONE LAYER UP — INSTRUCTIONS, NOT TESTS
+
+Filed here rather than in an operations doc, because it is this section's failure mode exactly:
+**invisible until exercised, and reassuring while invisible.**
+
+Twice on 2026-09-03, within three hours, two parallel sessions were handed instructions that were
+each **coherent in isolation and jointly inconsistent about one shared operation** — first the
+`ALLOW_ORPHANS` name APPLY, then the `MIN_SKEL=1` re-mine. One lane's instruction said *proceed*;
+the other's said *parked*. Neither lane could see the contradiction from inside its own instruction
+set, and **the only detector either time was one lane acting** — which is to say, the contradiction
+was discovered by being executed. The first time it completed before the objection landed (the
+outcome was safe: 3,582 chunk names preserved, 0 lost, `5bb65f5`). The second time the lane held,
+reported the *pattern* rather than the individual call, and was right to.
+
+*Amir, 2026-09-03, taking it as his own:* **"Twice in three hours I handed the two of you
+instructions that were each coherent alone and jointly contradictory about one shared operation
+(this re-mine, and `ALLOW_ORPHANS` before it), and both times the only detector was one of you
+moving. That's my coordination failure, not yours."** And on the holding: **"I'd rather lose ten
+minutes than have that class of thing land silently."**
+
+**The protocol, effective 2026-09-03:**
+
+> Any instruction touching **shared state** — the catalog, the corpus, a render, a re-mine — is
+> issued to **every** lane in the **same message**. A shared-state instruction that names only one
+> lane is **incomplete**: the lane receiving it does not act on it, and says so.
+
+The corollary is the load-bearing half, because it is the one that costs something: **this cuts
+against acting even when the merits are clear.** The `MIN_SKEL=1` re-mine was close to riskless —
+zero names orphaned across four full mines, byte-identity held, the catalog regenerable — and it was
+still correctly held, precisely because a protocol that yields whenever the merits look good is not
+a protocol. A lane that would act on a favourable reading of an incomplete instruction has no
+detector at all; it has a habit that happened not to have cost anything yet.
+
