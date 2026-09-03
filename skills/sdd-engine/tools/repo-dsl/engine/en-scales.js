@@ -141,7 +141,31 @@ function programLabel(name, folderWords) {
  *
  * The tree is built from the path map rather than from the filesystem, so this is testable on a
  * fixture and never walks anything. SOURCE is never read here (CLAUDE.md §2). */
+/* REFUSE AN EMPTY OR WRONG-SHAPED `files`, rather than rendering a program with nothing in it.
+ * Measured 2026-09-03, in my own harness: handing this a `Map` instead of a plain object produced a
+ * 24-byte program `.en`, `stats.files === 0`, and a round-trip of 0/1038 — a total failure reported
+ * as a clean, confident zero. `Object.keys(new Map([...]))` is `[]`, so every path simply vanished
+ * and nothing anywhere said so. That is §16's failure direction inside the module §16 was written
+ * alongside, so it is a refusal now: a caller that hands us no files has made a mistake, and a
+ * caller that hands us a Map has made a mistake this signature cannot silently absorb. */
+function assertFilesShape(files) {
+  if (files === null || typeof files !== "object") {
+    throw new Error("renderFolderEn/renderProgramEn need a plain object of rel -> source; got " +
+      (files === null ? "null" : typeof files));
+  }
+  if (typeof files.get === "function" && typeof files.set === "function") {
+    throw new Error("renderFolderEn/renderProgramEn take a PLAIN OBJECT of rel -> source, not a Map." +
+      "\n  A Map yields no Object.keys(), so every file would be silently dropped." +
+      "\n  fix:  Object.fromEntries(files)");
+  }
+  if (Object.keys(files).length === 0) {
+    throw new Error("renderFolderEn/renderProgramEn were handed ZERO files." +
+      "\n  Rendering an empty program is never what a caller means; it is a walk that matched nothing.");
+  }
+}
+
 function buildTree(files) {
+  assertFilesShape(files);
   const root = { dirs: new Map(), files: [] };
   for (const rel of Object.keys(files).sort()) {
     assertPathSafe(rel);
@@ -376,5 +400,6 @@ const compileProgramEn = compileScales;
 module.exports = { OPEN, CLOSE, BODY_OPEN, BODY_CLOSE, FILE_IN, FOLDER, PROGRAM,
   SEP, MARKERS, assertPathSafe, matchClose, topWordsOf,
   folderLabel, programLabel, buildTree,
+  assertFilesShape,
   renderFolderEn, renderProgramEn, compileFolderEn, compileProgramEn, compileScales };
 

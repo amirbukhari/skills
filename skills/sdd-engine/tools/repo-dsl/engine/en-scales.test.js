@@ -18,6 +18,11 @@ const S = require("./en-scales");
 const CR = require("./corpus-root");
 
 let pass = 0, fail = 0;
+function threw(fn, re) {
+  try { fn(); } catch (e) { return re.test(e.message); }
+  return false;
+}
+
 const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fail++; process.exitCode = 1; } else { pass++; console.log("ok - " + m); } };
 const eq = (a, b, m) => ok(a === b, m + "  (got " + JSON.stringify(a) + ", want " + JSON.stringify(b) + ")");
 
@@ -190,6 +195,22 @@ console.log("\n  --- 7. a nested RELATIVE folder is not mistaken for a rooted on
       "7. the INNER folder's name is cross-checked against parts[0] of its relative paths");
   }
 }
+
+
+/* ---- 8. A WRONG-SHAPED `files` IS REFUSED, NOT RENDERED EMPTY ------------------------------- */
+console.log("\n  --- 8. zero files / a Map / a non-object are refusals, not a confident zero ---");
+/* This section exists because the defect it pins actually happened, to me, in my own verification
+ * harness: I passed a Map (and dropped the `index` argument), and got a 24-byte program, files 0,
+ * and 0/1038 round-trip — a complete failure that LOOKED like a measurement. §16's whole subject. */
+ok(threw(() => EN.renderProgramEn(new Map(Object.entries(FILES)), index, { name: "src" }),
+        /PLAIN OBJECT of rel -> source, not a Map/),
+   "8. a Map is refused by name, with the fix in the message (it would drop every file silently)");
+ok(threw(() => EN.renderProgramEn({}, index, { name: "src" }), /ZERO files/),
+   "8. zero files is a refusal, not an empty program");
+ok(threw(() => EN.renderFolderEn(null, index), /got null/),
+   "8. a non-object is refused, naming what it got");
+ok(threw(() => EN.renderFolderEn(new Map(), index), /not a Map/),
+   "8. the folder scale carries the same guard as the program scale");
 
 console.log("\n" + pass + " passed, " + fail + " failed");
 if (fail) console.error("\nThe folder and program scales are asserted in synth-composition.test.js §5; this file rules on\nwhat they do. A failure here is a regression in the scale composition, not an expected red.");
