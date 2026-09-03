@@ -6092,15 +6092,38 @@ was calibrated when identifiers were baked into skeletons so that 8 bytes meant 
 than it does now. The measurement above is against a different metric (review surface) and does not
 show the predicted cost: chunk count FELL.
 
-## 2026-09-03 — the live catalog is stale against the committed canon
+## 2026-09-03 — ~~the live catalog is stale against the committed canon~~ **RETRACTED, FALSE**
 
-`2d83452` made statement bodies slots and shipped default-on, but the live catalog was mined under
-the old canon. Key computation and key storage therefore disagree, and measured against the live
-catalog the surface is 3,527 top / 23,935 tree — worse than the 1,582 / 20,999 baseline — while
-byte-identity still holds 1037/1037 because the verbatim fallback absorbs every miss. A re-mine
-restores exactly 1,582 / 20,999. This is the §8B producer/consumer shape in the artifact rather than
-in the code: **any canon change is incomplete until the corpus is re-mined**, and the failure is
-silent in the only metric that is checked first.
+**This entry was wrong. The live catalog is NOT stale and never was.** Retracted 2026-09-03, same
+day, in commit `2b0d9ff`; the claim also appears in `90ea07b`'s commit message, which cannot be
+rewritten, and in `preflight.js`'s header where a peer session had adopted it on my word.
+
+*The retracted text, quoted in place per §9:* "`2d83452` made statement bodies slots and shipped
+default-on, but the live catalog was mined under the old canon. Key computation and key storage
+therefore disagree, and measured against the live catalog the surface is 3,527 top / 23,935 tree —
+worse than the 1,582 / 20,999 baseline — while byte-identity still holds 1037/1037 because the
+verbatim fallback absorbs every miss. A re-mine restores exactly 1,582 / 20,999."
+
+**What is actually true.** The live catalog was mined `2026-09-03T02:51:40Z`, which is AFTER
+`2d83452`, and it carries the body-slot canon — 4,787 narrow leaves, 717 `‹body›` holes, 0
+`‹callee›` holes, exactly what the committed code produces. Measured against it: **1,582 top /
+20,999 tree, byte-identity 1037/1037** — the baseline exactly, both ceilings met.
+
+**Where the 3,527 came from: this session's own uncommitted working tree.** The measurement was
+taken while `SDD_EXPR_SLOT` was uncommitted AND still defaulting ON (`!== "0"`), so the renderer was
+computing expr-slot skeletons against a body-slot catalog — a canon mismatch introduced minutes
+earlier, in the working tree, by me. It was attributed to `SDD_BODY_SLOT` and the catalog's mtime.
+
+**The mistake worth remembering is not the misattribution.** It is that the default was later flipped
+to `=== "1"` before committing, which silently repaired the mismatch, and **the live number was never
+re-measured after the flip**. A measurement whose premise has been edited out from under it is not
+evidence any more, and a stale number was carried forward — and relayed to a peer session twice, and
+adopted into their artifact — for hours. Re-measure after changing the thing you measured through.
+
+**What survives.** The canon gate (`90ea07b`) is *more* justified, not less: it fires on precisely
+this mismatch and would have printed the disagreement in one line instead of costing two sessions
+hours of wrong conclusions. The class of failure it guards is real; it simply had no live member.
+And the orphan findings are untouched — see the correction below on what actually orphaned the 974.
 
 ### The lane, finished: 19/19 present, and name-queue publishes without relaxing the refusal (2026-09-02)
 
@@ -6272,3 +6295,44 @@ present-and-different fingerprint throws, because at that point the skeletons ar
 and rendering on produces a degraded corpus rather than a broken one, which is the harder failure to
 notice and the one that already happened. `SDD_CANON_CHECK=0` escapes it for side-by-side work.
 Byte-identity re-confirmed 1037/1037 both directions with the gate installed.
+
+## 2026-09-03 — what actually orphaned the 974, and that all of them are recoverable
+
+Corrects the cause stated in the two entries above and in `90ea07b`'s message, which both said a
+*future* re-mine would orphan 974 chunk names. **It already happened.**
+
+The names were written at 2026-09-02 07:31 (`3c4b413`, 3,566 chunk names from the Tier-2 worksheet;
+`apply-worksheet-names.js` resolved every row through `chunkKeyOf` against the dictionary on disk and
+reported 0 unresolved). The corpus was then re-mined under the body-slot canon at **22:51 the same
+day — fifteen hours later.** That re-mine changed the leaf skeletons under 974 of those chunks, so
+their content-hash keys stopped resolving. Nothing recorded it, because `reconcile-names.js` walks
+the 6-entry leaf ledger and never reads `chunks`.
+
+**Measured, so the cause is not inferred:** the set of chunk keys unresolvable against the *original*
+live catalog and the set unresolvable against a *freshly re-mined* one are **identical** — 974 and
+974, with 0 only-original and 0 only-re-mined. So a further re-mine orphans **zero** additional chunk
+names. Prevention was never the deliverable; recovery is.
+
+**All 974 are recoverable.** Every pre-body-slot catalog still on disk resolves **974 / 974** —
+`gen-lzw.backup.json` (2026-08-31), `backup/`, `mine-control/`, `mine-semi/`, `mine2/`, `baseline/`.
+So the leaf skeletons the names were authored against can be reconstructed exactly, and the names
+re-attached through a proposal pass rather than written off.
+
+## 2026-09-03 — the chunk record schema is why §5C rule 2 is UNIMPLEMENTABLE, not merely unimplemented
+
+A leaf name stores the skeleton it names; a chunk name does not:
+
+    w:c187e9fc...  { "sym": "return ‹id›(‹args›).‹m› > ‹num› ? ‹arr› : null;", "en": "...", "sites": 2 }
+    wc:a4da75fa... { "en": "take billingaccountsreceived", "len": 2, "note": "..." }
+
+§5C rule 2 — "match orphans BEFORE generating" — scores an unnamed word against each orphan by
+token-level edit distance over the canonical skeleton. The chunk key is a one-way hash of the joined
+leaf skeletons, and the record keeps nothing else. **So for chunks there is nothing to score
+against.** Rules 1, 3 and 4 are hollow for the same reason: the ledger can hold an orphan, but
+nothing can ever propose it back.
+
+This is the root pattern; the 974 are the instance. The fix is that chunk records carry `leaves`
+going forward, so a name always knows what it names even after its key stops resolving. Recovery is
+only possible at all because the pre-body-slot catalogs happen to still exist in a scratch directory
+— which is not a recovery strategy, it is luck, and it is exactly what the schema change removes the
+need for.
