@@ -81,7 +81,27 @@ const TREE_CEILING = 20214;
  * current shape and today's harness reads 0 clauses for all 33,918 statements against them -- that
  * is a harness incompatibility, NOT a reading of 33,918 mutes, and publishing it as an origin would
  * flatter this metric enormously. So the series starts where it can honestly be measured. */
-const MUTE_CEILING = 2746;
+const MUTE_CEILING = 2410;
+
+/* KNOWN OVER-COUNT IN THIS METRIC, MEASURED AND DELIBERATELY NOT CORRECTED.
+ * `generic` asks whether a clause quotes a token that appears LITERALLY in the statement's text.
+ * Two truthful clause shapes fail that test and are scored mute anyway. Of the 2,330 generic:
+ *
+ *   934  the clause carries an ellipsis and its LITERAL FRAGMENTS do appear in the source --
+ *        `throw “Invalid data: … must be a number, numeric string, or null”` against
+ *        `throw new Error(`Invalid data: ${v} must be a number, numeric string, or null`)`.
+ *        The clause is fully informative; the substring test cannot match across the hole.
+ *   325  a complete literal return with no identifier available to quote -- "return false",
+ *        "return an empty list", "return". These are maximal descriptions of their statements.
+ *  1,071  the remainder, which genuinely says nothing.
+ *
+ * SO THE TRUE MUTE COUNT IS NEARER 1,151 (1,071 + 80 vacuous) THAN 2,410, AND THE CEILING STAYS
+ * 2,410 ANYWAY. Amir, 2026-09-03: "If you ever find yourself editing the definition of mute in the
+ * same commit as a drop in mutes, stop and tell me." That is exactly the situation -- the template
+ * production landed and the metric could not see it -- so the definition is untouched, the
+ * discrepancy is measured and written down, and the ruling is his. Adjusting the rule that scores a
+ * number in the same breath as improving the number is how a metric stops meaning anything, even
+ * when every individual figure in it is true. */
 
 const walk = (d, o = []) => {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {

@@ -242,7 +242,22 @@ function throwMessage(node) {
     if ((ts.isNewExpression(n) || ts.isCallExpression(n)) && n.arguments && n.arguments.length) {
       const arg = n.arguments[0];
       if (ts.isStringLiteralLike(arg)) { msg = arg.text; return; }
-      if (ts.isTemplateExpression(arg)) { msg = arg.head.text + "…"; return; }
+      if (ts.isTemplateExpression(arg)) {
+        /* RENDER THE WHOLE TEMPLATE, not just its head. `arg.head.text + "…"` produced the empty
+         * string for every message that STARTS with a substitution -- and those are the common
+         * shape -- so `throw new Error(`${value} is not a TDailyRateType`)` reported its message as
+         * "…" and the clause read `throw “…”`. The literal spans between the holes are the part a
+         * reader recognises and are what makes the clause site-specific; the holes are the part
+         * that varies per call and are honestly shown as an ellipsis.
+         *   `${value} is not a TDailyRateType`      -> "… is not a TDailyRateType"
+         *   `Invoice ${id} is already paid.`        -> "Invoice … is already paid" */
+        const bits = [arg.head.text];
+        for (const sp of arg.templateSpans) bits.push("…", sp.literal.text);
+        const joined = bits.join("").replace(/\s+/g, " ").trim();
+        /* all holes and no words says nothing; let the caller fall through to the class name. */
+        msg = /[A-Za-z0-9]/.test(joined.replace(/…/g, "")) ? joined : null;
+        if (msg) return;
+      }
     }
     ts.forEachChild(n, v);
   };
@@ -981,6 +996,14 @@ function spanActions(win, sf) {
       if (m) { actions.push("throw “" + m + "”"); continue; }
       const d = dottedText(st.expression, sf);
       if (d) { actions.push("re-throw " + q(d)); continue; }
+      /* No usable message: the ERROR CLASS is the next most informative true thing, and it is a
+       * name the reader will grep for (PRD §3), so it is quoted verbatim rather than translated. */
+      if (ts.isNewExpression(st.expression) && ts.isIdentifier(st.expression.expression)) {
+        const cls = st.expression.expression.text;
+        const argd = st.expression.arguments && st.expression.arguments[0] && dottedText(st.expression.arguments[0], sf);
+        if (argd) { actions.push("throw " + q(cls) + " built from " + q(argd)); continue; }
+        actions.push("throw " + q(cls)); continue;
+      }
       const arg = ts.isNewExpression(st.expression) && st.expression.arguments && st.expression.arguments[0];
       const ad = arg && dottedText(arg, sf);
       if (ad) { actions.push("throw an error built from " + q(ad)); continue; }
@@ -1105,8 +1128,19 @@ function spanActions(win, sf) {
     }
 
     if (ts.isForStatement(st) || ts.isForOfStatement(st) || ts.isForInStatement(st) || ts.isWhileStatement(st) || ts.isDoStatement(st)) {
+      /* `for (const c of restSorted.filter(...))` yielded firstCallName "filter" -> "loop over
+       * filter", naming the transformation and discarding the collection. The receiver is what the
+       * reader is tracking -- the same defect as "call to be" and "return map". */
+      const it = (ts.isForOfStatement(st) || ts.isForInStatement(st)) ? st.expression : null;
+      if (it && ts.isCallExpression(it) && ts.isPropertyAccessExpression(it.expression)) {
+        const recv = dottedText(it.expression.expression, sf);
+        const meth = it.expression.name.text;
+        if (recv && RETURN_VERBS[meth]) { actions.push("loop over " + q(recv) + " " + RETURN_VERBS[meth]); continue; }
+        const dot = dottedText(it.expression, sf);
+        if (dot) { actions.push("loop over the result of " + q(dot)); continue; }
+      }
       const c = firstCallName(st);
-      if (c) { actions.push("loop over " + P.words(c)); continue; }
+      if (c) { actions.push("loop over " + q(c)); continue; }
       const over = (ts.isForOfStatement(st) || ts.isForInStatement(st)) ? dottedText(st.expression, sf)
         : (ts.isForStatement(st) && st.condition ? inputsOf(st.condition, sf).filter((x) => !/^i$|^j$|^k$/.test(x))[0] : null);
       actions.push(over ? "loop over " + q(over) : "loop"); continue;
@@ -1140,7 +1174,12 @@ function spanActions(win, sf) {
 
     if (ts.isTryStatement(st)) {
       const c = firstCallName(st.tryBlock);
-      if (c) { actions.push("try " + P.words(c)); continue; }
+      /* QUOTED VERBATIM, NOT DE-CAMEL-CASED. `P.words` turned `intVal` into "int val" and
+       * `getXeroClient` into "get xero client" -- neither string appears anywhere in the source, so
+       * the clause named nothing the reader could grep for, and 98% of TryStatement sites measured
+       * generic. This follows the precedent this file already sets for declarations: the names are
+       * already the clearest available words (PRD §3), so they are quoted, not translated. */
+      if (c) { actions.push("try " + q(c)); continue; }
       const first = st.tryBlock.statements[0];
       const inner = first ? spanProse([first], sf) : null;
       actions.push(inner && !/^(run a step|compute a value)$/.test(inner) ? "try to " + inner + ", recovering on error" : "run a try/catch");
