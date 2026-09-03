@@ -32,6 +32,15 @@
 
 const TAG = "lzw1";
 const H_MARK = "⟨", ESC = "⟡";
+/* THE CHILD MARK. `lzw1 n842c0,3⟨…` says holes 0 and 3 are child slots: their bytes are produced by
+ * an interior compile, not carried here. It sits between the word id and the first hole because the
+ * word id is digits and `c` is not, so the existing digit scan terminates on it unchanged and every
+ * payload written before this mark existed decodes byte-for-byte identically (next char is ⟨ or EOF).
+ *
+ * Indices are STRICTLY INCREASING, which is a canonicalisation and not decoration: it makes
+ * encode(decode(x)) === x, so a payload has exactly one spelling and a diff over the corpus means a
+ * real change rather than a reordering. Anything else is refused. */
+const C_MARK = "c";
 
 /* Escape table. ESC must map first on encode so its own occurrences are not double-read. */
 const ESCAPES = [
@@ -214,6 +223,19 @@ function encode(obj) {
   if (!Number.isInteger(obj.w) || obj.w < 0) throw new Error(`payload: word id must be a non-negative integer, got ${JSON.stringify(obj.w)}`);
   const holes = obj.h || [];
   let out = TAG + " " + axis + obj.w;
+  if (obj.c !== undefined && obj.c !== null) {
+    if (!Array.isArray(obj.c)) throw new Error(`payload: child slots must be an array, got ${typeof obj.c}`);
+    if (obj.c.length) {
+      let prev = -1;
+      for (const i of obj.c) {
+        if (!Number.isInteger(i) || i < 0) throw new Error(`payload: child slot must be a non-negative integer, got ${JSON.stringify(i)}`);
+        if (i >= holes.length) throw new Error(`payload: child slot ${i} is not a hole index (${holes.length} hole(s))`);
+        if (i <= prev) throw new Error(`payload: child slots must be strictly increasing, got ${JSON.stringify(obj.c)}`);
+        prev = i;
+      }
+      out += C_MARK + obj.c.join(",");
+    }
+  }
   for (const h of holes) {
     if (typeof h !== "string") throw new Error(`payload: hole must be a string, got ${typeof h}`);
     const en = encodeHoleEnglish(h);
@@ -240,6 +262,20 @@ function decode(text) {
   while (i < text.length && text[i] >= "0" && text[i] <= "9") { digits += text[i]; i++; }
   if (!digits) throw new Error("payload: generator payload carries no word id");
   const w = Number(digits);
+  const c = [];
+  if (text[i] === C_MARK) {
+    i++;
+    let field = "";
+    while (i < text.length && text[i] !== H_MARK) { field += text[i]; i++; }
+    if (!field) throw new Error(`payload: "${C_MARK}" child mark with no slot indices after it`);
+    let prev = -1;
+    for (const part of field.split(",")) {
+      if (!/^[0-9]+$/.test(part)) throw new Error(`payload: child slot ${JSON.stringify(part)} is not a non-negative integer`);
+      const n = Number(part);
+      if (n <= prev) throw new Error(`payload: child slots must be strictly increasing, got ${JSON.stringify(field)}`);
+      prev = n; c.push(n);
+    }
+  }
   const h = [];
   if (i < text.length) {
     if (text[i] !== H_MARK) throw new Error(`payload: expected ${H_MARK} at offset ${i}, got ${JSON.stringify(text[i])}`);
@@ -251,7 +287,11 @@ function decode(text) {
       h.push(en !== null ? en : unescapeHole(part));
     }
   }
-  return { d: "lzw", a: axis, w, h };
+  /* Range-checked AFTER the holes are read, because until then there is nothing to check against.
+   * A slot past the end is a corrupt payload, not a payload with an empty child. */
+  for (const n of c)
+    if (n >= h.length) throw new Error(`payload: child slot ${n} is not a hole index (${h.length} hole(s))`);
+  return c.length ? { d: "lzw", a: axis, w, h, c } : { d: "lzw", a: axis, w, h };
 }
 
-module.exports = { TAG, encode, decode, escapeHole, unescapeHole, encodeHoleEnglish, decodeHoleEnglish, RULES };
+module.exports = { TAG, C_MARK, encode, decode, escapeHole, unescapeHole, encodeHoleEnglish, decodeHoleEnglish, RULES };

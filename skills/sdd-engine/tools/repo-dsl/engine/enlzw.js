@@ -303,11 +303,51 @@ function runWord(run, sf, source, cat) {
   return null;
 }
 
-/* compile one span payload back to exact source bytes. */
-function compileSpan(payload, cat) {
+/* compile one span payload back to exact source bytes.
+ *
+ * INTERIOR PRODUCTION — LANDED, AND DELIBERATELY UNUSED. `opts.compileChild` lets a caller supply
+ * the source bytes for holes the payload marks as child slots (`payload.c`), instead of the payload
+ * carrying those bytes as hole text. Nothing in the renderer wires it, and per the 2026-09-03
+ * ruling nothing is to: measured corpus-wide, routing if-blocks through it costs +1,403 constructs
+ * rather than saving 2,215, because the braces are HOLE TEXT and hole text is on the page.
+ *
+ * It is landed rather than deleted so the door is open in CODE and not in memory —
+ * interior-production.test.js asserts the price is not a reduction and FIRES if the braces ever do
+ * leave the page, which needs a canon change (§10:42: 0 of 244,795 dictionary words wrap a content
+ * hole in braces; the 232 that wrap anything wrap a `gap`, i.e. an empty body).
+ *
+ * IT THROWS RATHER THAN RETURNING NULL, on purpose. `refill` splices its argument in positionally,
+ * so a null would land the four characters "null" in the output and byte-identity would report the
+ * file as WRONG BYTES with no indication of which hole did it. Refusing loudly is the §8 contract. */
+function compileSpan(payload, cat, opts) {
   const axis = payload.a === "n" ? cat.narrow : cat.wide;
   const key = expandKey(axis, payload.w);
-  return G.refill(key, payload.h);
+  let holes = payload.h;
+  const slots = payload.c;
+  if (slots && slots.length) {
+    /* A child slot with no producer is not a default-to-hole-text case: the payload was written by
+     * an encoder that believed the bytes live elsewhere, so the hole text is NOT the source. */
+    if (!opts || typeof opts.compileChild !== "function")
+      throw new Error("enlzw: payload marks " + slots.length + " child slot(s) but no opts.compileChild was given"
+        + " — refusing to compile hole text that is not the source");
+    /* Arity is checked against the KEY, not against payload.h, so a dictionary word that changed
+     * shape under a re-mine is refused here rather than silently mis-filled. */
+    const types = (key.match(/‹\w+›/g) || []).length;
+    if (types !== holes.length)
+      throw new Error("enlzw: word " + payload.w + " on axis " + payload.a + " expects " + types
+        + " holes, payload carries " + holes.length + " — refusing to refill");
+    holes = holes.slice();
+    for (let n = 0; n < slots.length; n++) {
+      const i = slots[n];
+      if (!Number.isInteger(i) || i < 0 || i >= holes.length)
+        throw new Error("enlzw: child slot " + JSON.stringify(i) + " is not a hole index of word " + payload.w);
+      const bytes = opts.compileChild(n);
+      if (typeof bytes !== "string")
+        throw new Error("enlzw: compileChild(" + n + ") returned " + typeof bytes + ", expected the child's source bytes");
+      holes[i] = bytes;
+    }
+  }
+  return G.refill(key, holes);
 }
 
 module.exports = { loadLzw, genSpans, compileSpan, expandKey, isUnit, wordsAt, runWord };
