@@ -106,6 +106,34 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "re-renders every persisted .en against the dictionary and compares bytes (A5, half 1)",
   }],
+  /* ── THE STANDARDS SUITE (2026-09-03) ────────────────────────────────────────────────────────
+   * Six files that state what the .en must BE rather than what it currently is. Most are RED by
+   * design and are registered anyway: an unregistered red test is a report, a registered one is a
+   * requirement. `why` says which are red so a run is not misread as a regression. */
+  ["engine/english-complete.test.js", {
+    needs: ["generators-lzw"],
+    why: "§7's English-completeness predicate over every file with the WHOLE FILE as denominator (RED: 778/1037)",
+  }],
+  ["engine/statement-kind-coverage.test.js", {
+    needs: ["generators-lzw"],
+    why: "per-statement-kind production coverage — the §5C work order (RED: 4,193 generic + 65 vacuous + 775 silent)",
+  }],
+  ["engine/the-lift.test.js", {
+    needs: ["generators-lzw"],
+    why: "§4B THE LIFT as a prohibition — no file hides behind one sealed word (RED: 257 files)",
+  }],
+  ["engine/review-surface-ratchet.test.js", {
+    needs: ["generators-lzw"],
+    why: "one-way valve on review surface at both scales (GREEN — it guards everything the red tests change)",
+  }],
+  ["engine/sentence-authority.test.js", {
+    needs: ["generators-lzw"],
+    why: "§5C rules 2 and 3 — an English edit must reach the .ts and must never be resolved silently (RED)",
+  }],
+  ["engine/round-trip-fixpoint.test.js", {
+    needs: ["generators-lzw"],
+    why: "both round-trip directions are fixpoints: ts->en->ts AND en->ts->en (GREEN)",
+  }],
   ["engine/unit-boundary.test.js", {
     needs: ["generators-lzw"],
     why: "reads the recursive dictionary (enlzw.loadLzw)",
