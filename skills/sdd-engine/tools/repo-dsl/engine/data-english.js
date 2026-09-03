@@ -58,6 +58,47 @@ function renderVal(node, sf, nested) {
   if (ts.isSpreadElement(node)) { const inner = atom(node.expression.getText(sf)); return inner == null ? null : "spread " + inner; }
   return atom(node.getText(sf));
 }
+/* LAYOUT IS CONTENT, and that is a measured correction rather than a preference. This module's
+ * header said it "engages only on canonically-spaced source, bails otherwise" -- and the bail was
+ * costing 6,170 of 18,044 data leaves, carrying 30,890 braces, which is 64% of every brace left on
+ * the reading surface. Measured 2026-09-03 against the-goal.test.js: those nodes fail the byte-exact
+ * gate NOT because their content cannot be said in English, but because the English was re-emitted
+ * on one canonical line and the source was written across several. Only 365 nodes lose real content
+ * (comments, which this form genuinely cannot carry).
+ *
+ * So the separators are taken FROM THE SOURCE instead of being invented: the bytes between `{` and
+ * the first field, between each pair of fields (the comma and whatever whitespace follows it), and
+ * between the last field and `}` (which is where a trailing comma lives). The English then mirrors
+ * the shape of the thing it describes, and compileData reassembles the original bytes exactly.
+ *
+ * WHY THIS CANNOT BREAK BYTE-IDENTITY, structurally rather than by care: every caller reaches this
+ * through `dataByteExact`, which renders, compiles back, and compares against the source text. A
+ * node whose round-trip fails is simply not made into a span and stays verbatim exactly as it is
+ * today. The worst case of a bug here is NO IMPROVEMENT, never a wrong byte. */
+function gapText(sf, from, to) {
+  const t = sf.getFullText().slice(from, to);
+  /* a gap must be punctuation and whitespace only -- a comment in the gap is real content this form
+   * cannot carry, and it bails rather than silently dropping it (365 nodes, measured). */
+  return /^[\s,]*$/.test(t) ? t : null;
+}
+function joinWithSourceGaps(node, sf, items, nodes, eatOneSpace) {
+  const open = node.getStart(sf) + 1, close = node.getEnd() - 1;
+  let lead = gapText(sf, open, nodes[0].getStart(sf));
+  /* `an object with ` already ends in a space, so a canonical `{ a: 1 }` would otherwise render
+   * with two. The English keeps its own word boundary and the SOURCE's single space is folded into
+   * it; `reassemble` puts it back by the mirror-image rule. Anything other than one plain space --
+   * a newline and indent, say -- is layout and is carried through untouched. */
+  if (eatOneSpace && lead === " ") lead = "";
+  const tail = gapText(sf, nodes[nodes.length - 1].getEnd(), close);
+  if (lead == null || tail == null) return null;
+  let out = lead + items[0];
+  for (let i = 1; i < items.length; i++) {
+    const g = gapText(sf, nodes[i - 1].getEnd(), nodes[i].getStart(sf));
+    if (g == null) return null;
+    out += g + items[i];
+  }
+  return out + tail;
+}
 function renderObject(node, sf) {
   if (node.properties.length === 0) return "an empty object";
   const parts = [];
@@ -72,13 +113,15 @@ function renderObject(node, sf) {
       const inner = atom(p.expression.getText(sf)); if (inner == null) return null; parts.push("spread " + inner);
     } else return null; // method / accessor -> out of domain
   }
-  return "an object with " + parts.join(", ");
+  const body = joinWithSourceGaps(node, sf, parts, [...node.properties], true);
+  return body == null ? null : "an object with " + body;
 }
 function renderArray(node, sf) {
   if (node.elements.length === 0) return "an empty list";
   const vals = [];
   for (const e of node.elements) { if (ts.isOmittedExpression(e)) return null; const v = renderVal(e, sf, true); if (v == null) return null; vals.push(v); }
-  return "a list of " + vals.join(", ");
+  const body = joinWithSourceGaps(node, sf, vals, [...node.elements], false);
+  return body == null ? null : "a list of " + body;
 }
 function renderTemplate(node, sf) {
   const strip = (t, lead, tail) => t.slice(lead, t.length - tail);
@@ -95,27 +138,48 @@ function renderTemplate(node, sf) {
 }
 
 /* ============================ COMPILE (English -> TS) ============================ */
-function compileData(text) { return parseVal(text.trim()); }
+/* DO NOT TRIM HERE. The trailing gap of an object or list -- the bytes between its last field and
+ * its closing brace, which is exactly where a trailing comma and its newline live -- is part of the
+ * node's own text, so trimming it silently truncated every multi-line literal. That single .trim()
+ * was one of the two reasons 6,170 data leaves failed the byte-exact gate; found by unit-testing
+ * the round trip on ten shapes rather than by reading this function, which looks obviously correct. */
+function compileData(text) { return parseVal(text); }
 function parseVal(s) {
-  s = s.trim();
-  if (s[0] === "(" && s[s.length - 1] === ")" && balanced(s)) return parseVal(s.slice(1, -1));
-  if (s === "an empty object") return "{}";
-  if (s === "an empty list") return "[]";
-  if (s[0] === "`" && s[s.length - 1] === "`") return s.slice(1, -1);
-  if (s.startsWith("spread `") && s.endsWith("`")) return "..." + s.slice("spread `".length, -1);
+  const t = s.trim();                       /* for MATCHING only -- never for slicing a body */
+  if (t[0] === "(" && t[t.length - 1] === ")" && balanced(t)) return parseVal(t.slice(1, -1));
+  if (t === "an empty object") return "{}";
+  if (t === "an empty list") return "[]";
+  if (t[0] === "`" && t[t.length - 1] === "`") return t.slice(1, -1);
+  if (t.startsWith("spread `") && t.endsWith("`")) return "..." + t.slice("spread `".length, -1);
+  s = s.replace(/^\s+/, "");               /* left-trim only: the RIGHT side carries the layout */
   if (s.startsWith("an object with ")) {
-    const fields = splitTop(s.slice("an object with ".length), ", ").map(parseField);
-    return "{ " + fields.join(", ") + " }";
+    return "{" + reassemble(s.slice("an object with ".length), parseField, true) + "}";
   }
   if (s.startsWith("a list of ")) {
-    const els = splitTop(s.slice("a list of ".length), ", ").map((e) => parseVal(e.trim()));
-    return "[" + els.join(", ") + "]";
+    return "[" + reassemble(s.slice("a list of ".length), (c) => parseVal(c), false) + "]";
   }
-  if (s.startsWith("text: “") && s.endsWith("”")) {
-    const inner = s.slice("text: “".length, -1);
+  if (t.startsWith("text: “") && t.endsWith("”")) {
+    const inner = t.slice("text: “".length, -1);
     return "`" + inner.replace(/⟨([^⟨⟩]*)⟩/g, (_, e) => "${" + e + "}") + "`";
   }
-  throw new Error("data-english: cannot parse value: " + s);
+  throw new Error("data-english: cannot parse value: " + t);
+}
+/* THE INVERSE OF joinWithSourceGaps. The gaps are carried in the English itself, so this splits on
+ * top-level commas and puts back whatever whitespace surrounded each one, rather than imposing a
+ * canonical ", ". An EMPTY core is not an error: it is a TRAILING COMMA, whose whitespace is the
+ * only thing left after the final separator, and dropping it was one of the two reasons 6,170 nodes
+ * failed the byte-exact gate. */
+function reassemble(body, parseCore, restoreOneSpace) {
+  const pieces = splitTop(body, ",");
+  const out = [];
+  for (let i = 0; i < pieces.length; i++) {
+    const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(pieces[i]);
+    let lead = m[1]; const core = m[2], trail = m[3];
+    /* the mirror of joinWithSourceGaps's eatOneSpace, and only ever on the FIRST field */
+    if (restoreOneSpace && i === 0 && lead === "") lead = " ";
+    out.push(core === "" ? lead : lead + parseCore(core) + trail);
+  }
+  return out.join(",");
 }
 function parseField(f) {
   f = f.trim();
