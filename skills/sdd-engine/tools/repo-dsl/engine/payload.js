@@ -43,10 +43,15 @@ const ESCAPES = [
    * bytes, silently. Measured 0 occurrences across 150,313 corpus holes, which is exactly the kind
    * of luck this module's header says the dialect work removed. */
   ["“", "8"], ["”", "9"],
+  /* The DATA hole wrapper, same reasoning: a raw hole that happened to be `⟦…⟧` would otherwise
+   * decode through `compileData` and produce wrong bytes. Absent from the .ts corpus (measured 0)
+   * and used as a sentinel nowhere in the engine, so it is free — and escaping it here is what
+   * makes that a guarantee instead of a fact about today's corpus. */
+  ["⟦", "a"], ["⟧", "b"],
 ];
 const ENC_MAP = new Map(ESCAPES.map(([ch, d]) => [ch, ESC + d]));
 const DEC_MAP = new Map(ESCAPES.map(([ch, d]) => [d, ch]));
-const NEEDS_ESC = /[⟡⟨⟩⟪⟫«»▶“”]/g;
+const NEEDS_ESC = /[⟡⟨⟩⟪⟫«»▶“”⟦⟧]/g;
 
 function escapeHole(s) { return s.replace(NEEDS_ESC, (ch) => ENC_MAP.get(ch)); }
 
@@ -74,21 +79,36 @@ function unescapeHole(s) {
  *   raw       'invoice.id'          on the page as   'invoice.id'
  *   encoded   “invoice.id”          on the page as   “invoice.id”
  *
- * It is TYPELESS ON PURPOSE, and that is the whole reason the change is 40 lines rather than a
- * redesign. A hole's type IS recoverable — `expandKey(axis, w)` yields the template and its `‹type›`
- * markers pair positionally with `h` (measured: 150,313 of 150,313, 0 unknown ids, 0 arity
- * mismatches). But needing it here would make `decode` depend on the catalog, and then a file
- * rendered WITH a catalog and compiled WITHOUT one produces wrong bytes. "Is this text exactly a
- * single-quoted literal" is decidable from the text alone, so encode and decode stay symmetric and
- * this file keeps its only dependency: itself.
+ * It is TYPELESS ON PURPOSE — the WRAPPER selects the rule, never the hole's declared type. A hole's
+ * type IS recoverable (`expandKey(axis, w)` yields the template and its `‹type›` markers pair
+ * positionally with `h` — measured 150,313 of 150,313, 0 unknown ids, 0 arity mismatches). But
+ * needing it in `decode` would make decode depend on the CATALOG, and then a file rendered with a
+ * catalog and compiled without one produces wrong bytes. Every question these rules ask is decidable
+ * from the hole text alone, so encode and decode cannot desync.
  *
- * A pleasant consequence of being typeless: it catches string-valued holes of EVERY type, not just
- * `str`. Measured 8,330 holes — 7,209 `str` and 1,121 `args` — which a type-directed rule aimed at
- * `str` would have missed by 13%.
+ * A consequence worth having: a typeless rule catches holes of EVERY type. The string rule fires on
+ * 7,209 `str` holes and 1,121 `args` holes — a rule aimed at `str` would have missed 13% of its own
+ * reach.
  *
- * WHAT IT IS WORTH, honestly. Those holes carry 8,356 constructs; 35 survive the change, because a
- * `;` or `,` INSIDE the string is still a `;` or `,` on the page (`'en-US,en;q=0.9'`). True
- * reduction 8,321 of a 138,387 headline — 6.0%. It is a first cut, not a fix.
+ * DEPENDENCIES, stated because an earlier version of this header claimed there were none. This file
+ * now requires `data-english.js` and, through it, `typescript` — the object/array rule needs a parse
+ * to know a hole is EXACTLY one data literal, and `compileData` is the inverse. Both are pure text
+ * functions with no catalog, so the symmetry argument above still holds; the self-containment claim
+ * does not, and is withdrawn rather than quietly left standing.
+ *
+ * WHAT IT IS WORTH, measured on the stripped page rather than projected per type. Re-encoding all
+ * 9,724 corpus payloads (4,270 change, 0 throw) moves `the-goal.test.js` from 138,387 to 112,205:
+ *
+ *   straight-quote-string  28,911 -> 14,251   -14,660
+ *   brace-block            47,913 -> 38,783    -9,130
+ *   bracket                14,481 -> 12,089    -2,392
+ *   NET                                       -26,182   (-18.9%)
+ *
+ * TWO HONEST NOTES ON THAT NUMBER. It is BIGGER than the per-type projection (8,321 + 9,167 =
+ * 17,488) because rendering an object also converts the string literals NESTED INSIDE it, which
+ * neither per-type projection counted — a projected reduction and a measured one are two different
+ * properties and the projection is the one that gets quoted. And DIRTY FILES GO 1035 -> 1035: not a
+ * single file comes clean. -18.9% is a first cut, not a fix.
  *
  * BYTE-IDENTITY IS BY CONSTRUCTION, TWICE.
  *   1. The per-hole gate is INLINE in `encode`: the English form is used only if it decodes back to
@@ -103,24 +123,87 @@ function unescapeHole(s) {
  * left raw: `'x'` and `"x"` would both render `“x”`, so the original quote character would not be
  * recoverable and byte-identity would fail. Encoding only the single-quoted form keeps the inversion
  * total. Widening this to guess the quote back is exactly the trade that produces wrong bytes.
+ *
+ * Likewise 16.7% of `obj`/`arr` holes are left raw — `renderData` returns null for anything that is
+ * not wholly data, and a hole that is a FRAGMENT beginning with a literal (`'{a:1} , x'` parses) is
+ * rejected by a position check rather than rendered. Both refusals are visible in the goal number,
+ * which is where they belong: §5C's honesty rule says an honest residue beats a cooked reduction.
  */
-const Q_OPEN = "“", Q_CLOSE = "”";
-/* No backslash and no newline inside: an escape sequence's meaning is quote-dependent, so `'a\'b'`
- * has no faithful `“ ”` form and is left raw rather than approximated. */
-const SINGLE_QUOTED = /^'([^'\\\n]*)'$/;
+const DE = require("./data-english");
+const ts = require("typescript");
 
-/* raw source hole -> dialect text, or null if this hole is not a plain single-quoted literal. */
-function toEnglishHole(raw) {
-  if (raw.indexOf(Q_OPEN) !== -1 || raw.indexOf(Q_CLOSE) !== -1) return null;
-  const m = SINGLE_QUOTED.exec(raw);
-  return m === null ? null : Q_OPEN + m[1] + Q_CLOSE;
+/* THE RULE TABLE. Each rule is a WRAPPER PAIR plus a total inverse pair over the wrapper's inner
+ * text. Adding a rule is additive and cannot affect the others, because the wrapper — not a prefix,
+ * not a guess about content — is what selects it, and every wrapper is in the escape table above.
+ *
+ * `to(raw)`   -> inner text, or null if the rule does not apply to this hole
+ * `from(inner)` -> raw source bytes, or null if the inner text is not well-formed for this rule
+ *
+ * Neither direction is trusted: `encode` verifies `from(to(raw)) === raw` per hole before using it.
+ */
+const RULES = [
+  {
+    name: "single-quoted string",
+    open: "“", close: "”",
+    /* No backslash and no newline inside: an escape sequence's meaning is quote-dependent, so
+     * `'a\'b'` has no faithful `“ ”` form and is left raw rather than approximated. */
+    to: (raw) => { const m = /^'([^'\\\n]*)'$/.exec(raw); return m === null ? null : m[1]; },
+    from: (inner) => "'" + inner + "'",
+  },
+  {
+    name: "object / array literal",
+    open: "⟦", close: "⟧",
+    to: (raw) => {
+      /* The hole must be EXACTLY one data literal — not a fragment that merely starts with one.
+       * The position check is what enforces that; `'{a:1} , x'` parses but does not qualify. */
+      const pre = "const _ = ";
+      const sf = ts.createSourceFile("h.ts", pre + raw + ";", ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      if (sf.parseDiagnostics && sf.parseDiagnostics.length) return null;
+      const d = sf.statements[0] && sf.statements[0].declarationList
+        && sf.statements[0].declarationList.declarations[0];
+      const e = d && d.initializer;
+      if (!e || (!ts.isObjectLiteralExpression(e) && !ts.isArrayLiteralExpression(e))) return null;
+      if (e.getStart(sf) !== pre.length || e.getEnd() !== pre.length + raw.length) return null;
+      let en = null;
+      try { en = DE.renderData(e, sf); } catch (_) { return null; }
+      if (en === null) return null;
+      /* REFUSED RATHER THAN ESCAPED. `renderData` writes a nested template literal as `“…”`, which
+       * is the other rule's wrapper. Escaping it would work but would put `⟡8`/`⟡9` pairs on Amir's
+       * page, and unreadable-but-correct is not what this exercise is for. A data hole carrying a
+       * template falls back to raw instead, and pays for it in the goal number where it shows. */
+      return /[“”⟦⟧]/.test(en) ? null : en;
+    },
+    from: (inner) => { try { return DE.compileData(inner); } catch (_) { return null; } },
+  },
+];
+
+/* raw hole -> ESCAPED payload text for that hole. Returns null when no rule applies or the
+ * round-trip is not exact, in which case `encode` falls back to the raw escaped form. */
+function encodeHoleEnglish(raw) {
+  for (const r of RULES) {
+    let inner;
+    try { inner = r.to(raw); } catch (_) { continue; }
+    if (inner === null || inner === undefined) continue;
+    const escaped = r.open + escapeHole(inner) + r.close;
+    /* THE GATE. Inline, and on the ESCAPED form, so what is verified is exactly what is written. */
+    if (decodeHoleEnglish(escaped) === raw) return escaped;
+  }
+  return null;
 }
 
-/* dialect text -> raw source hole, or null if this text is not an English-encoded hole.
- * Operates on ESCAPED text: see BYTE-IDENTITY note 2 above. */
-function fromEnglishHole(escaped) {
-  if (escaped.length < 2 || escaped[0] !== Q_OPEN || escaped[escaped.length - 1] !== Q_CLOSE) return null;
-  return "'" + unescapeHole(escaped.slice(1, -1)) + "'";
+/* ESCAPED payload text -> raw hole, or null if this hole is not English-encoded.
+ * Runs BEFORE `unescapeHole`: a raw hole's own `“ ” ⟦ ⟧` arrive here as escape pairs and so cannot
+ * impersonate a wrapper. This is the whole reason those four characters are in the escape table. */
+function decodeHoleEnglish(escaped) {
+  for (const r of RULES) {
+    if (escaped.length < 2 || escaped[0] !== r.open || escaped[escaped.length - 1] !== r.close) continue;
+    let inner;
+    try { inner = unescapeHole(escaped.slice(1, -1)); } catch (_) { return null; }
+    let raw;
+    try { raw = r.from(inner); } catch (_) { return null; }
+    return raw === null || raw === undefined ? null : raw;
+  }
+  return null;
 }
 
 /* obj: { d:"lzw", a:"n"|"w", w:<int>, h:[string,...] } -> payload text */
@@ -133,15 +216,8 @@ function encode(obj) {
   let out = TAG + " " + axis + obj.w;
   for (const h of holes) {
     if (typeof h !== "string") throw new Error(`payload: hole must be a string, got ${typeof h}`);
-    /* THE GATE, inline so it cannot be bypassed by a future caller: the dialect form is used only
-     * if it inverts to the exact raw bytes. Note the escape asymmetry — the wrapper quotes stay
-     * literal while the inner text is escaped, which is what `fromEnglishHole` relies on. */
-    const en = toEnglishHole(h);
-    if (en !== null) {
-      const escaped = Q_OPEN + escapeHole(en.slice(1, -1)) + Q_CLOSE;
-      if (fromEnglishHole(escaped) === h) { out += H_MARK + escaped; continue; }
-    }
-    out += H_MARK + escapeHole(h);
+    const en = encodeHoleEnglish(h);
+    out += H_MARK + (en !== null ? en : escapeHole(h));
   }
   return out;
 }
@@ -171,11 +247,11 @@ function decode(text) {
     for (const part of text.slice(i + 1).split(H_MARK)) {
       /* Discriminate BEFORE unescaping — a raw curly quote arrives here as ⟡8/⟡9 and so cannot
        * impersonate a wrapper. Falls through to the raw path for every unencoded hole. */
-      const en = fromEnglishHole(part);
+      const en = decodeHoleEnglish(part);
       h.push(en !== null ? en : unescapeHole(part));
     }
   }
   return { d: "lzw", a: axis, w, h };
 }
 
-module.exports = { TAG, encode, decode, escapeHole, unescapeHole, toEnglishHole, fromEnglishHole };
+module.exports = { TAG, encode, decode, escapeHole, unescapeHole, encodeHoleEnglish, decodeHoleEnglish, RULES };
