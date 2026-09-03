@@ -137,9 +137,19 @@ const perFile = [];
 const byKind = new Map();
 let totalConstructs = 0, dirty = 0;
 
+/* EMPTY FILES ARE NOT AN EXISTENCE PROOF, and reporting them as "clean" flatters this metric in
+ * the one place it is supposed to be unflatterable. The first run of this test said 2 of 1,037
+ * files were FULLY CLEAN. Amir asked to read them. They are `chatbot.ts` (ten blank lines) and
+ * `freshbooks/index.ts` (one blank line) -- so the honest count of non-empty files that render
+ * free of TypeScript is ZERO, and there is currently no file anywhere in the corpus demonstrating
+ * that a clean render is achievable. That is a finding, and a discouraging one, so it is reported
+ * as its own line rather than folded into a total that reads better. */
+let empty = 0;
 for (const abs of files) {
   const rel = path.relative(EN_DIR, abs);
-  const surface = strip(fs.readFileSync(abs, "utf8"));
+  const raw = fs.readFileSync(abs, "utf8");
+  if (!raw.trim()) { empty++; continue; }
+  const surface = strip(raw);
   let n = 0;
   const kinds = new Map();
   for (const c of CONSTRUCTS) {
@@ -153,13 +163,14 @@ for (const abs of files) {
   if (n > 0) { dirty++; perFile.push({ rel, n, kinds }); }
 }
 perFile.sort((a, b) => b.n - a.n);
-const clean = files.length - dirty;
+const clean = files.length - empty - dirty;
 
 console.log("\n  THE GOAL — surviving TypeScript on the reading surface");
 console.log("    strip list fingerprint ...... " + STRIP_FINGERPRINT + "   (frozen; a drop in the count"
   + " alongside a change here is not a real drop)");
 console.log("    .en files read .............. " + files.length);
-console.log("    FULLY CLEAN ................. " + clean);
+console.log("    empty (no statements) ....... " + empty + "   <- NOT an existence proof; excluded below");
+console.log("    NON-EMPTY, FULLY CLEAN ...... " + clean + " of " + (files.length - empty));
 console.log("    with residue ................ " + dirty);
 console.log("    SURVIVING CONSTRUCTS ........ " + totalConstructs);
 console.log("\n    by kind:");
@@ -175,7 +186,7 @@ for (const f of perFile.slice(0, 10)) {
 
 ok(totalConstructs === 0,
   "no TypeScript survives the frozen strip on any .en"
-  + "  (got " + totalConstructs + " constructs across " + dirty + " of " + files.length + " files)");
+  + "  (got " + totalConstructs + " constructs across " + dirty + " of " + (files.length - empty) + " non-empty files)");
 
 /* THE NAMED FILE. Amir read this one and rejected the result on it, so it is asserted BY NAME and
  * not merely as one row in a corpus total. A corpus number can improve while the file a human
