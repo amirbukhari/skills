@@ -5958,3 +5958,96 @@ That is the real bug. Each surface then failed one at a time with its own bespok
 `build-skeletons.js:222` already did it correctly. Mutation-checked both directions in a temp dir:
 with the `mkdirSync` the write lands, without it `ENOENT`.
 
+
+### Closing the class: `npm run preflight`, `npm run tiers`, and four artifacts retired (2026-09-02)
+
+Both halves Amir approved are built. The measurements that changed the design are below — two of
+them changed it after it was already written.
+
+**(a) `preflight.js` — one table instead of N bespoke error strings.** The shape is borrowed, not
+invented: `engine/operation-idioms.test.js:30-36` already did this correctly for exactly one
+artifact (exit 2, prints where it looked, names the producer, says *"this is a STATE, not a
+failure"*). Generalised to every expected artifact, in dependency order, with **four statuses that
+need four different fixes** — collapsing them is the whole failure mode:
+
+| status | meaning | fix |
+|---|---|---|
+| `PRESENT` | on disk | — |
+| `MISSING` | a live producer has not been run | run the command in the table |
+| `BLOCKED` | the producer runs but **cannot publish** | the contract, not the command — re-running cannot fix it |
+| `LOST` | hand-authored and gone | restore it; nothing regenerates it |
+
+Exit 0 / **2 (a STATE, the default)** / 1 (preflight itself could not run), plus `--strict` for a
+hard gate and `--soft` for a caller that wants the table without a verdict. `--json` is what a panel
+should call. Mutation-checked against two throwaway roots: an empty corpus reports 20 MISSING and
+the hand-authored `coined-words.json` as **LOST**, not MISSING; dropping one file in flips exactly
+one row to PRESENT. Every status fires, and the LOST/MISSING distinction is real rather than
+decorative.
+
+**(b) `run-tiers.js` — the missing driver.** `build-archetypes.js` → `build-skeletons.js` →
+`package-hydra-source.js`, stopping on failure, **skipping a BLOCKED stage with the reason printed
+rather than attempting it**, and ending by re-running preflight. `npm run build` now ends with
+`npm run preflight -- --soft` and does **not** chain the tiers — Amir's lean, and I agree with it:
+*"so the two pipelines stay legibly separate rather than being fused by accident."* Result of the
+run: **MISSING went 7 → 0, present 14 → 18 of 22.**
+
+**Two things measured mid-build that changed the answer:**
+
+1. **The skeleton stage is not un-run, it is DEAD.** `build-skeletons.js:39` reads
+   `<CORPUS>/catalog/compose-words.json` **unguarded** — and that artifact's only producer,
+   `archive/build-compositions.js`, is archived *and* hardcoded to a delonix path. Measured against
+   two throwaway roots: it exits `ENOENT` before writing anything. So `skeleton-index.json`,
+   `catalog/skeletons.json` and `sen/skeletons/` are **BLOCKED, not MISSING**, and the root-cause
+   story from earlier today needs this correction: the tier pipeline was not merely un-driven, its
+   **middle stage cannot run at all**. Reviving it needs a compose-words replacement or a rewrite —
+   a design decision, and Amir's.
+2. **`package-hydra-source.js` swallows that with `catch (_) {}`** at lines 189 and 205, so it
+   degrades quietly rather than failing — which is why the rollups it writes are now present while
+   the skeleton tier they describe is absent from them. Recorded, not fixed: it is the
+   `catch { return null }` class CLAUDE.md §8 names, and rewriting it is not in this task.
+
+**Retired, at Amir's word** — *"If we ain't using it put it in the archive folder"*:
+`catalog/compose-words.json`, `catalog/named-idioms.json`, `catalog/operation-idioms.json`,
+`catalog/function-archetypes.json`. **Removed from the preflight manifest entirely** rather than
+listed as RETIRED — his reasoning, which is right: a table that permanently names things nobody
+will produce trains people to ignore the table. The retirement is recorded in `preflight.js`'s
+header so a later session does not re-add them.
+
+**Same bucket, checked as instructed:** `catalog/mined-library.v5.json` — producer
+`wholefile-mine.js` had **no npm script, no caller, README already marked it ONE-OFF**, artifact
+absent. Same bucket, so `git mv` to `archive/`, requires repointed `../engine/` so the move did not
+silently break them, README row updated. `engine/wholefile.js` itself stays live
+(`package-hydra-source.js:22`). **`catalog/mined-library.v1.json` is NOT in that bucket:**
+README.md:60 records it as a HISTORICAL pre-LZW snapshot, it is present on disk, and nothing
+regenerates it — nothing to run and nothing to decide, so it is not a preflight row and it was not
+touched.
+
+**Two live consumers still ask for retired artifacts. Findings, not reasons to revive anything:**
+
+- `build-skeletons.js:39` → `catalog/compose-words.json`. This is item 1 above; it is why three
+  artifacts are BLOCKED.
+- `run-tests.js:168-170` registers `engine/operation-idioms.test.js` with
+  `files: [operation-idioms.json, function-archetypes.json]` as its `needs`. That test **already
+  skips honestly with exit 2** and names the archived producer and its forbidden root. Left in
+  place: moving a test out of the suite reduces coverage, and Amir asked to be told rather than to
+  have it decided.
+
+**`name-queue` — corrected on a peer's evidence.** I first cited commit `2d83452`; skills-4a
+corrected that (it is body-as-slot in `generators.js`, unrelated) and the real pin is
+`engine/orphan-ledger.test.js`, committed tonight, RED 4/5. The BLOCKED row now says what that test
+asserts: `reconcile-names.js` stamps `AC.stamp("word-names", { names, orphans })` while the registry
+entry requires `["names","orphans","chunks"]`. **The refusal is load-bearing** — it is the only
+thing that stopped a re-mine from irrecoverably dropping the 3,582 applied chunk names, since
+`Examples/` is gitignored and `word-names.json` has no git history. Adding `chunks` to the stamp
+would convert a loud refusal into a silent drop while §5C's orphan half is unwired, so it is
+explicitly **not** to be "fixed" without Amir. The row also carries assertion 4's second edge: that
+producer's `name-queue` write sits **outside** the `if (APPLY)` guard, so a report-only run writes
+the file.
+
+**Byte-identity untouched, verified after the tier run**: 1037 `.en` files, **zero** modified,
+`en-index` fingerprint still `eba21fea419a73a4`, gate still `1037/1037 allByteIdentical: true`.
+Neither `build-archetypes.js` nor `package-hydra-source.js` reaches `generators.js` or
+`operations.js` — walked the require graph to confirm — so skills-4a's warning that re-deriving
+through those two is currently degraded (review surface 1582 → 3527 under an uncommitted canon
+change) does **not** affect any figure produced here.
+

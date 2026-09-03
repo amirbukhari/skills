@@ -28,13 +28,15 @@
     "apply:worksheet-names": "node --max-old-space-size=3072 apply-worksheet-names.js",
     "render": "node write-en-files.js",
     "files-index": "node build-files-index.js",
+    "preflight": "node preflight.js",
+    "tiers": "node run-tiers.js",
     "measure": "node measure-english.js",
     "measure:uncollapsed": "node measure-uncollapsed.js",
     "stamp:check": "node stamp-artifacts.js --check",
     "gate": "node repo-dsl.js gate",
     "clean": "node sdd-clean.js",
     "clean:sen": "node sdd-clean.js --wipe-sen",
-    "build": "npm run mine && npm run name && npm run render && npm run measure",
+    "build": "npm run mine && npm run name && npm run render && npm run measure && npm run preflight -- --soft",
     "name:author": "node author-names.js"
   },
   "engines": {

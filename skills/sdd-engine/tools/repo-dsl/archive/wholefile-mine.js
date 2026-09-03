@@ -3,6 +3,11 @@
 /**
  * wholefile-mine — CLI for the whole-file mining pass (engine/wholefile.js).
  *
+ * ARCHIVED 2026-09-02. Amir: "If we ain't using it put it in the archive folder." It had no npm
+ * script and no caller anywhere in the tree, README.md already marked it a ONE-OFF, and its only
+ * artifact (catalog/mined-library.v5.json) was absent from the corpus. Requires were repointed
+ * ../engine/ so the move did not silently break them; nothing else changed.
+ *
  * Discovers whole-file DOMAIN words from a corpus automatically, byte-verifies
  * every member, and writes them additively into a new catalog version (v5,
  * preserving v1..v4). Fully deterministic — no model.
@@ -16,12 +21,12 @@
  */
 
 const fs = require("fs");
-const AC = require("./engine/artifact-contract");
-const CR = require("./engine/corpus-root");
+const AC = require("../engine/artifact-contract");
+const CR = require("../engine/corpus-root");
 const path = require("path");
-const { tokenize } = require("./engine/fanout");
-const { walkDir, mine } = require("./engine/pipeline");
-const wf = require("./engine/wholefile");
+const { tokenize } = require("../engine/fanout");
+const { walkDir, mine } = require("../engine/pipeline");
+const wf = require("../engine/wholefile");
 
 const CATALOG = path.join(CR.senDir(), "catalog");
 
