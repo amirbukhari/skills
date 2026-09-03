@@ -2155,6 +2155,85 @@ function whereFile(opts) { return (opts && opts.file) ? "\n  file:     " + opts.
 
 const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK !== "0";
 
+/* THE INTERIOR PRODUCTION — a structural chunk that carries a PAYLOAD OF ITS OWN.
+ *
+ * Today a structural chunk is a bare name over children: `«▷ heading ⟨children⟩»`, no payload,
+ * byte-exactness inherited from the children. The interior production adds one shape:
+ *
+ *     «▷ heading ⟪lzw1 payload⟫ ⟨children⟩»
+ *
+ * where the payload generates the SCAFFOLDING AROUND the children — `if (`, `)`, `{`, `}` and the
+ * six whitespace runs — from the same dictionary that already generates leaf spans. Measured in
+ * `interior-production.test.js`: 1,809 of 1,822 simple if-blocks reconstruct byte-exact with ZERO
+ * wrong bytes and no miner change, because `if (cond) {}` IS a complete node and the existing leaf
+ * machinery already coins a word for it.
+ *
+ * WHY THE DISCRIMINATOR IS AN ORDERING AND NOT A FLAG, and this is the whole subtlety. A payload
+ * uses ⟨ as its FIELD SEPARATOR, so the naive `chunk.indexOf(BODY_OPEN)` that the old parse used
+ * lands INSIDE the payload the moment one exists — which is why `written = chunk.slice(1, bo)`
+ * would have carried `⟪lzw1 …⟫` into the heading and refused every such chunk on R-REND-6. The
+ * test is therefore positional: a payload of MY OWN opens before my body does, whereas a CHILD's
+ * payload can only open after it. So `indexOf(PAY_OPEN) < indexOf(BODY_OPEN)` decides it, exactly.
+ *
+ * MEASURED BEFORE IT WAS WRITTEN, because a discriminator that misfires on the existing corpus is
+ * a silent wrong-bytes path, not a failed test: across all 1,037 .en at every depth — 9,611
+ * structural chunks and 9,724 atomic — this rule reports a payload on ZERO of them. Every chunk
+ * that exists today takes the old path, byte for byte. (The 9,724 also cross-checks the other
+ * lane's independent payload count, from the other end.)
+ *
+ * Returns `{ heading, payload, bodyStart, bodyEnd }` with `payload === null` for the old shape, so
+ * the caller has one code path and the difference is data. */
+function splitStructural(chunk) {
+  const firstBody = chunk.indexOf(BODY_OPEN);
+  const firstPay = chunk.indexOf(PAY_OPEN);
+  const mine = firstPay >= 0 && firstBody >= 0 && firstPay < firstBody;
+  if (!mine) {
+    const bc = chunk.lastIndexOf(BODY_CLOSE);
+    if (firstBody < 0 || bc < firstBody) return null;
+    return { heading: chunk.slice(1, firstBody).trim(), payload: null, bodyStart: firstBody + 1, bodyEnd: bc };
+  }
+  const payEnd = chunk.indexOf(PAY_CLOSE, firstPay);
+  if (payEnd < 0) return null;
+  const bo = chunk.indexOf(BODY_OPEN, payEnd);
+  const bc = chunk.lastIndexOf(BODY_CLOSE);
+  if (bo < 0 || bc < bo) return null;
+  return {
+    heading: chunk.slice(1, firstPay).trim(),
+    payload: chunk.slice(firstPay + 1, payEnd),
+    bodyStart: bo + 1,
+    bodyEnd: bc,
+  };
+}
+
+/* WHICH HOLES ARE FILLED BY A CHILD, and the answer is NOT "the ones typed ‹child›".
+ *
+ * I designed this expecting a new hole type. It does not need one, and finding that out cost a
+ * measurement rather than a redesign: the canon ALREADY emits a hole for a block body —
+ * `if‹gap›(‹id›.progress === ‹num›)‹gap›‹body›` — and the other lane's per-type census confirms
+ * from the other end that `‹child›` appears NOWHERE in the corpus (its types are args, expr, obj,
+ * str, arr, chain, fn, bind, type, body, gap). So the child slot is the EXISTING `body` hole; what
+ * changes is not the skeleton but the hole's TEXT (the empty string) and who fills it at compile
+ * time. Introducing `‹child›` would have been a canon change — the fingerprint moves and every
+ * catalog re-mines — to obtain a hole that already exists.
+ *
+ * WHICH MEANS THE MARK CANNOT LIVE IN THE SKELETON, because `‹body›` is also a perfectly ordinary
+ * hole carrying raw bytes (34 of them today). A hole is child-filled or not per SITE, so the mark
+ * belongs in the payload, as `obj.c` — the hole indices whose text is deliberately empty and must
+ * be supplied by `compileChild`. That is the payload FORMAT, which is the other lane's file, so
+ * this reads the mark and does not invent it.
+ *
+ * UNTIL THAT MARK EXISTS THIS RETURNS 0 AND EVERY INTERIOR CHUNK REFUSES — deliberately. A
+ * fallback that guessed "the last ‹body› hole is the child" would compile today and put the body
+ * bytes in twice the day a real `‹body›` hole appeared beside a child one. Refusing is the
+ * behaviour I want from an unfinished seam; guessing is how the fingerprint bug happened. */
+function childSlots(obj, cat) {
+  if (obj && Array.isArray(obj.c)) return obj.c.length;
+  const axis = obj.a === "n" ? cat.narrow : cat.wide;
+  const key = String(EL.expandKey(axis, obj.w));
+  const m = key.match(/\u2039child\u203a/g);
+  return m ? m.length : 0;
+}
+
 function compileChunk(chunk, index, opts) {
   const deriveCheck = (opts && opts.deriveCheck !== undefined) ? opts.deriveCheck : DERIVE_CHECK;
   if (chunk[0] === GEN_NEST) {
@@ -2173,15 +2252,60 @@ function compileChunk(chunk, index, opts) {
      * and all 120 sit at chunk depth 0, which is 777 of 9,611 structural chunks corpus-wide, so
      * the silent class is measured on the atypical 8.1%. Closing it is not a comment's business:
      * it needs a second producer of the run grouping, which is the shape R-REND-9 forbids. */
-    const bo = chunk.indexOf(BODY_OPEN), bc = chunk.lastIndexOf(BODY_CLOSE);
-    if (bo < 0 || bc < bo) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
-    const body = chunk.slice(bo + 1, bc);
+    const split = splitStructural(chunk);
+    if (!split) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
+    const body = chunk.slice(split.bodyStart, split.bodyEnd);
     const honouredBefore = honouredEdits;
-    const built = compileFileEn(body, index, opts);
+    /* THE INTERIOR PRODUCTION'S SPLICE POINT. With a payload of its own, this chunk's bytes are
+     * NOT its children's bytes: they are the scaffolding the payload generates, with the compiled
+     * body substituted into its `child` hole. So the children are compiled ONCE, here, and handed
+     * to the dictionary through `opts.compileChild` — the hole's own text on the page is the empty
+     * string, which is why the child bytes stay out in this ⟨…⟩ body instead of travelling
+     * inside the payload (they would otherwise pass through the payload escape table and put
+     * escape pairs on a human's page).
+     *
+     * `compileChild` THROWS rather than returning null, and that is load-bearing: `refill`
+     * substitutes whatever it is handed, so a null becomes the four characters "null" spliced into
+     * the output with every gate still green — a wrong-bytes path that passes review. */
+    let built, kid = null;
+    if (split.payload !== null) {
+      if (!index || !index._lzw) throw new Error("enfile: interior production but no lzw catalog loaded" + whereFile(opts));
+      const obj = PAY.decode(split.payload);
+      const kids = childSlots(obj, index._lzw);
+      if (kids !== 1) throw new Error(
+        "enfile: INTERIOR PRODUCTION ARITY (expected exactly 1 ‹child› hole, found " + kids + ")" +
+        whereFile(opts) + "\n" +
+        "  heading:  " + split.heading + "\n" +
+        "  A ⟨…⟩ body is ONE run of bytes, so it can fill one child hole. Splitting it across\n" +
+        "  several would need a delimiter inside the body, which is not in the dialect today. This\n" +
+        "  refuses rather than guessing which bytes belong to which hole.");
+      kid = compileFileEn(body, index, opts);
+      let asked = 0;
+      built = EL.compileSpan(obj, index._lzw, { compileChild: function (i) {
+        if (i !== 0) throw new Error("enfile: compileChild(" + i + ") but this production has 1 child hole" + whereFile(opts));
+        asked++;
+        return kid;
+      } });
+      if (asked !== 1) throw new Error(
+        "enfile: the ‹child› hole was never filled (compileChild called " + asked + " times)" +
+        whereFile(opts) + "\n" +
+        "  The skeleton declares a child hole and the dispatch did not ask for it, so the compiled\n" +
+        "  bytes cannot contain the body. Refusing rather than emitting a node with its body\n" +
+        "  silently missing — which round-trips as a SMALLER file, not as an error.");
+    } else {
+      built = compileFileEn(body, index, opts);
+    }
     const childHonoured = honouredEdits > honouredBefore;
     if (deriveCheck && index && index._lzw) {
-      const written = chunk.slice(1, bo).trim();
-      const derived = deriveStructuralGloss(built, index._lzw);
+      const written = split.heading;
+      /* DERIVE FROM THE CHILD BYTES, NOT THE COMPILED NODE, when this is an interior production.
+       * The heading's meaning is unchanged by the interior production — it is still a name over
+       * the children — but `built` now also contains the scaffolding the payload generated, and
+       * deriving a name-over-children from `if (x) { … }` is deriving it from the wrong text. So
+       * the check keeps its exact old semantics on exactly the old bytes; weakening it to "skip
+       * the check when a payload is present" would have been the easier patch and would have put
+       * R-REND-6 quietly out of reach for every chunk this feature touches. */
+      const derived = deriveStructuralGloss(kid === null ? built : kid, index._lzw);
       if (derived !== null && derived !== written) {
         /* STALE BY CONSEQUENCE IS NOT A CONTRADICTION, and telling the two apart is what makes
          * rule 2 actually reachable. Found by running this, not by reading it: the first version
@@ -2305,7 +2429,7 @@ function compileFileEn(en, index, opts) {
  * once (CLAUDE.md §7), and 270 lines of new scale logic does not belong in it. */
 const SCALES = require("./en-scales");
 
-module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, deriveGloss, deriveStructuralGloss, repairFromSentence,
+module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, splitStructural, childSlots, deriveGloss, deriveStructuralGloss, repairFromSentence,
   renderFolderEn: SCALES.renderFolderEn, compileFolderEn: SCALES.compileFolderEn,
   renderProgramEn: SCALES.renderProgramEn, compileProgramEn: SCALES.compileProgramEn, SCALES, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,

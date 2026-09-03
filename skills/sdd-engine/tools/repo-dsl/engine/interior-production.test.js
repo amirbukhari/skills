@@ -72,7 +72,7 @@ function constructs(s) {
 }
 
 const R = { simple: 0, exact: 0, noWord: 0, commentGap: 0, wrongBytes: 0,
-  wsBytes: 0, before: 0, after: 0 };
+  wsBytes: 0, before: 0, after: 0, braceHole: 0 };
 
 for (const f of files) {
   const src = fs.readFileSync(f, "utf8");
@@ -122,7 +122,15 @@ for (const f of files) {
                 let after = 1;                        /* the payload-spill mark */
                 for (let i = 0; i < holes.length; i++) {
                   if (types[i] === "gap") continue;   /* s1: 81,314 of 81,390 whitespace-only */
-                  if (types[i] === "body") continue;  /* becomes the `child` slot: empty text */
+                  if (types[i] === "body") {
+                    /* MEASURED SEPARATELY, NOT SKIPPED. This hole's text is "{}" — the braces are
+                     * hole text, not skeleton, so they do NOT leave the page when the body moves
+                     * into the children. Counting them here is what turns NET -2,215 into +1,403.
+                     * Kept as its own tally so the wrong figure and the right one are both visible
+                     * rather than one silently replacing the other. */
+                    R.braceHole += constructs(holes[i]);
+                    continue;
+                  }
                   after += constructs(holes[i]);
                 }
                 R.after += after;
@@ -181,12 +189,45 @@ ok("indent is SEPARATED, not derived — whitespace-only in 1809 of 1822", () =>
     "a commented-out line DOES carry constructs — this is why `gap` is not 'whitespace'");
 });
 
-ok("the price is a REDUCTION, not a transfer — measured, sign not assumed", () => {
-  /* s1's warning was right that the win partly moves into their column: `payload-spill` is
-   * `/⟪lzw/g` and fires on a payload attached to a structural chunk. The sign is still favourable
-   * and it is measured rather than argued: brace-block collapses by ~3,600 while payload-spill
-   * gains one mark per site. */
-  assert.ok(R.after < R.before, "net was " + (R.after - R.before) + " — a wash or worse");
+ok("THE PRICE IS NOT A REDUCTION — the braces are hole text, and I priced them away", () => {
+  /* WHAT THIS ASSERTION USED TO SAY, kept per §9 rather than quietly replaced, because it was
+   * quoted onward to Amir as "the goal is reachable with what's already built":
+   *
+   *     ok("the price is a REDUCTION, not a transfer — measured, sign not assumed")
+   *     assert.ok(R.after < R.before)                      // 4,408 -> 2,193, NET -2,215
+   *
+   * IT WAS WRONG, and the error is one line of skeleton:
+   *
+   *     if‹gap›(‹id›.length < ‹num›)‹gap›‹body›            body hole text: "{}"
+   *
+   * The parens are skeleton. THE BRACES ARE NOT — they are the ‹body› hole's TEXT, in 1,809 of
+   * 1,809 sites, zero in the skeleton (measured corpus-wide). A hole's text is on the page, so
+   * moving the body into the children does not take the braces off it: they move from verbatim
+   * prose into a payload hole and keep counting. `R.after` excluded that hole, which silently
+   * dropped 3,618 constructs — exactly 2 per site.
+   *
+   *     after, as I priced it        2,193    NET -2,215   "PAYS"
+   *     after, braces counted        5,811    NET +1,403   LOSES
+   *
+   * So EVERY node kind measured loses under the current canon: if-blocks +1,403, arrow/fn 0,
+   * and `function decl`/`call w/ arrow arg` need the same brace correction applied before their
+   * -445 and -230 can be believed.
+   *
+   * FOUND BY A FAILING ASSERTION IN interior-wiring.test.js, not by re-reading this file: a
+   * stubbed child that returned the inner statements produced `if (c) throw …` with the braces
+   * gone. It failed in the REASSURING direction, which my own §16 rule says survives longest, and
+   * it survived four hours, two commits and one relay to Amir.
+   *
+   * WHAT SURVIVES UNCHANGED: the mechanism. 1,809/1,822 byte-exact, 0 wrong bytes, no miner
+   * change. What is now open is whether the WRAPPER can leave the page at all — a question about
+   * `compileChild`'s contract, so it is asked of the other lane rather than assumed either way. */
+  const corrected = R.after + R.braceHole;
+  console.log("     as priced " + R.before + " -> " + R.after + "  NET " + (R.after - R.before)
+    + "   |   braces counted " + R.before + " -> " + corrected + "  NET " + (corrected - R.before));
+  assert.ok(R.braceHole > 0,
+    "the body-hole braces vanished — if the wrapper really left the page, RE-PRICE: this may pay");
+  assert.ok(corrected > R.before,
+    "corrected net is " + (corrected - R.before) + " — it now PAYS, which is good news: update this");
 });
 
 /* ================================================================================================
@@ -234,7 +275,10 @@ function priceKind(key, st, sf, src, blk) {
   if (types.includes("body")) S.bodyHole++;
   let after = 1;
   for (let i = 0; i < holes.length; i++) {
-    if (types[i] === "gap" || types[i] === "body") continue;
+    if (types[i] === "gap") continue;
+    /* THE BRACE CORRECTION APPLIES HERE TOO, and leaving it out is how `function decl` came to
+     * claim -445: its body hole carries "{}" exactly as an if-block's does (126/126 of them have
+     * one). A hole's text is on the page whether the hole is called `body` or anything else. */
     after += constructs(holes[i]);
   }
   S.after += after;
