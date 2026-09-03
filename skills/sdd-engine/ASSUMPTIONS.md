@@ -6567,7 +6567,16 @@ cut 2 this drift would have compiled quietly, because the label region was inert
   landing in `enfile.js`, and rendering under a half-landed engine would just re-stale it. Flagged
   for sequencing rather than raced.
 - Freshly rendered `.en` round-trips **byte-identical** for the file checked, and the scales measure
-  **1038/1038** in memory, so nothing is wrong with the engine or the dictionary.
+  **1038/1038** in memory, so nothing is wrong with the engine or the dictionary. **Stated precisely,
+  because the imprecise version is itself a §16 defect (entry 6): that 1038/1038 measures the
+  RENDERER, not the corpus on disk.** It is an in-memory render compiled straight back. The corpus
+  number is the table above.
+
+**A second, more sensitive detector exists and both sessions had missed it.** `engine/en-idempotence.test.js`
+HALF 1 asserts that every persisted `.en` *is exactly what a fresh render produces* — and it fails
+at **438**, against `enfile.test.js`'s **405**. The **33** in the gap drifted textually but still
+compile byte-identically, so they are invisible to a compile-based check. Both tests are rc=1 today
+and both are correct to be. 599 identical + 33 drifted-but-compiling = the 632 that compile clean.
 
 ## 2026-09-03 — "byte-identity 1037/1037" does not mean what I have been using it to mean
 

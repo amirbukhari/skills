@@ -95,6 +95,49 @@ The three, in the order they happened:
    ruled as a checklist step in **§8B.9.1**, with all three of its instances named; it is not
    restated here. The lesson that belongs here is the *direction* of the failure: **a low number is
    reassuring, so nothing prompts the second look that a crash would have forced.**
+   **And there is a worse grade of the same thing, found in this section's own neighbour (§10, the
+   rejected archetype classifier): a number that reads not low but PLAUSIBLE.** That classifier hit
+   0.6% unclassified with beautiful aggregates and was confidently wrong about real files. The
+   distinction, drawn with skills-4a: **a low number invites a second look; a plausible one closes
+   the question.** Where a bad measurement sends the work to the wrong place, a plausible one sends
+   the wrong answer onward as fact — and the aggregate is then actively working against you, because
+   the only thing that can catch it is inspecting individual rows you have no reason to suspect.
+
+6. **A measurement whose SUBJECT was quietly substituted — green, correct, and answering a
+   question nobody asked.** Reported by skills-4a against their own headline number, 2026-09-03,
+   and it indicts one of mine in the same breath.
+   *"byte-identity 1037/1037"* has been asserted before every measurement all night, as the floor.
+   `test-lzw-roundtrip.js` renders each file **fresh in memory** and compiles that back; **it never
+   reads `sen/files/**.en`.** *Verified independently rather than accepted:* its only
+   `readFileSync` on the corpus reads the `.ts` source. So the floor was 1037/1037 **while 405
+   persisted `.en` were stale and refusing to compile** — both true, no contradiction, and the
+   assertion is *structurally incapable* of seeing the difference. **The same substitution is in my
+   own scale number:** the folder/program round-trip of 1038/1038 is also an in-memory render, so
+   it measures the renderer too, and I reported it in a sentence about the corpus.
+   **Rule it produced:** an assertion has a **subject**, and the subject is whatever it actually
+   read — not the thing you were thinking about when you wrote it. **Name the subject in the
+   assertion's own text** ("a FRESH render round-trips", not "byte-identity"), because the
+   substitution is invisible at the call site and survives every re-run.
+
+   **A corollary, measured while checking the above, and it is the part that would have bitten
+   next.** skills-4a's read was that `enfile.test.js`'s persisted-corpus assertion is *"the only
+   check in the tree that can see this class at all."* **That is false, and the check it overlooks
+   is strictly MORE sensitive.** `engine/en-idempotence.test.js` HALF 1 asserts that every
+   persisted `.en` *is exactly what a fresh render produces*, and it fails too:
+
+   | detector | sees | count |
+   |---|---|---|
+   | `en-idempotence.test.js` HALF 1 | persisted `.en` ≠ fresh render | **438** |
+   | `enfile.test.js` corpus assertion | persisted `.en` refuses to compile | **405** |
+   | *the gap* | **drifted but still compiles byte-identically** | **33** — invisible to `enfile.test.js` |
+
+   (599 identical + 33 drifted-but-compiling = the 632 that compile clean. The numbers reconcile.)
+   **And I had missed it as well, in the same direction:** my affected-test sweep listed the tests I
+   judged *related to my change* rather than the tests that *read the artifact in question*, so the
+   more sensitive of the two never ran. **Rule:** when an artifact is suspect, enumerate the
+   consumers that READ it — `grep` for the read, do not recall them — and run all of them. Choosing
+   detectors by topic is how two sessions independently concluded that the weaker detector was the
+   only one.
 
 **The shape they share:** every one of these failed in the **reassuring** direction — a confident
 zero, a comment agreeing with itself, two sessions agreeing with each other. §3's *"a guard that
