@@ -134,6 +134,25 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "both round-trip directions are fixpoints: ts->en->ts AND en->ts->en (GREEN)",
   }],
+  /* ── THE SYNTHETIC STRUCTURAL SUITE (2026-09-03) ─────────────────────────────────────────────
+   * These three do NOT read the real corpus. Each builds a throwaway fixture in a temp directory,
+   * mines it, and asks what the dictionary learned — because the real corpus is one codebase in one
+   * house style, so its coverage of the AST is whatever hydra happens to contain, and a target
+   * sentence about a domain object confounds AST coverage with domain semantics. They replace the
+   * semantic specimen tests retired in 6c87d75. Roots are repointed with SOURCE=/CORPUS= per
+   * corpus-root.js; the real corpus is neither read nor written. */
+  ["engine/synth-composition.test.js", {
+    needs: [],
+    why: "a three-level synthetic corpus — structural composition at every AST scale (RED)",
+  }],
+  ["engine/synth-mutation.test.js", {
+    needs: [],
+    why: "Amir's 21-row mutation table — does the vocabulary span the AST (RED: 6 pattern rows, 8 ambiguous renders)",
+  }],
+  ["engine/synth-novel-composition.test.js", {
+    needs: [],
+    why: "THE BENCHMARK — known pieces + new arrangement = unseen AST, without a new monolithic entry (RED)",
+  }],
   ["engine/unit-boundary.test.js", {
     needs: ["generators-lzw"],
     why: "reads the recursive dictionary (enlzw.loadLzw)",
