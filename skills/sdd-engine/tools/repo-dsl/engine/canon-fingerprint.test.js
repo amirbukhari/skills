@@ -60,7 +60,12 @@ eq(new Set([base, bodyOff, exprOn, both]).size, 4, "all four canon combinations 
  * Those dials change WHICH words get promoted, never what a statement canonicalizes TO. If this
  * assertion ever fails, either the fingerprint has started hashing the wrong thing or §10's property
  * has been broken — and both are worth stopping for. */
-eq(fpUnder({ MIN_SKEL: "1" }), base, "MIN_SKEL does not change the canon (it is a mining parameter, §10:42)");
+/* PROBE A NON-DEFAULT VALUE. This read `MIN_SKEL: "1"` until 2026-09-03, when R-MINE-3 amended the
+ * default from 8 to 1 -- at which point it was setting the dial to what it already was and asserting
+ * that nothing changed. A tautology, and it would have stayed green through any breakage. Same defect
+ * class as the header-prose `indexOf` in orphan-ledger.test.js: a guard that cannot fire (§3, §16).
+ * If the default moves again, move these. */
+eq(fpUnder({ MIN_SKEL: "8" }), base, "MIN_SKEL does not change the canon (it is a mining parameter, §10:42)");
 eq(fpUnder({ MIN_COUNT: "2" }), base, "MIN_COUNT does not change the canon (§10:42)");
 eq(fpUnder({ MAXWIN: "64" }), base, "MAXWIN does not change the canon (§10:42)");
 
@@ -81,5 +86,9 @@ console.log("    SDD_BODY_SLOT=0                        " + bodyOff);
 console.log("    SDD_EXPR_SLOT=1                        " + exprOn);
 console.log("    both flipped                           " + both);
 console.log("    MIN_SKEL / MIN_COUNT / MAXWIN          " + base + "   (unchanged, correctly)");
+/* §10:42 says retuning these "cannot orphan a name". Measured 2026-09-03 at corpus scale, and it
+ * holds for CHUNK names too, which was not obvious -- a chunk key hashes the ordered LEAF LIST of a
+ * composite, and mining parameters do change which words get promoted. MIN_SKEL 8 -> 1 orphaned 0
+ * chunk names and re-resolved 19. SDD_EXPR_SLOT, which IS a canon change, orphaned 299. */
 
 console.log("\n" + pass + " passed, " + fail + " failed");

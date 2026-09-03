@@ -41,11 +41,27 @@ const say = prog.say;
 // readability dial, not a correctness one: every span is byte-gated at emission regardless.
 // Measured over the full corpus (byte-identity 1037/1037 at every point):
 //   12 -> filesUsing 649, netStatementReduction 5187   (was the default; too strict)
-//    8 -> filesUsing 715, netStatementReduction 6920   <- the knee, and the default
+//    8 -> filesUsing 715, netStatementReduction 6920   <- the old default
 //    6 -> filesUsing 719, netStatementReduction 7123
 //    4 -> filesUsing 732, netStatementReduction 7209, but English coverage jumps 35.9% -> 45.4%
 //         by promoting near-trivial skeletons, which makes the .en noisier to read.
-// Lower it via MIN_SKEL= if more collapse is wanted; it cannot break byte-identity.
+// THAT SWEEP NEVER TRIED 1, AND IT MEASURED THE WRONG THING (amended 2026-09-03). It optimised
+// netStatementReduction; the deliverable is REVIEW SURFACE -- statements a human must still read as
+// code. Measured at full corpus scale, MIN_SKEL=1 takes review surface 1582 -> 1086 top and
+// 20999 -> 20214 tree, byte-identity 1037/1037, and orphans ZERO hand-authored chunk names while
+// re-resolving 19 that were already orphaned.
+//
+// THE MECHANISM, which is why 8 was doing the wrong job: skelBytes() strips /<hole>/g BEFORE the
+// floor is applied. So `return <expr>;` measures as `return;` = 7 bytes and misses a floor of 8 by
+// one. Only 71 narrow / 118 wide skeletons sit under the floor -- 0.06% -- and they are the CORE
+// STATEMENT GRAMMAR. A dictionary that cannot spell `return` cannot compose any run containing one.
+// MIN_SKEL was a LENGTH filter doing a TRIVIALITY filter's job, and for statements those
+// anti-correlate: the shortest skeletons are the most reusable, not the most trivial.
+//
+// The old sweep's readability concern is NOT refuted by the number above and is recorded as a real
+// cost: promoting near-trivial skeletons can make an .en noisier. It was ruled acceptable on
+// 2026-09-03, on a SAMPLE of the affected skeletons rather than a reading of all of them.
+// Raise it via MIN_SKEL= if the prose reads worse; it cannot break byte-identity either way.
 //
 // MIN_COUNT = how many times a window must recur before it may become a word. It was frozen at 2,
 // which made a WHOLE-FILE word impossible by construction: a file's own shape occurs exactly once,
@@ -57,7 +73,7 @@ const say = prog.say;
 // NOTE: at MIN_COUNT=1 the binding constraint becomes MAXWIN, not recurrence.
 //
 // MAXWIN = longest window the miner will enumerate, in statements. Arbitrary bound, not a
-// correctness gate. Swept at MIN_COUNT=1 / MIN_SKEL=8, byte-identity 1037/1037 at every value:
+// correctness gate. Swept at MIN_COUNT=1 / MIN_SKEL=8 (the then-default), byte-identity 1037/1037:
 //   16 -> maxDepth 15 (pinned at MAXWIN-1), calls 4850, net 15,388, dict 11.02 MB, .en 4,830,829
 //   32 -> maxDepth 31 (still pinned),       calls 4789, net 15,448, dict 12.35 MB, .en 4,829,397
 //   64 -> maxDepth 57 (NOT pinned - ceiling found), calls 4782, net 15,455, dict 12.58 MB,
@@ -88,7 +104,7 @@ const say = prog.say;
 // both 256 and 1024 — identical, because the longest stream in the corpus is 77 statements. A
 // ceiling below 77 does not save work; it only forbids words.
 // The default is now effectively unbounded. Set MAXWIN explicitly to restore a ceiling.
-const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 8), MAXWIN = +(process.env.MAXWIN || 100000);
+const MIN_COUNT = +(process.env.MIN_COUNT || 1), MIN_SKEL = +(process.env.MIN_SKEL || 1), MAXWIN = +(process.env.MAXWIN || 100000);
 
 function walk(d, o = []) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (SKIP.has(e.name)) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p); } return o; }
 function blocks(sf) { const out = []; const visit = (n) => { if (ts.isBlock(n) || ts.isSourceFile(n)) { if (n.statements.length) out.push([...n.statements]); } ts.forEachChild(n, visit); }; visit(sf); return out; }

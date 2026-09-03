@@ -70,8 +70,36 @@ These are decisions, not tuning knobs to be re-litigated.
 
 - **The unit-boundary rule STAYS.** No span may straddle two or more units: a word means one thing.
   Amir's call, and the readability of every clause downstream depends on it.
-- **`MIN_SKEL` stays 8.** Lowering it buys files by promoting near-trivial two-statement words — a
-  number bought with readability.
+- **`MIN_SKEL` is 1** — amended 2026-09-03. **Superseded wording, kept per §9:** *"`MIN_SKEL` stays 8.
+  Lowering it buys files by promoting near-trivial two-statement words — a number bought with
+  readability."* That bullet was settled against the wrong metric. It defended `netStatementReduction`;
+  the deliverable is **review surface**, the count of statements a human must still read as code.
+  Measured over the full corpus: **1582 → 1086 top, 20999 → 20214 tree**, byte-identity **1037/1037**,
+  and **zero** hand-authored chunk names orphaned. The premise was also wrong on its own terms — the
+  skeletons below the floor are not near-trivial. `skelBytes()` strips holes **before** the floor, so
+  `return ‹expr›;` measures as `return;` = 7 bytes; the 71 narrow / 118 wide skeletons under the floor
+  are 0.06% of the dictionary and they are the **core statement grammar**. It was a length filter doing
+  a triviality filter's job, and for statements those anti-correlate. The readability cost is real and
+  was accepted on a **sample**, not a full reading.
+- **Expression slots (`SDD_EXPR_SLOT`) stay OFF, and this REVERSES a ruling** — 2026-09-03. They were
+  ruled on together with `MIN_SKEL=1`, as one package. Measured separately, they are not one package
+  and they point opposite ways:
+
+  | config | review surface top | tree | chunk names orphaned |
+  |---|---|---|---|
+  | before | 1,582 | 20,999 | — |
+  | `MIN_SKEL=1` | **1,086** | **20,214** | **0** (19 re-resolve) |
+  | `SDD_EXPR_SLOT=1` | 3,457 | 23,820 | 299 |
+  | both | 1,086 | 20,214 | 299 |
+
+  Expression slots buy **nothing** on top of `MIN_SKEL=1` — the surface is identical to the digit,
+  against catalogs with genuinely different hashes — and alone they make it **worse by 1,875**. They
+  are also a **canon change** (`canon-fingerprint.js` moves; `MIN_SKEL` does not, per §10:42), which is
+  what the 299 orphans are. The whole gain is `MIN_SKEL`; the whole cost is the slots. Taking the two
+  apart was worth the four mines it took to measure.
+
+  *Why they cannot help:* the LZW dictionary composes over **statement sequences**. Expression slots
+  vary structure **within** a statement, below the level anything composes at.
 - **Holes stay verbatim TypeScript.** See the hole taxonomy in §5C.
 - **"Write the `.en` and get the file back" is the STANDING STATE, not a roadmap item.** Byte-identity
   already holds across the corpus. Every criterion in §7 is a question about *how the `.en` reads*,

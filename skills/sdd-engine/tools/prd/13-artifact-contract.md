@@ -102,6 +102,33 @@ missed, which is the §10 argument in one line.
 
 ---
 
+
+### HELD, NOT FORGOTTEN: the two corpus-ROOT artifacts are outside this contract (ruling 2026-09-03)
+
+Two live artifacts sit at the **corpus root** rather than in either §8B home, so they carry no
+`AC.stamp` header and are read by path:
+
+| artifact | producer | read by |
+|---|---|---|
+| `<CORPUS>/files-index.json` | `build-files-index.js` | Kraken's SDD panel — the *"Read — narrate any file as plain language"* surface |
+| `<CORPUS>/archetype-index.json` | `build-archetypes.js` | Kraken's archetype panel / the §5F drift check |
+
+**Registering them is HELD by Amir's ruling, and the reason is not tidiness — it is that
+registration MOVES THEM.** `AC.pathFor` resolves a registered kind into `sen/catalog/` or
+`.cache/spec-derived/`, and the corpus root is exactly the path both Kraken panels read. So the
+registration and the Kraken change are **one coordinated change across two repositories**, and
+Kraken's `feature/sdd-panel` is not even PR'd yet. Doing the engine half alone breaks both surfaces
+and leaves the artifact written to one place and read from another — which is the failure this
+project already diagnosed once for the archetype index (§5F §6, where the PRD was stale and the
+consumer was right).
+
+**So: do not register these unilaterally.** It needs Amir's sign-off with the Kraken side moving in
+step. `build-files-index.js` deliberately claims no registry entry and says so in its header; that
+is the current, correct state, not an omission to clean up.
+
+*Recorded because the same question has now been raised, parked, and re-raised twice. The next
+session to notice the missing header should read this instead of "fixing" it.*
+
 ## 8C. Corpus pinning — publisher and consumer rules
 
 **The failure mode these rules exist to make impossible.** With more than one corpus in play and no
@@ -137,3 +164,50 @@ provenance.** The following are non-negotiable.
    number for a consumer to render as truth.
 
 ---
+
+---
+
+## §8B.9 — the day the required-key contract paid for itself
+
+*Added 2026-09-03, at Amir's instruction to say this plainly rather than leave it in a commit message.*
+
+`word-names.json` held **3,582 hand-authored chunk names** and 6 leaf names. It lived in exactly one
+place on disk, inside `Examples/`, which the repo `.gitignore` excludes — so it had **no git history
+at all**. The only other copy on disk was an 8 KB snapshot that *predated the names it would have had
+to restore*.
+
+`reconcile-names.js` stamped its output as `{ names, orphans }`. The registry `requires` a `chunks`
+key. A successful APPLY would therefore have written a `word-names.json` with all 3,582 chunk names
+**absent — not orphaned, absent** — with nothing anywhere to restore them from.
+
+It never got the chance:
+
+```
+ArtifactContractError: artifact contract REFUSED: word-names at (stamp)
+  expected: body key "chunks" (registry: requires)
+  got:      absent — refusing to publish an artifact its own consumers cannot read
+```
+
+**One row in the registry prevented the irreversible loss of the entire naming effort.** Not a test,
+not a review, not a backup — a `requires` entry doing exactly the boring thing it was written to do,
+on a write nobody had flagged as dangerous.
+
+Three things worth extracting, because the near-miss is more instructive than the save:
+
+1. **The refusal was the only signal.** Every other check was green. Byte-identity read 1037/1037
+   throughout, because a name is cosmetic to compilation (§2.2) — the floor we assert first is
+   structurally blind to this failure. The tool's own report said `newly orphaned names ....... 2`
+   while 974 chunk names had already silently stopped resolving.
+2. **The fix order is the whole lesson.** The tempting repair is to add `chunks` to the stamp and move
+   on — one line, contract satisfied, tests green. That is precisely the catastrophe: it converts a
+   loud refusal into a silent drop, because the orphan half was still unwired. The key went in
+   **last**, after census, orphaning, scoring and queue all covered chunks. *Amir, 2026-09-03: "fix it
+   per §5C, do NOT paper it."*
+3. **`absent is a state, present-but-wrong is a bug`** (§8B) is what made the refusal possible at all.
+   A schema that tolerated a missing key to be helpful would have published.
+
+The deeper defect the refusal exposed was in the **record schema**, not the tool. A leaf record stores
+the skeleton it names; a chunk record stored `{en, len, note}` against a one-way hash of its leaves.
+§5C rule 2 scores an orphan by edit distance over its skeleton — so re-adoption for chunks was not
+unimplemented, it was **unimplementable**. Chunk records now carry `leaves`, which is the change that
+stops this recurring rather than the one that recovered it.
