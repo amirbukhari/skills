@@ -162,3 +162,70 @@ site is **counted** (§7). A production retires a vacuous clause by saying somet
 site — **never** by rewording the placeholder into something that merely escapes the frozen list.
 
 ---
+
+---
+
+## A SCALE LABEL IS A CLAIM, NOT A CONCATENATION (ruled 2026-09-03)
+
+**The defect.** The first folder and program labels joined their children's labels with `", then "`.
+That is *a concatenation wearing a summary's clothes* — the same failure the file scale had, one
+level up. Measured: the median file label is **36 words, p90 103, max 1158**, so a program heading
+built by joining them opened `root program: packages: hydra-internal: src: enums: list the choices
+for …` and ran to ~10 MB. *Amir:* **"it should have been one word with the composition of the words
+that made up that one word... shouldn't have been a hundred words it should have been like a couple
+dozen words."** The composition is what makes a label **derivable**. It is not what the label should
+**say**.
+
+**Two designs were tried and rejected on evidence before the ruled one.** Both are recorded because
+each is the obvious next idea, and the first is the dangerous one.
+
+| attempt | result | why rejected |
+|---|---|---|
+| classify each file into an **archetype** ("shape", "route module", "function module") and count them | 0.6% unclassified; reads beautifully | **It lies about real files.** Found only by spot-checking the buckets: `infinityReportHelpers.ts`, a helpers module that happens to declare one interface, was confidently labelled a *shape*; `properties.ts` a *type alias*. **A file that CONTAINS a shape declaration is not a shape.** |
+| give a file a kind only when **exactly one** category matches; call the rest `mixed` | honest | **626 of 1038** files match more than one category, and *"626 mixed modules"* tells Amir nothing about his own code. |
+
+**The ruling: count files by the clauses they CONTAIN — a non-exclusive observation, never a
+judgement about what a file *is* — and state it with a quantifier derived from that count.**
+
+```
+enums: 9 files, all listing choices
+invoicing: 23 files, all defining functions, most describing shapes, some listing choices
+```
+
+`all` = every descendant file, `most` = more than half, `some` = at least one. This is a claim
+**about the folder**, it is short, and it is checkable clause by clause. It is also the shape of
+Amir's own example — *"twelve HTTP routers, all behind a JWT check"* is a count plus a universal,
+and **the universal is the part that says something.**
+
+**Categories test for phrases THIS ENGINE RENDERS**, so a category is a statement about the English
+in the artifact rather than a guess about intent — which is also why it is reproducible on compile
+from the file `.en` alone, with no artifact lookup and no second source of truth.
+
+**THE HONESTY RULE IS IMPLEMENTED, NOT ASPIRED TO.** A category is only ever reported at a
+quantifier its count supports, so **no label can overstate by construction**. When nothing is
+observable the label is the bare folder name — **vacuous** — and it is **counted** in
+`vacuousLabels` and reported. *Amir:* **"If you can't make a true claim about a folder, emit the
+vacuous label and COUNT it... I would take an honest 40% vacuous over a plausible 0%."** A run-on
+wastes his time; a wrong summary misleads him about his own code, and those are not the same cost.
+
+**A measured over-claim, caught by comparing two markers rather than by reading either.** The
+`set constants` category first used a bare `/\bset\b/`. That matched **424** files where the
+anchored form matches **315** — **109 of them on prose that is not a constant at all**: *"stop early
+when `generationType` is set"*, *"check whether `con.isConnected` is set"*. Every one would have been
+reported to Amir as a folder that sets constants, and the loose version read plausibly at every
+folder inspected. `define` and `compute` were measured the same way and are clean at 705 and 386.
+Anchoring it **changed the program's own claim** from *most setting constants* to *some setting
+constants*, which is the proof the correction was load-bearing rather than cosmetic. Pinned by
+§9b of `engine/en-scales.test.js`, using the exact prose that produced it.
+
+**A consequence worth naming, because it is an improvement and not merely a simplification.** A
+parent now composes from its children's **digest** (counts and categories), not their label strings.
+So renaming a folder stales **exactly one** label — its own — where it previously staled every
+ancestor's. The refusal Amir gets names the folder he actually edited instead of an ancestor he did
+not. The superseded test comment that reasoned about the old cascade is quoted in place in §7 of
+`engine/en-scales.test.js` rather than deleted.
+
+**Measured, whole corpus, catalog `1e5349a1`:** words per label **median 12, mean 10.6, max 16**,
+**0 of 216 labels over 24 words**, vacuous **3/216 (1.4%)**, unclassified files **16/1038 (1.5%)**,
+round-trip **byte-identical 1038/1038**, program `.en` **10,002,931 → 6,759,155 bytes** (−32%, all of
+it run-on headings). `engine/en-scales.test.js` **55/55**.

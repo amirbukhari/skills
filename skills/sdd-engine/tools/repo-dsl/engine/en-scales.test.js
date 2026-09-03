@@ -71,13 +71,46 @@ const alphaHead = headOf(alpha.en).label;
 eq(headOf(alpha.en).name, "alpha", "2. the folder entry carries its NAME as a separate field");
 console.log("    alpha heading: " + alphaHead);
 ok(alphaHead.startsWith("alpha:"), "2. the folder heading names the folder");
-/* NON-VACUITY: the heading must contain the files' OWN words, not just the folder name. Without
- * this, a heading of "alpha:" alone would satisfy every other assertion in this file. */
+/* NON-VACUITY, AND ITS DEFINITION CHANGED ON PURPOSE — this is the assertion the run-on fix turns
+ * around, so it is worth stating why the old one is gone rather than quietly relaxing it.
+ *
+ * SUPERSEDED ASSERTION, kept per §9:
+ *
+ * >   for (const w of oneWords) ok(alphaHead.includes(w), "the folder heading carries the file's word")
+ *
+ * That demanded the heading CONTAIN each file's word verbatim, which is exactly the concatenation
+ * Amir rejected: *"it should have been one word with the composition of the words that made up
+ * that one word... shouldn't have been a hundred words it should have been like a couple dozen
+ * words."* A heading that contains its children's words cannot be short, so the old assertion and
+ * the requirement are not jointly satisfiable — one of them had to go, and it is the one that was
+ * a proxy for non-vacuity rather than non-vacuity itself.
+ *
+ * WHAT REPLACES IT IS STRICTER, NOT LOOSER, because "short" is trivially satisfiable by saying
+ * nothing. The heading must make a CLAIM that varies with the files: it counts them, and it
+ * reports a category that is actually observable in them. A stub returning the bare name fails
+ * every line below, and so does a heading that pads a fixed sentence — the count and the category
+ * both have to be right. */
 const oneWords = S.topWordsOf(EN.renderFileEn(FILES["src/alpha/one.ts"], index).en);
-ok(oneWords.length > 0, "2. the file contributes at least one top-level word (non-vacuity)");
-for (const w of oneWords) ok(alphaHead.includes(w), "2. the folder heading carries the file's word: " + JSON.stringify(w));
-/* and R-LANG-19 one level up: the heading is ADDITIVE — it did not replace what the files say */
-ok(alphaHead.length > "alpha:".length + 2, "2. the heading is a heading OVER the words, not a replacement for them");
+ok(oneWords.length > 0, "2. the file contributes at least one top-level word (non-vacuity of the FILE scale)");
+ok(alphaHead !== "alpha" && alphaHead.startsWith("alpha:"),
+  "2. the folder heading is not the bare name — it makes a claim");
+ok(/\b2 files\b/.test(alphaHead),
+  "2. the heading COUNTS its files, so it varies with what is in the folder: " + JSON.stringify(alphaHead));
+ok(/\b(all|most|some)\b/.test(alphaHead),
+  "2. the claim carries a quantifier derived from the count, so it cannot overstate");
+/* the claim must be about THESE files: alpha holds two constant modules, so the observable
+ * category is the one the engine actually renders for them, not a category picked at random. */
+const alphaCats = S.categoriesOf(EN.renderFileEn(FILES["src/alpha/one.ts"], index).en);
+ok(alphaCats.length > 0, "2. the file has at least one observable clause category");
+ok(alphaCats.some((k) => alphaHead.includes(S.CATEGORIES.find((c) => c[0] === k)[1])),
+  "2. the heading reports a category OBSERVED IN the folder's own files, not a guess");
+/* AND IT IS SHORT — the requirement that the old assertion made impossible. */
+ok(S.labelWords(alphaHead) <= 24,
+  "2. the folder heading is inside Amir's couple-dozen-word budget (" + S.labelWords(alphaHead) + " words)");
+/* R-LANG-19 one level up: the heading is ADDITIVE — the files' own words are still there, in the
+ * body, verbatim. The heading summarises them; it does not stand in for them. */
+for (const w of oneWords) ok(alpha.en.includes(w),
+  "2. the file's own word survives VERBATIM in the body under the heading: " + JSON.stringify(w.slice(0, 40)));
 
 /* ---- 3. NESTED: a program is a word made of its FOLDERS' words ----------------------------- */
 console.log("\n  --- 3. the composition is recursive, not two special cases ---");
@@ -85,7 +118,27 @@ const progHead = headOf(prog.en).label;
 eq(headOf(prog.en).name, "src", "3. the program entry carries its NAME as a separate field, taken from the paths");
 console.log("    program heading: " + progHead.slice(0, 200) + (progHead.length > 200 ? " …" : ""));
 ok(progHead.startsWith("root src:"), "3. the program heading names the root");
-for (const g of ["alpha", "beta", "gamma"]) ok(progHead.includes(g + ":"), "3. the program heading carries folder " + g + "'s word");
+/* SUPERSEDED, per §9: `for (const g of ["alpha","beta","gamma"]) ok(progHead.includes(g + ":"))`
+ * — the program heading no longer names every folder, for the same reason the folder heading no
+ * longer quotes every file. 215 folder names would not fit in a couple of dozen words, and a
+ * program heading listing them is a table of contents rather than a claim. What must hold instead
+ * is that the program's claim is a ROLL-UP of the whole subtree: its file count is every
+ * descendant file, not its immediate children, and its folder count is every descendant folder. */
+ok(/\b6 files\b/.test(progHead),
+  "3. the program counts every DESCENDANT file (6), not its immediate children (0): " + JSON.stringify(progHead));
+ok(/\b3 folders\b/.test(progHead),
+  "3. the program counts its descendant folders (3), so the tree's shape is in the one line");
+ok(/\b(all|most|some)\b/.test(progHead), "3. the program claim carries a derived quantifier");
+ok(S.labelWords(progHead) <= 24,
+  "3. the program heading is inside the couple-dozen-word budget (" + S.labelWords(progHead) + " words)");
+/* the roll-up is what makes this a RECURSION and not two special cases: the program's digest must
+ * equal the sum of its folders' digests, which is only observable by comparing the two scales. */
+{
+  const alphaOnly = EN.renderFolderEn(
+    { "one.ts": FILES["src/alpha/one.ts"], "two.ts": FILES["src/alpha/two.ts"] }, index, { name: "alpha" });
+  ok(/\b2 files\b/.test(headOf(alphaOnly.en).label),
+    "3. the same folder rendered ALONE claims the same 2 files — the scales agree");
+}
 ok(prog.stats.maxDepth >= 2, "3. the tree reaches depth >= 2 (program of folders of files)");
 eq(prog.stats.folders, 4, "3. four folder nodes: src + alpha/beta/gamma");
 
@@ -177,17 +230,26 @@ console.log("\n  --- 7. a nested RELATIVE folder is not mistaken for a rooted on
     /* AND THE INNER FOLDER'S NAME IS STILL CHECKED — parts[0] of "sub/a.ts" — so §7 is not green
      * merely because the check was switched off for relative containers.
      *
-     * ISOLATING THIS TOOK A CORRECTION WORTH KEEPING. The first attempt renamed the inner folder
-     * and its own label and asserted the NAME message; the guard fired with the LABEL message
-     * instead, and the assertion read as "not checked". It was: renaming an inner folder also
-     * stales every ANCESTOR's label, the outer label mismatched first, and depth-first order made
-     * that problems[0]. The guard was working; the test was asserting the wrong one of two true
-     * refusals. So the rename here is made consistent at BOTH levels — outer label, inner name and
-     * inner label — leaving the FILE PATHS as the only thing that still disagrees. */
-    let bad = f.en.replace("sub: ", "NOTSUB: ");                                   /* outer label */
-    bad = bad.replace(S.FOLDER + " sub " + S.SEP + " sub: ",
-                      S.FOLDER + " NOTSUB " + S.SEP + " NOTSUB: ");                /* inner name + label */
+     * ISOLATING THIS TOOK A CORRECTION WORTH KEEPING, and then the run-on fix REMOVED the thing it
+     * corrected for. The original note read:
+     *
+     * >   renaming an inner folder also stales every ANCESTOR's label, the outer label mismatched
+     * >   first, and depth-first order made that problems[0]. The guard was working; the test was
+     * >   asserting the wrong one of two true refusals. So the rename here is made consistent at
+     * >   BOTH levels — outer label, inner name and inner label.
+     *
+     * That was true while a parent's label CONTAINED its children's labels. It no longer does: a
+     * parent composes from its children's OBSERVATIONS (their digest), and a digest holds counts
+     * and categories, not names. So renaming an inner folder now stales exactly one label — its
+     * own — and the refusal is localised to the folder actually edited. That is a real improvement
+     * and not merely a simplification: the message Amir would get names the folder he touched,
+     * instead of an ancestor he did not. The rename here is therefore consistent at ONE level, and
+     * the FILE PATHS remain the only thing that disagrees. */
+    const bad = f.en.replace(S.FOLDER + " sub " + S.SEP + " sub:",
+                             S.FOLDER + " NOTSUB " + S.SEP + " NOTSUB:");           /* inner name + label */
     ok(bad !== f.en && !bad.includes(S.FOLDER + " sub " + S.SEP), "7. the inner rename landed at both levels");
+    ok(headOf(bad).label === headOf(f.en).label,
+      "7. and the OUTER label is untouched by it — a digest label does not cascade");
     ok(bad.includes("◈ sub/a.ts"), "7. the file paths were deliberately left saying sub/");
     let o2; try { o2 = { ok: EN.compileFolderEn(bad, index) }; } catch (e) { o2 = { threw: e.message }; }
     console.log("    consistently renamed inner folder -> " + (o2.threw ? "REFUSED: " + o2.threw.split("\n")[0] : "compiled — GUARD DID NOT FIRE"));
@@ -211,6 +273,60 @@ ok(threw(() => EN.renderFolderEn(null, index), /got null/),
    "8. a non-object is refused, naming what it got");
 ok(threw(() => EN.renderFolderEn(new Map(), index), /not a Map/),
    "8. the folder scale carries the same guard as the program scale");
+
+
+/* ---- 9. THE HONESTY RULE, EXECUTABLE --------------------------------------------------------
+ * Amir, ruling these scales: *"If you can't make a true claim about a folder, emit the vacuous
+ * label and COUNT it... I would take an honest 40% vacuous over a plausible 0%."* A rule that only
+ * exists in a comment is a rule nobody can violate loudly, so it is asserted here in both
+ * directions: the quantifier cannot overstate, and the vacuous case is counted rather than dressed
+ * up. §16's whole subject is guards that cannot fire, so each of these is checked against a case
+ * that WOULD fire if the implementation regressed. */
+console.log("\n  --- 9. the label cannot overstate, and silence is counted ---");
+
+/* 9a. THE QUANTIFIER IS A FUNCTION OF THE COUNT, so "all" is unreachable without every file. */
+eq(S.quantify(3, 3), "all",  "9a. every file -> all");
+eq(S.quantify(2, 3), "most", "9a. more than half -> most");
+eq(S.quantify(1, 3), "some", "9a. at least one -> some");
+eq(S.quantify(2, 4), "some", "9a. exactly half is SOME, not most — the boundary that would flatter");
+eq(S.quantify(0, 3), null,   "9a. zero says nothing at all");
+ok(S.quantify(1, 1) === "all", "9a. one of one is genuinely all");
+
+/* 9b. THE MEASURED OVER-CLAIM, pinned by the exact prose that produced it. A bare /\bset\b/
+ * matched 109 corpus files on sentences like these, every one of which would have been reported as
+ * a folder that sets constants. This is the assertion that would have caught it. */
+const PROSE_NOT_A_CONSTANT = [
+  "«\u25b6 stop early when `generationType` is set and `x` is empty \u27ealzw1 n1\u27e8x\u27eb»",
+  "«\u25b6 check whether `con.isConnected` is set \u27ealzw1 n1\u27e8y\u27eb»",
+];
+for (const en of PROSE_NOT_A_CONSTANT) {
+  ok(!S.categoriesOf(en).includes("const"),
+    "9b. prose that merely says \"is set\" is NOT a constant module: " + JSON.stringify(en.slice(3, 48)));
+}
+ok(S.categoriesOf("«\u25b6 set `JOB_TTL_SECONDS` to `259200` \u27ealzw1 n1\u27e8z\u27eb»").includes("const"),
+  "9b. and the real idiom still matches — the tightening did not switch the category off");
+
+/* 9c. A FILE THE ENGINE CANNOT CHARACTERISE MAKES THE LABEL VACUOUS, AND THE COUNT SAYS SO.
+ * The label falls back to the bare folder name and `vacuousLabels` records it. The failure mode
+ * being excluded is a plausible-sounding label over files nothing was observed in. */
+{
+  const opaque = { "x.ts": "\n", "y.ts": "\n" };
+  const f = EN.renderFolderEn(opaque, index, { name: "quiet" });
+  const head = headOf(f.en).label;
+  console.log("    label over files with nothing observable: " + JSON.stringify(head));
+  ok(!/\b(all|most|some)\b/.test(head), "9c. no quantifier is invented when nothing was observed");
+  ok(f.stats.vacuousLabels >= 1, "9c. the vacuous label is COUNTED, not hidden (§16's denominator rule)");
+  ok(EN.compileFolderEn(f.en, index)["x.ts"] === "\n", "9c. and a vacuous label still round-trips byte-exact");
+}
+
+/* 9d. WORDS PER LABEL IS REPORTED, because it is the number Amir judges this on and a metric that
+ * lives only in a scratch script drifts from the thing it measures (R-MECH-8). */
+{
+  const f = EN.renderFolderEn({ "a.ts": "export const a = 1;\n" }, index, { name: "one" });
+  ok(typeof f.stats.labelWordsMedian === "number" && typeof f.stats.labelWordsMax === "number",
+    "9d. the renderer publishes words-per-label itself");
+  ok(f.stats.labelWordsMax <= 24, "9d. and the label it just produced is inside the budget");
+}
 
 console.log("\n" + pass + " passed, " + fail + " failed");
 if (fail) console.error("\nThe folder and program scales are asserted in synth-composition.test.js §5; this file rules on\nwhat they do. A failure here is a regression in the scale composition, not an expected red.");

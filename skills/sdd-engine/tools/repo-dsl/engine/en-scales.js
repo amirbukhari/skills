@@ -124,14 +124,143 @@ function topWordsOf(en) {
  * reason (a heading is computed from its children, so editing it alone is two pieces of English
  * contradicting each other with no principled winner — ruled 2026-09-03, §10). The edit stays
  * expressible at the file, one level down. */
-function folderLabel(name, childWords) {
-  const inner = childWords.filter(Boolean).join(", then ");
-  return inner ? name + ": " + inner : name;
+/* ---- THE LABEL IS A CLAIM ABOUT THE FOLDER, NOT ITS CHILDREN GLUED END TO END ----------------
+ *
+ * SUPERSEDED WORDING, kept per §9 because the shape of the mistake matters more than the fix:
+ *
+ * >   function folderLabel(name, childWords) {
+ * >     const inner = childWords.filter(Boolean).join(", then ");
+ * >     return inner ? name + ": " + inner : name;
+ * >   }
+ *
+ * That is a CONCATENATION WEARING A SUMMARY'S CLOTHES — the same defect the file scale had, one
+ * level up. Measured: the median file label is 36 words, p90 103, max 1158, so joining them made a
+ * program heading of ~10 million bytes that opened `root program: packages: hydra-internal: src:
+ * enums: list the choices for ...` and never stopped. Amir, on the target: *"it should have been
+ * one word with the composition of the words that made up that one word... shouldn't have been a
+ * hundred words it should have been like a couple dozen words."* The composition is what makes the
+ * label DERIVABLE. It is not what the label should SAY.
+ *
+ * WHAT I TRIED FIRST AND REJECTED ON EVIDENCE, because it is the tempting version and it lies:
+ * classify each file into an ARCHETYPE ("shape", "route module", "function module") and count the
+ * archetypes. It reaches 0.6% unclassified and reads beautifully. It is also WRONG about real
+ * files, which I found only by spot-checking the buckets: `infinityReportHelpers.ts` — a helpers
+ * module that happens to declare one interface — was confidently labelled a "shape", and
+ * `properties.ts` a "type alias". A file that CONTAINS a shape declaration is not a shape. Tried
+ * next: give a file a kind only when exactly one category matches, and call the rest "mixed" —
+ * honest, and useless, because 626 of 1038 files match more than one category and "626 mixed
+ * modules" tells Amir nothing about his own code.
+ *
+ * WHAT IS BOTH TRUE AND USEFUL: count files by the clauses they CONTAIN — a non-exclusive
+ * observation, not a judgement about what a file *is* — and state it with a quantifier that is
+ * literally checkable against that count. `all` means every descendant file, `most` means more
+ * than half, `some` means at least one. So:
+ *
+ *     enums: 9 files, all listing choices
+ *     invoicing: 23 files, all defining functions, most describing shapes, some listing choices
+ *
+ * which is a claim ABOUT the folder, is short, and is verifiable clause by clause. It is also the
+ * shape of Amir's own example — *"twelve HTTP routers, all behind a JWT check"* is a count plus a
+ * universal, and the universal is the part that says something.
+ *
+ * THE HONESTY RULE IS ABSOLUTE AND IT IS IMPLEMENTED, NOT ASPIRED TO. A category is only ever
+ * reported at a quantifier its count actually supports, so no label can overstate. If NOTHING is
+ * observable, the label is the bare name — VACUOUS — and it is COUNTED in `vacuousLabels` and
+ * reported. Amir: *"I would take an honest 40% vacuous over a plausible 0%."* A run-on wastes his
+ * time; a wrong summary misleads him about his own code, and those are not the same cost. */
+
+/* CATEGORIES ARE CLAUSE OBSERVATIONS. Each regex tests for a phrase THIS ENGINE RENDERS, so the
+ * category is a statement about the English in the artifact rather than a guess about intent —
+ * which is also why it is reproducible on compile from the file `.en` alone, with no artifact
+ * lookup and no second source of truth. Order fixes the reporting order only; membership is
+ * independent, and a file can be in several. */
+const CATEGORIES = [
+  ["test",   "declaring test suites",   "declare test suites",    /declare suite|\bdescribe\s*[“"]|\bit\s*\(\s*['"`]|\bexpect\s*\(/],
+  ["record", "describing stored records","describe stored records",/describe the stored record|declare entity/],
+  ["shape",  "describing shapes",       "describe shapes",        /describe the shape|extend interface/],
+  ["enum",   "listing choices",         "list choices",           /list the choices for/],
+  ["type",   "naming types",            "name types",             /name the type|export generic type/],
+  ["fn",     "defining functions",      "define functions",       /\bdefines? `[^`]+`|\bdefine the class\b/],
+  ["reexp",  "re-exporting",            "re-export",              /re-export/],
+  /* `set` IS ANCHORED TO THE RENDERED IDIOM, and that is a measured correction rather than taste.
+   * A bare /\bset\b/ matched 424 files where the tight form matches 315 — 109 of them on PROSE
+   * that is not a constant at all: "stop early when `generationType` is set", "check whether
+   * `con.isConnected` is set". Every one would have been reported to Amir as a folder that sets
+   * constants. That is precisely the over-claim the honesty rule forbids, and only counting the
+   * two forms side by side showed it; the loose version read plausibly at every folder I looked
+   * at. `define` and `compute` were measured the same way and are clean at 705 and 386. */
+  ["const",  "setting constants",       "set constants",          /\bset `[^`]+` to\b|\bcompute `[^`]+`/],
+];
+
+/* A file's category set, from its own `.en`. Cheap and pure — no index, no artifact, no path. */
+function categoriesOf(fileEn) {
+  const out = [];
+  for (const c of CATEGORIES) if (c[3].test(fileEn)) out.push(c[0]);
+  return out;
 }
-function programLabel(name, folderWords) {
-  const inner = folderWords.filter(Boolean).join(", ");
-  return inner ? "root " + name + ": " + inner : "root " + name;
+
+/* Roll a subtree's observations into one digest. `files` counts DESCENDANT files, so a folder of
+ * folders summarises its whole subtree — which is what makes a program a word made of its folders'
+ * words rather than a word made of its top two folders' names. */
+function emptyDigest() { return { files: 0, cats: Object.create(null), unclassified: 0 }; }
+function digestAddFile(d, cats) {
+  d.files++;
+  if (cats.length === 0) d.unclassified++;
+  for (const k of cats) d.cats[k] = (d.cats[k] || 0) + 1;
 }
+function digestMerge(d, other) {
+  d.files += other.files;
+  d.unclassified += other.unclassified;
+  for (const k of Object.keys(other.cats)) d.cats[k] = (d.cats[k] || 0) + other.cats[k];
+}
+
+/* THE QUANTIFIER IS DERIVED FROM THE COUNT, so it cannot overstate by construction. */
+function quantify(count, total) {
+  if (count <= 0) return null;
+  if (count === total) return "all";
+  if (count * 2 > total) return "most";
+  return "some";
+}
+
+/* At most three clauses, so the label stays inside Amir's "couple dozen words". Ordered by count
+ * descending and then by CATEGORIES order, so it is deterministic on both sides of the round trip
+ * — a label that depended on object key order would refuse at random. */
+const MAX_CLAUSES = 3;
+function claimClauses(d) {
+  const ranked = CATEGORIES
+    .map((c, i) => ({ key: c[0], phrase: c[1], n: d.cats[c[0]] || 0, i: i }))
+    .filter((x) => x.n > 0)
+    .sort((a, b) => (b.n - a.n) || (a.i - b.i))
+    .slice(0, MAX_CLAUSES);
+  return ranked.map((x) => quantify(x.n, d.files) + " " + x.phrase);
+}
+
+function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+/* A FOLDER'S CLAIM. Vacuous — the bare name — when nothing was observable, and the caller counts
+ * that rather than dressing it up. */
+function folderLabel(name, digest) {
+  if (!digest || digest.files === 0) return name;
+  const clauses = claimClauses(digest);
+  if (clauses.length === 0) return name;
+  return name + ": " + plural(digest.files, "file") + ", " + clauses.join(", ");
+}
+
+/* A PROGRAM'S CLAIM. Same computation, and it names the folder count too, because at program scale
+ * the shape of the tree is itself information Amir does not otherwise get in one line. */
+function programLabel(name, digest, folders) {
+  const head = "root " + name;
+  if (!digest || digest.files === 0) return head;
+  const clauses = claimClauses(digest);
+  const scope = plural(digest.files, "file")
+    + (folders > 0 ? " in " + plural(folders, "folder") : "");
+  if (clauses.length === 0) return head + ": " + scope;
+  return head + ": " + scope + ", " + clauses.join(", ");
+}
+
+/* WORDS PER LABEL — the metric Amir will actually judge this on, so it is computed here beside the
+ * thing it measures rather than in a report script that could drift from it. */
+function labelWords(label) { return label.trim() ? label.trim().split(/\s+/).length : 0; }
 
 /* ---- RENDER -----------------------------------------------------------------------------------
  * One recursion for both scales, because they ARE one recursion — the program is the folder case
@@ -184,14 +313,20 @@ function buildTree(files) {
  * heading from, which is the whole mechanism of "a word made of its children's words". */
 function renderNode(node, files, index, stats, depth) {
   const EN = require("./enfile");        /* lazy: enfile requires this module */
-  let en = "", words = [];
+  let en = "";
+  /* THE DIGEST, NOT THE LABELS, IS WHAT FLOWS UP. A parent composes from its children's
+   * OBSERVATIONS; if it composed from their label strings it would be a concatenation again, one
+   * level removed, and it would also make every parent label depend on child label formatting. */
+  const digest = emptyDigest();
   for (const [name, sub] of node.dirs) {
     const r = renderNode(sub, files, index, stats, depth + 1);
-    const label = folderLabel(name, r.words);
+    const label = folderLabel(name, r.digest);
     stats.folders++;
     stats.maxDepth = Math.max(stats.maxDepth, depth + 1);
+    if (label === name) stats.vacuousLabels++;
+    stats.labelWords.push(labelWords(label));
     en += OPEN + FOLDER + " " + assertPathSafe(name) + " " + SEP + " " + label + " " + BODY_OPEN + r.en + BODY_CLOSE + CLOSE + "\n";
-    words.push(label);
+    digestMerge(digest, r.digest);
   }
   for (const rel of node.files) {
     const src = files[rel];
@@ -200,28 +335,42 @@ function renderNode(node, files, index, stats, depth) {
     stats.files++;
     if (fileWords.length === 1) stats.filesOneWord++;
     en += OPEN + FILE_IN + " " + rel + " " + BODY_OPEN + r.en + BODY_CLOSE + CLOSE + "\n";
-    /* a file's contribution to its folder's heading is its OWN top-level word(s) — the same
-     * strings `topWordsOf` will recover on compile, so the composition is reproducible. */
-    words.push(fileWords.join("; "));
+    /* a file's contribution to its folder's claim is the set of clause categories observable in
+     * its OWN `.en` — the same text, byte for byte, that `compileNode` hands to `categoriesOf`,
+     * so the parent's claim is reproducible without storing it. */
+    digestAddFile(digest, categoriesOf(r.en));
   }
-  return { en, words };
+  return { en, digest };
+}
+
+/* WORDS PER LABEL, reduced to the three numbers worth reading. Reported rather than asserted: this
+ * is the metric Amir judges the scales on, and a mean alone would hide the run-on tail that was the
+ * whole defect. */
+function summariseLabels(stats) {
+  const w = stats.labelWords.slice().sort((a, b) => a - b);
+  stats.labelWordsMedian = w.length ? w[w.length >> 1] : 0;
+  stats.labelWordsMax = w.length ? w[w.length - 1] : 0;
+  stats.labelWordsMean = w.length ? +(w.reduce((a, b) => a + b, 0) / w.length).toFixed(1) : 0;
 }
 
 /* A FOLDER: a word made of its files' words. `files` is { rel -> source }; every rel must live
  * under `name` or be given relative to it — the map's keys are the truth, not the filesystem. */
 function renderFolderEn(files, index, opts) {
   const name = (opts && opts.name) || "";
-  const stats = { files: 0, folders: 0, filesOneWord: 0, maxDepth: 0 };
+  const stats = { files: 0, folders: 0, filesOneWord: 0, maxDepth: 0, vacuousLabels: 0, labelWords: [] };
   const tree = buildTree(files);
   const r = renderNode(tree, files, index, stats, 0);
-  const label = folderLabel(name || ".", r.words);
+  const label = folderLabel(name || ".", r.digest);
   stats.folders++;
+  if (label === (name || ".")) stats.vacuousLabels++;
+  stats.labelWords.push(labelWords(label));
+  summariseLabels(stats);
   return { en: OPEN + FOLDER + " " + assertPathSafe(name || ".") + " " + SEP + " " + label + " " + BODY_OPEN + r.en + BODY_CLOSE + CLOSE + "\n", stats };
 }
 
 /* A PROGRAM: a word made of its folders' words. Same recursion, PROGRAM marker at the top. */
 function renderProgramEn(files, index, opts) {
-  const stats = { files: 0, folders: 0, filesOneWord: 0, maxDepth: 0 };
+  const stats = { files: 0, folders: 0, filesOneWord: 0, maxDepth: 0, vacuousLabels: 0, labelWords: [] };
   let tree = buildTree(files);
   /* THE PROGRAM ENTRY RECORDS THE PATH PREFIX IT CONSUMED, and that field is load-bearing rather
    * than decorative. Two real shapes exist and they need different arithmetic:
@@ -248,9 +397,13 @@ function renderProgramEn(files, index, opts) {
   const nameField = prefix.length ? prefix.join("/") : ".";
   const display = prefix.length ? prefix[prefix.length - 1] : ((opts && opts.name) || "program");
   const r = renderNode(tree, files, index, stats, prefix.length);
-  const label = programLabel(display, r.words);
+  const label = programLabel(display, r.digest, stats.folders);
   stats.folders++;
+  if (label === "root " + display) stats.vacuousLabels++;
+  stats.labelWords.push(labelWords(label));
+  stats.unclassifiedFiles = r.digest.unclassified;
   stats.programRooted = prefix.length > 0;
+  summariseLabels(stats);
   return { en: OPEN + PROGRAM + " " + assertPathSafe(nameField) + " " + SEP + " " + label + " " + BODY_OPEN + r.en + BODY_CLOSE + CLOSE + "\n", stats };
 }
 
@@ -300,7 +453,7 @@ function compileNode(en, index, opts, out, acc, depth, pathDepth) {
       if (!rel) throw new Error("en-scales: a ◈ file entry carries no path");
       if (out[rel] !== undefined) throw new Error("en-scales: duplicate file entry for " + rel);
       out[rel] = EN.compileFileEn(body, index, Object.assign({}, opts, { file: rel }));
-      acc.words.push(topWordsOf(body).join("; "));
+      digestAddFile(acc.digest, categoriesOf(body));
       acc.rels.push(rel);
       i = c + 1;
       continue;
@@ -314,7 +467,7 @@ function compileNode(en, index, opts, out, acc, depth, pathDepth) {
     const written = chunk.slice(sep + SEP.length, bo).trim();
     if (!name) throw new Error("en-scales: a " + kind + " entry carries no name");
 
-    const inner = { words: [], rels: [], problems: acc.problems };
+    const inner = { digest: emptyDigest(), rels: [], problems: acc.problems, folders: 0 };
     /* children of a PROGRAM start after its consumed prefix; children of a FOLDER one deeper */
     const childPathDepth = kind === PROGRAM ? (name === "." ? 0 : name.split("/").length) : pathDepth + 1;
     compileNode(body, index, opts, out, inner, depth + 1, childPathDepth);
@@ -327,11 +480,11 @@ function compileNode(en, index, opts, out, acc, depth, pathDepth) {
      * counted in `_uncheckedNames` rather than presented as checked (§16's denominator rule) —
      * the children half of the label is still fully derived and still refuses on disagreement. */
     let derived;
-    if (kind === FOLDER) derived = folderLabel(name, inner.words);
-    else if (name !== ".") derived = programLabel(name.split("/").pop(), inner.words);
+    if (kind === FOLDER) derived = folderLabel(name, inner.digest);
+    else if (name !== ".") derived = programLabel(name.split("/").pop(), inner.digest, inner.folders);
     else {
       const m = /^root\s+(.*?):/.exec(written);
-      derived = programLabel(m ? m[1] : "program", inner.words);
+      derived = programLabel(m ? m[1] : "program", inner.digest, inner.folders);
       acc.uncheckedNames++;
     }
     if (derived !== written) inner.problems.push({ kind, name, written, derived });
@@ -354,7 +507,8 @@ function compileNode(en, index, opts, out, acc, depth, pathDepth) {
         detail: wrong.length + " of " + witnesses.length + " descendant path(s) disagree, e.g. " + wrong[0] });
     } else acc.uncheckedNames++;
 
-    acc.words.push(written);
+    digestMerge(acc.digest, inner.digest);
+    acc.folders += inner.folders + 1;
     for (const r of inner.rels) acc.rels.push(r);
     i = c + 1;
   }
@@ -362,7 +516,7 @@ function compileNode(en, index, opts, out, acc, depth, pathDepth) {
 
 function compileScales(en, index, opts) {
   const out = Object.create(null);
-  const acc = { words: [], rels: [], problems: [], uncheckedNames: 0 };
+  const acc = { digest: emptyDigest(), rels: [], problems: [], uncheckedNames: 0, folders: 0 };
   /* the outermost entry decides the path convention — see pathDepth above. */
   const firstOpen = en.indexOf(OPEN);
   compileNode(en, index, opts, out, acc, 0, -1);
@@ -398,6 +552,7 @@ const compileFolderEn = compileScales;
 const compileProgramEn = compileScales;
 
 module.exports = { OPEN, CLOSE, BODY_OPEN, BODY_CLOSE, FILE_IN, FOLDER, PROGRAM,
+  CATEGORIES, categoriesOf, quantify, labelWords, folderLabel, programLabel,
   SEP, MARKERS, assertPathSafe, matchClose, topWordsOf,
   folderLabel, programLabel, buildTree,
   assertFilesShape,

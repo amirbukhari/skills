@@ -129,6 +129,11 @@ minutes than have that class of thing land silently."**
 > issued to **every** lane in the **same message**. A shared-state instruction that names only one
 > lane is **incomplete**: the lane receiving it does not act on it, and says so.
 
+*Amir, 2026-09-03, accepting the corollary onto the record in his own words:* **"a shared-state
+protocol that yields whenever the merits look good is a habit that happened not to have cost
+anything yet. The near-riskless re-mine was correctly held. The protocol holds even when holding is
+obviously unnecessary — that's the only version of it that's worth anything."**
+
 The corollary is the load-bearing half, because it is the one that costs something: **this cuts
 against acting even when the merits are clear.** The `MIN_SKEL=1` re-mine was close to riskless —
 zero names orphaned across four full mines, byte-identity held, the catalog regenerable — and it was

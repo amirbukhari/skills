@@ -6534,3 +6534,37 @@ that exercising beat reading, which is now §16's standing lesson:
    The PROGRAM entry now records its **consumed prefix** (`"."` = synthetic). **The lesson is the
    fixture's, not the code's:** a synthetic corpus shares the shape you gave it, so it cannot
    contradict the assumption you built it under.
+
+## The persisted corpus `.en` is now STALE, and the gate is refusing it — measured 2026-09-03
+
+Not a defect, and not caused by the scale work. `sen/files/**.en` on disk was rendered under catalog
+`491bf65b`; the live catalog is `1e5349a1` after the `MIN_SKEL=1` re-mine, and the engine's prose has
+moved since (s1's ExpressionStatement productions, `8240298`). So a persisted heading reads
+`loop over handler` where the engine now derives `loop over` \`handler\` — a real disagreement, and
+R-REND-6 refuses it.
+
+**Measured across all 1037 persisted `.en`:**
+
+| outcome | count |
+|---|---|
+| compile **and** byte-identical | 632 |
+| **REFUSED** (stale heading vs derived) | **405** |
+| compiled but produced **wrong bytes** | **0** |
+| other errors | 0 |
+
+**The zero is the point.** 405 files drifted and not one of them compiled to wrong TypeScript. That
+is the free safety I flagged when the label region became an input: an `.en` rendered under one
+naming catalog and compiled under another is a **refusal**, not a silent miscompile. Before R-REND-6
+cut 2 this drift would have compiled quietly, because the label region was inert.
+
+**Consequences, none of them taken unilaterally:**
+
+- `engine/enfile.test.js` fails at its persisted-corpus assertion (5 passed, rc=1). **It is correct
+  to fail and it must not be edited to pass** — the assertion is doing its job. It needs a render,
+  not a weaker test.
+- A **render** is what clears it. Amir lifted the render park on 2026-09-03, so it is authorised;
+  it is not taken here because it writes `sen/` — shared state — while s1's productions are still
+  landing in `enfile.js`, and rendering under a half-landed engine would just re-stale it. Flagged
+  for sequencing rather than raced.
+- Freshly rendered `.en` round-trips **byte-identical** for the file checked, and the scales measure
+  **1038/1038** in memory, so nothing is wrong with the engine or the dictionary.
