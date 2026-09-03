@@ -6568,3 +6568,51 @@ cut 2 this drift would have compiled quietly, because the label region was inert
   for sequencing rather than raced.
 - Freshly rendered `.en` round-trips **byte-identical** for the file checked, and the scales measure
   **1038/1038** in memory, so nothing is wrong with the engine or the dictionary.
+
+## 2026-09-03 — "byte-identity 1037/1037" does not mean what I have been using it to mean
+
+**I have asserted this before every measurement tonight, as the floor.** It is true, it has never
+been false, and it does not say what I have been reading it as saying.
+
+`test-lzw-roundtrip.js` renders each source file **fresh in memory** and compiles that render back.
+It never reads `<CORPUS>/sen/files/**.en`. So it measures **the renderer**, not the corpus on disk.
+
+Measured 2026-09-03, independently reproducing `sdd-engine-56`'s count against catalog `1e5349a1`:
+
+| persisted `.en` outcome | count |
+|---|---|
+| compile **and** byte-identical | 632 |
+| **REFUSED** (R-REND-6, heading/payload disagree) | **405** |
+| compiled but produced **WRONG BYTES** | **0** |
+| other errors / no matching `.ts` | 0 / 0 |
+
+So the tree was simultaneously at **1037/1037** and carrying **405 stale files**, with no
+contradiction between those facts. The persisted `.en` were rendered under `491bf65b`; the prose has
+moved since, through the `MIN_SKEL=1` re-mine and my ExpressionStatement productions. A fresh render
+of any of the 405 round-trips byte-identical — nothing is wrong with the engine or the dictionary,
+only with bytes on disk.
+
+**The class, because it is the same one four other times over tonight and this is the variant I did
+to myself:** the other cases were a producer with two channels and a consumer reading one (§8B.9.1).
+This is a measurement whose **subject** I quietly substituted — the assertion answers "does the
+renderer round-trip", and I read it as "is the corpus consistent". It fails in the reassuring
+direction: it reads green, it *is* green, and it answers a question nobody asked.
+
+**What this does NOT mean.** Every number I reported tonight — review surface 1,086 / 20,214, mute
+4,646 → 2,362, the per-kind coverage table — is computed from fresh renders and is unaffected. The
+floor did its job for what it measures. The error is in what I said it covered, not in the figure.
+
+**The one check that CAN see this class is `engine/enfile.test.js`'s persisted-corpus assertion,
+which currently fails (5 passed, rc=1). It is correct to fail and must not be edited to pass.** It
+needs a render, not a weaker test. Weakening it would remove the only thing in the tree that noticed.
+
+**Not fixed here, deliberately.** The repair is a render, which writes `sen/` — shared state — so
+under the 2026-09-03 protocol it needs one instruction to both lanes rather than either of us
+acting. Sequencing also matters: rendering under a half-landed engine just re-stales it. Raised for
+Amir with the 405 attached; the 8 fuzzy proposals and 19 exact restorations are gated behind the
+same render.
+
+**The zero is the result worth keeping.** 405 files drifted and not one produced wrong TypeScript.
+Before R-REND-6 the label region was inert, so all 405 would have compiled quietly and silently
+wrong. That is a guard firing on real drift the same night it shipped — the opposite of §10.3's
+guard that cannot be shown to fire.
