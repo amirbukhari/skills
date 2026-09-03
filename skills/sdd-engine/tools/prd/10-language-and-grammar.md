@@ -417,8 +417,25 @@ A run-on wastes his time; this misinforms him about his own system. **A wrong su
 a long one**, and this is what that costs.
 
 **And a human wrote it, from the file, and approved it.** Not a model, not a generator — the person
-who knows the codebase, working from the source. That is the whole argument, and it is why the
-honesty rule is mechanised rather than trusted:
+who knows the codebase, working from the source.
+
+**BOTH AUTHORED VERSIONS FAILED, AND THE SECOND AUTHOR HAD ALREADY READ THE FIRST ONE'S FAILURE.**
+This is the part that makes it a rule rather than an anecdote, and it is recorded here so the rule
+cannot be read as indicting only whoever happens to be furthest from the code:
+
+| # | author | what they wrote | what was wrong | caught by |
+|---|---|---|---|---|
+| 1 | Amir | *"both behind a JWT check"* | one route of two | derivation |
+| 2 | the user, correcting #1 | *"redirects … and notifies user `1`"* | source notifies **then** redirects; conjunction reverses the order | derivation |
+| 2 | the same, same sentence | *"returns the token's expiry"* | `ctx.body` returns **four** fields; partial, not false | derivation |
+
+Author #2 wrote theirs from the source, in five minutes, *knowing what had just happened to #1*, and
+sent it with the warning *"if this one is also wrong somewhere, say so — I wrote it from the source
+in five minutes and I am exactly the kind of author that finding warns about."* It was wrong in two
+places. Being forewarned did not help, and neither did proximity to the code: **the failure is a
+property of authoring a summary, not of the author.**
+
+That is why the honesty rule is mechanised rather than trusted:
 
 - **Quantifiers are derived from counts** (`quantify`), so no label can overstate. `both` requires
   2 of 2; `all` requires n of n; `most` requires a strict majority; a minority is **not stated at
@@ -430,18 +447,15 @@ honesty rule is mechanised rather than trusted:
 - **Vacuous is counted, not hidden.** 5.5% of files (57 of 1038) get no claim. Amir: *"I would take
   an honest 40% vacuous over a plausible 0%."*
 
-The corrected target (his, written in five minutes from the source, and offered with the warning
-*"I am exactly the kind of author that finding warns about"*) holds on every clause. Two things in
-it are still imprecise, reported rather than quietly built around:
+Author #2's two errors are detailed for the record: `ctx.body` in the second route returns
+`params`, `request: { query, body }`, `tokenResponseStatus` **and** `expiry`, so "returns the
+token's expiry" names one of four; and the first route calls `sendNotification` before
+`ctx.redirect`, so "redirects … and notifies" reverses them.
 
-1. It says the first route *"redirects to that invoice's share link and notifies user `1`"*. The
-   source notifies **then** redirects. The conjunction reverses the order.
-2. It says the second route *"returns the token's expiry"*. `ctx.body` returns **four** fields —
-   `params`, `request: { query, body }`, `tokenResponseStatus` and `expiry`. Not false; partial.
-
-Neither would mislead him. Both are the same class of defect as the JWT clause, two orders of
-magnitude smaller, and they are recorded here because the rule cuts against whoever is writing —
-including whoever writes the rule.
+Neither would have misled him, and that is the point rather than a mitigation: both are the same
+class of defect as the JWT clause, two orders of magnitude smaller, produced by an author who had
+just watched that clause fail. **The rule cuts against whoever is writing — including whoever
+writes the rule.** A rule that only indicts the user is a rule nobody applies to themselves.
 
 **The standing consequence:** a label is derived from the AST and cross-checked at compile
 (R-REND-6), or it is not emitted. A sentence that cannot be re-derived from the bytes is not a
