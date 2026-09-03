@@ -6101,3 +6101,68 @@ byte-identity still holds 1037/1037 because the verbatim fallback absorbs every 
 restores exactly 1,582 / 20,999. This is the §8B producer/consumer shape in the artifact rather than
 in the code: **any canon change is incomplete until the corpus is re-mined**, and the failure is
 silent in the only metric that is checked first.
+
+### The lane, finished: 19/19 present, and name-queue publishes without relaxing the refusal (2026-09-02)
+
+**`name-queue.json` has now published, twice, and the diagnosis I was handed was not the blocker.**
+The §8B `requires` violation is real — `AC.stamp("word-names", { names, orphans })` against
+`requires: ["names","orphans","chunks"]` — but it is not why the queue never appeared. Measured by
+running the script with no arguments: `ERR_INVALID_ARG_TYPE` at line 40, because `process.argv[2]`
+was a **mandatory census file that nothing in the live pipeline produced**. `sdd-run.js:85-91` had
+already recorded exactly that. The name-queue write sits **outside** `if (APPLY)`, so it never
+needed the word-names stamp to succeed — **the script could not start.**
+
+**The census already existed as a published artifact.** `naming-plan`'s tier-0 rows carry
+`{ key, axis, sym, sites }` and `key` **is** `WN.hashOf(axis, sym)` — asserted at runtime, and the
+run refuses if any row disagrees, because a plan keyed differently would orphan every name.
+`reconcile-names.js` now derives its census from the stamped artifact by default; a caller-supplied
+file still wins; an absent plan refuses with exit 3 naming `npm run name:plan`.
+
+**THE LOAD-BEARING REFUSAL WAS NEVER TOUCHED, and did not need to be.** `word-names.json` md5 is
+`2cd40101e53186d0d7d0b9d3f8f19161` before and after every run in this session. APPLY still refuses.
+I added a **second** guard on that path rather than removing the first: APPLY refuses outright if the
+run would orphan any name unless `ALLOW_ORPHANS=1` is said out loud, because an incomplete census is
+indistinguishable from a corpus that really moved.
+
+Verified by reading the artifact, never the exit code: `AC.load("name-queue", …)` passes, the
+fingerprint recomputes, and a tampered copy is **refused** by the loader.
+
+**A NEW FIFTH STATUS — `STALE` — and it found a true positive on its first live run.** s1 pointed
+out that nothing verifies a catalog's canon against the code reading it. I could not close that
+class (no canon fingerprint exists), so I closed the half that is measurable and **named the half
+that is not**, in the header and in the JSON `note`: `STALE` compares mtimes along declared
+derivation edges (`naming-plan ← generators-lzw`, `name-queue ← naming-plan`,
+`en-index ← generators-lzw`, `files-index ← en-index`). It catches "rebuilt out of order". It
+**cannot** see a canon change under an artifact whose mtime never moved.
+
+First run flagged `naming-plan` as STALE: `2026-09-02T02:52Z` against a dictionary of
+`2026-09-03T02:51Z` — **a full day older than the dictionary it swept**, which means the census
+behind my first name-queue was a generation behind. Mutation-checked both directions on throwaway
+copies: dictionary older → zero STALE rows; dictionary newer → exactly `naming-plan` and `en-index`.
+So I re-ran `npm run name:plan` (writes the plan only — `cmdPlan` stamps `naming-plan` at line 152;
+`word-names` is stamped only in `cmdName`, checked before running) and reconciled again. Final
+state: **19/19 present, 0 STALE, 0 MISSING, 0 BLOCKED, 0 needs-Amir, 0 LOST.**
+
+**One result that is a report, not a change, and it belongs to the open orphan question.** Against
+the fresh plan the census is 1,279 leaves (was 1,414) and reconcile reports **2 newly orphaned
+names**, `named` 6 → 4. Report-only, so nothing moved: word-names.json is byte-identical. Those two
+are the §5C steady state showing up honestly for the first time, and applying them is gated behind
+the guard above **and** behind the ruling s1 is waiting on.
+
+**Rulings executed.** `build-skeletons.js` → `archive/` (requires repointed `../engine/`); its three
+artifacts are **gone from preflight**, not downgraded — an artifact nobody will produce and nobody
+reads is not "expected". `package-hydra-source.js`'s two bare `catch (_) {}` now name every omitted
+tier on stdout **and** in `COVERAGE.json`'s `omittedTiers` + `unavailable` — verified by reading the
+artifact: `skeletonTier: null` with both omissions named and reasoned. `run-tests.js`'s
+`operation-idioms` entry now says the artifacts are **RETIRED and the skip permanent**, instead of
+reading as "needs a run". `engine/sdd.js` drops the archived stage; `engine/sdd.test.js` asserts its
+absence **in both directions** (26 passed). `corpus-root.test.js` 10 and `artifact-location.test.js`
+7 assertions pass after the two moves.
+
+**Byte-identity, asserted before and after every step:** gate `1037/1037 allByteIdentical: true`,
+en-index fingerprint `eba21fea419a73a4`, **zero** `.en` files modified. I deliberately did **not**
+re-render to produce a fresher assertion: s1 holds an uncommitted `operations.js` canon change in
+this shared tree, so a render right now would bake their in-flight canon into all 1,037 `.en` files.
+The stamped gate is the honest assertion available; a re-render would have been a louder one bought
+by clobbering a peer's lane.
+
