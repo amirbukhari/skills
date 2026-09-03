@@ -266,6 +266,36 @@ This gap was silently forgotten once already.
         (§3), now in a *remedy* rather than a detector. Run the `git add` in a FRESH shell, or
         `unset GIT_INDEX_FILE` before it, and confirm with `git status` that the paths are gone
         from the list rather than assuming the command did anything.
+      - **A file the recipe INTRODUCES will show as `D <path>` — a staged DELETION — until it gets
+        that `git add`.** *Measured 2026-09-03, reproduced in a throwaway repo in four commands.*
+        `commit-tree` writes the new file into **HEAD** while the real index, which this recipe
+        deliberately never touches, still holds a tree from before the file existed. `git status`
+        then reports real-index-vs-HEAD as a staged deletion **and** real-index-vs-worktree as
+        untracked — the same path on both lines, with the file present on disk and byte-identical
+        to HEAD:
+
+        ```
+        D  newfile.test.js
+        ?? newfile.test.js
+        ```
+
+        Nothing is deleted and nothing is lost. It is specific to **new** files: a modified file
+        already has a real-index entry and never shows this shape, which is why an all-night run of
+        the recipe produces it exactly once, on the one commit that added a file. **Verify disk ==
+        HEAD, then clear it with the `git add` above — never with a checkout or a reset.**
+        Recorded because the signature it presents is *maximally alarming and entirely benign*: it
+        looks precisely like the staged deletion of a peer's new test file, which the rules forbid
+        touching, so it costs a real investigation every time. **A recipe whose normal operation
+        manufactures the exact signature the rules forbid will erode the vigilance those rules
+        depend on** — so the fix belongs here, in the recipe, and not in anyone's alertness.
+      - **DO NOT REWRITE HISTORY IN A SHARED TREE. AT ALL.** *Standing rule, 2026-09-03.* Not to fix
+        a commit message, not to fix a typo. A rewrite re-resolves `HEAD` at use — the sweep-2
+        mechanism above — so a peer commit landing in the window between the guard and the
+        `commit-tree` silently orphans the peer's object and replaces the tip with one you authored.
+        It happened exactly that way: identical tree, identical message, nothing lost, and the peer's
+        commit object orphaned seven seconds after it was created, *while the recipe was being
+        followed everywhere else*, to repair a cosmetic phrase. **A bad commit message is not worth a
+        race.** If a message is wrong, add a follow-up commit that says so.
     - **THE DETECTOR MATTERS MORE THAN THE TECHNIQUE, and it runs AFTER the commit.** All three
       sweeps were caught by `git show --stat HEAD`, none by any pre-commit check — because a
       pre-commit check asks what the commit *contains*, and this failure is what it **drops**. So

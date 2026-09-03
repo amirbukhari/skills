@@ -541,6 +541,88 @@ is where the reader supplies the wrong answer.**
   way: not by re-reading `round-trip-fixpoint`, but by running the check it does not perform.
   Reading a thing confirms what you already believe it says. **Write the test that could fail.**
 
+## THE FOURTH FENCE: A DECOMPOSITION CAN BE BYTE-EXACT AND STILL BE A NO-OP (2026-09-03)
+
+The tier-2 sizing rested on a single measurement: the wide canon **reaches into** 21,781 holes /
+85,099 constructs — **91.2%** of the 76,704-construct inside term. That figure was fenced when it was
+published, unprompted, by the lane that produced it, and the fence was good practice:
+
+> Canon-reachable is **necessary and not sufficient**. It does not say a dictionary word exists, does
+> not say the word refills byte-exact, does not say the result reads as English.
+
+**Three failure modes named in advance. The one that actually killed it was a fourth.** Measured over
+the holes the **page** carries — 28,890 tier-2 holes, priced in the goal test's frozen `KINDS`:
+
+| type | holes | no wrapper | **FIXED POINT** | decomposes | word | byte-exact | NET |
+|---|---|---|---|---|---|---|---|
+| `args` | 10651 | 0 | **10651** | 0 | – | – | 0 |
+| `str` | 7906 | 0 | **7906** | 0 | – | – | 0 |
+| `expr` | 2993 | 14 | 43 | **2936** | 2936 | **2936** | **+2936** |
+| `obj` | 2031 | 0 | **2031** | 0 | – | – | 0 |
+| `chain` | 1864 | 1864 | – | – | – | – | *not measured* |
+| `type` | 1436 | 1436 | – | – | – | – | *not measured* |
+| `bind` | 732 | 732 | – | – | – | – | *not measured* |
+| `arr` | 637 | 0 | **637** | 0 | – | – | 0 |
+| `fn` | 606 | 0 | **606** | 0 | – | – | 0 |
+| `body` | 34 | 34 | – | – | – | – | *not measured* |
+| **TOTAL** | **28890** | 4066 | **21874 (75.7%)** | 2936 | 2936 | **2936 (100%)** | **+2936** |
+
+**All three fenced properties HELD.** Where the canon decomposes a hole it is flawless: 2,936 of
+2,936 `expr` holes have a word and refill **byte-exact**, zero wrong bytes. The mechanism was never
+the problem.
+
+**The fourth property is that the decomposition is the IDENTITY.** For 75.7% of tier-2 holes the
+canon reaches in and hands back **one hole of the same type carrying the same text**:
+
+```
+obj   "{ userId: 1 }"      ->  (‹obj›);        1 hole, obj, same text
+arr   "[1, 2, 3]"          ->  (‹arr›);        1 hole, arr, same text
+fn    "(a) => a + 1"       ->  (‹fn›);         1 hole, fn,  same text
+args  "key, JSON.parse(x)" ->  ‹id›(‹args›)    the args hole reproduces itself
+```
+
+`args`, `str`, `obj`, `arr` and `fn` are **100% fixed points** — 21,874 of them. Recursing yields the
+same hole forever.
+
+**AND THIS IS INSIDE THE 91.2%, NOT OUTSIDE IT — which is why the fence could not catch it.** The
+reach criterion was *"the canon yields a skeleton with both literals and holes"*. `(‹obj›);` **has**
+two literals and a hole. It satisfies the criterion exactly and changes nothing. Where decomposition
+IS real the reduction is still zero: **+2,936, exactly +1 per hole**, the payload mark, because the
+sub-holes carry the constructs the original text carried.
+
+**The rule.** *A decomposition can be byte-exact, have a dictionary word, and still be a no-op.* So
+a reach or coverage metric must state **what it changes**, not merely that it applies — and the test
+for a recursive mechanism is whether one step makes the output **smaller**, never whether the step
+succeeds. A fixed point is a success by every local check and a failure by the only one that counts.
+
+**Why this generalises past the engine:** every "our tool handles N% of cases" claim has this hole in
+it. Handling and changing are two properties, and the identity transformation passes every test built
+from the first one.
+
+**THE CONSTRUCTIVE HALF, WHICH IS WHAT THE RULING ACTED ON.** This does **not** say
+`obj`/`arr`/`str` are unreachable — tier 1 had already taken **26,182** constructs off exactly those
+holes, and it did so by writing the hole's **content** as English rather than asking the canon to
+decompose it. **Tier 1 worked because it never depended on canon reach at all.** So the finding
+retires *recursion*, not the residue: the redirect was to extend the tier-1 rule table into `args`
+(10,651 holes / 22,328 constructs, the largest bucket left, a 100% fixed point under the canon, and
+**no canon change**).
+
+**Recorded limits, because a coverage table is exactly the artifact this section keeps catching:**
+
+- `chain` (1,864), `type` (1,436), `bind` (732) and `body` (34) are **not measured, not
+  unreachable** — 4,066 holes for which the probe has no honest wrapper. Reported rather than
+  scored. `chain`'s 0-parseable was measured independently by the other lane and agrees; the other
+  three are open.
+- `after` counts **every** non-gap sub-hole, including any that reproduces the input — the discipline
+  the `after`-column defect above cost.
+- The 19,879 / 22,815 figures are constructs **on the page**. The other lane's 93,299 is constructs
+  in **decoded raw hole text**. Two populations; summing them is the conflation that produced the
+  93,162 error.
+- **The probe's own counter had this defect while measuring it.** "No honest wrapper" (4,066, a limit
+  of the probe) and "does not parse" (14 `expr` holes, a fact about the content) shared one counter
+  — one name over two properties, in the measurement whose subject is that class. Caught by the
+  file's own assertion, split, and both now printed.
+
 ## THE GOAL METRIC'S OWN DENOMINATOR OMITTED 24% OF THE CODE (2026-09-03)
 
 `the-goal.test.js` printed **"1035 of 1035 non-empty files"**, and that was relayed upward as
@@ -572,3 +654,101 @@ Two deliberate choices in that fix:
 probably deliberate — the mandate is engine-only and these are React components — but *probably right
 and written down nowhere* is what the exclusion had been resting on, and the metric implied the
 question was already answered.
+
+## THE FOURTH NECESSARY-AND-NOT-SUFFICIENT: A DECOMPOSITION CAN BE A NO-OP (2026-09-03)
+
+**The most reusable thing produced this session, and it generalises past this engine.**
+
+Tier 2 was targeted off a single measured property: **the canon reaches into 21,781 of the tier-2
+holes — 85,099 constructs, 91.2%.** That number was fenced, correctly, as an **upper bound and not a
+forecast**, against three named failure modes:
+
+1. canon-reachable does not mean a **dictionary word exists**;
+2. it does not mean the word **refills byte-exact**;
+3. it does not mean the result **reads as English**.
+
+**The fence was right and it pointed at the wrong three.** Measured over the 28,890 tier-2 holes the
+page actually carries:
+
+| | holes | share |
+|---|---|---|
+| **FIXED POINTS** (`args`, `str`, `obj`, `arr`, `fn` — all at 100%) | **21,874** | **75.7%** |
+| genuinely decomposed (`expr`) | 2,936 | 10.2% |
+| no honest wrapper in the probe (`chain`, `type`, `bind`, `body`) — *reported, not scored* | 4,066 | 14.1% |
+
+All three fences **passed** on the fixed points. A word exists. It refills byte-exact — 2,936 of
+2,936 decomposed `expr` holes refill byte-exact with 0 wrong bytes, and the mechanism was never in
+doubt. And the English is fine. **The decomposition is simply the identity:**
+
+```
+obj  "{ userId: 1 }"      ->  (‹obj›);       1 hole, obj, same text
+arr  "[1, 2, 3]"          ->  (‹arr›);       1 hole, arr, same text
+fn   "(a) => a + 1"       ->  (‹fn›);        1 hole, fn,  same text
+args "key, JSON.parse(x)" ->  ‹id›(‹args›)   the args hole reproduces itself
+```
+
+`(‹obj›);` **has** literal text and **has** a hole, so it satisfies "the canon reaches in" — and
+recursing on it yields the same hole forever. And where the canon *does* decompose, the reduction is
+**+2,936, exactly +1 per hole**: the payload mark. The sub-holes carry the constructs the original
+text carried.
+
+**THE RULE.** Before building on a reachability figure, ask the question none of the three fences
+asks: **does the decomposition MOVE anything?** A transformation can be well-defined, byte-exact,
+dictionary-backed, and readable, and still be a **no-op** — and a no-op passes every quality gate
+you would think to write, because quality gates ask *"is it correct?"* and a fixed point is
+perfectly correct. **Correctness is not progress.** The metric that catches it is not a pass rate; it
+is the **before/after count on the page**, which is why the goal test's total is the headline.
+
+**Why 91.2% was so persuasive:** it measured a *precondition* and was quoted as a *forecast*, and
+the fence attached to it listed only the ways the precondition could fail to hold. **A fence around
+"this might not work" is not a fence around "this might not matter."**
+
+**The constructive half, which is the finding that survives.** `obj`/`arr`/`str` are **not**
+hopeless, and tier 1 is the proof: 26,182 constructs came off exactly those holes by writing the
+hole's **content** as English rather than asking the canon to decompose it. **Tier 1 worked precisely
+because it never depended on canon reach.** So recursion is the wrong tool for the residue — not
+evidence the residue is unreachable. The redirect is `args`: **10,651 holes / 22,328 constructs**, the
+largest bucket left, a 100% fixed point under the canon, and reachable by the rule table with **no
+canon change and no fingerprint move**.
+
+**Populations that must not be summed.** The 93,299 hole-text figure and the 19,879 page figure are
+**different populations** — decoded raw text versus the hole texts the page carries. Summing them is
+the conflation that produced the earlier 93,162, and it is the same error in a new place.
+
+## AN UNEXPLAINED STAGED DELETION, ATTRIBUTED (2026-09-03)
+
+**Reported as unexplained, and it is now explained — it is a property of the shared-tree recipe, not
+an event.** A staged deletion of a newly added test file appeared in the shared index with the file
+**present on disk and byte-identical to HEAD**. It was flagged rather than guessed at, which was
+right, and unstaged only after disk == HEAD was verified, which was also right.
+
+**Reproduced in a throwaway repo, in four commands:**
+
+```
+$ export GIT_INDEX_FILE=priv.idx        # the PRIVATE-index recipe
+$ git read-tree $P; git add newfile.test.js
+$ git update-ref refs/heads/master $(git commit-tree $T -p $P -m "add newfile")
+$ git status --porcelain --short        # in a fresh shell, real index
+D  newfile.test.js
+?? newfile.test.js                      # the SAME file, both lines
+```
+
+**The mechanism.** `commit-tree` writes the new file into **HEAD** while the **real** index, which
+the recipe deliberately never touches, still holds a tree that predates the file. `git status` then
+compares real-index-vs-HEAD and reports the missing entry as a **staged deletion**, and
+real-index-vs-worktree and reports the same file as **untracked**. Both lines, same path, nothing
+lost, nothing deleted.
+
+**It is specific to files the recipe INTRODUCES.** A modified file already has a real-index entry, so
+it never shows this shape — which is why an all-night run of the recipe produced it exactly once, on
+the one commit that added a file. The existing `git add` the committed paths in a fresh shell with
+`GIT_INDEX_FILE` unset step is what clears it; for a **new** file that step is not cosmetic
+housekeeping, it is the only thing that tells the real index the file exists.
+
+**Why it earns a row despite being harmless.** The shape it presents — `D <somebody else's new test
+file>` — is **maximally alarming and entirely benign**, and it appeared in a session under a standing
+rule that a deletion one cannot account for is never staged. That rule worked: it stopped, verified,
+and escalated rather than clearing it. **But a recipe whose normal operation manufactures the exact
+signature of the thing the rules forbid will burn that vigilance down.** The fix is the recipe's
+documentation, not the vigilance: **a new file needs its `git add` on the real index, and until it
+gets one it will look like you deleted someone's work.**
