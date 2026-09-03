@@ -52,6 +52,13 @@ const files = [];
 })(SRC);
 assert.ok(files.length > 500, "walked " + files.length + " files — SOURCE root is wrong");
 
+/* HOLE TYPES, read the way `refill` reads them: positional `‹type›` markers in the skeleton.
+ * This is what made the first version of this file mis-price its own result. */
+function holeTypes(payload) {
+  const axis = payload.a === "n" ? cat.narrow : cat.wide;
+  return (String(EL.expandKey(axis, payload.w)).match(/‹[a-z]+›/g) || []).map((t) => t.slice(1, -1));
+}
+
 /* the goal test's construct definitions, BY REFERENCE. The strip list is frozen and this file does
  * not touch it; these are only used to price what moves, and any drift between the two is a reason
  * to re-read `the-goal.test.js`, never to edit it from here. */
@@ -104,7 +111,21 @@ for (const f of files) {
                 R.exact++;
                 R.wsBytes += gaps.reduce((s, g) => s + g.length, 0);
                 R.before += constructs(src.slice(a, bodyA) + src.slice(bodyB, b));
-                R.after += constructs("⟪lzw1 nX" + cond + gaps.join("") + "⟫");
+                /* PRICED OFF THE ACTUAL HOLES, NOT A MODEL OF THEM. The first version of this
+                 * file put the whole synthesized node text into one notional hole and reported
+                 * NET -1795. That was wrong in BOTH directions at once: too pessimistic here,
+                 * because `if (…) {` and `}` are SKELETON and never reach the page — and it hid
+                 * the reason arrow functions lose, because their entire signature really is one
+                 * `fn` hole. Reading the skeleton's `‹type›` markers gives the true figure, and
+                 * for if-blocks it is -2221. A model of a measurement is not a measurement. */
+                const types = holeTypes(w.payload), holes = w.payload.h || [];
+                let after = 1;                        /* the payload-spill mark */
+                for (let i = 0; i < holes.length; i++) {
+                  if (types[i] === "gap") continue;   /* s1: 81,314 of 81,390 whitespace-only */
+                  if (types[i] === "body") continue;  /* becomes the `child` slot: empty text */
+                  after += constructs(holes[i]);
+                }
+                R.after += after;
               }
             }
           }
@@ -140,7 +161,13 @@ ok("ZERO wrong bytes — the hard floor holds for every site it fires on", () =>
   assert.strictEqual(R.wrongBytes, 0);
 });
 
-ok("indent is SEPARATED, not derived — every gap is whitespace-only", () => {
+ok("indent is SEPARATED, not derived — whitespace-only in 1809 of 1822", () => {
+  /* THE DENOMINATOR STAYS VISIBLE, at s1's insistence and they are right. `gap` is NOT a
+   * whitespace type: measured corpus-wide, 81,314 of 81,390 `gap` holes are whitespace-only and
+   * the other 76 are COMMENTED-OUT CODE carrying 87 constructs between them. That population IS
+   * this test's 9 "comment inside the gap" sites. So `gap` is itself one name over two properties
+   * — "the bytes between two statements" and "whitespace" — and has been since it was coined. The
+   * claim this file makes is bounded accordingly: whitespace-only where it fires, not in general. */
   /* the superseded prediction, kept per §9 so it cannot be re-derived:
    * >   "MY PREDICTED FAILURE MODE: indentation. The closing `}` carries the source's leading
    * >   whitespace, and a generator that reconstructs `if (…) {` … `}` has to reproduce the exact
@@ -149,6 +176,9 @@ ok("indent is SEPARATED, not derived — every gap is whitespace-only", () => {
    * It does not, because the whitespace is separable from the syntax by AST position. */
   assert.ok(R.wsBytes > 0, "no whitespace measured — the gap computation is not running");
   assert.strictEqual(constructs(" ".repeat(10) + "\n\t"), 0, "whitespace must carry no constructs");
+  assert.ok(R.commentGap > 0, "the comment-in-gap population went to zero — re-read s1's 76");
+  assert.ok(constructs("// x = { a: 1 };") > 0,
+    "a commented-out line DOES carry constructs — this is why `gap` is not 'whitespace'");
 });
 
 ok("the price is a REDUCTION, not a transfer — measured, sign not assumed", () => {
@@ -157,6 +187,110 @@ ok("the price is a REDUCTION, not a transfer — measured, sign not assumed", ()
    * and it is measured rather than argued: brace-block collapses by ~3,600 while payload-spill
    * gains one mark per site. */
   assert.ok(R.after < R.before, "net was " + (R.after - R.before) + " — a wash or worse");
+});
+
+/* ================================================================================================
+ * PART 2 — DOES IT GENERALISE? MEASURED, BECAUSE I GUESSED WRONG.
+ *
+ * Having proved the mechanism on if-blocks I said arrow/function openers were "the next target
+ * after if-blocks", on the strength of 3,855 fragments and 333KB of scaffolding. Byte mass turns
+ * out to be the WRONG targeting metric, and the reason is visible in one line of skeleton:
+ *
+ *   if (c) {}                      ->  `if‹gap›(‹id›.progress === ‹num›)‹gap›‹body›`
+ *   export const f = (a): T => {}  ->  `export‹gap›const‹gap›‹id›‹gap›=‹gap›‹fn›`
+ *
+ * In the first, the parens AND braces are SKELETON — they live in the dictionary and never reach
+ * the page. In the second the ENTIRE signature, `(`, `)`, `:`, `=>`, `[`, `]`, `{`, `}` and all,
+ * is one `fn` hole, so every construct in it stays exactly where it was and the only change is one
+ * added payload mark. The dictionary decomposes at the wrong granularity for that kind.
+ *
+ * WHAT DETERMINES WHETHER A KIND PAYS is therefore not its size but the granularity the EXISTING
+ * skeleton already reaches — readable per kind, before building anything. Decomposing INSIDE the
+ * `fn` hole is s1's tier 2 (`args` 22,328 / `chain` 7,162 / `fn` 5,169), not this lane. */
+
+const G = {};
+function priceKind(key, st, sf, src, blk) {
+  const S = G[key] = G[key] || { n: 0, exact: 0, noWord: 0, dirty: 0, wrong: 0, before: 0, after: 0, bodyHole: 0 };
+  const stmts = blk.statements;
+  if (!stmts.length) return;
+  S.n++;
+  const a = st.getStart(sf), b = st.getEnd(), blkA = blk.getStart(sf), blkB = blk.getEnd();
+  const bodyA = stmts[0].getStart(sf), bodyB = stmts[stmts.length - 1].getEnd();
+  const g5 = src.slice(blkA + 1, bodyA), g6 = src.slice(bodyB, blkB - 1);
+  if (/\S/.test(g5) || /\S/.test(g6)) { S.dirty++; return; }
+  const synth = src.slice(a, blkA + 1) + src.slice(blkB - 1, b);
+  const ssf = ts.createSourceFile("s.ts", synth, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  if (ssf.parseDiagnostics.length || ssf.statements.length !== 1) { S.wrong++; return; }
+  let w = null;
+  try { w = EL.runWord([...ssf.statements], ssf, synth, cat); } catch (_) { w = null; }
+  if (!w || !w.payload) { S.noWord++; return; }
+  let back = null;
+  try { back = EL.compileSpan(w.payload, cat); } catch (_) { back = null; }
+  if (back !== synth) { S.wrong++; return; }
+  const cut = src.slice(a, blkA + 1).length;
+  if (back.slice(0, cut) + g5 + src.slice(bodyA, bodyB) + g6 + back.slice(cut) !== src.slice(a, b)) { S.wrong++; return; }
+  S.exact++;
+  const types = holeTypes(w.payload), holes = w.payload.h || [];
+  if (types.includes("body")) S.bodyHole++;
+  let after = 1;
+  for (let i = 0; i < holes.length; i++) {
+    if (types[i] === "gap" || types[i] === "body") continue;
+    after += constructs(holes[i]);
+  }
+  S.after += after;
+  S.before += constructs(src.slice(a, bodyA) + src.slice(bodyB, b));
+}
+
+for (const f of files) {
+  const src = fs.readFileSync(f, "utf8");
+  const sf = ts.createSourceFile("f.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  for (const st of sf.statements) {
+    if (st.kind === ts.SyntaxKind.FunctionDeclaration && st.body) priceKind("function decl", st, sf, src, st.body);
+    else if (st.kind === ts.SyntaxKind.VariableStatement) {
+      for (const d of st.declarationList.declarations) {
+        const i = d.initializer;
+        if (i && (i.kind === ts.SyntaxKind.ArrowFunction || i.kind === ts.SyntaxKind.FunctionExpression)
+            && i.body && i.body.kind === ts.SyntaxKind.Block) { priceKind("const = arrow/fn", st, sf, src, i.body); break; }
+      }
+    } else if (st.kind === ts.SyntaxKind.ExpressionStatement) {
+      const e = st.expression;
+      if (e && e.kind === ts.SyntaxKind.CallExpression && e.arguments && e.arguments.length) {
+        const last = e.arguments[e.arguments.length - 1];
+        if (last && (last.kind === ts.SyntaxKind.ArrowFunction || last.kind === ts.SyntaxKind.FunctionExpression)
+            && last.body && last.body.kind === ts.SyntaxKind.Block) priceKind("call w/ arrow arg", st, sf, src, last.body);
+      }
+    }
+  }
+}
+
+console.log("\n  TARGETING — priced off real holes, per node kind");
+console.log("  " + "kind".padEnd(20) + "sites".padStart(6) + "exact".padStart(13)
+  + "body=skel".padStart(12) + "now".padStart(7) + "after".padStart(7) + "NET".padStart(8));
+for (const k in G) {
+  const S = G[k], net = S.after - S.before;
+  console.log("  " + k.padEnd(20) + String(S.n).padStart(6)
+    + (S.exact + " (" + (S.exact / S.n * 100).toFixed(0) + "%)").padStart(13)
+    + (S.bodyHole + "/" + S.exact).padStart(12)
+    + String(S.before).padStart(7) + String(S.after).padStart(7) + String(net).padStart(8)
+    + (net < 0 ? "   PAYS" : "   LOSES"));
+}
+
+ok("the mechanism generalises — 3 more kinds, still 0 wrong bytes", () => {
+  let n = 0, exact = 0, wrong = 0;
+  for (const k in G) { n += G[k].n; exact += G[k].exact; wrong += G[k].wrong; }
+  assert.strictEqual(wrong, 0, "wrong bytes appeared on a new node kind");
+  assert.ok(exact / n > 0.95, "only " + exact + " of " + n + " reconstructed");
+});
+
+ok("BUT arrow/fn openers DO NOT PAY — byte mass is the wrong targeting metric", () => {
+  /* THE NEGATIVE RESULT, PINNED. I called this "the next target after if-blocks" off 3,855
+   * fragments and 333KB. It reconstructs at 99% with zero wrong bytes and saves NOTHING, because
+   * its whole signature is a single `fn` hole. Anyone reading the byte table and targeting this
+   * kind will spend the effort and move the number by ~0. */
+  const S = G["const = arrow/fn"];
+  assert.ok(S && S.exact > 1000, "the arrow/fn population vanished — re-read this test");
+  assert.strictEqual(S.bodyHole, 0, "its skeleton now HAS a body hole — re-price it, it may pay now");
+  assert.ok(S.after - S.before >= 0, "it now pays (" + (S.after - S.before) + ") — good news, update this");
 });
 
 console.log("\n" + pass + " passed, " + fail + " failed");
