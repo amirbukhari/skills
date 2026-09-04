@@ -430,6 +430,36 @@ function dottedText(n, sf) {
   return null;
 }
 
+/* THE `?.` `dottedText` FLATTENS, NAMED. `dottedText` above walks `a?.b` and `a.b` to the same
+ * string, which is right for the PRESENCE frame ("`a.b` is missing", "`a.b` is set" -- both stay
+ * true when `a` is null) and FALSE at a bare VALUE position: `return accountRecord?.accountId`
+ * rendered "return `accountRecord.accountId`", asserting a plain read that would THROW where the
+ * source yields undefined. Measured 2026-09-04: 5 such sites, against 33 presence-frame sites that
+ * read correctly today and must not move.
+ *
+ * The refusal was priced first and REJECTED: `if (n.questionDotToken) return null;` inside
+ * `dottedText` moves 104 statements, 103 of which LOSE a name the old clause had -- it destroys 33
+ * correct clauses to fix 5 wrong ones. The prior that "the fix is a refusal" holds when the engine
+ * reached for a name that was not the thing described (CLASS 3, CLASS 4); here the name is right
+ * and only a qualifier is missing.
+ *
+ * NO NEW PHRASING. This names the guarded base so the two callers can compose the sentence the
+ * engine ALREADY emits for the desugared source -- `a ? a.b : null` renders "`a.b` if `a` is set,
+ * otherwise nothing" through the ConditionalExpression rule, and `a && a.b === 1` renders "`a` is
+ * set and `a.b` is `1`" through condGloss's `&&` join. Both strings exist in the corpus today.
+ *
+ * MORE THAN ONE `?.` DECLINES rather than qualifying the first and calling it done -- the same
+ * honesty rule as `negate`'s whitelist (§5C). One qualifier cannot carry two independent guards. */
+function optionalBase(n, sf) {
+  if (!n) return null;
+  let guarded = null, count = 0;
+  for (let cur = n; cur && ts.isPropertyAccessExpression(cur); cur = cur.expression) {
+    if (cur.questionDotToken) { count++; guarded = cur.expression; }
+  }
+  if (count !== 1) return null;
+  return dottedText(guarded, sf);
+}
+
 /* a literal a reader can be told about without quoting code at them. An object/array literal is
  * described by its KEYS or its emptiness — never by splicing its body into the sentence. */
 function literalGloss(n, sf) {
@@ -716,6 +746,43 @@ function inputsOf(n, sf, out, seen) {
 
 /* a CONDITION stated in English, or null. Null is the honest answer for anything this cannot say
  * truthfully — the caller then emits the vacuous clause and the metric counts it. */
+/* WHICH FRAME A GUARDED COMPARISON TAKES -- and the reason this is a table and not a `+ " is set and "`.
+ * `a?.b OP r` evaluates `undefined OP r` when `a` is nullish, so the conjunction "`a` is set and
+ * `a.b` OP r" is only true when that evaluation is FALSE. Measured 2026-09-04: the first cut applied
+ * the conjunction to every comparison and turned 4 sites FALSE -- `if (!user?.email && user?.id !== 1)`
+ * became "... and `user` is set and `user.id` is not `1`", where the source is TRUE precisely when
+ * `user` is missing. A reach built to delete false clauses manufacturing four of its own is the
+ * defect this item exists to remove, one layer up.
+ *
+ *   relational (`<` `>` `<=` `>=`)  `undefined` compares false against anything   -> "and"
+ *   `===` / `==`                    false, unless the right side is itself nullish -> "and"
+ *   `!==` / `!=`                    TRUE in the same cases                         -> "or ... is missing"
+ *
+ * A right side that is a NAME rather than a literal DECLINES both frames: `state.currentCreditNote?.id
+ * === payload.id` is true when both are undefined, and no frame here can say that without asserting
+ * something about `payload.id` we have not read. Declining leaves the flattened clause exactly as it
+ * was -- weaker, and not false.
+ *
+ * `strict` DECLINES TOO. `condGloss` passes it when composing an operand of `&&`/`||`, and neither
+ * frame survives that composition unbracketed: "`user.email` is missing and `user` is missing or
+ * `user.id` is not `1`" reads as two different conditions depending on where the reader puts the
+ * brackets. Same rule as `negate`'s -- a phrase inside a compound declines rather than guessing. */
+function optionalFrame(opKind, right) {
+  const K = ts.SyntaxKind;
+  if (opKind === K.LessThanToken || opKind === K.GreaterThanToken
+    || opKind === K.LessThanEqualsToken || opKind === K.GreaterThanEqualsToken) return "and";
+  const isNull = right.kind === K.NullKeyword;
+  const isUndef = right.kind === K.UndefinedKeyword
+    || (ts.isIdentifier(right) && right.text === "undefined");
+  const literal = isNull || isUndef || ts.isLiteralExpression(right)
+    || right.kind === K.TrueKeyword || right.kind === K.FalseKeyword;
+  if (!literal) return null;
+  if (opKind === K.EqualsEqualsEqualsToken) return isUndef ? null : "and";
+  if (opKind === K.EqualsEqualsToken) return (isUndef || isNull) ? null : "and";
+  if (opKind === K.ExclamationEqualsEqualsToken) return isUndef ? null : "or";
+  if (opKind === K.ExclamationEqualsToken) return (isUndef || isNull) ? null : "or";
+  return null;
+}
 const CMP = { [ts.SyntaxKind.EqualsEqualsEqualsToken]: "is", [ts.SyntaxKind.EqualsEqualsToken]: "is",
   [ts.SyntaxKind.ExclamationEqualsEqualsToken]: "is not", [ts.SyntaxKind.ExclamationEqualsToken]: "is not",
   [ts.SyntaxKind.LessThanToken]: "is under", [ts.SyntaxKind.GreaterThanToken]: "is over",
@@ -861,7 +928,19 @@ function condGloss(n, sf, strict) {
     }
     const lhs = dottedText(n.left, sf);
     const rhs = dottedText(n.right, sf) ? q(dottedText(n.right, sf)) : literalGloss(n.right, sf);
-    if (lhs && rhs) return q(lhs) + " " + op + " " + rhs;
+    if (lhs && rhs) {
+      /* THE COMPARED VALUE IS A VALUE POSITION TOO, and this is the one rung in `condGloss` where
+       * flattening `?.` makes the clause FALSE: `if (invoice.lineItems?.length === 0)` said
+       * "`invoice.lineItems.length` is `0`", which asserts a read that throws when `lineItems` is
+       * absent. The presence rungs above ("is missing", "is set") stay flattened on purpose -- they
+       * remain true either way, and 33 sites depend on it. The conjunction below is condGloss's own
+       * `&&` join, i.e. exactly what `if (a && a.b === 1)` renders as today. */
+      const ob = optionalBase(n.left, sf);
+      const core = q(lhs) + " " + op + " " + rhs;
+      const frame = ob && !strict ? optionalFrame(n.operatorToken.kind, n.right) : null;
+      if (!frame) return core;
+      return frame === "and" ? q(ob) + " is set and " + core : q(ob) + " is missing or " + core;
+    }
   }
   /* LAST RESORT, and counted as one. We cannot say what the arithmetic MEANS without guessing, but
    * naming the values the test READS is true and site-specific. It is deliberately weaker than the
@@ -1142,7 +1221,15 @@ function spanActions(win, sf) {
       const lit = literalGloss(bare, sf);
       if (lit) { actions.push("return " + lit); continue; }
       const dotted = dottedText(bare, sf);
-      if (dotted) { actions.push("return " + q(dotted)); continue; }
+      if (dotted) {
+        /* A BARE VALUE POSITION, so an optional link is part of what is returned, not scenery --
+         * see `optionalBase`. `return accountRecord?.accountId` is "return `accountRecord.accountId`
+         * if `accountRecord` is set, otherwise nothing", the same sentence the ConditionalExpression
+         * rule already emits for `accountRecord ? accountRecord.accountId : null`. */
+        const ob = optionalBase(bare, sf);
+        actions.push("return " + q(dotted) + (ob ? " if " + q(ob) + " is set, otherwise nothing" : ""));
+        continue;
+      }
       const ag = arrayGloss(bare, sf);
       if (ag) { actions.push("return " + ag); continue; }
       const rg = recordGloss(bare, sf);

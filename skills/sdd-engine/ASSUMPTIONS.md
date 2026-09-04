@@ -11270,3 +11270,149 @@ blocked at the permission layer. Ready to implement on the word; the shape and t
 **Nothing changed.** `enfile.js` restored byte-identically after the probe (`git diff` empty).
 Byte-identity **1037/1037 FAILURES 0** before and after. Coverage TOTAL read fresh:
 `33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged, as no engine file moved.
+
+## OPTIONAL CHAIN, BUILT — the reach at the value position moved 10, not the 5 the census could see
+
+**2026-09-04. Ruled BUILD IT after the establishment above refused to. The ruling was right about
+the direction and wrong about the frame, and both halves of that are recorded here.**
+
+`dottedText` (`enfile.js:421`) walks `a?.b` and `a.b` to the same string. That is CORRECT in the
+presence frame — "`a.b` is missing", "`a.b` is set" both stay true when `a` is null, and 33 corpus
+sites depend on it — and FALSE at a bare VALUE position: `return accountRecord?.accountId` rendered
+"return `accountRecord.accountId`", asserting a plain read that would THROW where the source yields
+undefined. The refusal variant (`if (n.questionDotToken) return null;` inside `dottedText`) was
+priced first and REJECTED: 104 moved, 103 LOSING a name. See the section above.
+
+### THE FIRST CUT WAS ITSELF FALSE, ON 4 SITES — and that is why the frame is a table
+
+Implemented literally — reach at the value position, qualify with the shipped frame — the
+differential came back **MOVED 15**, and four of the fifteen were NEW FALSE CLAUSES:
+
+```
+if (!user?.email && user?.id !== 1)              notifications.ts:55, :86
+if (remoteClient?.status !== 'active')           doClientsHaveValidParentDesignations.ts:51
+                                                 hasClientDataChanged.ts:62
+  first cut:  ... and `user` is set and `user.id` is not `1`
+  the source fires PRECISELY WHEN `user` IS MISSING. The clause says the opposite.
+```
+
+`a?.b OP r` evaluates `undefined OP r` when `a` is nullish, so the conjunction is only true when
+that evaluation is FALSE. Under `!==` it is TRUE. **A reach built to delete false clauses
+manufacturing four of its own is this item's own defect one layer up**, which is the whole reason
+the fix is a table (`optionalFrame`, `enfile.js`) and not a `+ " is set and "`:
+
+| operator | `undefined OP r` | frame |
+|---|---|---|
+| `<` `>` `<=` `>=` | always false | `` `a` is set and … `` |
+| `===` / `==` | false, unless `r` is itself nullish | `` `a` is set and … `` |
+| `!==` / `!=` | TRUE in the same cases | `` `a` is missing or … `` |
+| right side is a NAME, not a literal | unknowable | **DECLINE** |
+| operand of `&&` / `||` (`strict`) | frame cannot survive unbracketed | **DECLINE** |
+| more than one `?.` in the chain | one qualifier, two guards | **DECLINE** |
+
+**The two declines are the load-bearing part, and the reviewer ruled them to stay exactly as they
+are.** A right side that is a name declines because `state.currentCreditNote?.id === payload.id` is
+TRUE when both are undefined, and no frame can say that without asserting something about
+`payload.id` we never read. An operand of `&&`/`||` declines because neither frame survives the
+composition unbracketed — "`user.email` is missing and `user` is missing or `user.id` is not `1`"
+reads two ways depending on where the reader puts the brackets. That is `negate`'s own whitelist
+rule (§5C): a phrase inside a compound declines rather than guessing. **A flattened clause that is
+weaker but true beats a qualified one that is false.**
+
+### NO NEW PHRASING — all three strings are the engine's own output for the desugared source
+
+- `` `a.b` if `a` is set, otherwise nothing `` — what the phrasebook's ConditionalExpression rule
+  already emits for `a ? a.b : null`.
+- `` `a` is set and `a.b` is `1` `` — condGloss's own `&&` join, i.e. what `if (a && a.b === 1)`
+  renders as today.
+- `` `a` is missing or … `` — condGloss's `!` rung plus its `||` join.
+
+All three appear in the corpus before this change. Nothing was invented at the leaf.
+
+### MOVED 10 — measured positionally over all 33,918 statements
+
+| site | before | class before |
+|---|---|---|
+| `clientMonthly.ts:79`, `:87` | ``return `accountRecord.accountId` `` | GENERIC |
+| `taxes.ts:216`, `:224` | ``…HasTaxes.length` is `1` `` | GENERIC |
+| `xero-api/invoice.ts:561` | ``invoice.lineItems.length` is `0` `` | GENERIC |
+| `commissions.ts:576`, `:617` | ``commissionPaidDate` is nothing` | GENERIC |
+| `doClientsHaveValidParentDesignations.ts:51` | ``remoteClient.status` is not “active”` | SITE-SPECIFIC |
+| `hasClientDataChanged.ts:62` | ``remoteClient.status` is not “active”` | SITE-SPECIFIC |
+| `xero-api/invoice.ts:1395` | ``invoice.thirdParty` is “xero”` | SITE-SPECIFIC |
+
+**Zero of the 33 presence-frame sites moved. No clause lost a name. No clause got weaker.**
+
+**THE STOP CONDITION WAS WRONG IN FORM, AND THE REVIEWER SAID SO RATHER THAN WORKING AROUND IT.**
+The brief said "I expect MOVED 5, and if it comes back larger you stop". Five was a CENSUS figure,
+and the census can only see the 1615 GENERIC sites — three of the extras were already scored
+SITE-SPECIFIC and were therefore invisible to it **by construction, not by error**. *A number
+derived from an instrument cannot bound a fix that reaches past that instrument.* The condition that
+actually holds is the one applied above: **no correct clause moves, no name is lost.** Recorded
+because the same shape will recur every time a count taken from the coverage table is used as an
+acceptance gate for a change to the renderer.
+
+**And a fix that has to name its sites is not a rule.** Holding the 5 extras out was possible only
+by hard-coding files and line numbers; it was refused, and the reviewer confirmed such a patch would
+have been rejected.
+
+### CORRECTION TO MY OWN CLASSIFIER NOTE — wrong on both halves
+
+The establishment section above records: *"the presence/bare split is a regex, and
+`commissions.ts:576/617` land in CARRIED via `=== null` rather than the `?.` — right answer,
+adjacent reason."* **Both halves of that are wrong.** They are not CARRIED — they are genuine
+defects, `if (commission?.commissionPaidDate === null)` asserting a read that throws — and they were
+not site-specific either: they were GENERIC, and the reason is the flattening itself. The verbatim
+test in `isSiteSpecific` looks for `commission.commissionPaidDate` in a statement whose text says
+`commission?.commissionPaidDate`, so it cannot match. **The defect was hiding inside the measure of
+the defect.** Fixing it converts both sites to SITE-SPECIFIC. The correction is worth more to a
+future reader than the original note was, and it is left standing beside it rather than edited over.
+
+### THE 33 — a scoring blind spot, RECORDED, never a ranking input
+
+The other 33 of the 38 established sites sit in the presence frame and read CORRECTLY today. They
+score GENERIC only because `isSiteSpecific`'s verbatim test cannot match `a.b` against source text
+that says `a?.b`. **This is the same family as the one-char blind spot (RULING 3): a property of the
+measure, not of the English.** It is recorded here beside the frozen figure and **must never be used
+to rank or prioritise anything** — the published generic count is a FLOOR, and these 33 are part of
+why. `isSiteSpecific` (`statement-kind-coverage.test.js:57`) and `clause-quality.js` are UNTOUCHED
+and stay frozen; Amir's `>= 2` ruling is still his and still unmade.
+
+### THE GUARD IS SHOWN ABLE TO FIRE — and the two halves fail against different engines
+
+New file `engine/optional-chain.test.js`, **13 assertions**, every `?.` case asserted beside its
+`?.`-free twin so a frame that fired unconditionally would fail rather than read as a pass.
+
+- Against `HEAD` (the unpatched engine): **4 of 13 FAIL, exit 1** — the four REACHES.
+- The 5 DECLINE cases pass against HEAD *by construction*, because declining is what the old engine
+  did everywhere. **Their negative control is the FIRST CUT**, measured turning 4 corpus sites false.
+  A decline assertion checked only against HEAD is a guard that cannot fire (§3), so each is written
+  to name the frame it forbids.
+- The `&&` decline asserts the absence of ``"`a` is set"``, **not** of `"is set"` — `x`'s own gloss
+  supplies that phrase, and a substring check would have passed there no matter what the frame did.
+  Same defect class as the sweep detector run against commit subjects (§7).
+
+### MEASUREMENTS
+
+| | before | after |
+|---|---|---|
+| byte-identity | `files: 1037  byte-identical: 1037  FAILURES: 0` | **identical** |
+| coverage TOTAL | `33918  32241  95%  1615  5%  62  0` | `33918  32248  95%  1608  5%  62  0` |
+| coverage suite | `42 passed, 10 failed` | `42 passed, 10 failed` |
+| `optional-chain.test.js` | — | `13 passed` |
+| `enfile.test.js` | 5 passed, corpus FAIL | 5 passed, corpus FAIL |
+
+**+7 site-specific / −7 generic — exactly the 7 GENERIC of the 10 moved.** The 3 SITE-SPECIFIC ones
+were already counted as specific and correctly do not move the figure.
+
+`enfile.test.js`'s corpus case is the KNOWN, EXPECTED red pending the re-render. **Positive control
+run this session on the reverted tree gives the identical FAIL**, so it is pre-existing and not
+caused by this change.
+
+### DRIFT — this changes nothing about what Amir has to approve
+
+The 10 relabelled statements add to the persisted-`.en` drift that clears with the **single
+authorised re-render** already queued for RULING 4's 104 files, CLASS 4's 32 sites and R-PAY-6's
+markers. One command clears all of it. `node write-en-files.js` remains blocked at the permission
+layer. Labels are DISPLAY ONLY — the compiler reads the payload, never the label — which is why
+byte-identity is unmoved by a 10-clause rendering change.
