@@ -76,6 +76,12 @@ const BINARY_OPS = {
   "<=": (a, b) => "whether " + a + " is at most " + b,
 };
 
+
+/* How each collection verb introduces its callback, when the callback renders. Separate from VERBS
+ * because a verb reads correctly WITHOUT a callback and only some of them take one usefully; a
+ * single table would have forced a preposition on verbs that do not want one. Closed, like VERBS. */
+const VERB_PREP = { map: "to", flatMap: "to", filter: "by", sort: "by", reduce: "with", find: "by" };
+
 const unwrap = (n) => {
   while (n && (ts.isParenthesizedExpression(n) || ts.isAwaitExpression(n) || ts.isNonNullExpression(n))) n = n.expression;
   return n;
@@ -107,21 +113,35 @@ const RULES = {
    * table that de-camel-cased unknown methods would manufacture confident English about code it had
    * not understood, which is the failure this engine exists to eliminate. */
   CallExpression(node, sf, P) {
-    const methods = [];
+    const links = [];
     let cur = unwrap(node);
     while (cur && ts.isCallExpression(cur) && ts.isPropertyAccessExpression(cur.expression)) {
       const name = cur.expression.name && cur.expression.name.text;
       if (!name || !VERBS[name]) return null;      /* unknown link -> decline the whole chain */
-      methods.unshift(name);
+      links.unshift({ name, call: cur });
       cur = unwrap(cur.expression.expression);
     }
-    if (!methods.length) return null;
-    const base = P.dotted(cur, sf);
+    if (!links.length) return null;
+    /* THE BASE GOES THROUGH `baseGloss`, NOT `P.dotted`. It was `dotted`, which spells only a plain
+     * `a.b.c` chain, so every chain hanging off a CALL declined outright — `startChildJobs(id)
+     * .then(...)` fell through to `firstCallName` and came out as "return then". The base is a
+     * child like any other and renders like one (R-LANG-17). */
+    const base = baseGloss(cur, sf, P);
     if (!base) return null;                        /* base is itself unnameable -> decline */
     /* the list-join IS the cardinality parameter */
-    const verbs = methods.map((m) => VERBS[m]);
+    const verbs = links.map((l) => {
+      const phrase = VERBS[l.name];
+      const prep = VERB_PREP[l.name];
+      if (!prep) return phrase;
+      const args = l.call.arguments || [];
+      if (args.length !== 1) return phrase;
+      const cb = unwrap(args[0]);
+      if (!cb || !(ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) return phrase;
+      const gives = render(cb, sf, P);             /* the ArrowFunction rule, recursively */
+      return gives ? phrase + " " + prep + " " + gives : phrase;
+    });
     const tail = verbs.length === 1 ? verbs[0] : verbs.join(" then ");
-    return P.q(base) + " " + tail;
+    return base + " " + tail;
   },
 
   /* ── ObjectLiteralExpression ───────────────────────────────────────────────────────────────────
@@ -364,6 +384,31 @@ const RULES = {
     const names = P.inputs ? P.inputs(node, sf) : null;
     if (!names || !names.length) return null;
     return "the text built from " + P.list(names.map(P.q));
+  },
+
+  /* ── ArrowFunction ─────────────────────────────────────────────────────────────────────────────
+   * A callback described by WHAT IT PRODUCES: `(line) => line.lineNumber` -> "`line.lineNumber`".
+   *
+   * Top of the worklist that `engine/phrasebook-worklist.js` produces against today's tree — 143
+   * residual generic sites, and the first entry in that ranking whose sites are genuinely
+   * contentless rather than an artifact of the site-specific predicate (the two kinds above it,
+   * `NewExpression` 360 and `PrefixUnaryExpression` 318, are dominated by `throw “Invalid data: …”`
+   * clauses that already read correctly).
+   *
+   * AN ArrowFunction RULE ON ITS OWN IS INERT, and that is worth stating rather than discovering
+   * twice. Nothing asks the phrasebook to render an arrow: the ladders render a statement's HEAD
+   * expression, and an arrow is always an ARGUMENT. So it ships with the one consumer that makes it
+   * reachable — the CallExpression rule's callback production below. A rule with no caller is not a
+   * smaller version of a rule; it is dead code that measures as zero.
+   *
+   * BLOCK BODIES DECLINE. `(router) => { appRouter.use(...); ... }` is a sequence of statements, and
+   * summarising it here would either duplicate the renderer's own statement machinery or guess. The
+   * caller then keeps the verb alone ("`routers` walked"), which is true and shorter. */
+  ArrowFunction(node, sf, P) {
+    if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return null;
+    const body = node.body;
+    if (!body || ts.isBlock(body)) return null;    /* a block is statements, not a value */
+    return baseGloss(body, sf, P) || P.literal(body, sf);
   },
 };
 

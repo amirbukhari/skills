@@ -7627,3 +7627,89 @@ things that would move the number materially are both decisions for Amir, not co
    statement and return position needs a lead-in choice the phrasebook has no way to express today,
    and inventing one at 4am to chase eight sites is how a clean design acquires a wart. Named here so
    it is a decision rather than an omission.
+
+## The phrasebook driver, and phrasebook rule 9 — `ArrowFunction` (2026-09-04)
+
+### `engine/phrasebook-worklist.js` — new
+
+§5D.3C's 8/19/28/37/53 table ranks node kinds by **raw instance count** and was measured before any
+rule shipped. Rules 1–8 moved the corpus generic count, so instance rank is no longer value rank:
+`PropertyAccessExpression` is rank 1 by instances and already has a rule; `TemplateExpression` is far
+down that table and was worth writing eighth. The driver ranks by **residual generic sites**, and
+attributes each to the kind actually **blocking** it — descending through a ruled kind that declines,
+which is the lesson of rules 4 and 8 made mechanical rather than hand-discovered.
+
+It re-implements nothing: the generic predicate is `statement-kind-coverage.test.js`'s, the vacuous
+set `clause-quality.js`'s, the says-nothing set `enfile.js`'s own `SAYS_NOTHING` export, and the
+primitives are `enfile.NKRP` — now exported for exactly this, so the driver asks the phrasebook the
+same question the renderer asks it.
+
+```
+PHRASEBOOK COVERAGE — structural kinds occurring in corpus ... 95
+                      kinds with a rule ...................... 9   9.5%
+```
+
+**A correction to my own arithmetic.** I reported corpus generic 1,839 after rule 8. That was a hand
+sum and it was wrong; the coverage test's own TOTAL row read **1,756**. All per-kind figures I
+reported were right — only the total was. Rule 9 takes it to **1,729**.
+
+### The driver's first finding: two thirds of the top of the worklist is artifact
+
+Ranked by blocked sites, #1 `NewExpression` 360 and #2 `PrefixUnaryExpression` 318 — and reading the
+clauses those sites **actually emit** shows both are dominated by prose that is already correct:
+
+```
+1. 360 NewExpression         in: ThrowStatement 346    says: throw “Invoice … has no contact”
+2. 318 PrefixUnaryExpression in: IfStatement 298       says: “Error getting contacts for chunk …”
+3. 143 ArrowFunction         in: ExpressionStatement 74, ReturnStatement 62
+                                                       says: return then ×36, return map ×15,
+                                                             call for each ×13
+```
+
+Writing a rule for either of the first two would have **overwritten good prose to chase a scoring
+artifact**. So the driver now prints, per blocking kind, the clauses its sites emit today and the
+statement kinds they sit in. A blocker count says a rule *could* speak there; it does not say the
+site is silent, and ranking without reading them sends a session to make the corpus worse.
+
+**A third artifact, found the same way and not acted on:** `if (!responseJson?.response?.roles)`
+renders as `when \`responseJson.response.roles\` is missing, warn` — correct, naming the right thing,
+and scored generic because the engine drops `?.` so the backticked text is not in the source
+verbatim. ~72 sites. This is the same class as the `…` elision (item 5) and belongs with it, under
+Amir's rule that the definition of mute is not edited in the same commit as a drop in mutes.
+
+### Rule 9 — `ArrowFunction`
+
+Top of the worklist once the artifacts are read off. `(line) => line.lineNumber` → "`line.lineNumber`".
+
+**An `ArrowFunction` rule on its own is inert, and that is worth recording rather than discovering
+twice.** Nothing asks the phrasebook to render an arrow — the ladders render a statement's HEAD
+expression, and an arrow is always an ARGUMENT. So it ships with the one consumer that makes it
+reachable: a callback production in the `CallExpression` rule, with `VERB_PREP` (a closed table,
+separate from `VERBS` because a verb reads correctly without a callback and only some take one).
+**A rule with no caller is not a smaller rule; it is dead code that measures as zero.**
+
+Its consumer needed one further fix, which is the same defect rule 3 closed one kind over: the
+CallExpression rule took its base from `dotted`, which spells only a plain `a.b.c` chain, so every
+chain hanging off a **call** declined outright — `startChildJobs(id).then(...)` fell through to
+`firstCallName` and emitted "return then" ×36. The base is a child like any other and now renders
+through `baseGloss`.
+
+Block-bodied arrows decline: a block is statements, and summarising it here would duplicate the
+renderer's statement machinery or guess. The caller then keeps the verb alone.
+
+**Measured before and after.**
+
+```
+corpus generic      1,756 -> 1,729   (-27)      [TOTAL row, the authoritative figure]
+  ReturnStatement     548 -> 523     (-25);  site-specific 82% -> 83%
+  ExpressionStatement 445 -> 443     (-2)
+  IfStatement         380, ThrowStatement 349, FirstStatement 33 — untouched, as expected
+phrasebook coverage 8/95 (8.4%) -> 9/95 (9.5%)
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+`reads as English` is not reported: it is label-region byte classification and clause prose is not one
+of its inputs, so it is the wrong instrument for this work.

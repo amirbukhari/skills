@@ -2456,4 +2456,8 @@ module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, spli
   renderProgramEn: SCALES.renderProgramEn, compileProgramEn: SCALES.compileProgramEn, SCALES, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,
    * and it is this one — the renderer's. A second copy in the consumer would drift from it silently. */
-  SAYS_NOTHING };
+  SAYS_NOTHING,
+  /* exported for engine/phrasebook-worklist.js: the driver must ask the phrasebook the SAME
+   * question the renderer asks it, with the SAME primitives. A second primitives object in the
+   * consumer would answer a slightly different question and rank the work order by it. */
+  NKRP };
