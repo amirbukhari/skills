@@ -9575,3 +9575,132 @@ declined two `ForStatement` sites to "loop over `d`" / "loop over `y`". Both fig
 their own HEAD; only the newer one is current.
 
 **Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0.**
+
+---
+
+## R-PAY-6 — DESIGN AND SCOPE, from the repo (2026-09-04)
+
+Record-only; no engine change. Amir's ruling, **verbatim, his spelling kept**:
+
+> "You need to make deterministic ids based on the pattern and then that's how you relate to the
+> word or phrase"
+
+*The reading below is the lane lead's, NOT Amir's words, and is kept separate from his line:* the id
+is derived from the pattern itself, so a re-mine that finds the same pattern derives the same id;
+mining order stops being an input; the id is the relation key between the pattern and its
+word/phrase. R-PAY-6 moves from "gated, undesigned" to **designed by Amir, unimplemented**.
+
+### (a) Where ids are generated, and what they are a function of
+
+**Two sites, one allocator, both in `engine/wordlzw.js`:**
+
+```
+engine/wordlzw.js:62   const id = dict.length;      (addEntry, in build)
+engine/wordlzw.js:141  const id = dict.length;      (add, in buildSaturated — the live path)
+```
+
+`build-lzw-generators.js:153` calls `W.buildSaturated`, so **:141 is the one that ships.** The id is
+a function of **nothing but the number of entries already added** — pure mining-order position.
+`verify-register.js:703,1931` already states this in those words.
+
+### (b) What "the pattern" concretely is at that point
+
+A dict entry is `{ id, symbols, key, prefixId, appended, len, freq }`. `symbols` is an array of
+**symbolIds**; `key` is `symbols.join(",")` (`wordlzw.js:138`). A symbolId comes from
+`idOfSym.set(s, symOfId.length)` — **first-seen order**, the same defect one level down.
+
+**So `key` IS NOT CONTENT, AND HASHING IT WOULD REPRODUCE THE BUG UNDER A NEW NAME.** This is the
+first thing an implementation must not do, and the repo already does it once: `engine/pipeline.js:93`
+builds `"g_" + e.len + "_" + sha256(e.key)[0:6]` — a hash **of the order-dependent csv**.
+
+The content is one dereference away and is present at the site: `symbols.map((i) => symOfId[i])`.
+Each `symOfId[i]` is `G.keyOf(parts)` (`build-lzw-generators.js:122`), and
+`engine/generators.js:23` defines that as
+`parts.map((p) => (p.lit !== undefined ? p.lit : "‹" + p.type + "›")).join("")` — literals plus
+typed hole markers, **fully content-derived, no index anywhere in it**. That ordered list of
+skeleton strings is "the pattern".
+
+### (c) What a pattern-derived id would be a function of, and what it collides on
+
+`sha256(symbols.map((i) => symOfId[i]).join(<separator>))`, truncated. Two risks, and only one of
+them is the hash:
+
+1. **SEPARATOR INJECTION, which is not a hash property.** A skeleton string may contain any
+   literal from the source. If the joiner can occur inside a skeleton, `[A, BC]` and `[AB, C]`
+   hash identically — a collision between two genuinely different patterns produced by the
+   encoding, not by chance. It must be length-prefixed or use a byte no skeleton can contain.
+2. **TRUNCATION WIDTH, and the repo has already answered it correctly once.** Measured from the
+   shipped artifact: `narrow` **126,348** dict entries, `wide` **118,447** (`counts.dictEntries`,
+   `sen/catalog/generators-lzw.json`). Birthday bound, P(at least one collision):
+
+```
+                                                   n=126,348    n=244,795 (shared namespace)
+  24 bits  sha256[0:6]   — pipeline.js:93 today      100%          100%
+  40 bits  "sha256-10" hex — PRD §20's proposal      0.723%        2.688%
+  64 bits  sha256[0:16]  — word-names.json today     4.3e-10       1.6e-9
+  80 bits  "sha256-10" as ten BYTES                  6.6e-15       2.5e-14
+```
+
+**THE REPO WINS OVER PRD §20 IF ITS `sha256-10` MEANS TEN HEX CHARACTERS: 40 bits is not safe at
+this dictionary size** — a 0.7–2.7% chance of a silent collision per corpus, which for a payload
+reference is a wrong-bytes compile, not an error. §20 does not say which unit it means. **The
+existing content-addressed scheme in this repo already uses 64 bits and is safe:**
+`engine/artifact-contract.js:96` — *"hand-authored names, keyed by content hash and never by word
+id... key `w:`/`n:` + sha256(sym)[0:16]"*. **That is Amir's design, already implemented, for names —
+just never for the payload ids.** The work is to apply an existing scheme, not to invent one.
+
+### (d) What depends on the current ids
+
+**Measured on the live corpus, not estimated.** The payload marker is `⟪lzw1 <axis><id>⟨`
+(`enlzw.js:181,300`).
+
+```
+.en files citing a word id ......... 1034  of 1037
+total citations .................... 9724
+distinct ids cited ................. 4643   (all narrow axis; wide cited 0 times)
+.en naming a dictionary fingerprint .... 0
+engine/tool files touching a word id ... 12  (17 read/write sites)
+```
+
+Every one of the 1,034 must be re-rendered or rewritten. **0 of 1,037 name a fingerprint**, so
+option (a) of R-PAY-6 — fingerprint-stamped `.en` with a refusing compile — is equally a
+corpus-wide migration; content-addressing is not the more invasive of the two.
+
+### (e) Does AT-ARCH-1 stay checkable, or go vacuous like `byteIdentical` in `extractRedux`?
+
+**It stays checkable, and it does not go vacuous — but it loses the failing case §20 cites as its
+justification, and that is a real cost.**
+
+- Not vacuous: `en₁` is computed from `ts` and `D′` alone and never sees `en₀` (§20 §2), which is
+  exactly what `R-ARCH-4`'s tautological `byteIdentical: 100%` lacked — `checkTiling` re-slices the
+  source and rejoins it, so it could not fail. Nothing in this scheme makes `en₁` a function of
+  `en₀`.
+- But §20 lists four things AT-ARCH-1 catches, and **reason 2 is R-PAY-6 itself** — *"Payload ids
+  are array indices renumbered by every re-mine. Under AT-ARCH-1 that renumbering changes `en₁` and
+  the test goes red. That alone justifies the gate."* Fixing R-PAY-6 removes that red. The other
+  three — arbitration instability, canonicalizer drift, extractor bugs of the `parseRelationArgs`
+  class — remain live and are what the gate then tests. **The negative control (`de-register the
+  archetype, re-run, assert en₁ ≠ en₀`) becomes the only proof it can fail, so it matters more
+  after this change, not less.**
+
+### THE HOLE, NAMED — content-addressing closes HALF of what Amir's goal needs
+
+Amir's line is right and it closes **renumbering**: the same pattern, found again, gets the same id.
+It does **not** close **re-segmentation**: whether the same pattern is found again at all.
+
+`buildSaturated` admits a window only when `e.count >= createGate` over the **whole corpus**
+(`wordlzw.js:152`), and `usageCounts` then segments greedily longest-match over the full grown dict.
+So dictionary membership is a function of corpus-wide recurrence: **add or edit one file and a
+pattern that cleared the bar may stop clearing it, or a longer pattern may supersede it.** When that
+happens the id is not renumbered — the referenced word **no longer exists**, and no id scheme can
+save the `.en`. §20's own reason 3, *"canonicalizer drift — a change that alters skeletons shifts
+the segmentation and the `.en` moves under a corpus nobody edited"*, is untouched by this fix and
+survives it.
+
+**So R-PAY-6 as designed is necessary and not sufficient for authoritative English.** It is the
+right next step and it should be built; what it must not be called is "the fix that lets a
+hand-edited `.en` survive a re-mine". That needs a second decision — whether a cited word is
+PINNED once an `.en` references it, or whether the `.en` re-renders — and that decision is not in
+R-PAY-6, not in §20, and is Amir's, not mine.
+
+**Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0. No engine file was touched.**
