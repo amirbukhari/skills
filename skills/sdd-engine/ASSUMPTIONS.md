@@ -7894,3 +7894,56 @@ about the code. It needs an ordinal-aware shape, not a row. The `mock*` family (
 
 **No require cycle was needed or created.** `enfile` requires `node-kind-rules`, never the reverse;
 nothing moved between them, so the `VERBS` precedent did not have to be repeated.
+
+## The third column: the one-char artifact, split out of the ranking metric (2026-09-04)
+
+The ranking metric has now measured the wrong thing twice — the `…` elision (921 sites), then the
+route family (17 sites ranked as a vocabulary gap that needed nothing). `engine/one-char-credit.js`
+is the third figure, built exactly as the second was: a separate module, a separate name, reported
+BESIDE the frozen count, feeding no assertion.
+
+**Premise confirmed, and it is bigger than the route family:** **117 sites** of the frozen 1,695 are
+generic only because the run they quote is ONE character present verbatim in the statement.
+**Overlap with the elision credit is zero** — the two artifacts are disjoint, measured, not assumed.
+
+```
+RESIDUAL GENERIC (frozen) ...... 1695     the published series, unchanged
+  quoting through “…” .......... 921      54.3%
+  NET OF ELISION ............... 774      the published series, unchanged
+  quoting ONE character ........ 117      6.9%   (overlap with elision: 0)
+  NET OF BOTH ARTIFACTS ........ 657   <-- the work that can actually be done
+```
+
+**`FirstStatement` is 100% artifact — 33 frozen, 33 one-char, REAL 0.** It was already demoted on
+the elision figure (which credited none of it); the one-char column shows the whole pool is a
+scoring artifact and there is no work in it at all.
+
+**The route finding is now mechanical rather than anecdotal.** `routes` reads 19 sites, 18 one-char,
+**REAL 1**. That is the check that would have refused the last work order before it was written.
+
+**Per family** — the census now lives in the driver, not in a scratch script, because the route
+finding came out of one and nothing downstream could consume or re-run it:
+
+| family | sites | credited | 1-char | **REAL** |
+|---|---|---|---|---|
+| (unclassified) | 100 | 37 | 10 | **53** |
+| promise | 45 | 0 | 0 | **45** |
+| queryBuilder | 54 | 0 | 11 | **43** |
+| arrayMutation | 26 | 0 | 0 | **26** |
+| log | 285 | 272 | 4 | **9** |
+| matcher | 9 | 0 | 0 | **9** |
+| **routes** | **19** | **0** | **18** | **1** |
+
+`log` is the mirror of `routes` at 30× the size: 285 declining sites, 272 already correct through
+the elision, **9 real**. Both would have ranked near the top on any count that does not subtract.
+
+**The worklist and the declining table now RANK on REAL** — an artifact column that does not reach
+the sort order is the same defect one layer up. Rule 10's target is unchanged in ORDER (`Block`,
+then `Parameter`) but not in size: `Block` **93 → 68 REAL**, `Parameter` **80 → 51**, and both carry
+a large one-char share (17 and 20). Every earlier column is kept on the row, so the frozen and
+net-of-elision orders stay inspectable.
+
+**`isSiteSpecific` is untouched**, and the `>= 2` threshold is written out again inside
+`one-char-credit.js` rather than imported, so the two can never move together by accident. Whether
+the definition of mute changes is Amir's ruling, unmade. Coverage test TOTAL row **1,695**,
+42 passed / 10 failed; byte-identity **1037/1037**.
