@@ -6953,3 +6953,30 @@ on something sturdier is a question for Amir, not a change I made here.)*
 **The rule I would apply next time: a baseline taken by running a RENAMED copy is only valid for a
 tool whose result cannot depend on its own path.** Check that before trusting the number — and if
 the tool scans the tree it lives in, assume it can.
+
+## 2026-09-04 — CLAUDE.md §6 rewritten: "UNRESOLVED — the direction of truth" was four days stale
+
+**Judgment call:** I rewrote §6 from "UNRESOLVED … Ask Amir" to "RULED — both directions", quoting
+the superseded text in place per §9 rather than overwriting it.
+
+**Why it is not a judgment call about the DIRECTION** — that was Amir's, on 2026-08-31, and the PRD
+records it: `tools/prd/18-open-questions.md` Q-1 is marked **CLOSED 2026-09-03**, answered
+2026-08-31 by Amir (YES), mechanics in `a5501a7`, last blocker (§2.2) ruled the same day. §5D.0
+statement 4: *"Neither direction is the derived one."* Statement 7: *"so that it can be editable."*
+The only judgment was **how** to record it in CLAUDE.md.
+
+**What it cost while stale.** On 2026-09-04 I was asked to price the direction-of-truth question and
+did — building option sets and a scratch two-corpus mine experiment — because §6 told me it was open
+and told me to ask Amir. Amir's answer was *"Fuckin read the PRD"*. The PRD had answered it in
+writing three days earlier. **CLAUDE.md is the first file every session in this tree reads**, so one
+stale ruling here re-opens a settled decision for every lane.
+
+**The rule this produces, and it is now written into §6 itself:** CLAUDE.md summarises the PRD; the
+PRD wins. Before treating anything as open, read `18-open-questions.md` — it marks closures inline
+with a date and a commit. "Ask Amir" is the right instruction for a question nobody has answered and
+the wrong one for a question already answered in a tracked file.
+
+**Also recorded, and worth Amir's eye:** Q-1's own title framed it one-way — *"does English ever
+become authoritative?"* — which presupposes a single winner in a design that has two. The closure
+text corrects it (*"neither direction is the derived one"*), but the title still reads as a flip
+question, and that framing is what §6 inherited. Not changed; flagged.

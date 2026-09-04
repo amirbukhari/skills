@@ -143,30 +143,66 @@ of what the cleaner happened to walk.
 
 ---
 
-## 6. UNRESOLVED — the direction of truth
+## 6. RULED — the direction of truth is BOTH directions
 
-**Do not resolve this by inference. Ask Amir.**
+**Q-1 is CLOSED. Do not treat this as open, and do not re-derive it.** Closed **2026-09-03**;
+answered **2026-08-31 by Amir (YES)**; the mechanics landed in **`a5501a7`**; the last blocker —
+§2.2's *"names are cosmetic by construction"* — was **ruled the same day** (§5C wins). Source:
+`tools/prd/18-open-questions.md`, Q-1.
 
-Amir's three-folder direction (English source / TypeScript source / TypeScript build) implies
-**flipping** English into the authoritative source with TypeScript derived from it — the
-**opposite** of what is implemented today, where `.ts` in `SOURCE` is authoritative and `.en` in
-`CORPUS/sen/` is generated.
+**The ruling, in Amir's words** (§5D.0 statement 4, `tools/prd/05-architecture.md`):
 
-Today's `SOURCE`/`CORPUS` work is the **current, un-flipped direction with cleaner names.** It is
-not the flip and does not move the project across that line.
+> The full lifecycle runs in **BOTH directions**. Mine the codebase **first** to generate the `.en`;
+> hand-edit the `.en`; it goes back into the codebase. **And the reverse must also hold** — edit the
+> codebase directly, re-mine, and get the `.en` back matching. **Neither direction is the derived
+> one.**
 
-Detail, including what specifically is open: **`tools/prd/14-two-roots.md` §1B.5**, and **`Q-1`** in
-`tools/prd/18-open-questions.md`. Byte-identity over the whole corpus is **necessary and not
-sufficient** to flip: the gate only ever tests machine-rendered `.en`, and word ids are renumbered by
-every re-mine (`R-PAY-6`), so after a flip one re-mine would silently invalidate every `.en` — a
-compile producing wrong bytes, not an error.
+Statement 7 gives the reason it must be so: *"so that it can be editable."*
 
-*(This used to cite `§1A` and a byte-identity count. §1A — the `EN_ROOT`/`TS_ROOT`/`BUILD_ROOT`
-three-root proposal — was **cut** on 2026-08-31 at Amir's word, and the count was a point-in-time
-reading, not a threshold. Both are gone from the PRD.)*
+So there is **no flip to schedule.** The design is bidirectional with a **TS-first bootstrap** —
+you start with TypeScript and mine the language out of the repo — and after that neither side is
+authoritative over the other. A hand-edit to the English **must** change the compiled TypeScript
+(**R-REND-6**, §10, mechanics §5E.5).
 
-Any session touching direction-of-truth must ask Amir which direction is current before assuming.
-This gap was silently forgotten once already.
+**What remains are BLOCKERS, not unknowns.** Q-1 names three; each is a build item with an owner,
+not a question for Amir:
+
+| blocker | what it is | where |
+|---|---|---|
+| **R-PAY-6** | word ids are allocated as `dict.length`, i.e. mining order, so a re-mine renumbers them and silently invalidates every `.en`. **Content-addressed ids are the named fix.** | §5E.3.2 |
+| **the grammar parser** | an edit that restructures a clause, adds prose, or renames a token the TEMPLATE supplied (a new word — the miner's job) still refuses. The hole layer is BUILT (`enfile.js repairFromSentence`, 2026-09-03); the parser is not. | §5E.3.2 |
+| **a human authoring a `.en`** | someone must actually write one and review the compiled `.ts` as a diff. Unchanged, and nobody has done it. | Q-1 |
+
+Also ruled: `sen/`'s wipe gate hardens from *"explicit flag"* to *"refuse"* at the point
+`compileChunk` reads sentences (§1B.3) — see §4, which still describes the pre-hardening gate.
+
+**RETRACTED 2026-09-04 — this section said the opposite for four days.** It read:
+
+> **## 6. UNRESOLVED — the direction of truth**
+>
+> **Do not resolve this by inference. Ask Amir.**
+>
+> Amir's three-folder direction (English source / TypeScript source / TypeScript build) implies
+> **flipping** English into the authoritative source with TypeScript derived from it — the
+> **opposite** of what is implemented today […] Today's `SOURCE`/`CORPUS` work is the **current,
+> un-flipped direction with cleaner names.** […] Any session touching direction-of-truth must ask
+> Amir which direction is current before assuming.
+
+**Superseded by Q-1's closure on 2026-09-03**, one day after that text was accurate. Three things in
+it are now wrong: (a) it frames the answer as a **one-way flip**, when the ruling is that *both*
+directions are first-class; (b) it says **ask Amir**, when Amir already answered on 2026-08-31; and
+(c) it presents R-PAY-6 as evidence the question is *open*, when Q-1 lists it as a **blocker of a
+decided direction**.
+
+This is not a tidy-up. **CLAUDE.md is the first thing every session in this tree reads**, so a stale
+ruling here tells every lane to re-open a settled decision — which happened on 2026-09-04 and cost
+Amir a round trip at 6am to answer a question the PRD had answered in writing. *(The earlier
+retraction this section carried — the `§1A` three-root proposal, cut 2026-08-31 — stands; §1A is
+gone from the PRD.)*
+
+**The standing rule that replaces "ask Amir":** read `tools/prd/18-open-questions.md` before
+treating anything as open. It marks closures inline with a date and the commit. This file summarises
+the PRD; **the PRD wins.**
 
 ---
 
