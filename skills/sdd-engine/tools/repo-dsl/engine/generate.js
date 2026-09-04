@@ -167,6 +167,42 @@ function parseRelationLine(L) {
 }
 
 /* ------------------------------------- FORWARD: canonical structured renderer */
+/* AN INLINE ENUM LITERAL HAS NO NAME, AND NOTHING HERE MAY INVENT ONE.
+ *
+ * TypeORM allows two spellings of an enum column and the corpus uses both:
+ *
+ *     @Column({ type: 'enum', enum: EClientType })              a NAMED enum -- 35 columns
+ *     @Column({ type: 'enum', enum: ['active', 'deleted'] })    an INLINE LITERAL -- 5 columns
+ *
+ * The decorator is right in both cases and is emitted verbatim either way. What was wrong is
+ * everything DOWNSTREAM of `c.enum` treating it as an identifier: `collectImports` emitted
+ * `import { ['active', 'deleted'] } from './enums';` and the member carried the array literal as
+ * its type. Neither is valid TypeScript, and the emitted file would not re-mine -- it failed with
+ * "residual top-level code: ExpressionStatement".
+ *
+ * THE UNION IS NOT A CHOICE BETWEEN CONVENTIONS; it is what the literal already means. Minting a
+ * name would make this emitter a SECOND naming authority, which R-LANG gives to the grammar and
+ * the miner, and refusing would make a legal mined construct unrepresentable in the write
+ * direction -- the wrong way for a round trip we are trying to close. Two of the five corpus sites
+ * (`TaxByProvince`, `TaxByProvinceOverride`) write exactly this union by hand, so it is also what
+ * the codebase itself does.
+ *
+ * IT REFUSES RATHER THAN GUESSING on a literal with no quoted member -- a numeric enum, say. There
+ * are zero of those in the corpus today (measured: 5 of 5 literals are all-quoted), so this is an
+ * unreachable branch by measurement rather than by argument, and `|| "string"` in its place would
+ * be exactly the silent-wrong-type defect this pass exists to remove. */
+const isEnumLiteral = (e) => typeof e === "string" && /^\s*\[/.test(e);
+function enumTsType(e) {
+  if (!isEnumLiteral(e)) return e;
+  const items = e.match(/'[^']*'|"[^"]*"/g);
+  if (!items || !items.length) throw new Error(
+    "generate: INLINE ENUM LITERAL WITH NO QUOTED MEMBER — cannot derive a union type\n" +
+    "  enum:     " + e + "\n" +
+    "  An inline literal has no name, so the member type has to come from the literal itself.\n" +
+    "  Refusing rather than emitting a guessed type.");
+  return items.join(" | ");
+}
+
 function renderColumn(c) {
   if (c.pk) return `  @PrimaryGeneratedColumn()\n  ${c.prop}!: number;\n`;
   const T = (v) => v === true || v === "true";
@@ -197,7 +233,8 @@ function collectImports(model, opts = {}) {
   for (const m of model.members) {
     if (m.role === "column") {
       if (m.pk) deco.add("PrimaryGeneratedColumn"); else deco.add("Column");
-      if (m.enum) enums.add(m.enum);
+      /* An inline literal has nothing to import — there is no name to bring in scope. */
+      if (m.enum && !isEnumLiteral(m.enum)) enums.add(m.enum);
     } else {
       deco.add(m.decorator);
       if (m.join) deco.add("JoinColumn");
@@ -308,6 +345,7 @@ function structuralEntityCheck(src) {
 module.exports = {
   tileEntity, assemble, parseColumnMember, parseRelationMember,
   parseEntityDSL, emitEntityCanonical, renderColumn, renderRelation, collectImports,
+  isEnumLiteral, enumTsType,
   parseRouterDSL, emitRouterCanonical,
   parseReduxDSL, emitReduxCanonical,
   parseValidity, structuralEntityCheck, typecheckEntitySource, camel, lowerFirst,

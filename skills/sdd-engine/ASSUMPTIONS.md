@@ -10130,3 +10130,76 @@ Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after.
 exit 0, 7 assertions, 0 FAIL. `entity-sentence.test.js` unchanged at 18 passed / 2 failed — the two
 emit legs behind defect 2. `engine/clause-quality.js` untouched; `SDD_DERIVE_CHECK` untouched.
 
+
+## DEFECT 2 — the inline enum literal emits a UNION TYPE. All three legs 58/58.
+
+**The ruling holds against the repo, and the corpus itself is the evidence.** Two of the five
+literal sites — `TaxByProvince` and `TaxByProvinceOverride` — write `hydraState!: 'active' |
+'deleted';` **by hand**. The union is not a convention chosen between alternatives; it is what the
+codebase already does with this construct.
+
+**Nothing in `generate.js` expects a named enum where it matters.** `renderColumn` emits
+`enum: ${c.enum}` into the decorator verbatim, which is correct for both spellings and is
+UNCHANGED — the TypeORM column type stays `type: 'enum'` with the same literal beside it, so
+decorator metadata is untouched. Only two things downstream treated `c.enum` as an identifier, and
+both were the defect: `collectImports` emitting `import { ['active', 'deleted'] } from './enums';`,
+and the member carrying the array literal as its type.
+
+### (f) Blast radius, measured BEFORE the edit
+
+```
+  conforming entities: 58   columns: 611   columns carrying an enum: 40
+    named enum (unchanged by this edit): 35
+    INLINE LITERAL (the blast radius):   5   across 5 files
+    literals with no quoted member (would refuse): 0
+      Charge.ts  hydraState  ->  'deleted' | 'unsent' | 'sent' | 'legacy-imported' | 'zero-invoice' | 'unknown'
+      InvoiceRaw.ts  rawInterfaceType  ->  'IInvoiceUsageSplit' | 'IInvoice'
+      OwnershipGroupLegacyTax.ts  hydraState  ->  'active' | 'deleted'
+      TaxByProvince.ts  hydraState  ->  'active' | 'deleted'
+      TaxByProvinceOverride.ts  hydraState  ->  'active' | 'deleted'
+```
+
+5 columns of 611, in 5 files of 58. The 35 named enums are untouched.
+
+### The result — all three legs, separately
+
+```
+  DENOMINATOR 58
+    render(parse(s)) === s                       58/58     (was 58/58 — did not regress)
+    re-mine of the emitted .ts === s             58/58     (was 53/58)
+    the emitted .ts is a fixpoint                58/58     (was 53/58)
+    REPORT ONLY, not asserted -- emit === the corpus file's own bytes   0/58
+entity-sentence.test.js: 20 passed, 0 failed
+```
+
+**GREEN-ON-ARRIVAL IS THE FAILURE MODE, SO HERE IS WHY THIS ONE IS NOT IT.** The check is byte-for-
+byte the one committed in `bd89c64`; no assertion, no denominator and no population was touched by
+this commit or the two before it. It has gone RED three times under those exact assertions —
+53/58 at `bd89c64`, 56/58 at `2172f80`, 56/58 with the emit legs still at 53 at `0571bdc` — each
+move traceable to one named defect. A check that has failed three times and passes on the fourth
+after the named cause was removed is not a check that arrived green. The emitted TypeScript for all
+five was also parsed independently: **0 parse diagnostics** each, where it previously produced
+`import { ['active', 'deleted'] }`.
+
+### A gap this exposes in the SENTENCE, which is not this commit's to fix
+
+**Three of the five literal sites declare a NAMED type on the member** —
+`EOwnershipGroupLegacyTaxState`, `TRawInterfaceType`, and `IChargeBase['hydraState']` — while their
+decorator carries the literal. No production in the grammar carries a member type, so
+`modelFromExtraction` never mined those names and the sentence never spoke them. Re-emitting those
+three therefore produces the union instead of the declared name. **Nothing the sentence said is
+lost; something the FILE said was never mined.** It affects only the report-only
+`emit === corpus bytes` comparison, which every one of the 58 already fails for unrelated reasons.
+Recorded, not fixed.
+
+### It refuses rather than guessing
+
+`enumTsType` throws on a literal with no quoted member — a numeric enum, say — rather than falling
+back to `"string"`. Measured: **5 of 5 literals are all-quoted**, so the branch is unreachable on
+today's corpus by measurement rather than by argument. `|| "string"` in its place would be exactly
+the silently-wrong-type defect this pass exists to remove.
+
+Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after. `generate.test.js`
+35 passed, `author.test.js` 30 passed, `archetypes.test.js` 56 passed, all 0 failed.
+`clause-quality.js` untouched; `SDD_DERIVE_CHECK` untouched.
+

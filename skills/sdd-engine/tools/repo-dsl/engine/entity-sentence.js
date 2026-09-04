@@ -53,7 +53,7 @@
  * ZERO MODEL CALLS. Deterministic, pure, no I/O. (PRD R-MECH-4; §5D.1's panel is labelled
  * "no model call" and this is why it can be.)
  */
-const { camel, lowerFirst } = require("./generate");
+const { camel, lowerFirst, enumTsType } = require("./generate");
 
 const TYPE_TS = { int: "number", integer: "number", tinyint: "number", smallint: "number", bigint: "number",
   float: "number", double: "number", decimal: "string", numeric: "string", bit: "boolean", bool: "boolean",
@@ -127,7 +127,7 @@ function parseColumnPhrase(phrase) {
   const dbName = snaked(rawName);
   const col = { role: "column", src: dbName, prop: camel(dbName), nullable: /^optional$/i.test(req) };
   if (dbName.includes("_")) col.name = dbName;
-  if (enumName) { col.colType = "enum"; col.enum = enumName; col.tsType = enumName; }
+  if (enumName) { col.colType = "enum"; col.enum = enumName; col.tsType = enumTsType(enumName); }
   else { col.colType = plainType.toLowerCase(); col.tsType = TYPE_TS[col.colType] || "string"; }
   return col;
 }
@@ -293,7 +293,15 @@ function modelFromExtraction(ex) {
     const p = c.parsed || {};
     const col = { role: "column", prop: c.prop, src: p.name || c.prop, nullable: p.nullable === "true" || p.nullable === true };
     if (p.name) col.name = p.name;
-    if (p.enum) { col.colType = "enum"; col.enum = flattened(p.enum); col.tsType = col.enum; }
+    /* The MEMBER TYPE is not the decorator value. For a named enum they coincide; for an inline
+     * literal the type is the union the literal denotes (see generate.js `enumTsType`). The
+     * sentence still speaks the decorator value, so this changes the emitted .ts and not the
+     * English. NOTE, and it is a gap in the SENTENCE rather than in this line: three of the five
+     * literal sites declare a NAMED type on the member (`EOwnershipGroupLegacyTaxState`,
+     * `TRawInterfaceType`, `IChargeBase['hydraState']`) that no production carries, so re-emitting
+     * them produces the union instead. Nothing the sentence said is lost; something the FILE said
+     * was never mined. */
+    if (p.enum) { col.colType = "enum"; col.enum = flattened(p.enum); col.tsType = enumTsType(col.enum); }
     else { col.colType = p.type || "varchar"; col.tsType = TYPE_TS[col.colType] || "string"; }
     model.members.push(col);
   }
