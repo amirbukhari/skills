@@ -57,6 +57,7 @@ const { SKIP } = require("./walk-skip");
 const EC = require("./elision-credit");   /* the SECOND figure — see engine/elision-credit.js */
 const OC = require("./one-char-credit");  /* the THIRD figure — see engine/one-char-credit.js */
 const ES = require("./escape-credit");   /* the FOURTH figure — see engine/escape-credit.js */
+const OCC = require("./optional-chain-credit");  /* the FIFTH figure — report-only, NOT wired into `real` */
 
 let SHOW_EXAMPLES = false;   /* set by computeWorklist(opts) — never read from argv here */
 let SHOW_CLAUSES = false;
@@ -284,6 +285,9 @@ function computeWorklist(opts) {
   const clauses = new Map();         // unruled kind -> clause text -> sites
   const perStatement = new Map();    // statement kind -> { generic, credited }
   let genericTotal = 0, creditedTotal = 0, noHead = 0, oneCharTotal = 0, bothTotal = 0, escapedTotal = 0;
+  /* THE FIFTH FIGURE, accumulated BESIDE the four above and subtracted from nothing. See
+   * engine/optional-chain-credit.js for why it must not enter `real`. */
+  let optChainTotal = 0, optChainNetNew = 0, optXelision = 0, optXoneChar = 0, optXescape = 0;
   let escXelision = 0, escXoneChar = 0, allThree = 0;
   /* THE ACCEPTANCE TEST FOR THE ATTRIBUTION FIX, computed rather than asserted. Every REAL site
    * lands in exactly one of these four buckets; if the four sum to REAL, no site is counted twice
@@ -341,6 +345,14 @@ function computeWorklist(opts) {
           if (escaped && oneChar) escXoneChar++;
           if (escaped && credited && oneChar) allThree++;
           if (credited && oneChar) bothTotal++;
+          const optChain = OCC.creditsOptionalChain(clause, text);
+          if (optChain) {
+            optChainTotal++;
+            if (credited) optXelision++;
+            if (oneChar) optXoneChar++;
+            if (escaped) optXescape++;
+            if (!credited && !oneChar && !escaped) optChainNetNew++;
+          }
           const sk = ts.SyntaxKind[st.kind];
           let ps = perStatement.get(sk);
           if (!ps) { ps = { generic: 0, credited: 0, oneChar: 0, escaped: 0 }; perStatement.set(sk, ps); }
@@ -422,6 +434,7 @@ function computeWorklist(opts) {
      * no consumer of the existing series silently changes value. */
     residual: {
       frozen: genericTotal, credited: creditedTotal, net: genericTotal - creditedTotal, noHead,
+      optChain: optChainTotal, optChainNetNew, optXelision, optXoneChar, optXescape,
       oneChar: oneCharTotal, creditedAndOneChar: bothTotal,
       netOfBoth: genericTotal - creditedTotal - oneCharTotal + bothTotal,
       escaped: escapedTotal,
@@ -481,6 +494,13 @@ function report(w) {
   console.log("  of the frozen, an ESCAPED literal ...... " + w.residual.escaped + "   " + pc(w.residual.escaped, w.residual.frozen) + " of frozen"
     + "   (overlap: elision " + w.residual.escapedAndElision + ", one-char " + w.residual.escapedAndOneChar + ")");
   console.log("  RESIDUAL, REAL (net of all three) ...... " + w.residual.real + "   <-- the work that can actually be done");
+  /* THE FIFTH COLUMN, PRINTED BESIDE `real` AND SUBTRACTED FROM NOTHING. The clause names a
+   * property path in its normalised form, so a source reading `a?.b` cannot match verbatim. It is
+   * deliberately NOT folded into `real`: doing so would drop the published count with no renderer
+   * change, which is the shape the freeze exists to prevent. Amir's ruling, unmade. */
+  console.log("  of the frozen, an OPTIONAL CHAIN ....... " + w.residual.optChain + "   " + pc(w.residual.optChain, w.residual.frozen) + " of frozen"
+    + "   (overlap: elision " + w.residual.optXelision + ", one-char " + w.residual.optXoneChar + ", escape " + w.residual.optXescape + ")");
+  console.log("    net new, credited by none of the four: " + w.residual.optChainNetNew + "   REPORT-ONLY — feeds no assertion, gate or exit code");
   console.log("");
   console.log("  STATEMENT KIND            frozen   credited   1-char   escape      net   REAL");
   for (const r of w.perStatement) {

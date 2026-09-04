@@ -8799,3 +8799,71 @@ No metric definition was touched: `clause-quality.js` byte-for-byte unchanged, `
 unchanged, `isSiteSpecific`'s `bare.length >= 2` unchanged, no assertion, gate or exit code altered.
 The two filed findings — the optional-chaining credit class and the `“…”` tokeniser defect — were
 NOT touched; both are Amir's ruling. Bucket 6 was not rewired.
+
+## The FIFTH report-only artifact — optional chains. 12 re-measured to 39 / 33 net new (2026-09-04)
+
+**Guardrails re-verified on HEAD `81d3e7b` before starting, not inherited from the pre-commit run:**
+`test-gen-roundtrip.js` → files 1037, byte-identical **1037**, FAILURES **0**; coverage TOTAL →
+33918 statements, 32207 site-specific, generic **1645**, 42 passed / 10 failed. `clause-quality.js`
+shows **0** changed lines across `017b732..HEAD`, and `bare.length >= 2` appears exactly once in
+each of its two homes. No frozen definition has moved.
+
+### The 12 was a bucket count, not the artifact's count
+
+The item carried 12, counted as census bucket 5 at `2f0e1e2`. Two things had to be re-measured, and
+both moved:
+
+- **Within the CURRENT NEITHER set (360, not 369): 17, not 12.** The five extra —
+  `commissions.ts:576` and `:617`, `users.ts:17`, `accountingCodeLineGrouper.ts:26`, `tools.ts:89` —
+  were in census bucket **6** ("head renders, clause still generic"), not bucket 5. **The census's
+  buckets split by MECHANISM (is the head `named`?), and this artifact is a SYMPTOM that cuts across
+  that split.** A bucket count is not an artifact count, and the two were never the same question.
+- **Over the whole generic population, which is where the other four credits are measured: 39**,
+  of which **33 are net new** (overlap: elision 0, one-char 6, escape 0). The 17 inside NEITHER are
+  a subset; the other 16 net-new sites carry a vocabulary or unruled-kind blocker as well, so they
+  live in the family and worklist tables.
+
+**All 33 net-new sites were read individually. Every one is a genuine mismatch** — the clause quotes
+a path that is the statement's own words with `?.` flattened to `.`, and no clause was credited that
+quotes something the statement does not contain:
+
+```
+return `accountRecord.accountId`                 <-  return accountRecord?.accountId;
+stop early when `salesRep.user.email` is set     <-  if (salesRep?.user.email) { ... }
+when `ctx.state.token.userId` is missing, throw  <-  if (!ctx.state.token?.userId) { ... }
+```
+
+### Containment — why this one is takeable when the tokeniser defect is not
+
+`engine/optional-chain-credit.js` is a separately named module, its `>= 2` **written out rather than
+imported** (the reason `one-char-credit.js` records: the two must be able to disagree, or an edit
+here would silently move the published series). It prints BESIDE the four existing figures and is
+**subtracted from nothing** — `real` is computed exactly as before.
+
+**That is the whole difference from the blocked tokeniser defect.** Folding this figure into `real`
+would drop the published count with no renderer change, which is the shape the freeze exists to
+prevent. `real` stays **592**; the new line reports 39 / 33 net new and says on its own line that it
+feeds no assertion, gate or exit code. The tokeniser defect (the ordered alternation swallowing
+backticked identifiers inside a “…” run) was **not touched** — it is Amir's ruling and it is blocked
+on purpose, and this module does not depend on it.
+
+### Measured, after (no renderer file changed, so nothing could move)
+
+| | before | after |
+|---|---|---|
+| `test-gen-roundtrip.js` | 1037 / **1037** / FAILURES 0 | 1037 / **1037** / FAILURES 0 |
+| coverage TOTAL generic | 1645 | 1645 |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| published series | 1645 / 921 / 117 / 15 → REAL **592** | unchanged |
+| attribution | 174 / 50 / 8 / 360 = 592 | unchanged |
+
+`clause-quality.js`, `enfile.js`, `node-kind-rules.js` and `statement-kind-coverage.test.js` are all
+untouched by this commit. No emitted prose moved, which is why byte-identity could not.
+
+### LESSON 1
+
+**39 / 33 is a could-fire count of a REPORT figure, not of work — and here that is the entire
+point.** Every one of these 33 sites is already correct English. The figure exists so that a future
+session does not rank them as silence and fund a rule that would overwrite good prose, which is
+exactly what happened to the 17 route sites before `one-char-credit.js` existed. This is the fourth
+time the metric has been caught measuring the wrong thing.
