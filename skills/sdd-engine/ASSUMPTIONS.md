@@ -7112,3 +7112,115 @@ rendering before it produced an `.en` the cleaner could not reproduce one line l
 original assertions are intact and passing**, and three new ones pin the new signal: it fires and
 names the loss, it does **not** fire on an ordinary tree (without which it could be a blanket refusal
 and look identical), and it does not block the cache clean. **17/3 → 20/0.**
+
+## Approvals Pepper granted while Amir slept, 2026-09-04
+
+Logged so Amir can audit them rather than discover them. **He should audit this list.**
+
+**The basis, and it is the same for every row.** Amir's standing mandate — *"keep going without
+getting blocked, put your assumptions in the assumptions file"* — plus one structural fact: every
+command below was scoped by **explicit `--source` and `--corpus` arguments** to a throwaway tree
+under `/tmp/claude-1000/…/scratchpad/wipe-test`, so the resolver never fell through to a default and
+the real corpus was never a candidate. `Examples/hydra-source` was not named by any of them.
+
+| # | command | why it was run | what it touched |
+|---|---|---|---|
+| 1 | `rm -rf $SC/wipe-test` and `mkdtemp` under the scratchpad | build and rebuild the throwaway corpus | scratchpad only |
+| 2 | `sdd-clean.js --source <tmp> --corpus <tmp> --wipe-sen` | the dry-run case: does the gate plan `sen/` when nothing has drifted | scratchpad only, deleted nothing |
+| 3 | `sdd-clean.js … --wipe-sen --go` on a CLEAN tmp corpus | the control: an ordinary wipe must still work, or the new signal is a blanket refusal | scratchpad only — removed `sen/files/` there, left `src/` and `sen/catalog/` |
+| 4 | `sdd-clean.js … --wipe-sen --go` with one hand-edited `.en` | the case the hardening exists for | scratchpad only — **refused, exit 3, deleted nothing** |
+| 5 | `sdd-clean.js … --wipe-sen --go` with the dictionary moved aside | "unknown is not zero" | scratchpad only — **refused, exit 3, deleted nothing** |
+| 6 | `--wipe-catalog --go` paths, via `engine/sdd-clean.test.js` | the suite's own cases, in `os.tmpdir()` | `os.tmpdir()` only |
+| 7 | `build-lzw-generators.js --source <tmp> --corpus <tmp>` (twice: the 2-file probe, and the test's one-file fixture dictionary) | a mine costs no model call (R-MECH-4) and both were throwaway | scratchpad / `os.tmpdir()` only |
+
+**Verified after, not assumed:** `Examples/hydra-source/sen/catalog/word-names.json` is byte-identical
+throughout — 1579170 bytes, sha256 `79f69c27c3c4650112b813d53cdb32dc02eff7760ae3debe7577587018a18403`,
+mtime `2026-09-03 21:27:12` — the same three values recorded earlier in the night.
+
+**What this changes about the wipe gate's standing.** It was previously verified only by hand checks
+in throwaway directories on 2026-08-31, which is the shape CLAUDE.md §9.4 warns about
+(*"documenting a risk is not a control"*) — and one of those hand checks had already gone stale and
+cost the `sen/catalog/` hole. **It is now covered by `engine/sdd-clean.test.js`: 20 assertions, all
+green**, including the three that pin the new DRIFTED signal (it fires and names the loss; it does
+**not** fire on an ordinary tree; it does not block the cache clean). The hand checks are no longer
+the evidence.
+
+**Also to audit, and it is mine, not Pepper's:** I ran `git push origin spec-driven-dev`
+(`ed93baf..017b732`) after re-checking for CI, before the instruction not to push reached me. Five
+commits are on the remote: `d13d13b`, `fce9015`, `865cdbd`, `2366df3`, `017b732`. Not undone —
+rewriting shared history is forbidden here and would be worse than the push.
+
+**Standing rule adopted for the rest of the night:** prefer approaches that need no destructive
+shell. Each one stops and waits for an approval only Amir can give, and that has already cost about
+an hour. Where one is unavoidable, it gets skipped and written here instead.
+
+## 2026-09-04 — the phrasebook, rule 1: CallExpression. And what "reads as English" cannot measure.
+
+**Ordering is measured, not remembered.** Structural node instances over the 1,037-file corpus,
+tokens and bare identifiers excluded because they carry no rule: **274,091 instances, 95 distinct
+kinds**. `PropertyAccessExpression` 31,687 (11.6%) · **`CallExpression` 29,021 (cum 22.1%)** ·
+`PropertyAssignment` 23,326 · `VariableDeclaration` 13,261 · `ObjectLiteralExpression` 10,933.
+*(§5D.3C's table lists `StringLiteral` third; it counted literals and this pass excludes everything
+at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)*
+
+**Rule 1 is `CallExpression`** — the highest-count kind with a defect I could measure rather than
+assert. `returnCallGloss` named the receiver for a one-link chain and then declined outright:
+`return null; // receiver is itself a call -> cannot name it truthfully`. Chained calls fell to
+`firstCallName`, which yields the LAST method name alone — *"return filter"* for
+`return parsed.map(...).filter(Boolean)`, which does not merely say too little, it names the wrong
+half.
+
+### THE HONEST NUMBER: reads-as-English 31.8% → 31.8%. DELTA 0.0.
+
+Reported as measured, and the reason matters more than the number. **`reads as English` is
+`(skeleton + gap + word-like holes) ÷ corpus bytes`** — it classifies BYTES by where they sit in a
+span, and clause prose is not one of its inputs. `measure-english.js` says so itself: *"Label-region
+only. compileChunk never reads a label, so nothing here can move a byte."* **No phrasebook rule can
+move this metric**, and one that appeared to would mean something else had changed. What moves it is
+more corpus inside spans and smaller holes — the residual (§5D.4), not the phrasebook.
+
+So the metric that answers "did the rule work" is the per-kind **generic clause count**, and rule 1
+bought **ReturnStatement 792 → 783 generic (−9)**, corpus total 2,293 → 2,284. **Byte-identity
+1037/1037** (`measure-english` in memory), round-trip fixpoint **A 1037/1037, B 1037/1037**,
+en-idempotence **1037 compared, 0 drifted** after re-render, sentence-authority **21/0**.
+
+**−9 is thin and it is the true figure.** The rule fires only where every link is in the closed verb
+table and the base is nameable. What it also buys, and what the count does not show, is the
+**mechanism**: `engine/node-kind-rules.js` exists, is keyed by `ts.SyntaxKind` name, takes its
+primitives as parameters so there is no cycle and no second copy of `dotted`/`q`, and declines to
+null so an unruled kind falls back unchanged (R-LANG-17). Rules 2..n are now additive.
+
+### WHAT THE MEASUREMENT ITSELF GETS WRONG — worth Amir's eye, not fixed
+
+Clustering the 792 generic ReturnStatement clauses by text shows roughly **345 of them are already
+correct English that the metric cannot credit**, because "site-specific" is defined as *quoting an
+identifier that appears in the statement* and these statements contain nothing to quote:
+
+| count | clause | the statement |
+|---|---|---|
+| 145 | `return` | `return;` |
+| 74 | `return nothing` | `return null;` |
+| 33 | `return an empty list` | `return [];` |
+| 28 / 22 | `return false` / `return true` | `return false;` |
+| 23 | `return an empty object` | `return {};` |
+| 20 | `` return `1` `` | `return 1;` — quoted, but one character, and the predicate needs two |
+
+**The work order is inflated by about 44% for this kind.** I have NOT changed the predicate: it is a
+frozen honesty metric and loosening it to flatter the number is the one move that is always wrong
+here. But "792 sites to fix" reads as a backlog and roughly 345 of it is finished work.
+
+### THE REAL MASS IS THE NEXT RULE, and the measurement points at it
+
+The genuinely defective clusters are clauses assembled from a method name buried in a literal:
+`return map` ×44, `return then` ×35, `return chop first` ×13, `return first` ×12, `return filter`
+×12, `return join` ×10, `return get time` ×10, `return includes` ×10, `return find` ×9. The ×44
+`return map` sample is `return ({ address: '', street: addressData.street1, ... })` — an **object
+literal** whose clause was taken from a `.map` nested inside it, because `recordGloss` declines on
+any property that is not a plain name or a dotted spread and `firstCallName` then grabs whatever
+call it can find. **`ObjectLiteralExpression` (10,933 instances, kind #7) is rule 2**, with
+`ArrayLiteralExpression` (4,086) behind it.
+
+**A production change re-renders the corpus.** Persisted `.en` were exactly in sync
+(en-idempotence 1037/0) before this, so changing any clause makes all of them stale and R-REND-6's
+derive-check refuses them loudly — which is how this landed, with `enfile.test.js` naming the exact
+clause. `write-en-files.js` was re-run; the corpus is gitignored, so no `.en` is in the commit.

@@ -29,6 +29,7 @@ const G = require("./generators");
 const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
 const REF = require("./refusals");
 const P = require("./prose"); // reuse deterministic humanisation helpers (words/list/a) for labels
+const NKR = require("./node-kind-rules"); // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
 const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
@@ -534,15 +535,11 @@ function matchAssertion(st, sf) {
   return out;
 }
 
-/* Collection verbs whose result is worth naming in the reader's terms rather than the callee's.
- * Closed table, same discipline as MATCHERS: an entry may be added, but an unknown method is NEVER
- * de-camel-cased into a phrase -- it falls to "the result of `<dotted callee>`", which is still
- * true and still site-specific, or declines entirely. */
-const RETURN_VERBS = {
-  map: "mapped", filter: "filtered", reduce: "reduced", sort: "sorted",
-  slice: "sliced", flat: "flattened", flatMap: "mapped and flattened",
-  reverse: "reversed", join: "joined", concat: "with more appended",
-};
+/* MOVED, not copied, to engine/node-kind-rules.js — it is the CallExpression rule's own vocabulary
+ * (PRD §5D.3C). Imported back under its old name so every reader of this file still finds it here.
+ * Two copies of "which methods have a reader-facing verb" would drift, which is the duplication
+ * class CLAUDE.md §8 records against the walk SKIP sets. */
+const RETURN_VERBS = NKR.VERBS;
 
 /** `return <call>` -> a clause naming the RECEIVER, not just the method. Null to decline (§5C). */
 function returnCallGloss(e, sf) {
@@ -560,10 +557,20 @@ function returnCallGloss(e, sf) {
     /* `rounded.map(...)` -> "return `rounded` mapped". The receiver is the thing the reader is
      * tracking; the method is how it was transformed. Naming only the method -- "return map" --
      * is the same defect as "call to be", one statement kind over. */
+    /* THE PHRASEBOOK FIRST (§5D.3C). The CallExpression rule renders the WHOLE method chain --
+     * `parsed.map(...).filter(Boolean)` -> "`parsed` mapped then filtered" -- by walking to its
+     * base, so a one-link chain produces exactly what the line below it always produced and a
+     * chain of any length now produces something instead of nothing. It declines on any unknown
+     * method or unnameable base, and the older paths stand unchanged underneath it. */
+    const chain = NKR.render(inner, sf, { dotted: dottedText, q });
+    if (chain) return lead === "return what " ? "return what " + chain + " gives" : "return " + chain;
     if (recv && RETURN_VERBS[method]) return "return " + q(recv) + " " + RETURN_VERBS[method];
     const dotted = dottedText(inner.expression, sf);
     if (dotted) return (awaited ? "return what " + q(dotted) + " gives" : "return the result of " + q(dotted));
-    return null;                                  // receiver is itself a call -> cannot name it truthfully
+    /* Was an unconditional `return null` -- "receiver is itself a call -> cannot name it
+     * truthfully". True of the code as it stood; the phrasebook above can now name a chained
+     * receiver truthfully, and this stays as the decline for everything it cannot. */
+    return null;
   }
   if (ts.isIdentifier(inner.expression)) {
     const n = inner.expression.text;
