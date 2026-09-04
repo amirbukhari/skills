@@ -11538,3 +11538,122 @@ authorised, and not silently attempted.** The code is now right and the artifact
 wrong, which is the honest state to leave this in: the alternative was leaving both wrong and
 agreeing. The PRD's 1038 figures are dated historical records and are **not** rewritten; this
 section is the correction.
+
+## CLASS 3, THE RESIDUE — a receiver is never passed. 65 sites, and the 58 was my own floor
+
+**2026-09-04. Backlog rank 1. TRUTH fix, not a coverage fix — and it superseded the prose-wart item.**
+
+### THE REPO CONTRADICTS PART OF THE BRIEF, AND THE REPO WINS
+
+The brief says "58 sites, 37 files, via `inputsOf`". `inputsOf` was **already fixed** — `655c55e`,
+*"a callee is not one of its own inputs — class 3, 77 sites -> 3"* — and its `scan(true)` pass skips
+callees today. What survived is one rung lower, in `condGloss`'s call frame, and it is a different
+name: not the callee, the **RECEIVER**.
+
+`inputsOf` deliberately walks *through* a method call to `callee.expression`, and rightly so —
+`hydraManager.save(x)` really is about `hydraManager`. The call frame then filtered out only the bare
+METHOD name (`.filter((x) => x !== cn)`), so the receiver arrived in the INPUT list:
+
+```
+if (Number.isNaN(A))   ->   "stop early when `Number` and `A` passes `isNaN`"
+```
+
+**`Number` is not an argument to `isNaN`, and no receiver ever is one.** That is the by-construction
+fact the whole fix rests on: `inputsOf` reaches the receiver through `callee.expression`, which is by
+definition not in `arguments`.
+
+### THE CLASS SIZE — 65, and my own first number was a FLOOR
+
+| measurement | sites | files |
+|---|---|---|
+| the brief | 58 | 37 |
+| my probe, fresh (positive `passes` frame only) | **58** | **38** |
+| the positional differential over all 33,918 statements | **65** | **42** |
+
+The 58 reproduced exactly and the file count did not — 38, not 37. **And my own 58 was a floor for
+the same reason the prose-wart item's 6 was local**: my probe matched `` ‹list› passes `M` `` and
+could not see the NEGATED variant, which `negate` renders as `` fails `M` ``. Seven sites read
+"`Array` and `y` fails `isArray`" and my regex walked straight past them. *A measurement instrument
+built from one surface form reports a lower bound on a class that has two* — LESSON 2, arriving in
+the same session it was handed to me, in my own probe rather than in an inherited figure.
+
+### THE FIX MOVES THE NAME, IT DOES NOT DELETE IT
+
+The cheap fix is to drop the receiver from the list. It is true, and it is wrong:
+
+```
+Number.isNaN(A)          delete -> "`A` passes `isNaN`"            fine, `Number` is a namespace
+acc.includes(aptu.id)    delete -> "`aptu.id` passes `includes`"   LOSES where the lookup happens
+```
+
+**CLASS 3's and CLASS 4's lesson pointed the other way.** There, the engine had reached for a name
+that was not the thing described, so removal was the whole fix. Here the name is CORRECT and only
+its POSITION is a lie. So the receiver moves into the operation's own quotes — which is also where
+it reads truthfully — and no new phrasing is invented:
+
+```
+"`A` passes `Number.isNaN`"     "`aptu.id` passes `acc.includes`"     "`k` passes `a.b.c.has`"
+```
+
+**Measured: of the 65 moved clauses, 0 lose a name** (every backticked identifier in the old clause
+is still present in the new one, checked mechanically over all 65).
+
+### THE GATE IS THE SAFETY, AND IT IS WHY THE FIX IS NARROW
+
+A no-argument call has nothing BUT its receiver. `tokenSet.expired()` reads "`tokenSet` passes
+`expired`" today, and it gets that name from `inputsOf`'s documented `scan(false)` fallback — *"an
+operation's name beats silence"*, added after the strict pass turned 2 clauses VACUOUS and 4 GENERIC.
+Moving the receiver there would empty the input list and degrade the clause to "`expired` holds".
+**So when removing the receiver would empty the list, nothing moves at all.** That single condition
+(`rest.length`) is what keeps the change to 65 sites instead of every method call in the corpus.
+
+### READ INDIVIDUALLY, NOT JUST DIFFED — the metrics are blind to an inversion
+
+All 65 were read. Seven with a non-namespace receiver were checked against their SOURCE lines,
+because those are the ones where a move could invert a meaning:
+
+| source | clause now | true? |
+|---|---|---|
+| `if (!breakdown.some((bd) => bd.runnerName === reportName))` | ``…`reportName` fails `breakdown.some` `` | yes |
+| `if (!service?.includes(item))` | ``  `item` fails `service.includes` `` | yes |
+| `if (!prevBuildings.has(b.id))` | `` `b.id` fails `prevBuildings.has` `` | yes |
+| `if (!invoiceNumbers.includes(invoice.invoiceNumber))` | `` … fails `invoiceNumbers.includes` `` | yes |
+| `if (!Array.isArray(ctx.request.body))` | `` `ctx.request.body` fails `Array.isArray` `` | yes |
+| `if (lookedUp.some((name) => name === ''))` | `` `name` passes `lookedUp.some` `` | yes |
+| `if (acc.includes(aptu.id))` | `` `aptu.id` passes `acc.includes` `` | yes |
+
+**A PRE-EXISTING WART THIS FIX DOES NOT TOUCH, stated rather than hidden.** Two of those quote a
+LAMBDA PARAMETER as an input — `bd` in `breakdown.some((bd) => …)`, `name` in `lookedUp.some((name)
+=> …)`. A callback's parameter is bound by the callee, not passed to it. That is a separate class,
+it is unchanged in count and wording by this commit, and it is NOT folded into this item's number.
+
+### THE COVERAGE TOTAL DOES NOT MOVE, AND THAT IS THE POINT
+
+All 65 sites quote an identifier that really is in their statement, so `isSiteSpecific` scored every
+one of them as a SUCCESS before this commit and scores them as a success after. **The ladder cannot
+see this class at all** — 65 false clauses sat inside the site-specific total, indistinguishable
+from 65 true ones. No attempt was made to make the figure move.
+
+### MEASUREMENTS
+
+| | before | after |
+|---|---|---|
+| byte-identity | `files: 1037  byte-identical: 1037  FAILURES: 0` | **identical** |
+| coverage TOTAL | `33918 32248 95% 1608 5% 62 0` | **identical** |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| `callee-inputs.test.js` | — | **7 passed** |
+| `optional-chain.test.js` | 13 passed | 13 passed |
+| `corpus-walk.test.js` | 7 assertions | 7 assertions |
+| `enfile.test.js` | 6 passed (corpus GREEN) | **5 passed, corpus FAIL** |
+
+**Shown able to fire:** against `HEAD`, 4 of the 7 new assertions FAIL. The three that pass there are
+the two no-argument gates and the plain-callee control — they are guards against OVER-reach, so
+their negative control is the ungated variant, not the parent.
+
+### NEW DRIFT, AND THE RE-RENDER AUTHORISATION IS SPENT
+
+`enfile.test.js`'s corpus case was GREEN for the first time this session after the authorised
+re-render, and **this commit turns it red again**: 65 clauses now differ from the persisted `.en`.
+That is the expected, understood consequence of any renderer change, and it clears with one
+`write-en-files.js` run — but Amir's authorisation was for that single run and it has been spent.
+**Not re-run, not asked for sideways.** The drift queue restarts here at 65 sites / 42 files.

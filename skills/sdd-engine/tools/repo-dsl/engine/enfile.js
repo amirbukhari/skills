@@ -895,7 +895,31 @@ function condGloss(n, sf, strict) {
   if (ts.isCallExpression(n)) {
     const callee = n.expression;
     const cn = ts.isPropertyAccessExpression(callee) ? callee.name.text : (ts.isIdentifier(callee) ? callee.text : null);
-    const ins = inputsOf(n, sf).filter((x) => x !== cn);
+    let ins = inputsOf(n, sf).filter((x) => x !== cn);
+    /* A RECEIVER IS NEVER PASSED — it is part of the operation's NAME. `inputsOf` reaches through a
+     * method call to `callee.expression` (rightly: `hydraManager.save(x)` is about `hydraManager`),
+     * and the `.filter` above drops only the bare method name, so the receiver arrived in the INPUT
+     * list: `if (Number.isNaN(A))` read "stop early when `Number` and `A` passes `isNaN`", which
+     * says `Number` is an argument to `isNaN`. It is not. Measured 2026-09-04: 58 sites, 38 files.
+     *
+     * THE FIX MOVES THE RECEIVER, IT DOES NOT DELETE IT. Dropping it would give "`A` passes
+     * `isNaN`" — true, and fine for a namespace like `Number`, but the same edit turns
+     * `acc.includes(aptu.id)` into "`aptu.id` passes `includes`" and loses WHERE the lookup
+     * happens. That is CLASS 3's and CLASS 4's lesson in the other direction: the name was correct,
+     * only its POSITION was a lie. Quoting the whole callee path keeps every name and puts each one
+     * where it is true — "`A` passes `Number.isNaN`", "`aptu.id` passes `acc.includes`".
+     *
+     * GATED ON THE LIST STAYING NON-EMPTY, and that gate is the whole safety of this change. A
+     * no-argument call has nothing BUT its receiver — `tokenSet.expired()` reads "`tokenSet` passes
+     * `expired`" today via the `scan(false)` fallback that `inputsOf` documents as "an operation's
+     * name beats silence". Moving the receiver there would empty the list and degrade it to
+     * "`expired` holds". So when removal would empty the list, nothing moves at all. */
+    const full = ts.isPropertyAccessExpression(callee) ? dottedText(callee, sf) : null;
+    const recv = ts.isPropertyAccessExpression(callee) ? dottedText(callee.expression, sf) : null;
+    if (full && recv && ins.length > 1 && ins.includes(recv)) {
+      const rest = ins.filter((x) => x !== recv);
+      if (rest.length) return P.list(rest.map(q)) + " passes " + q(full);
+    }
     if (cn && ins.length) return P.list(ins.map(q)) + " passes " + q(cn);
     if (cn) return q(cn) + " holds";
   }
