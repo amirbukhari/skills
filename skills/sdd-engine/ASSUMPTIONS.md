@@ -10848,3 +10848,78 @@ the conflict is between them, not between code and spec* — and naming which ce
 (written by me in `fe12964`) states the fork as *"either the code widens to 10 … or R-WIDE-4 is
 amended to 6."* Both legs assume the two cells describe one record. They do not. That block is
 corrected in the same commit — my own design-doc note, not a normative cell.
+
+## RULING 3 — `isSiteSpecific`'s `>= 2` is FROZEN, and the published figure is therefore a FLOOR
+
+The threshold is **not** lowered, widened, special-cased or worked around here. What follows is the
+blind spot recorded, per the ruling: *"RECORD THE BLIND SPOT, DO NOT PATCH THE MEASURE."*
+
+**The predicate** (`engine/statement-kind-coverage.test.js:57`, frozen, quoted verbatim, untouched):
+
+```js
+if (bare.length >= 2 && stmtText.includes(bare)) return true;
+```
+
+A clause whose only nameable content is a **one-character identifier** therefore scores GENERIC even
+when it is already speaking the site's own words.
+
+**The worked example the ruling names, verified against the repo.** `src/hydra-api/creditNotes.ts`
+line **412**:
+
+```
+statement   console.error(inspect({ e }, false, 10));
+clause      log an error about `e`
+scored      GENERIC — solely because `e` is one character long
+```
+
+The clause is true, it quotes the site's own identifier, and it is the best sentence available for
+that statement. Nothing about it is thin.
+
+**Measured fresh, not carried.** `engine/phrasebook-worklist.js` over all 1,037 files:
+
+| figure | count | share of frozen |
+|---|---|---|
+| residual generic sites (frozen) | 1647 | — |
+| quoting the site through `…` (elision artifact) | 921 | 55.9% |
+| **quoting ONE character** | **120** | **7.3%** (overlap with elision: 0) |
+| an escaped literal | 15 | 0.9% |
+| REAL, net of all three | 591 | — |
+
+**The backlog's 117 is stale; the measured figure today is 120.** Corrected here rather than left to
+be re-derived.
+
+**The honest limit of my own control — 120 is an upper bound, and 80 is the defensible number.**
+Not every one-char credit is a truthful naming. Split by whether the quoted character is
+identifier-like:
+
+```
+one-char-credited generic sites, corpus-wide:  120
+  quoting an IDENTIFIER-LIKE char (truthful):   80    return `0` · get `A` from float val
+  quoting PUNCTUATION only:                     40    “,” · throw “-”
+```
+
+The 40 punctuation cases (`creditNotes.ts:1105`, `invoice.ts:408`) quote a separator, not the site's
+own name — they are generic on the merits, and the frozen predicate is **right** about them. So the
+class the threshold provably penalises is **80 sites**, not 120. Both numbers are stated because the
+120 is what the published series carries.
+
+**Therefore: the published site-specific figure is a FLOOR on truthfulness, never a ceiling.** The
+coverage TOTAL row's `32209 / 95%` under-counts by at least the 80 above, and by an unknown amount
+beyond it wherever a truthful clause is unquotable for some other reason. It remains the only valid
+ranking metric — a floor measured the same way every time is still the right thing to rank on — but
+it must never be read as an upper bound on how much English is already correct.
+
+**The one-char column is NOT admissible under the frozen measure, and the backlog claims otherwise.**
+Said plainly, as the ruling requires. `.pepper/lists.md:139` already has this right: *"Both
+record-only. **Do NOT widen `>= 2`**."* But `.pepper/lists.md:68` does not — it reads *"This item
+cannot be ranked honestly until the one-char column exists — see the ROOT FIX item above it, which is
+now #1 precisely because it settles the ~42."* That makes the one-char column a **ranking input**,
+which the frozen measure cannot supply, and it is the stated reason a work item holds the #1 rank.
+The phrasebook vocabulary workstream must be ranked on something else. I do not write
+`.pepper/lists.md` — it is a read-only mirror to me — so this is reported, not edited.
+
+**No register home.** The ruling said *"and the register if it has a home there."* It does not.
+Grepped: the only site-specificity cell is **R-LANG-4** (register:159), which governs the *admission*
+rule (*"A leaf MUST be named only where `spanProse` has nothing site-specific to say"*), not the
+*measure*. Recording this as a new register row would be authoring a requirement, which is not a
+lane's to do. Recorded here only.
