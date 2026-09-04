@@ -32,6 +32,10 @@ The live pipeline is stated in `../README.md`. If a script is in here, it is **n
 | `prose-llm-render.js` | rendered 3 target files twice, deterministic vs. model-named | reads `catalog/domain-names.json` and a merged `catalog/word-names.json` — both the **v0 sidecar shape from drift incident 5**, whose producers (`name-domain.js`, `name-words.js`) were already retired here. |
 | `prose-render.js` | rendered 3 hardcoded files as plain-language narrative | one-off demo of `engine/prose.js`, superseded by the `.en` render path. |
 | `author-roundtrip.js` | slots → controlled English → parse back, "N/58 slot-identical" | one-off proof harness; the standing proof is byte-identity in `measure-english.js`. |
+| `cnl-author.js` | controlled-English logic authoring, end-to-end proof | **ARCHIVED 2026-09-03.** Classified ONE-OFF in `../README.md`. Zero references anywhere in the repo outside that one classification row — no npm script, no `require`, no doc, no test. |
+| `strip-comments.js` | deterministic AST-safe comment stripper | **ARCHIVED 2026-09-03.** ONE-OFF. Zero references outside its `../README.md` row. The corpus is mined and rendered from source as written; nothing on the `.en` path strips comments. |
+| `coin-word.js` | coin-a-word demo, proves the growth loop end to end | **ARCHIVED 2026-09-03.** ONE-OFF demo. Zero code references; the only mentions are historical entries in `../../../ASSUMPTIONS.md` recording that it was gated for byte-identity even though it was never a §7.0 gate. |
+| `package-delonix.js` | packages a corpus from the Delonix tree | **ARCHIVED 2026-09-03.** Its own `../README.md` row already read **"ONE-OFF, do not run"**: it targets a path that `../../CLAUDE.md` §1 puts out of bounds and that `.claude/settings.json` denies reads to. Kept for history; it cannot legitimately be run from this repo. |
 
 `archive/engine/` mirrors the `engine/` path a module was retired from, so its origin is
 recoverable by moving it back. Note that a retired module's *relative* requires (`./operations`,
