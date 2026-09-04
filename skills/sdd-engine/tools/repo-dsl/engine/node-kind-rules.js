@@ -54,6 +54,36 @@ const VERBS = {
   reverse: "reversed", join: "joined", concat: "with more appended",
 };
 
+/* `then` / `catch` / `finally` DO NOT BELONG IN THAT TABLE, and the reason is grammar, not taste.
+ * Refused 2026-09-04 after building the row and rendering all 45 promise-family sites with it.
+ *
+ * Every entry above is a COLLECTION TRANSFORM, and the rule's output is a NOUN PHRASE naming a
+ * value: `base + " " + tail`, where the base IS the thing being transformed. A promise link breaks
+ * that contract twice over.
+ *
+ *   (1) THE BASE IS NOT THE VALUE. `x.then(cb)` evaluates to cb's result, not to x's. So every
+ *       clause the row produced asserted the wrong value:
+ *         return calculate([sub]).then((r) => { ...assertions... })
+ *           ->  "return the result of `calculate` then continued"      <- false; `calculate`'s
+ *               result is exactly what the chain does NOT return.
+ *   (2) THE CONTENT IS IN A BLOCK, WHICH THE ArrowFunction RULE DECLINES BY DESIGN ("a block is
+ *       statements, not a value"). 30 of the 34 sites whose chains the parent gate would let
+ *       through have a block-bodied callback, so VERB_PREP has nothing to append and the sentence
+ *       is base + a contentless phrase.
+ *
+ * And the surface collides with the rule's own join word: `verbs.join(" then ")` already spells
+ * sequencing, so a `then` phrase stutters —
+ *   "await the result of `getBillingS3Records` then continued then then continued then with
+ *    failures handled then then finished off then then finished off"
+ * — measured output, not a strawman. No phrasing avoids it; the join word IS "then".
+ *
+ * IMPROVEMENT-SITES FOR A VOCABULARY ROW HERE: ZERO. 33 of the 45 clauses change and none improves;
+ * 11 of the 45 are not even reachable, blocked by an unknown link BELOW the promise link
+ * (.create, .getById, .doSearch, .update, .read, .getPage, .save, .resolveHandler, .all) that
+ * belongs to another family. What this family needs is a CONTINUATION SHAPE that can describe a
+ * block — a different rule with a different grammar, gated behind the Block work that was itself
+ * refused in 9025220 — not a row here. See ASSUMPTIONS.md, 2026-09-04. */
+
 
 /* The closed operator vocabulary for the BinaryExpression rule. MAY be added to; never loosened
  * into "print the symbol". Assignment operators are absent on purpose — see the rule. */

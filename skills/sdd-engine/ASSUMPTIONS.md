@@ -8329,3 +8329,59 @@ still 13; `bare.length >= 2` verbatim at `statement-kind-coverage.test.js:61`.
 
 **Pressure recorded, not taken.** Nothing in this pass argued for widening `isSiteSpecific`'s `>= 2`;
 the two changed sites were generic before and after regardless. Amir's unmade ruling stands.
+
+## The promise family gets no VERBS row — refused on grammar, with the row built and rendered (2026-09-04)
+
+Backlog item `imtmyofv7e182de` (`then`/`catch`/`finally`, second-largest CallExpression family,
+ranked last). Its own reasoning — *a vocabulary row here would produce fluent nonsense* — is
+**confirmed**, and the measurement makes it sharper than the item states.
+
+**RE-MEASURED FIRST.** The item's 45 was audited against a residual of 657; the live ladder is
+frozen 1659 / elision 921 / one-char 117 / escape 15 / REAL 606. Re-run: **45 sites, 45 REAL, 0
+elision-credited, 0 one-char, 0 escape** — `.then` 36, `.catch` 8, `.finally` 1; 35 ReturnStatement,
+10 ExpressionStatement. The figure survives the re-measure unchanged. It is still a *could-fire*
+number, and the improvement count is what follows.
+
+**IMPROVEMENT-SITES: ZERO.** Not inferred — the row was built in a scratch copy
+(`then: "then continued"`, `catch: "with failures handled"`, `finally: "then finished off"`, with
+`VERB_PREP` entries) and all 45 sites rendered both ways. **33 clauses change; none improves.**
+
+Three failures, each measured:
+
+1. **The base is not the value.** `x.then(cb)` evaluates to *cb's* result, not `x`'s, but the rule's
+   contract is `base + " " + tail` — a noun phrase whose base IS the value. So the row asserts the
+   wrong thing:
+   `return calculate([sub]).then((r) => { ... })` → *"return the result of `calculate` then
+   continued"*. `calculate`'s result is precisely what the chain does **not** return. 12 of the 45
+   sites are this exact `costPerLead`/`activeBuilding` test shape.
+2. **The content is in a block the phrasebook declines by design.** `ArrowFunction` returns null on a
+   block body — *"a block is statements, not a value"*. **30 of the 34 sites the parent gate would
+   let through have a block-bodied callback** (2 non-arrow, 2 expression-bodied, 0 identity), so
+   `VERB_PREP` has nothing to append and the clause is base + a contentless phrase.
+3. **The surface collides with the rule's own join word.** `verbs.join(" then ")` already spells
+   sequencing, so any `then` phrase stutters. Measured output, not a strawman:
+   *"await the result of `getBillingS3Records` then continued then then continued then with failures
+   handled then then finished off then then finished off"*. No phrasing avoids this — the join word
+   **is** "then".
+
+**AND 11 OF THE 45 ARE NOT EVEN REACHABLE FROM THIS FAMILY.** The parent gate refuses at the first
+unknown link, and for these the unknown link is *below* the promise link: `.create` 2, `.getById` 2,
+`.all`, `.resolveHandler`, `.doSearch`, `.update`, `.read`, `.getPage`, `.save` — vocabulary owned by
+the queryBuilder and unclassified families. So the promise family's own ceiling is **34**, not 45,
+before any judgement about quality. *(This is the R-LANG-17 parent gate running backwards, the same
+mechanism recorded for `Block`: a family's row cannot unblock a site whose chain refuses lower down.)*
+
+**So the ranking is right for a reason the ranking could not see.** The item placed this family last
+on a judgement about sentence shape; the measurement says the ceiling is 34, the reachable
+improvement is 0, and the obstacle is that a promise link **violates the rule's grammar, not its
+vocabulary**. What the family needs is a continuation shape that can describe a *block* — a
+different rule, gated behind the `Block` work refused in `9025220` (4 reachable sites). Recorded at
+the `VERBS` table itself, which is where the next lane would go to add the row.
+
+**No renderer change.** The commit is comment-only: `node-kind-rules.js` +30/−0, no executable line
+touched. Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`; coverage TOTAL generic
+**1659**; `42 passed, 10 failed`. All unchanged, as a comment cannot move them.
+
+**No pressure on `isSiteSpecific`.** Nothing in this pass turned on the `>= 2` threshold: these 45
+clauses (`return then`, `call catch`, `await finally`) quote nothing at all, so they are generic
+under any threshold. Amir's unmade ruling is untouched by this item.
