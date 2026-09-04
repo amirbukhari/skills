@@ -482,6 +482,14 @@ const MATCHERS = {
   toHaveProperty: "have property", toHaveBeenCalled: "have been called",
   toBeCalled: "have been called", toHaveBeenCalledWith: "have been called with",
   toBeCalledWith: "have been called with", toHaveBeenCalledTimes: "have been called",
+  /* An EXACT alias of the entry above it — jest accepts both spellings and they mean the same
+   * thing, so this is vocabulary, not a new shape. Measured 2026-09-04: 4 sites reading
+   * "call to be called times". `toHaveBeenNthCalledWith` was measured alongside it (4 more sites)
+   * and DELIBERATELY LEFT OUT: its first argument is the call ORDINAL, and the arg handling below
+   * prints argument 0, so an entry here would render `toHaveBeenNthCalledWith(2, id, 'DEAL')` as
+   * "have been called with `2`" — a confident false statement about the code, which is the exact
+   * move §5C forbids. It needs an ordinal-aware shape, not a table row. */
+  toBeCalledTimes: "have been called",
   toHaveBeenLastCalledWith: "have been last called with",
 };
 
@@ -494,7 +502,15 @@ function assertSubject(n, sf) {
   if (dotted) return q(dotted);
   if (ts.isCallExpression(n)) {
     const c = dottedText(n.expression, sf) || (ts.isIdentifier(n.expression) ? n.expression.text : null);
-    return c ? "the result of " + q(c) : null;
+    /* FALLS THROUGH when it cannot name the callee, rather than returning null — the SAME shadowing
+     * defect already recorded for the element-access branch below, in the branch immediately above
+     * it. `expect(notes[0].lines.map((line) => line.lineNumber))` has a call subject whose callee is
+     * not a plain dotted name, so this returned null for the whole statement and the phrasebook at
+     * the bottom of this function never ran — though it renders the subject in full: "`lines` from
+     * `notes` at `0` mapped to `line.lineNumber`". A narrow old branch that declines in front of a
+     * general new one is indistinguishable from the rule not existing. Measured 2026-09-04: 10
+     * sites reading "call to equal". Anything this branch CAN name keeps its old wording. */
+    if (c) return "the result of " + q(c);
   }
   if (ts.isAwaitExpression(n)) { const inner = assertSubject(n.expression, sf); return inner || null; }
   if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) {

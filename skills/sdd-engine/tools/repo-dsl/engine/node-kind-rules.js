@@ -418,6 +418,13 @@ const RULES = {
  * callee. A base with no honest name at all returns null and its caller declines. */
 function baseGloss(n, sf, P) {
   if (!n) return null;
+  /* STRIP THE NON-SEMANTIC WRAPPERS FIRST. `usageItems[0].partnerIds![0]` declined outright: the
+   * base is a `NonNullExpression`, which has no rule and is not a call, so this returned null and
+   * the ElementAccess rule above it declined with it. A `!`, a parenthesis or an `as` carries
+   * nothing a reader needs — dropping them is not a guess. Measured 2026-09-04: 14 `expect(...)`
+   * sites that read "call to be". `render` itself is deliberately NOT changed; it is keyed to a
+   * kind, and unwrapping there would move every consumer at once. */
+  n = unwrap(n);
   const d = P.dotted(n, sf);
   if (d) return P.q(d);
   const viaRule = render(n, sf, P);

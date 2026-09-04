@@ -7854,3 +7854,43 @@ would have put `PropertyAccessExpression` second when it is third.
 
 **Frozen series untouched:** coverage test TOTAL row still 1,729 generic, 42 passed / 10 failed;
 byte-identity 1037/1037. The deduped figure feeds no assertion.
+
+## The matcher family: three causes, and the brief's premise measured wrong (2026-09-04)
+
+The work order was "wire the CallExpression rule to `MATCHERS` and `ROUTE_VERBS`, ~53 sites for zero
+new vocabulary". Measured first, per the standing rule, and both halves fail:
+
+**`ROUTE_VERBS` is ALREADY wired** — `routeClause` (enfile.js) runs in the ExpressionStatement
+ladder. All 17 route-family net sites read `serve GET \`/\`` or `serve POST \`/\`` **today**, which is
+correct English. They score generic only because the path is `/` — ONE character, under
+`isSiteSpecific`'s `>= 2` threshold. That is the banked 116-site one-char artifact, not a vocabulary
+gap. **A rule there would have gained zero and overwritten correct prose.** Not done.
+
+**`MATCHERS` is ALREADY consulted** — by `matchAssertion`. Having the CallExpression rule consult it
+too would be a second path to one vocabulary. The 35 matcher sites decline for **three unrelated
+causes**, none of them the table not being asked:
+
+| cause | fix | sites |
+|---|---|---|
+| `baseGloss` declined on a `NonNullExpression` base | strip non-semantic wrappers (`!`, parens, `as`) | 14 |
+| `assertSubject`'s call branch returned null, SHADOWING the phrasebook | fall through when it cannot name | 10 |
+| `toBeCalledTimes` genuinely absent from `MATCHERS` | one alias row | 4 |
+
+**The shadowing one is the third occurrence in this function**, in the branch immediately above the
+element-access branch that already carries the same retraction. `expect(notes[0].lines.map((line) =>
+line.lineNumber))` was renderable in full — "`lines` from `notes` at `0` mapped to
+`line.lineNumber`" — and the old branch answered null first.
+
+**`toHaveBeenNthCalledWith` (4 sites) DELIBERATELY LEFT OUT.** Its first argument is the call
+ordinal and `matchAssertion` prints argument 0, so a table row would render
+`toHaveBeenNthCalledWith(2, id, 'DEAL')` as "have been called with `2`" — a confident false statement
+about the code. It needs an ordinal-aware shape, not a row. The `mock*` family (5 sites) is not
+`expect()`-shaped at all.
+
+**Result:** matcher-family net generic sites **74 → 46**. Coverage test TOTAL row **1,729 → 1,695**
+(−34; larger than the 28 matcher sites because the `baseGloss` unwrap is general). 42 passed /
+10 failed, unchanged. Byte-identity 1037/1037. `VACUOUS`, `SAYS_NOTHING`, `isSiteSpecific` and
+`statement-kind-coverage.test.js` untouched.
+
+**No require cycle was needed or created.** `enfile` requires `node-kind-rules`, never the reverse;
+nothing moved between them, so the `VERBS` precedent did not have to be repeated.
