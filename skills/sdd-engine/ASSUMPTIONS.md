@@ -9353,3 +9353,155 @@ wrong option, and the count movement was pre-authorised.
 
 **Byte-identity: BEFORE 1037 files / 1037 byte-identical / FAILURES 0; AFTER 1037 / 1037 /
 FAILURES 0.**
+
+---
+
+## THE PHRASEBOOK WORKLIST — step 1 of the 99% programme, census only (2026-09-04)
+
+Record-only; no engine file changed. Deliverable: which kind to rule, in what order, and what each
+is worth.
+
+### (a) + (b) The kinds this corpus exercises — 101 kinds, 306,855 instances, 1,037 files
+
+Method: walk every node, take `ts.SyntaxKind[n.kind]`, drop `*Keyword`, `*Token`, `Identifier`,
+`PrivateIdentifier` and `SourceFile`; KEEP literals. This reproduces the PRD's own census (its top
+eight come back in exactly its order, `FirstStatement` alias included), so it is the PRD's method.
+
+```
+  #   kind                          instances   cum%    status
+  1   PropertyAccessExpression         31687   10.33%   RULED   declines  6.1%
+  2   CallExpression                   29021   19.78%   RULED   declines 89.2%
+  3   StringLiteral                    28260   28.99%   UNRULED
+  4   PropertyAssignment               23326   36.60%   UNRULED
+  5   VariableDeclaration              13261   40.92%   UNRULED
+  6   VariableDeclarationList          13033   45.16%   UNRULED
+  7   FirstStatement (VariableStatement)12986   49.40%  UNRULED
+  8   ObjectLiteralExpression          10933   52.96%   RULED   declines  0.8%
+  9   TypeReference                    10007   56.22%   UNRULED
+ 10   ImportSpecifier                   9962   59.47%   UNRULED
+ 11   Parameter                         9327   62.51%   UNRULED
+ 12   BinaryExpression                  8495   65.27%   RULED   declines 22.8%
+ 13   ArrowFunction                     8291   67.98%   RULED   declines 59.5%
+ 14   Block                             7340   70.37%   UNRULED
+ 15   ExpressionStatement               7339   72.76%   UNRULED
+ 16   PropertySignature                 6206   74.78%   UNRULED
+ 17   ImportDeclaration                 5833   76.68%   UNRULED
+ 18   ImportClause                      5832   78.58%   UNRULED
+ 19   NamedImports                      5594   80.41%   UNRULED
+ 20   ParenthesizedExpression           4235   81.79%   UNRULED
+ 21   TemplateSpan                      4234   83.17%   UNRULED
+ 22   ArrayLiteralExpression            4086   84.50%   RULED   declines  0.4%
+ 23   AwaitExpression                   3246   85.56%   UNRULED
+ 24   ReturnStatement                   3151   86.58%   UNRULED
+ 25   TemplateExpression                3025   87.57%   RULED   declines  0.1%
+ 26   TemplateHead                      3025   88.55%   UNRULED
+ 27   ShorthandPropertyAssignment       2522   89.38%   UNRULED
+ 28   BindingElement                    2503   90.19%   UNRULED   <- 90%
+ 29   ArrayType                         2302   90.94%   UNRULED
+ 30   LiteralType                       2047   91.61%   UNRULED
+ 31   IfStatement                       1895   92.23%   UNRULED
+ 32   NewExpression                     1818   92.82%   UNRULED
+ 33   PrefixUnaryExpression             1763   93.39%   UNRULED
+ 34   AsExpression                      1650   93.93%   UNRULED
+ 35   UnionType                         1582   94.45%   UNRULED
+ 36   ElementAccessExpression           1453   94.92%   RULED   declines  3.9%
+ 37   ConditionalExpression             1406   95.38%   RULED   declines 10.5%   <- 95%
+ 38   TemplateMiddle                    1209   95.77%   UNRULED
+ 39   PropertyDeclaration               1095   96.13%   UNRULED
+ 40   Decorator                         1089   96.48%   UNRULED
+ 41   FirstAssignment                   1042   96.82%   UNRULED
+ 42   ObjectBindingPattern               960   97.14%   UNRULED
+ 43   ThrowStatement                     863   97.42%   UNRULED
+ 44   SpreadAssignment                   825   97.69%   UNRULED
+ 45   TypeLiteral                        802   97.95%   UNRULED
+ 46   SpreadElement                      709   98.18%   UNRULED
+ 47   InterfaceDeclaration               618   98.38%   UNRULED
+ 48   EnumMember                         441   98.53%   UNRULED
+ 49   MethodDeclaration                  400   98.66%   UNRULED
+ 50   TypeAliasDeclaration               245   98.74%   UNRULED
+ 51   ComputedPropertyName               230   98.81%   UNRULED
+ 52   TryStatement                       230   98.89%   UNRULED
+ 53   CatchClause                        230   98.96%   UNRULED
+ 54   ClassDeclaration                   221   99.03%   UNRULED   <- 99%
+```
+
+The remaining 47 kinds hold 0.97% between them. **Decline rates are measured, not read** — every
+instance of each of the 9 ruled kinds was passed to its own rule with the renderer's own `NKRP`
+primitives and counted null / not-null.
+
+### (c) The PRD's 8 / 19 / 28 / 53 — three of the four hold, one is off
+
+| PRD (§5D.3C, `22-node-kind-rules.md`) | measured on HEAD `d909c2f` | verdict |
+|---|---|---|
+| kinds for 50% = **8** | **8** | holds |
+| kinds for 80% = **19** | **19** | holds |
+| kinds for 90% = **28** | **28** | holds |
+| kinds for 95% = **37** | **37** | holds |
+| kinds for 99% = **53** | **54** | **THE REPO WINS — it is 54** |
+| distinct structural kinds = **100** | **101** | **THE REPO WINS — it is 101** |
+| node instances = **307,009** | **306,855** | off by 154 (0.05%) |
+| kinds occurring < 10 times = **14** | **14** | holds |
+
+**A SECOND, DIFFERENT CENSUS IS ALSO LIVE, and the two must not be conflated.** The engine's own
+`isStructural` (`phrasebook-worklist.js:109`, `kind > ts.SyntaxKind.LastToken`) EXCLUDES literals,
+so it is not the PRD's method: it yields **94 kinds / 273,054 instances** and the ladder
+**8 / 18 / 27 / 34 / 50**. The driver prints **95** because `census(sf)` starts at the `SourceFile`
+node and counts `SourceFile` as a kind — verified by excluding it, which gives exactly 94. So the
+PRD's 100 and the driver's 95 are two measurements of two different sets, not a drift between them,
+and neither reproduces the other.
+
+### (d) Improvement-site estimates — ALL OF THESE ARE ATTRIBUTION-MODEL COUNTS
+
+They come from `phrasebook-worklist.js` walking `headOf` → `blockersOf` and calling `NKR.render` on
+the head directly. **They are NOT rendering-path figures and NOT work estimates.** Bucket 7 of the
+NEITHER census is the standing proof: attribution said 9, the rendering path said 1.
+
+**Of the 92 unruled kinds, exactly 8 block ANY residual generic site. The other 84 block none.**
+
+```
+  kind                        REAL   net   distinct sites   where
+  PrefixUnaryExpression         36    43        41          IfStatement 298, ReturnStatement 19
+  NewExpression                 15    34        31          ThrowStatement 346, ReturnStatement 7, ...
+  SpreadAssignment               4     5         4          ReturnStatement 5
+  PropertyAssignment             3     3         3          ReturnStatement 3
+  TypeOfExpression               2     6         2          ReturnStatement 6
+  Parameter                      1     2         2          ReturnStatement 1, FirstStatement 1
+  Block                          1     1         1          ReturnStatement 1
+  PostfixUnaryExpression         0     2         2          ExpressionStatement 2
+                              ----
+  total REAL                    62
+```
+
+### THE FINDING THAT CHANGES THE ORDER OF THE PROGRAMME
+
+**Descending INSTANCE order and descending WORK order are not the same list, and following the
+instance order would send the next eight turns to write rules worth nothing.** The five largest
+unruled kinds — `StringLiteral` 28,260, `PropertyAssignment` 23,326, `VariableDeclaration` 13,261,
+`VariableDeclarationList` 13,033, `FirstStatement` 12,986 — carry **0, 3, 0, 0 and 0** attributable
+residual sites between them. They are already spoken for: `spanActions` renders variable statements,
+imports and expression statements through its own ladder, and type nodes, import machinery and
+binding patterns carry no clause content at all. `Block` is rank 14 by instances and REAL **1** —
+the same refusal already made and accepted (RULE 10, 4 sites not 68).
+
+**So the ranked worklist for the programme is the 8 rows above, 62 REAL sites, and the first rule is
+`PrefixUnaryExpression` at REAL 36 — not `StringLiteral` at 28,260 instances.**
+
+**And the larger prize is not on that list at all.** The ruled-but-declining table is worth **210
+REAL sites**, more than three times the entire unruled worklist, and it needs VOCABULARY, not rules
+(R-LANG-16 forbids a second rule for a ruled kind):
+
+```
+  CallExpression           REAL 182   declines on 89.2% of its 29,021 instances
+      families:  (unclassified) 47, promise 45 (.then 36, .catch 8, .finally 1),
+                 queryBuilder 43 (.save 15, .andWhere 11, .getMany 7, .orWhere 6, .update 5, ...),
+                 arrayMutation 26 (.forEach 13, .push 9, .includes 3, .every 1),
+                 matcher 9, log 7, string 4, routes 1
+  BinaryExpression         REAL  20
+  ObjectLiteralExpression  REAL   4
+  ConditionalExpression    REAL   2
+  ArrowFunction            REAL   1   (declines on 59.5% of 8,291 — mostly block bodies, by design)
+  ElementAccessExpression  REAL   1
+```
+
+**Guardrails: byte-identity 1037 files / 1037 byte-identical / FAILURES 0 — no engine file was
+touched, so the ladder is unchanged at 33918 / 32209 / 1647 / 62, 42 passed 10 failed.**
