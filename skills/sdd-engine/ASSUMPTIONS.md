@@ -9862,3 +9862,56 @@ the tree implements a production renderer on the `.en` path. **What can be built
 slice above; what cannot be built from §5E.3.2 is the thing its name promises.**
 
 **Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0. No engine file was touched.**
+
+## COMMIT-1 — the Entity round trip becomes a corpus-wide check, and it is RED at 53/58
+
+**What changed.** One file, `tools/repo-dsl/engine/entity-sentence.test.js`, one new section 6.
+No engine file was touched, so the rendering path is untouched by construction. Byte-identity read
+`files: 1037  byte-identical: 1037  FAILURES: 0` immediately before the edit.
+
+**The published denominator is 58, and it is printed.** 75 files live under an `entities/`
+directory in SOURCE; 58 produce a sentence. The other 17 are refused by `extractEntity` before the
+grammar is reached — counting them would measure the extractor, not the round trip. The check
+prints `DENOMINATOR 58` on its own line and asserts the denominator itself, so a future change that
+shrinks the population fails rather than improving the fraction.
+
+**It reads RED on arrival — 53/58 on all three asserted legs, five named files.**
+
+```
+  corpus entities: 75 files under entities/, 58 conform and produce a sentence
+  DENOMINATOR 58
+    render(parse(s)) === s                       53/58
+    re-mine of the emitted .ts === s             53/58
+    the emitted .ts is a fixpoint                53/58
+    REPORT ONLY, not asserted -- emit === the corpus file's own bytes   0/58
+entity-sentence.test.js: 17 passed, 3 failed        (exit 1)
+```
+
+The five are `hydra/Charge.ts`, `hydra/InvoiceRaw.ts`, `hydra/OwnershipGroupLegacyTax.ts`,
+`hydra/TaxByProvince.ts`, `hydra/TaxByProvinceOverride.ts`. All five fail the same way, at parse,
+on a clause truncated mid-literal — `"a required hydra state (enum ['active'"`. That is the
+separator-injection defect, and it is COMMIT-2's subject.
+
+**A CORRECTION TO HOW LEG 2 WAS SCOPED — the repo wins.** The leg was specified as
+`emitEntityCanonical(parse(s)) === ts`, compared against the corpus file's own bytes. **Measured
+before it was written into an assertion: that is 0 of 58, and not one of the 58 is a grammar
+defect.** `entities/hydra/ApiValidator.ts` differs by an `import { Nullable }` the archetype does
+not model, by an `export enum` declared inline rather than imported from `./enums`, by a blank
+line, and by `@Column({ name: 'status' })` where the name equals the property and the canonical
+emitter correctly drops it. That comparison measures how the corpus was **typed**, not whether the
+loop closes; asserting it would pin 0/58 forever with nothing to fix. So it is **printed as a
+number and deliberately not asserted**, labelled `REPORT ONLY` in the output.
+
+What is asserted in its place is the TypeScript leg of AT-ARCH-1 exactly as section 3 already
+states it, run corpus-wide: emit the canonical `.ts`, re-mine it, require the sentence and the
+`.ts` to be at their fixpoint. It catches every failure the specified comparison would have caught
+— a model that drops a field emits a `.ts` that re-mines to a different sentence — and none of the
+noise it would have manufactured. Measured: it moves with the other legs, 53/58, same five files.
+
+**The negative control on the denominator.** A distinct `.ts` rendering a sentence that another
+`.ts` also renders would mean the grammar had lost the field distinguishing them, and every leg
+above would still be green — a per-file identity check cannot see a collision. Asserted, measured
+**0**.
+
+**Sections 1–5 are unchanged**, including the fixpoint turn and the three refusal guards.
+

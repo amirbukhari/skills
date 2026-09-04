@@ -79,5 +79,109 @@ throws(() => S.parseEntitySentence("PaymentPlan is an entity stored in payment_p
 throws(() => S.parseEntitySentence("PaymentPlan is an entity stored in payment_plans. It has a required amount (decimal) blah blah."),
   "refuses trailing text it cannot account for");
 
+/* ---- 6. THE CORPUS-WIDE ROUND TRIP (AT-ARCH-1, over every Entity the corpus has) ----
+ *
+ * Sections 1-5 prove the loop closes on ONE sentence: Amir's, the one the grammar was built from.
+ * That is a demonstration, not a measurement. This section runs the same loop over every entity
+ * source in SOURCE and PUBLISHES THE DENOMINATOR, because a fraction whose denominator is implied
+ * can be improved by shrinking it, and this repo has been burned by exactly that (`byteIdentical:
+ * 100%` over a set that had quietly stopped including the hard files).
+ *
+ * THE DENOMINATOR IS NOT `entity files on disk`. Measured 2026-09-04: 75 files live under an
+ * `entities/` directory, and 58 of them produce a sentence at all. The other 17 are refused by
+ * `extractEntity` before the grammar is reached -- they are not Entities by the archetype's own
+ * definition, so counting them would be measuring the extractor, not the round trip. 58 is the
+ * population this check is about, and it is printed, not implied.
+ *
+ * ON LEG 2, AND A CORRECTION TO HOW IT WAS SCOPED. The leg was specified as
+ * `emitEntityCanonical(parse(s)) === ts`, comparing against the corpus file's OWN BYTES. Measured
+ * first, before it was written into an assertion: that is 0 of 58, and not one of the 58 failures
+ * is a defect in the grammar. `entities/hydra/ApiValidator.ts` differs by an
+ * `import { Nullable }` the archetype does not model, by the `export enum` declared inline in the
+ * file rather than imported from `./enums`, by a blank line, and by `@Column({ name: 'status' })`
+ * where the name equals the property and the canonical emitter correctly drops it. Comparing a
+ * CANONICAL emission to NON-CANONICAL corpus bytes measures how the corpus was typed, not whether
+ * the loop closes. So that comparison is reported here as a number and deliberately NOT asserted;
+ * asserting it would pin 0/58 forever with nothing to fix.
+ *
+ * What IS asserted in its place is the checkable form of the same claim -- the TypeScript leg of
+ * AT-ARCH-1 exactly as section 3 states it, run corpus-wide: emit the canonical .ts, re-mine it,
+ * and require both the sentence and the .ts to be at their fixpoint. That catches every failure
+ * the specified leg would have caught (a model that loses a field emits a .ts that re-mines to a
+ * different sentence) and none of the noise it would have manufactured. */
+{
+  const fs = require("fs"), path = require("path");
+  const CR = require("./corpus-root.js");
+  const { SKIP } = require("./walk-skip.js");
+  const walk = (d, out = []) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (SKIP.has(e.name)) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) out.push(p);
+    }
+    return out;
+  };
+
+  const candidates = walk(CR.sourceRoot()).filter((f) => /entities\//.test(f));
+  const rel = (f) => f.split("/").slice(-2).join("/");
+
+  let population = 0, legSentence = 0, legReMine = 0, legFixpoint = 0, legAgainstFileBytes = 0;
+  const failures = [], sentences = new Map();
+
+  for (const f of candidates) {
+    const src = fs.readFileSync(f, "utf8");
+    let s;
+    try { s = S.sentenceFromSource(src, path.basename(f)); } catch (_) { continue; }
+    population++;
+    if (!sentences.has(s)) sentences.set(s, []);
+    sentences.get(s).push(rel(f));
+
+    let m;
+    try { m = S.parseEntitySentence(s); }
+    catch (e) { failures.push(`${rel(f)}: parse refused the mined sentence -- ${e.message}`); continue; }
+
+    if (S.renderEntitySentence(m) === s) legSentence++;
+    else failures.push(`${rel(f)}: render(parse(s)) !== s`);
+
+    let ts0;
+    try { ts0 = G.emitEntityCanonical(m); }
+    catch (e) { failures.push(`${rel(f)}: emit failed -- ${e.message}`); continue; }
+    if (ts0 === src) legAgainstFileBytes++;   /* reported, not asserted -- see the header */
+
+    let s1;
+    try { s1 = S.sentenceFromSource(ts0, path.basename(f)); }
+    catch (e) { failures.push(`${rel(f)}: the emitted .ts would not re-mine -- ${e.message}`); continue; }
+    if (s1 === s) legReMine++;
+    else failures.push(`${rel(f)}: the re-mined sentence moved`);
+
+    let ts1;
+    try { ts1 = G.emitEntityCanonical(S.parseEntitySentence(s1)); }
+    catch (e) { failures.push(`${rel(f)}: turn two failed -- ${e.message}`); continue; }
+    if (ts1 === ts0) legFixpoint++;
+    else failures.push(`${rel(f)}: the emitted .ts is not a fixpoint`);
+  }
+
+  console.log(`  corpus entities: ${candidates.length} files under entities/, ${population} conform and produce a sentence`);
+  console.log(`  DENOMINATOR ${population}`);
+  console.log(`    render(parse(s)) === s                       ${legSentence}/${population}`);
+  console.log(`    re-mine of the emitted .ts === s             ${legReMine}/${population}`);
+  console.log(`    the emitted .ts is a fixpoint                ${legFixpoint}/${population}`);
+  console.log(`    REPORT ONLY, not asserted -- emit === the corpus file's own bytes   ${legAgainstFileBytes}/${population}`);
+  for (const line of failures) console.log(`    - ${line}`);
+
+  eq(population, 58, "the published denominator is still 58 entity sources");
+  eq(legSentence, population, `AT-ARCH-1 corpus-wide, sentence leg: ${legSentence}/${population}`);
+  eq(legReMine, population, `AT-ARCH-1 corpus-wide, re-mine leg: ${legReMine}/${population}`);
+  eq(legFixpoint, population, `AT-ARCH-1 corpus-wide, fixpoint leg: ${legFixpoint}/${population}`);
+
+  /* THE NEGATIVE CONTROL FOR THE DENOMINATOR ITSELF. A distinct .ts rendering a sentence some
+   * other .ts also renders would mean the grammar had lost the field that told them apart, and
+   * every leg above would still be green -- the collision is invisible to an identity check run
+   * per file. Measured 0 on 2026-09-04. */
+  const collisions = [...sentences.entries()].filter(([, v]) => v.length > 1);
+  eq(collisions.length, 0, `no two entity sources render the same sentence${collisions.length ? ": " + collisions.map(([, v]) => v.join(" == ")).join("; ") : ""}`);
+}
+
 console.log(`entity-sentence.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
