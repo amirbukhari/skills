@@ -121,14 +121,22 @@ const holeTypes = (p) => {
  * identity guard below. Structural chunks RECURSE; the interior production (payload opening BEFORE
  * my body, per the ordering discriminator) is counted separately so a silent zero cannot hide a
  * missed branch. */
-const seen = { atomic: 0, structural: 0, interior: 0, unparsed: 0, mismatch: 0 };
+/* `bailout` COUNTS THE ONE PATH BOTH OTHER GUARDS ARE BLIND TO. On an unmatched delimiter each
+ * walker copies the rest of the text through and stops. The identity guard cannot see it -- the
+ * bailout is byte-PRESERVING by construction, so blanking nothing still reproduces the page
+ * exactly. The partition guard cannot see it either -- the remaining characters are still put in
+ * a bucket, just the wrong one. So a malformed page would silently shrink the measured population
+ * while both existing assertions stayed green: the same silent-skip class I flagged in a peer's
+ * file, in mine, hiding behind two guards that structurally cannot fire on it. Counted and
+ * asserted zero. */
+const seen = { atomic: 0, structural: 0, interior: 0, unparsed: 0, mismatch: 0, bailout: 0 };
 function blank(en, kill, tally) {
   let out = "", i = 0;
   for (;;) {
     const o = en.indexOf(OPEN, i);
-    if (o < 0) { out += en.slice(i); break; }
+    if (o < 0) { out += en.slice(i); break; }   /* no further chunk: the tail is plain text */
     const c = matchClose(en, o);
-    if (c < 0) { out += en.slice(i); break; }
+    if (c < 0) { if (tally) seen.bailout++; out += en.slice(i); break; }
     out += en.slice(i, o + 1);
     const chunk = en.slice(o + 1, c);
     if (chunk[0] === GEN) {
@@ -164,6 +172,25 @@ function blank(en, kill, tally) {
   return out;
 }
 
+/* ---- THE DETECTOR MUST BE PROVEN ABLE TO FIRE, BEFORE IT IS TRUSTED TO BE SILENT -------------
+ * Three times tonight a check returned a clean zero it could never have returned anything else
+ * for: a grep against a commit subject that was not in the file, a `git show` given a path missing
+ * its prefix, and a strip guard that watched the pattern but not the hash input. An assertion that
+ * reports zero is worth nothing until you have seen it report one. So the bailout counter is fired
+ * DELIBERATELY here, on a synthetic malformed page, and then reset before the corpus is touched. */
+{
+  const malformed = "«▶ a chunk that never closes ⟪lzw1 n1⟨x⟫";   /* no » anywhere */
+  blank(malformed, new Set(), true);
+  ok(seen.bailout === 1,
+     "the bailout counter FIRES on an unmatched delimiter (got " + seen.bailout + ", expected 1) — " +
+     "proving the assertion below is capable of failing, which is the only thing that makes its " +
+     "zero meaningful");
+  const before = { ...seen };
+  seen.bailout = 0; seen.atomic = 0; seen.structural = 0; seen.interior = 0;
+  seen.unparsed = 0; seen.mismatch = 0;
+  void before;
+}
+
 const EN_DIR = path.join(CR.senDir(), "files");
 if (!fs.existsSync(EN_DIR)) {
   console.error("REFUSING: no rendered .en at\n  " + EN_DIR + "\n  Run `npm run render` first.");
@@ -195,7 +222,11 @@ blank(texts[0], new Set(), true);
 for (let i = 1; i < texts.length; i++) blank(texts[i], new Set(), true);
 console.log("     chunks: atomic " + seen.atomic + "  structural " + seen.structural +
             "  interior-production " + seen.interior + "  unparseable payloads " + seen.unparsed +
-            "  field/type mismatches " + seen.mismatch);
+            "  field/type mismatches " + seen.mismatch + "  unmatched-delimiter bailouts " + seen.bailout);
+ok(seen.bailout === 0,
+   "no walker bailed out on an unmatched delimiter (" + seen.bailout + ") — a bailout copies the " +
+   "rest of the page through unchanged, so the identity guard passes and the partition still " +
+   "balances; this is the ONLY assertion that can see it");
 ok(seen.unparsed === 0 && seen.mismatch === 0,
    "every payload parses and its field count matches its skeleton's hole count — a mismatch " +
    "would silently skip that payload and understate the board");
@@ -259,7 +290,7 @@ function partition(en) {
     if (o < 0) { put("between chunks / outside any chunk", en.slice(i)); break; }
     put("between chunks / outside any chunk", en.slice(i, o));
     const c = matchClose(en, o);
-    if (c < 0) { put("between chunks / outside any chunk", en.slice(o)); break; }
+    if (c < 0) { seen.bailout++; put("between chunks / outside any chunk", en.slice(o)); break; }
     const chunk = en.slice(o + 1, c);
     const isAtomic = chunk[0] === GEN, isStruct = chunk[0] === GEN_NEST;
     const prose = isAtomic ? "atomic gloss (English prose)"
@@ -288,7 +319,7 @@ function partition(en) {
           if (p < 0) { put("structural body — RAW TEXT, no chunk around it", inner.slice(j)); break; }
           put("structural body — RAW TEXT, no chunk around it", inner.slice(j, p));
           const q = matchClose(inner, p);
-          if (q < 0) { put("structural body — RAW TEXT, no chunk around it", inner.slice(p)); break; }
+          if (q < 0) { seen.bailout++; put("structural body — RAW TEXT, no chunk around it", inner.slice(p)); break; }
           partition(inner.slice(p, q + 1)); j = q + 1;
         }
         put(prose, body.slice(bc));
