@@ -9915,3 +9915,74 @@ above would still be green — a per-file identity check cannot see a collision.
 
 **Sections 1–5 are unchanged**, including the fixpoint turn and the three refusal guards.
 
+
+## COMMIT-2 — separator injection, fixed as a class: 53/58 -> 56/58, and two older defects uncovered
+
+**One file, `tools/repo-dsl/engine/entity-sentence.js`, +77/−2.** Byte-identity before and after:
+`files: 1037  byte-identical: 1037  FAILURES: 0` both times. `generate.test.js`: 35 passed, 0
+failed. Sections 1–5 of `entity-sentence.test.js` are untouched and still pass; nothing was wired
+into the `.en` compile path.
+
+**The defect had two doors, and both are closed.** `parseColumnList` used
+`body.split(/,\s*(?:and\s+)?|\s+and\s+/)`. Both separators can occur INSIDE a single column phrase:
+a comma inside a type annotation (`a required hydra state (enum ['active', 'deleted'])`) and the
+word "and" inside a column name (`terms_and_conditions`, spoken `terms and conditions`). A regex
+`split` cuts through either. The five corpus failures were all the first door; the second was
+verified by construction, not assumed.
+
+`splitTopLevel(body, sep)` replaces the split: a hand scanner that tracks bracket depth (`(`, `[`,
+`{`) and quote state and only separates at depth 0. A segment is then parsed WHOLE; a bare `and`
+split is attempted **only if that fails**, so a name that merely contains "and" parses whole and
+never reaches the fallback. The Oxford `and` is stripped as a leading token, which is safe because
+every phrase begins with `a ` or `an `.
+
+**A second, smaller fix in the same class:** `parseColumnPhrase`'s enum alternative accepted only a
+named enum (`enum EStatus`). The miner also produces the INLINE LITERAL form from
+`@Column({ type: 'enum', enum: ['active', 'deleted'] })`, so those five entities rendered a sentence
+their own parser could not read back. The alternative now accepts `\[[^\]]*\]` as well.
+
+**A REAL AMBIGUITY, found by a construction probe and fixed — my own injectivity argument was
+wrong.** I wrote in the comment that a column phrase can never be cut into two phrases that both
+parse. The probe said otherwise: with the name group written `(.+?)`, the name can swallow a whole
+trailing type group, so `a required a (int) and a required b (int)` has two readings — two columns,
+or ONE column named `a (int) and a required b`. **Measured: after the scanner change, the parser
+took the second reading**, silently turning a valid non-Oxford list into one absurd column, a
+behaviour the old split did not have. The name group is now `([^()]+?)`. `spaced()` cannot produce a
+parenthesis, so this costs nothing and makes the phrase genuinely unambiguous, which is what the
+fallback relies on. Probed after the fix: non-Oxford input yields two columns `a, b` and re-renders
+in the canonical Oxford form.
+
+**THE HONEST NUMBER IS 56/58, NOT 58/58.** The check, the denominator and the assertions are
+unchanged; nothing was weakened to recover a figure.
+
+```
+  DENOMINATOR 58
+    render(parse(s)) === s                       56/58      (was 53/58)
+    re-mine of the emitted .ts === s             53/58      (was 53/58)
+    the emitted .ts is a fixpoint                53/58      (was 53/58)
+```
+
+**Two defects the fix UNCOVERED. Both pre-existed; the separator failure was masking them. Neither
+is the separator class, so neither is fixed here.**
+
+1. **`hydra/Charge.ts`, `hydra/InvoiceRaw.ts` — the sentence leg, 2 files.** Their enum literals are
+   written across multiple lines in the source, and `modelFromExtraction` takes `p.enum` VERBATIM,
+   newlines and all — so the MINED sentence contains raw newlines. `sentences()` collapses `\s+` by
+   design, so the re-rendered sentence is single-spaced and can never equal the mined one. This is a
+   normalisation defect at the mining end, not a splitting one: a mined literal must be flattened
+   before it enters a sentence. `TaxByProvince` and the other two write their literal on one line,
+   which is exactly why they now pass and these two do not.
+
+2. **All five — the emit legs, unchanged at 53/58.** `emitEntityCanonical` treats `c.enum` as a
+   named enum identifier and `c.tsType` as a type name, so a literal enum emits
+   `import { ['active', 'deleted'] } from './enums';` and `hydraState!: ['active', 'deleted'];`.
+   That is not valid TypeScript, and re-mining it fails with *"residual top-level code:
+   ExpressionStatement"*. The defect is in `generate.js`'s `renderColumn`/`collectImports`, not in
+   the grammar, and an inline literal enum has no name to import — so the fix is a design question
+   (emit a union type and no import) rather than a patch, and it is recorded here rather than taken.
+
+**What the grammar accepts did not narrow.** The Oxford form parses as before, the non-Oxford form
+still parses, named enums still parse. What is no longer accepted is a split THROUGH a bracketed
+group or a quoted string, and a column name containing a parenthesis — neither of which any
+renderer in this repo can produce.
+

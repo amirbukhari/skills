@@ -85,7 +85,20 @@ function parseColumnPhrase(phrase) {
    * alternatives rather than one shape with optional fields. */
   if (/^an auto-generated id$/i.test(p)) return { role: "column", prop: "id", pk: true, tsType: "number" };
   /* ALT 2/3 — a required|optional <name> (<type>) */
-  const m = p.match(/^an?\s+(required|optional)\s+(.+?)\s*\(\s*(?:enum\s+([A-Za-z_$][\w$]*)|([A-Za-z]+))\s*\)$/i);
+  /* The enum alternative accepts BOTH spellings TypeORM allows, because the miner produces both:
+   * a named enum (`enum EPaymentPlanStatus`) and an INLINE LITERAL LIST (`enum ['active',
+   * 'deleted']`, from `@Column({ type: 'enum', enum: ['active', 'deleted'] })`). Only the named one
+   * was accepted before, so the five literal-enum entities in the corpus rendered a sentence this
+   * parser could not read back — half of the separator-injection defect below. */
+  /* THE NAME MAY NOT CONTAIN PARENTHESES, and that is a correctness fix, not a tidy-up. With a
+   * bare `.+?` the name group can swallow a whole trailing type group, so
+   * `a required a (int) and a required b (int)` has TWO readings: two columns, or one column named
+   * `a (int) and a required b`. Measured 2026-09-04 — the second reading is the one the lazy group
+   * actually took, which silently turned a non-Oxford two-column list into one absurd column.
+   * `spaced()` can never produce a parenthesis (db names have none), so excluding them costs
+   * nothing and makes the phrase unambiguous — which is what the parseColumnList fallback below
+   * relies on. */
+  const m = p.match(/^an?\s+(required|optional)\s+([^()]+?)\s*\(\s*(?:enum\s+(\[[^\]]*\]|[A-Za-z_$][\w$]*)|([A-Za-z]+))\s*\)$/i);
   if (!m) throw new SentenceError("not a column phrase — expected \"an auto-generated id\" or \"a required|optional <name> (<type>)\"", phrase);
   const [, req, rawName, enumName, plainType] = m;
   const dbName = snaked(rawName);
@@ -96,11 +109,73 @@ function parseColumnPhrase(phrase) {
   return col;
 }
 
+/* SEPARATOR INJECTION — the defect this scanner exists to prevent, and the reason a regex `split`
+ * cannot be used here at all.
+ *
+ * The list separators are "," and " and ". BOTH can occur INSIDE a single column phrase:
+ *   - a comma inside a type annotation: `a required hydra state (enum ['active', 'deleted'])`;
+ *   - the word "and" inside a column NAME: `terms_and_conditions` is spoken `terms and conditions`.
+ * A `String.split` on the separators cuts straight through either, and the phrase it produces is
+ * truncated mid-literal. Measured 2026-09-04: 5 of the 58 corpus entities failed exactly this way,
+ * every one on the comma-in-enum shape, and `terms_and_conditions` fails identically BY
+ * CONSTRUCTION — it is one defect class with two doors, so both are closed here rather than the
+ * five instances being patched.
+ *
+ * WHAT CHANGED IN THE LANGUAGE THIS ACCEPTS: nothing. The Oxford-comma form the renderer emits
+ * parses as before, and the non-Oxford form (`a ... and b ...`, no comma) is still accepted — see
+ * parseColumnList. What is no longer accepted is a SPLIT THROUGH a bracketed group or a quoted
+ * string, which was never a sentence any renderer produced.
+ *
+ * INJECTIVITY IS PRESERVED, and this is the part worth checking rather than assuming (§5E.3.2's
+ * one hard rule is that two distinct sentences must not compile to the same TypeScript). A column
+ * phrase is `an? (required|optional) NAME (TYPE)` with exactly ONE trailing bracketed group, so a
+ * phrase can never be cut into two phrases that BOTH parse: the left half of any interior cut ends
+ * before that group and therefore carries no type, and the right half carries no article. So the
+ * "parse the segment whole, split on a bare `and` only if that fails" rule below has at most one
+ * successful reading — it resolves the ambiguity, it does not choose between two live ones. */
+function splitTopLevel(body, sep) {
+  const out = [];
+  let depth = 0, quote = null, cur = "";
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+    if (ch === "'" || ch === "\"" || ch === "`") { quote = ch; cur += ch; continue; }
+    if (ch === "(" || ch === "[" || ch === "{") { depth++; cur += ch; continue; }
+    if (ch === ")" || ch === "]" || ch === "}") { depth--; cur += ch; continue; }
+    if (depth === 0) {
+      if (sep === "," && ch === ",") { out.push(cur); cur = ""; continue; }
+      if (sep === "and" && /\s/.test(ch) && /^\s+and\s/i.test(body.slice(i))) {
+        out.push(cur); cur = ""; i += body.slice(i).match(/^\s+and\s/i)[0].length - 1; continue;
+      }
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
 function parseColumnList(body) {
   /* "a, b, and c" — the Oxford comma is REQUIRED on render, so on parse we accept it and also
    * accept its absence, but a re-render always produces it. That is what keeps render(parse(s))
    * total without making the grammar ambiguous. */
-  return body.split(/,\s*(?:and\s+)?|\s+and\s+/).map((s) => s.trim()).filter(Boolean).map(parseColumnPhrase);
+  const out = [];
+  for (const raw of splitTopLevel(body, ",")) {
+    /* A leading "and " can only be the Oxford conjunction: every phrase starts with "a " or "an ". */
+    const seg = raw.replace(/^and\s+/i, "");
+    let col = null, whole = null;
+    try { col = parseColumnPhrase(seg); } catch (e) { whole = e; }
+    if (col) { out.push(col); continue; }
+    /* The non-Oxford reading, tried ONLY because the segment does not parse whole. A name that
+     * merely CONTAINS "and" (`terms and conditions`) parses whole and never reaches this line. */
+    const parts = splitTopLevel(seg, "and");
+    if (parts.length > 1) {
+      let sub = null;
+      try { sub = parts.map(parseColumnPhrase); } catch (_) { sub = null; }
+      if (sub) { out.push(...sub); continue; }
+    }
+    throw whole;
+  }
+  return out;
 }
 
 function parseRelationSentence(s) {
