@@ -11882,3 +11882,133 @@ a lane's, and this commit does not reopen it.**
 
 No renderer was touched, so nothing is added to the drift queue: it stays at **73 sites in 47
 files**, and `enfile.test.js`'s corpus case stays RED for the same carried reason.
+
+---
+
+## `authoring-status` — what the `.en` → `.ts` path actually is, measured 2026-09-04
+
+Intent is in the PRD (§1B, added this commit). This section is STATUS ONLY: what was run, and what
+came back. Nothing here is a statement of purpose.
+
+### 1. THE PATH, AND IT IS ONE COMPILER
+
+`enfile.js:2817 compileFileEn(en, index, opts)` → `compileChunk` (`:2621`) per `«…»` chunk →
+`enlzw.compileSpan(payload, dictionary)`. It is **not** a re-render from a cached AST, **not**
+provenance replay, and **not** a comparison against a stored original. It walks the `.en` TEXT,
+decodes each chunk's payload, and expands it against the dictionary.
+
+**The byte-identity gate does not read a `.en` file at all.** `test-lzw-roundtrip.js` reads the
+`.ts`, builds an `.en`-shaped string in memory, compiles it back, and compares. `1037/1037` is a
+statement about the mechanism, not about any file on disk.
+
+### 2. EVERY INPUT THE COMPILE READS, SORTED
+
+Measured by instrumenting `fs.readFileSync/existsSync/readdirSync/statSync` and compiling a real
+corpus `.en` (`packages/hydra-internal/src/enums/index.ts` — compiled bytes `=== ` the original):
+
+**While compiling the `.en`: ZERO filesystem reads.** Everything comes from the `.en` text plus the
+in-memory index, which was loaded from exactly four artifacts:
+
+| input | class |
+|---|---|
+| `sen/catalog/generators-lzw.json` — the mined word dictionary, 126,348 narrow words over 1,037 files | **REPO-LEVEL (A)** |
+| `catalog/coined-words.json` — the coined-phrase vocabulary | **REPO-LEVEL (A)** |
+| `catalog/english-idioms.json` | **REPO-LEVEL (A)** |
+| `sen/catalog/word-names.json` — authored skeleton names | **REPO-LEVEL (A)** |
+
+**PER-FILE RESIDUE (B): NONE.** No stored AST, no id map, no provenance row, no `en-index.json`, and
+**the original `.ts` is never read**. The per-file information travels **inside the `.en` file
+itself**, written on the page as the payload's hole values. The round trip is a generation, not a
+lookup.
+
+### 3. WHAT A `.en` FILE LOOKS LIKE
+
+A whole file, verbatim — `packages/hydra-internal/src/enums/index.ts.en`, 71 bytes:
+
+```
+«▶ 1 re-export ⟪lzw1 n18⟨ ⟨ ⟨ ⟨“./EDocumentType”⟫»
+```
+
+`1 re-export` is the English. `n18` is a word id into the repo dictionary. The four `⟨`-separated
+values after it are the holes — three spaces and the module path.
+
+Larger files also carry long runs of **raw TypeScript** verbatim inside structural bodies. Judged as
+the corrected brief asks — could a person **who knows this repo's vocabulary** write this? — the
+answer is **yes for the shape and no for the id**: `n18` is a machine-assigned number in a 126,348-word
+dictionary, and only **4** of those words carry an authored English name today. There is no content
+hash and no positional marker in the file; the barrier is a **naming gap**, not machine residue.
+
+### 4. THE EXPERIMENT — RUN IN /tmp, CORPUS AND `sen/` UNTOUCHED
+
+**(a) A hand-written file in the controlled-English grammar (`engine/cnl.js`) — WORKS.** Written
+from scratch, not copied:
+
+```
+To add two numbers, taking a first number and a second number:
+  Return `firstNumber + secondNumber`.
+```
+compiled to
+```ts
+export const addTwoNumbers = (firstNumber: number, secondNumber: number): void => {
+  return firstNumber + secondNumber;
+};
+```
+**A defect found in passing:** the return type is `void` on a function that returns a number. The
+header grammar has no way to declare a return type. Reported, not fixed — out of this item's scope.
+
+**(b) A hand-written `.en` chunk, compiled through the real path — WORKS.**
+`«When it is production, log "starting up" and stop.»` → `if (isProduction()) { console.info('starting up'); return; }`.
+`it is production` → `isProduction()` comes from `coined-words.json`: repo vocabulary, class (A).
+
+**(c) A NEW file, built from a repo pattern, holes chosen by me — WORKS.** Word `4859` was found by
+searching the dictionary for the shape `export * from ‹str›; export * from ‹str›;` — a lookup in the
+repo's vocabulary, not a copy of any generated `.en`. Hand-written:
+
+```
+«▶ 2 re-exports ⟪lzw1 n4859⟨ ⟨ ⟨ ⟨“./ThingOne”⟨
+⟨ ⟨ ⟨ ⟨“./ThingTwo”⟫»
+```
+compiled to `export * from './ThingOne';` / `export * from './ThingTwo';` — **two modules that do not
+exist anywhere in the corpus.**
+
+**(d) The English is load-bearing, and it refuses rather than lying.** With the same payload, the
+label `1 re-export` and the label `set up the barrel` both got
+`SENTENCE AND PAYLOAD DISAGREE (R-REND-6 — the sentence is authoritative)`, naming written vs derived.
+
+**(e) EDITING THE ENGLISH DOES NOT CHANGE THE CODE.** `measure-hand-edit.js --files 150`, read-only:
+**of 447 English edits, 0 reached the `.ts`.** With `SDD_DERIVE_CHECK` at its default the silent
+count is **0** — every one refused. `repairFromSentence` exists and honoured none of the 447. My own
+spot probes agree: renaming an identifier or a quoted literal in a sentence is refused, not applied.
+
+### 5. THE BACKLOG ITEM IS MISWORDED, NOT STALE
+
+`imtjh0746b010ee` reads *"no .en→.ts writer exists, two-root model has nowhere to put one"*.
+
+**The COMPILER exists** — that half of the wording is wrong and should be corrected. **The WRITER
+does not**, and that half is exactly right: every caller of `compileFileEn` in the tree
+(`write-en-files.js`, `test-gen-roundtrip.js`, `measure-english.js`, `measure-hand-edit.js`,
+`audit-rules.js`, `verify-register.js`, `naming-gate.js`, `synth-corpus.js`) compiles **in memory to
+compare**. Not one writes a `.ts` to disk. The only tool that writes a `.ts` at all is
+`new-archetype.js:99`, and it takes a spec, not an authored `.en`.
+
+The item's own body already says this correctly — *"Only en→ts write today is one file
+(new-archetype.js:99). R-CFG-1 makes SOURCE never-written"*. Suggested rewording: **"the `.en`→`.ts`
+COMPILER exists and is exercised on every file; what does not exist is a WRITER — no tool writes
+compiled `.ts` to disk, and R-CFG-1 makes SOURCE never-written, so there is no legal destination."**
+**Where a hand-authored `.en` and its compiled `.ts` should live is Amir's architectural call and is
+not proposed here.**
+
+### THE SHORT ANSWER
+
+He can author in it today for anything the repo's dictionary already covers, and the compiler will
+generate real `.ts` from a file he wrote. Two things stand in the way of it being usable:
+**(1)** naming — 4 of 126,348 words have an English name, so a pattern must be found by its shape
+rather than asked for by name; **(2)** no writer — the compiled `.ts` exists only in memory, and the
+two-root model has no place to put it. Editing the English of an existing `.en` still cannot change
+the code; it is refused, never silently ignored.
+
+### MEASUREMENTS
+
+Documentation only; no engine file touched. `files: 1037  byte-identical: 1037  FAILURES: 0`
+(re-read after the edits). Every experiment ran in `/tmp`; the corpus and `sen/` were not written.
+Drift queue unchanged at 73 sites / 47 files.
