@@ -7436,3 +7436,50 @@ Measured candidates for rule 6, from the current distribution rather than a gues
 | `BinaryExpression` | 50 + 13 paren | |
 | `ConditionalExpression` | 30 + 20 paren | |
 | `IfStatement` / `ThrowStatement` | 380 / 349 | untouched statement kinds; ThrowStatement is the worst rate in the corpus at 40% generic |
+
+## The work order is inflated by 41%, and I did NOT change the check that inflates it (2026-09-04)
+
+Measured while choosing rule 6, over the whole corpus, classifying every generic clause by whether it
+quotes anything and whether that quote appears verbatim in the source:
+
+```
+generic clauses reached by this walk      1,503
+  ReturnStatement    / no quote at all      582
+  ThrowStatement     / quoted, with “…”     337     <-- already correct English
+  ExpressionStatement/ quoted, with “…”     286     <-- already correct English
+  ExpressionStatement/ no quote at all      128
+  ReturnStatement    / quoted, not in src    41
+  ExpressionStatement/ quoted, not in src    39
+  IfStatement        / quoted, not in src    35
+  FirstStatement     / quoted, not in src    33
+  ThrowStatement     / quoted, not in src    12
+  IfStatement        / no quote at all         9
+```
+
+**623 of those 1,503 — 41% — are clauses that already read as English and already carry the
+author's own words.** `ThrowStatement` is the worst rate in the corpus at 40% generic, and **337 of
+its 349 are this**:
+
+```
+throw new Error(`Invalid data: ${String(key)} must be a number, numeric string, or null.`);
+  ==>  throw “Invalid data: … must be a number, numeric string, or null”
+```
+
+That clause is not a defect. It is the engine correctly lifting a sentence the author had already
+written, with `…` standing where the interpolation was. The coverage check looks for the quoted body
+**verbatim** in the source, and `…` is not there, so it scores it generic.
+
+**I did not touch the predicate, and this is deliberate.** Making the checker understand the `…`
+elision would be defensible — it is the engine's own convention — but it is indistinguishable in
+shape from re-baselining a check to make numbers improve, which is forbidden, and it would move ~623
+sites in one edit with no production change behind it. **That is Amir's call, not mine.** Two things
+follow either way:
+
+- **`ThrowStatement` is not rule 6 material.** 96% of its apparent work order is already done. Twelve
+  sites are real (`throw “,”` — a template that is nothing but interpolations), and they are small.
+- **The real remaining work order is roughly 880, not 1,503**, and it is concentrated in
+  `ReturnStatement`'s 582 no-quote clauses — of which ~150 more are `return null;` / `return true;` /
+  `return [];`, already-correct English of the same kind (flagged previously, still not fixed).
+
+Recorded as a measurement, not acted on. The instruction that produced this entry — never weaken,
+skip or re-baseline a check to make something pass — is the reason the number is still 1,503.
