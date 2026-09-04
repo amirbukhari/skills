@@ -9704,3 +9704,161 @@ PINNED once an `.en` references it, or whether the `.en` re-renders — and that
 R-PAY-6, not in §20, and is Amir's, not mine.
 
 **Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0. No engine file was touched.**
+
+---
+
+## THE §5E.3.2 GRAMMAR PARSER — DESIGN AND SCOPE, from the repo (2026-09-04)
+
+Record-only; no engine change. **Headline: this is BIGGER than R-PAY-6, and §5E.3.2 does not specify
+enough to build from — it specifies a GRAMMAR, not a parser.** Both claims are evidenced below.
+
+### (a) What happens today when a human edits a `.en`
+
+**Detection — `enfile.js:2540-2562`, inside `compileChunk`'s generator branch.** It recompiles the
+payload, calls `deriveGloss(obj, compiled, cat)`, and compares to the written sentence.
+
+**Then it tries to HONOUR the edit before refusing — `repairFromSentence`, `enfile.js:2278`.** The
+hole layer reaches exactly this far, and the boundary is four explicit `return null`s:
+
+```
+2288  if (!holes.length) return null                     no per-site holes -> nothing to invert
+2295  if (dTok.length !== wTok.length ...) return null    a DIFFERENT NUMBER of quoted tokens
+2301  if (dTok[i].kind !== wTok[i].kind) return null      an identifier swapped for a literal
+2304  if (!holes.includes(from)) return null              the token came from the TEMPLATE
+2306  if (subs.has(from) && ...) return null              one token, two fates
+2310  if (subs.size === 0) return null                    the difference is PROSE
+2316  if (reDerived !== written) return null              the closed loop did not reproduce it
+```
+
+**HONOURED:** a same-count, same-kind, position-for-position rename of a value the payload carries
+as a hole — an identifier, a callee, a literal — where re-deriving from the repaired payload
+reproduces the human's sentence byte-for-byte.
+
+**REFUSED, loudly, with file/written/derived quoted:** added or reworked prose; a change in how many
+things the clause names; renaming a token the TEMPLATE supplied (that is a new word, the miner's
+job); any restructuring. **Nothing is silently discarded on this path and nothing is half-applied.**
+
+**One silent class remains, and it is named in the code:** `enfile.js:2420-2423` — a structural
+chunk returns before the check, so **the NAME a structural chunk carries is never compared, even
+with `SDD_DERIVE_CHECK=1`**. A heading-only edit is separately ruled a refusal because a heading is
+computed from its children.
+
+**THE REPO WINS over the requirements register here.** `11-requirements-register.md` R-REND-6 says
+the check is *"on by default in `enfile.test.js`, opt-in elsewhere (`SDD_DERIVE_CHECK=1`)"*. The code
+says the opposite: `enfile.js:2330`, `const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK !== "0"` —
+**on by default everywhere, opt-OUT with `=0`.** The register cell is stale.
+
+### (b) What §5E.3.2 actually specifies — and it is thinner than its reputation
+
+§5E.3.2 is **§3.2 of `tools/prd/20-archetype-hybrid-design.md`, lines 113-180**, titled *"The
+dictionary IS a grammar; a call is a sentence invoking a sentence"*. Read end to end it specifies:
+
+- the reframe (nonterminal = word, production = template, terminal = hole bytes, start symbol =
+  archetype, derivation depth = `hierarchyDepth`);
+- a worked Entity/Columns/Column/Relation production set;
+- four forced choices: **slots bind BY NAME**, nested nonterminals have **ordered alternatives**
+  (first byte-exact fill wins), variadics are **grammar repetition**, and the **id is derived from
+  the production** (the R-PAY-6 link);
+- one requirement about direction: *"backward — one `.ts` shape derives to exactly one sentence.
+  Two distinct sentences MUST NOT compile to the same TypeScript."*
+
+**IT CONTAINS NO PARSER SPECIFICATION.** The word "parser" does not occur in §3.2 at all — every
+occurrence in that document is a FORWARD REFERENCE from elsewhere to it (line 393: *"Honouring it
+needs the §3.2 grammar parser, which is the larger job"*; line 511, same). **So "the §5E.3.2 grammar
+parser" is a name other sections gave to work §5E.3.2 does not describe.** What §5E.3.2 does supply
+is the one constraint that matters — the inverse must be a function — and that is a constraint on
+the grammar, not a design for a parser.
+
+### (c) What the parse would have to be — and the repo only supports ONE of the two options
+
+**For ordinary words, an LL/LR parse over productions is NOT AVAILABLE, because the English is not
+emitted by a production.** `deriveGloss(payload, compiled, cat)` (`enfile.js:2143`) takes **the
+compiled TypeScript** and derives the sentence from it — *"`compiled` is byte-for-byte the slice the
+renderer labelled"*. The dictionary's productions are LZW skeleton sequences; the English is
+produced beside them by `spanActions`' prose ladder, not by them. **A production parser needs English
+to be a function of the grammar, and today English is a function of the compiled `.ts`.** Making it
+one is a rewrite of the render path, not an addition to it — and it would have to preserve
+1037/1037 byte-identity while doing so.
+
+`renderProduction` does exist — `refine-language.js:202`, "one-line grammar production for a curated
+composite, from its role signature" — but it lives in a refinement TOOL, not in the engine, and
+nothing on the `.en` path calls it.
+
+**So the only mechanism the repo's structures support for ordinary words is match-against-rendered-
+candidates, which is what `repairFromSentence` already is** — in its degenerate, positional,
+one-substitution form. Generalising it means enumerating candidates over **126,348 narrow dictionary
+entries** crossed with hole fills that are **arbitrary source bytes**. That is not a search space
+that can be enumerated, which is why the current code matches positionally instead of searching.
+
+**For the archetype layer the other option is real and already shipped.** `engine/entity-sentence.js`
+(223 lines) is a hand-written recursive-descent parser — one regex per production — with `parse` and
+`render` as inverses. It is **not wired into the `.en` compile path**: `grep -rl entity-sentence`
+returns `new-archetype.js`, the module and its test, and nothing else.
+
+### (d) AMBIGUITY — one real defect found, and it is not the one I expected
+
+**Measured over the corpus, not reasoned about.** 75 files under `entities/`, 58 produce a sentence:
+
+```
+render(parse(sentenceFromSource(ts))) === sentence :  53 of 58
+failures                                           :   5
+distinct entity sources rendering the SAME sentence:   0
+```
+
+**All 5 failures are one defect: a comma inside an inline enum literal list.** `parseColumnList`
+splits on `/,\s*(?:and\s+)?|\s+and\s+/`, so the phrase is torn mid-enum:
+
+```
+hydra/TaxByProvince.ts    "a required hydra state (enum ['active', 'inactive'])"
+   -> SentenceError: not a column phrase   clause: "a required hydra state (enum ['active'"
+also: hydra/Charge.ts, hydra/InvoiceRaw.ts, hydra/OwnershipGroupLegacyTax.ts, hydra/TaxByProvinceOverride.ts
+```
+
+**This is separator injection — the same class named as a build requirement for R-PAY-6, one layer
+up, and here it is REAL in this corpus rather than hypothetical.** Confirmed by construction too: a
+column whose spoken name contains " and " (`terms_and_conditions` → *"a required terms and
+conditions (varchar)"*) fails identically.
+
+**On the ambiguity question you actually asked — I could not find a case, and here is exactly what I
+searched.** (1) All 58 corpus entity sentences compared pairwise for equality: **0 collisions**.
+(2) Targeted construction probes on the places the grammar could plausibly be ambiguous:
+`It has many Address.` vs `It has many Addresses.` (the `s?` strip) — **both round-trip correctly and
+to different models**; `It has <columns>` vs `It has many <Target>` — disambiguated by an explicit
+`!/^many\b/` guard; the Oxford comma — accepted both ways on parse, always emitted on render, which
+is the note in the code at line 100. **So: no ambiguity found in the Entity grammar, on a search of
+58 real sentences plus 5 construction probes.** That is a bounded negative result about ONE
+archetype, and it says nothing about a grammar for ordinary words, which does not exist yet to test.
+
+### (e) The smallest honest first slice
+
+**Entity, and the code says so rather than you** — `entity-sentence.js` is the only module in the
+tree exporting a `parse` that is an inverse of a `render`, and §5E.3.2's own worked production set is
+the Entity one. The subset is the one that already works: **head + `It extends` + column list +
+the four relation forms, excluding inline enum literal lists.**
+
+**The check, named, not a vibe:** a corpus-wide loop over the 58 entity sources asserting both legs
+per file —
+
+```
+AT-ARCH-1 leg :  render(parse(sentenceFromSource(ts))) === sentenceFromSource(ts)
+AT-ARCH-2 leg :  emitEntityCanonical(parse(s))         === ts        (byte-identical)
+```
+
+with the denominator stated (58) and the existing negative control kept — `entity-sentence.test.js`
+already carries the fixpoint turn and the de-register control, and R-ARCH-13 already makes
+`new-archetype.js` exit 2 on failure. **Today that loop reads 53/58 on leg 1.** The slice is: make it
+58/58 by fixing comma-splitting inside a bracketed enum (length-delimited, not separator-split), and
+publish the count. A check whose denominator is stated and whose current value is 53 cannot go
+vacuous the way `byteIdentical: 100%` did.
+
+### THE REFUSAL, STATED PLAINLY
+
+**The general parser is bigger than R-PAY-6 and should not be scheduled from §5E.3.2 as written.**
+R-PAY-6 is a change of id derivation plus a corpus-wide re-render — large, but every piece of it
+exists (the 64-bit scheme is `artifact-contract.js:96`). The grammar parser requires **English to
+become a function of the grammar instead of a function of the compiled `.ts`**, across a 126,348-entry
+dictionary, while holding 1037/1037 byte-identity. §5E.3.2 does not describe that work, and nothing in
+the tree implements a production renderer on the `.en` path. **What can be built now is the Entity
+slice above; what cannot be built from §5E.3.2 is the thing its name promises.**
+
+**Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0. No engine file was touched.**
