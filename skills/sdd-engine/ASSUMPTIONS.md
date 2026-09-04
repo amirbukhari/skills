@@ -11075,3 +11075,94 @@ Three pieces remain, none of them doable from here:
 **Fresh figures.** Byte-identity before **1037/1037 FAILURES 0** and after **1037/1037 FAILURES 0**.
 Coverage TOTAL read fresh: `33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged
 from the CLASS 4 commit, as expected, since nothing on the render path moved.
+
+## PHRASEBOOK AUDIT — the last unaudited cell measures ZERO genuine vocabulary. DEMOTE.
+
+The item's own table left one cell unaudited: **"array mutation + date + log | ~42 | plausibly all
+genuine vocabulary — UNAUDITED for the one-char artifact."** That ~42 was the entire remaining
+ceiling of the workstream, its other three families having measured 4, 0 and 0. It is now audited.
+
+**The ~42 does not reproduce.** Measured fresh by `engine/phrasebook-worklist.js`:
+
+| family | sites | credited (elision) | 1-char | escape | REAL |
+|---|---|---|---|---|---|
+| arrayMutation | 24 | 0 | 0 | 0 | **24** |
+| date | — absent from the table entirely — | | | | **0** |
+| log | 286 | **272** | 5 | 2 | **7** |
+
+So the cell is **31 REAL, not ~42**, and its largest family is 95% elision artifact. `date` is absent
+because the work already shipped: `getTime` is in `VERBS`, added 2026-09-04.
+
+### The differential — the only thing that turns an attribution count into work (LESSON 1)
+
+A row was written for **every method in both families**, each given the most favourable plausible
+phrase — `forEach`, `push`, `includes`, `indexOf`, `splice`, `some`, `every`, `shift`, `unshift`,
+`error`, `info`, `warn`, `debug`, `log`, `emit` — and all 33,918 statements were rendered twice and
+compared positionally.
+
+```
+statements compared 33918     MOVED 24
+   includes 9    push 9    forEach 4    every 2
+   log: error, info, warn, debug, log, emit  ->  0
+```
+
+**`log` is 286 sites, 7 REAL, and ZERO reachable.** Six rows covering every method in the family
+changed not one clause. That family is not vocabulary work by measurement, not by argument.
+
+### The 24 that did move fail the project's OWN recorded criteria
+
+Not my taste — the two criteria already written into `node-kind-rules.js`.
+
+**1. The value contract, the exact reason `.then` was refused.** *"Every entry is a COLLECTION
+TRANSFORM and the output is a NOUN PHRASE naming a value, where the base IS the thing transformed."*
+`includes`/`every` evaluate to a **boolean**, `push` to a **length**, `forEach` to **undefined**. The
+base is never the value. Measured consequence — of the moved sites whose call takes a simple named
+argument, **12 of 14 DROP that argument**:
+
+```
+.push(shb.subscriptionId)  ->  call `acc` at `shb.buildingId` with an item appended
+.includes(searchLower)     ->  return either `chargeId` in lower case then checked for membership …
+```
+
+The meaning of `.includes(x)` and `.push(x)` **is** the argument, and a noun phrase over the base
+structurally cannot carry it. `chargeSearchUtils.ts:13` loses `searchLower` outright — the needle
+being searched for disappears from a clause that previously named it.
+
+**2. The `replace` refusal, verbatim: *"A verb whose phrase reads the same four times in a row names
+the callee, not the result."*** Three of the 24 repeat one added phrase inside a single clause:
+
+```
+automation.ts:46
+  return `data.text` checked for membership and either `data.text` checked for membership
+         or `data.text` checked for membership
+```
+
+### The census, in the four buckets asked for
+
+Of the cell as it actually measures today (310 sites, 31 REAL):
+
+| bucket | count |
+|---|---|
+| **genuine missing vocabulary** | **0** |
+| elision artifact (`log`) | 272 |
+| one-char artifact | 5 |
+| escape artifact | 2 |
+| already shipped (`date` → `getTime`) | — the family is gone from the table |
+| unreachable by a vocabulary row — the method's value is not its base | 24 |
+| aliases | 0 found |
+
+### Ruling this lane makes on its own work: DEMOTE THE WORKSTREAM
+
+The ~42 ceiling was the last argument for the phrasebook vocabulary workstream, and it measures
+**zero**. All four families are now measured: 4, 0, 0, and 0. **No further vocabulary rows should be
+written.** A measured zero is the result, and it is a better one than a rule earning four sites.
+
+**The honest limit of this audit.** It prices *vocabulary rows*, which is what the item is about. It
+does **not** prove the 24 arrayMutation sites are unreachable by *any* mechanism — a statement-level
+rule naming receiver **and** argument is a different shape and was not measured here. That is a new,
+unranked question, not a continuation of this workstream, and it is not proposed.
+
+**Nothing was changed.** `node-kind-rules.js` was restored byte-identically after the probe
+(`git diff` empty). Byte-identity **1037/1037 FAILURES 0**. Coverage TOTAL read fresh:
+`33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged, as no engine file moved.
+The promise `.then`/`.catch`/`.finally` slice was not touched.
