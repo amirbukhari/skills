@@ -8591,3 +8591,110 @@ a separate commit, and it is not in this item's scope.
 **This closes the vocabulary chapter.** Of the seven families in the table, five are paused with
 evidence against the ceiling, one (promise) was refused with the row built and rendered, and these
 two were the only reachable ones. There is no eighth family to try.
+
+## CENSUS of the 369 NEITHER sites — 325 of them are already correct (2026-09-04)
+
+**Census only. No rule was written and no renderer file was touched this pass.**
+
+The NEITHER bucket has exactly two sources in `phrasebook-worklist.js`, and the census keeps them
+apart because they are different questions: a site with **no head expression** (`headOf` returns
+null, line 350), and a site whose **head has a head but nothing attributable** — `siteMissing` empty
+AND `acc0.method` falsy (line 374). A probe copy of the driver, patched only to collect at those two
+points, reproduces the partition exactly: **369 = 146 no-head + 223 head**.
+
+### The partition — disjoint, exhaustive, sums to 369
+
+| # | bucket | n | where the content lives | reachable? |
+|---|---|---|---|---|
+| 1 | `return;` — statement carries no expression at all | **145** | nowhere; there is no content | **no, and none needed** |
+| 2 | `ExportAssignment` (`export default {…}`) | **1** | the object literal's properties | yes in principle, n=1 |
+| 3 | `return null/true/false/[]/{}` | **180** | nowhere; the value IS the whole content | **no, and none needed** |
+| 4 | `return '<string literal>'` | **10** | the `StringLiteral` head, which `P.literal` visits and deliberately generalises | **yes** |
+| 5 | optional-chaining mismatch (`a?.b` in source, `` `a.b` `` in clause) | **12** | already rendered; the METRIC cannot match it | no — a credit, not a rule |
+| 6 | head RENDERS, clause still generic | **12** | already rendered; the METRIC cannot match it | no — see below |
+| 7 | head declines, no blocker attributable (`instanceof`, `in`) | **9** | the `BinaryExpression` operator, a position the rule DOES visit | **yes** |
+| | **145 + 1 + 180 + 10 + 12 + 12 + 9** | **369** | | |
+
+Bucket 1 is one distinct source text across all 145 sites: `return;`. Verified by set-collapsing
+the source of every member.
+
+**Buckets 1 and 3 together are 325 of 369 — 88% of the bucket — and every one of them is ALREADY
+THE COMPLETE TRUTH ABOUT ITS STATEMENT.** `return;` → "return". `return [];` →
+"return an empty list". `return null;` → "return nothing". There is no content in the statement that
+the clause fails to carry. They score generic because `isSiteSpecific` requires a QUOTED run and
+these clauses are perfect prose that quotes nothing. **A rule cannot improve them, because there is
+nothing to improve.** That is the census answer, and it is a good one.
+
+### Buckets 4, 5, 6, 7 — read individually, all 43
+
+- **4 — `return '<string>'` (10).** Clause is "return some text"; the literal's words are dropped.
+  Six carry real message text (`invoices.ts:40` — `return 'error, chatbot failed to provide an
+  invoice number to the function';`). **Four are `return '';`, where "return some text" is not
+  merely thin but WRONG** — the text is empty (`EHydraCreditNoteState.ts:21`, `apiHelper.ts:209`,
+  `tools.ts:51`, `tools.ts:190`). Reachable: the content is in the head, which `P.literal` visits.
+- **5 — optional chaining (12).** `clientMonthly.ts:79` renders "return `accountRecord.accountId`"
+  for `return accountRecord?.accountId;`. The clause is correct and fully site-specific by eye;
+  `stmtText.includes("accountRecord.accountId")` is false because the source reads `?.`. **This is a
+  FIFTH report-only artifact class, exactly parallel to elision / one-char / escape**, and it is a
+  credit, not a renderer change.
+- **6 — head renders, clause still generic (12).** The phrasebook CAN name the head, and in most of
+  these the emitted clause is BETTER than what the head would render:
+  `helpers.ts:79` emits "“Two APTU records (…, …) have no `stop_time`”" while the head yields
+  "whether `a.stopTime` is nothing and whether `b.stopTime` is nothing". **Rewiring this bucket
+  would replace good prose with worse prose** — the exact hazard `phrasebook-worklist.js`'s own
+  header warns about. Not work; a scoring artifact.
+- **7 — `instanceof` / `in` (9).** `invoices.ts:561` emits "if a condition holds, throw" for
+  `if (err instanceof Error)`. `BINARY_OPS` has no row for `instanceof` (8 sites) or `in` (1 site),
+  so `BinaryExpression` declines; it declines on its OWN vocabulary, so `siteDeclined` records it
+  but `siteMissing` stays empty and the site lands in NEITHER rather than in either table.
+  **This is the only bucket that is a straightforward vocabulary gap in a position a rule visits.**
+
+### LESSON 1 — every number above is COULD-FIRE, not a work estimate
+
+**Candidate renderer work is buckets 2 + 4 + 7 = 20 could-fire sites out of REAL 601.** That is a
+count of sites where a rule *could speak*, not of sites where it would say something better. It
+becomes an improvement-site count only after a full-corpus differential diffed on clause text with
+every change read individually — the method that turned 114 into 35, 45 into 0, and 4+~3 into 13.
+**A re-measure of 0 that closes an item with no code change is a good result.** Buckets 5 and 6 (24
+sites) are metric artifacts and are not renderer work at all; buckets 1 and 3 (325 sites) are not
+work of any kind.
+
+### Cross-reference: the earlier "146 no-head" and "192 ReturnStatement" findings
+
+- **146 AGREES, exactly.** The driver's own `(no single head expr)` row prints **146** and the REAL
+  no-head subset is also **146** — so *zero* no-head sites are credited by elision, one-char or
+  escape. Unchanged across the ladder's move from 642 to 601.
+- **192 is now 190. THE REPO WINS — the correct number is 190**, and no attempt is made here to
+  reconcile the two. The 192 was a *sampled* classification of 259 sites on the 642 ladder; this is
+  an exhaustive collection at the attribution point on the 601 ladder. It is buckets 3 + 4
+  (180 + 10).
+- **The earlier "~46 sites where the ladder never asks" is now at most 33** (buckets 5 + 6 + 7).
+  The intervening ladder commits absorbed the rest. "~46" was explicitly approximate, so this is a
+  shrink, not a contradiction.
+
+### PRESSURE ON THE FROZEN METRIC — recorded, NOT taken
+
+Two distinct pressures, and the first correction matters because the banked item states it wrongly.
+
+1. **`isSiteSpecific`'s `bare.length >= 2` is IRRELEVANT to buckets 1 and 3, and the banked
+   "192-ReturnStatement" item is wrong to call it "the same threshold question as the 117".**
+   `>= 2` is a test on the LENGTH of a quoted run. Clauses like "return an empty list" contain
+   **zero** quoted runs, so `quoted` is empty and the loop never executes — widening `>= 2` to `>= 1`
+   would change nothing for any of those 325 sites. They would need a *different predicate entirely*
+   (one that can score a clause that is correct prose while quoting nothing), which is a much larger
+   ruling than the one banked. Recorded so the next session does not spend the pass discovering it.
+2. **`isSiteSpecific`'s tokeniser cannot see a backticked identifier inside a “…” run, and that is
+   why six of bucket 6 score generic.** Measured: `/`[^`]+`|“[^”]+”/g` is an ordered alternation, so
+   on `“Missing \`partnerId\`s from \`LiftPartner\` table: …”` the “…” branch matches first and
+   consumes the whole clause; `quoted` is ONE run whose bare text contains `…` and is not in the
+   source. Meanwhile `partnerId` **is** in the source (`generateOneTimeInvoiceForPartner.ts:30`
+   writes ``\`partnerId\`s`` inside the template), so the inner run alone would score site-specific.
+   The defect is in the metric's tokeniser, not in the renderer.
+
+**Neither pressure is taken.** `clause-quality.js` is byte-for-byte unchanged, `SAYS_NOTHING` is
+unchanged, `bare.length >= 2` is unchanged, no assertion, gate or exit code was touched, and no
+published series figure moved. Both are Amir's rulings to make.
+
+**Guardrails re-verified on HEAD `6467920`, not inherited from the pre-commit run:**
+`test-gen-roundtrip.js` → files 1037, byte-identical **1037**, FAILURES **0**.
+Coverage TOTAL → 33918 statements, 32195 site-specific, generic **1654**, 42 passed / 10 failed.
