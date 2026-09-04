@@ -115,6 +115,52 @@ function contentId(words, id, memo) {
   return sha256(contentOf(patternOf(words, id, memo))).slice(0, CID_HEX);
 }
 
+/* THE ID THE PAYLOAD CAN ACTUALLY CARRY — 53 bits, decimal.
+ *
+ * WHY NOT THE 64-BIT HEX ID ABOVE. `contentId` is the content address; it is NOT a payload id, and
+ * putting it on the payload path would be an R-PAY-1 DIALECT CHANGE. Measured, not read:
+ *
+ *   payload.js:233   `out = TAG + " " + axis + obj.w`     interpolates a NUMBER
+ *   payload.js:272   scans `text[i] >= "0" && text[i] <= "9"`   DIGITS only
+ *   word-names.js:100,103   `leavesOf(axis, +id)` and `id: +id`
+ *
+ *   +"126347"    -> 126347      exact
+ *   +"3f2a1b9c"  -> NaN         silently, at both word-names sites
+ *
+ * So the decimal leg survives every shipped consumer unchanged and the hex leg does not. THAT is
+ * what makes hex the dialect change — not the width.
+ *
+ * WHY 53 IS THE EXACT NUMBER AND NOT A ROUND ONE. An unsigned 53-bit integer spans [0, 2**53 - 1],
+ * and `Number.MAX_SAFE_INTEGER` IS 2**53 - 1. The widest id this construction can emit is exactly
+ * the largest value `payload.js` accepts — the guard's ceiling and the id space coincide with no
+ * slack and no unreachable region on either side.
+ *
+ * THE PRICE, MEASURED ON THE SHIPPED DICTIONARY rather than argued:
+ *
+ *     axis     words    distinct content   @24 bits   @53 bits   @64 bits
+ *     narrow   126348   126348             436 coll   0 coll     0 coll
+ *     wide     118447   118447             427 coll   0 coll     0 coll
+ *
+ * E[collisions] at 53 bits is 8.86e-7 (narrow) and 7.79e-7 (wide) — about one collision per
+ * million corpora of this size. The @24 column is the NEGATIVE CONTROL: it reproduces the 436/427
+ * this file's own table already records, so the zero at 53 bits is a measurement that could have
+ * come back non-zero, not a tautology.
+ *
+ * Derived from the SAME bytes as `contentId` — the top 53 bits of its 64 — so the two can never
+ * disagree about what a word's content is, and a test can assert that relationship directly. */
+const CID_BITS = 53;
+
+function contentIdDecimal(words, id, memo) {
+  const hex = contentId(words, id, memo);
+  const n = BigInt("0x" + hex) >> BigInt(CID_HEX * 4 - CID_BITS);
+  const out = Number(n);
+  /* Cannot fire by construction — 53 bits cannot exceed 2**53 - 1. Present because "cannot fire by
+   * construction" is exactly the claim this project has been wrong about before, and the cost of
+   * being wrong here is a silently rounded id. */
+  if (!Number.isSafeInteger(out)) throw new Error("content-id: 53-bit reduction produced an unsafe integer for id " + JSON.stringify(id));
+  return out;
+}
+
 /* The fields rekeyAxis KNOWS. Anything outside these is REFUSED, never dropped.
  *
  * WHY A REFUSAL AND NOT A WHITELIST-AND-CARRY-ON. The first version of this function rebuilt each
@@ -166,14 +212,25 @@ function rekeyAxis(axis) {
   const out = Object.create(null);
   const owner = new Map();        // content id -> old id that claimed it
 
-  for (const id of Object.keys(words)) map.set(id, contentId(words, id, memo));
+  /* THE DECIMAL LEG, NOT THE HEX ONE (R-PAY-6 ruling). This used `contentId` — 16 hex characters —
+   * and that produced an artifact NOTHING COULD RENDER. Measured on a three-word dictionary:
+   *
+   *     rekeyAxis id             "6e94fde0d8e094da"
+   *     +id  (word-names.js:100,103)   NaN
+   *     payload.encode                 refuses: word id must be a non-negative integer
+   *
+   * The payload refusal is loud, so this would have been caught; the `+id` NaN would not have been.
+   * A 53-bit decimal id passes both untouched, which is why the decimal leg is not a dialect
+   * change and the hex leg is. `contentIdDecimal` is the top 53 bits of the SAME 64-bit content
+   * address, so nothing about what a word's content IS has changed here — only its surface. */
+  for (const id of Object.keys(words)) map.set(id, String(contentIdDecimal(words, id, memo)));
 
   for (const id of Object.keys(words)) {
     const cid = map.get(id);
     const prev = owner.get(cid);
     if (prev !== undefined) {
       throw new Error(
-        "content-id: CONTENT ID COLLISION at " + (CID_HEX * 4) + " bits — refusing to rekey\n" +
+        "content-id: CONTENT ID COLLISION at " + CID_BITS + " bits — refusing to rekey\n" +
         "  id " + cid + "\n" +
         "  claimed by word " + prev + " and word " + id + "\n" +
         "  Two different patterns would share one id, so an .en citing it would compile to\n" +
@@ -244,4 +301,4 @@ function rekeyAxis(axis) {
   return { words: out, leaf, ext, map };
 }
 
-module.exports = { CID_HEX, patternOf, contentOf, contentId, rekeyAxis };
+module.exports = { CID_HEX, CID_BITS, patternOf, contentOf, contentId, contentIdDecimal, rekeyAxis };

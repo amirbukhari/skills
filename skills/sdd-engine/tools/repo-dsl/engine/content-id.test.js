@@ -178,5 +178,41 @@ for (const axisName of ["narrow", "wide"]) {
     "an axis field outside the known set is REFUSED — it might carry ids" + (threw ? "" : " (did not throw)"));
 }
 
+/* ---- 7. THE REKEYED IDS ARE PAYLOAD-LEGAL — the decimal leg, pinned ----
+ *
+ * WHY THIS SECTION EXISTS. rekeyAxis used the 64-bit HEX content id and every assertion above
+ * still passed, because none of them asked what the id's SURFACE was — only that it was stable,
+ * injective and that the automaton edges landed. A hex id satisfies all of that and is still
+ * unrenderable: `+id` (word-names.js:100,103) is NaN and payload.encode refuses it outright. So
+ * the sections above cannot catch a regression back to hex, and this one can.
+ *
+ * NEGATIVE CONTROL, run first: the hex id this function used to emit is asserted to FAIL both
+ * checks. Without it, "every id is payload-legal" is a claim with nothing to compare against. */
+{
+  const P = require("./payload.js");
+
+  const hexish = CID.contentId({ 0: { len: 1, d: 0, sym: "alpha" } }, "0", new Map());
+  ok(/^[0-9a-f]{16}$/.test(hexish), "control: contentId still returns 16 hex characters (the content ADDRESS)");
+  ok(Number.isNaN(+hexish), "control: and that surface is NaN under `+id` — so this check can fail");
+
+  const axis = cat.narrow;
+  const { words } = CID.rekeyAxis(axis);
+  let bad = 0, worst = -1;
+  for (const id of Object.keys(words)) {
+    const n = +id;
+    if (!Number.isSafeInteger(n) || n < 0) bad++;
+    if (n > worst) worst = n;
+  }
+  eq(bad, 0, `every rekeyed narrow id is a safe non-negative integer (${Object.keys(words).length} ids)`);
+  ok(worst <= Number.MAX_SAFE_INTEGER,
+    `and the widest is within the payload dialect: ${worst} <= ${Number.MAX_SAFE_INTEGER}`);
+
+  /* END TO END on a real id: derived from content, carried by the payload, read back identical. */
+  const sample = Object.keys(words)[0];
+  eq(P.decode(P.encode({ a: "n", w: +sample })).w, +sample,
+    "a rekeyed id round-trips through the payload unchanged");
+  console.log(`  narrow: widest rekeyed id ${worst}  (MAX_SAFE_INTEGER ${Number.MAX_SAFE_INTEGER})`);
+}
+
 console.log(`content-id.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -10981,3 +10981,97 @@ failure came back **byte-identical**, on `headings.map` vs `headings` — the si
 disk, so the drifted-file count is higher than the 104 recorded earlier. It clears with the same
 single re-render, which is **authorised but currently blocked at the permission layer** — the
 sandbox denied `node write-en-files.js`. Nothing was adjusted to work around that.
+
+## R-PAY-6 BLOCKER — the decimal leg VERIFIED, the id derived from content, slice 2 NOT complete
+
+**The ruling's evidence, re-verified against the repo rather than taken on trust. It holds, with one
+line-number correction: `c30eb59` shifted those lines.**
+
+| ruling cites | actual today | verdict |
+|---|---|---|
+| `payload.js:230` interpolates the number | **`:233`** `out = TAG + " " + axis + obj.w` | holds |
+| `payload.js:267`/`:269` scan digits | **`:272`**/`:275` | holds |
+| `word-names.js:100`,`:103` do `+id` | `leavesOf(axis, +id)`, `id: +id` | holds verbatim |
+
+Measured: `+"126347"` → `126347`; `+"3f2a1b9c"` → **`NaN`**. The decimal leg survives every shipped
+consumer untouched and the hex leg does not. **That asymmetry, not the width, is what makes hex an
+R-PAY-1 dialect change.** R-PAY-1 was not touched; no hex was introduced on the payload path.
+
+### 1. The guard is now SHOWN able to fire — `engine/payload.test.js` (new, 23 assertions)
+
+`payload.js` had no test at all. The new file's section 1 asserts the raw JavaScript facts that made
+the old guard insufficient — `Number.isInteger(2**53)` is `true`, `Number.isInteger(18446744073709551615)`
+is `true`, and `2**53 === 2**53+1` — so section 2's refusals have something to be measured against.
+
+**The negative control, run rather than described.** `git show c30eb59~1:./engine/payload.js` was put
+in place of the current file and the suite re-run:
+
+```
+against the PRE-GUARD payload.js       20 passed, 3 failed   (exit 1)
+   FAIL  encode REFUSES 2**53                       DID NOT THROW
+   FAIL  encode REFUSES a rounded 64-bit id         DID NOT THROW
+   FAIL  decode REFUSES an out-of-dialect id        DID NOT THROW
+against the current payload.js         23 passed, 0 failed
+```
+
+The guard also stops **at** the edge and not before it: `MAX_SAFE_INTEGER` itself round-trips, and so
+does id `0`. A merely conservative guard would pass the refusal tests while silently shrinking the id
+space.
+
+### 2. The id is now derived from CONTENT — `contentIdDecimal`, 53 bits
+
+`contentIdDecimal(words, id)` = the **top 53 bits of the same 64-bit content address** `contentId`
+already computes, so the two can never disagree about what a word's content is.
+
+**53 is exact, not round: an unsigned 53-bit integer spans `[0, 2**53 - 1]`, and `Number.MAX_SAFE_INTEGER`
+IS `2**53 - 1`.** The id space and the guard's ceiling are the same number — no slack, no unreachable
+region. Measured on the shipped dictionary, the widest rekeyed narrow id is **9,007,177,720,278,734**
+against a ceiling of 9,007,199,254,740,991, so the space is genuinely used to the top.
+
+**The collision price, measured on the shipped dictionary — the number, not a wave at it:**
+
+| axis | words | distinct content | @24 bits | @53 bits | @64 bits |
+|---|---|---|---|---|---|
+| narrow | 126,348 | 126,348 | **436** | **0** | 0 |
+| wide | 118,447 | 118,447 | **427** | **0** | 0 |
+
+`E[collisions]` at 53 bits is **8.86e-7** (narrow) and **7.79e-7** (wide) — about one collision per
+million corpora of this size. **The @24 column is the negative control and it reproduces slice 1's
+own 436/427 exactly**, so the zero at 53 bits is a measurement that could have come back non-zero.
+
+### 3. A REAL DEFECT FOUND IN SLICE 1: `rekeyAxis` was building an unrenderable artifact
+
+`rekeyAxis` keyed on `contentId` — the **64-bit hex** id. Measured on a three-word dictionary:
+
+```
+rekeyAxis id                    "6e94fde0d8e094da"
++id   (word-names.js:100,103)   NaN
+payload.encode                  refuses: word id must be a non-negative integer
+```
+
+Every one of slice 1's 32 assertions passed with that in place, because none of them asked what the
+id's **surface** was — only that it was stable, injective, and that the automaton edges landed. A hex
+id satisfies all three and is still unrenderable. `rekeyAxis` now uses the decimal leg, and
+**content-id.test.js section 7 (new) pins it, carrying its own negative control** so a regression to
+hex cannot pass again. 32 → **37 assertions**, all green over the real 244,795-word dictionary, with
+`expandKey moved on 0` on both axes.
+
+### 4. SLICE 2 IS NOT COMPLETE, and the guard did not complete it either
+
+Stated plainly because the ruling asked for it. What exists now is the **derivation**, proven and
+priced. What does not exist is the **wiring**. Blast radius, grepped: `content-id.js` is required by
+**`content-id.test.js` and `payload.test.js` and nothing else** — it is not on the render path.
+
+Three pieces remain, none of them doable from here:
+
+1. **The producer.** Ids are still allocated as `dict.length`, i.e. mining order. Making a mine emit
+   content ids needs a mine, which is behind an explicit ask.
+2. **The shipped artifact.** `generators-lzw.json` still carries positional ids; rekeying it is an
+   artifact write.
+3. **The corpus.** Every `.en` cites word ids in its payload markers, so all 1,037 must be
+   re-rendered — a corpus write, and `node write-en-files.js` is currently denied at the permission
+   layer.
+
+**Fresh figures.** Byte-identity before **1037/1037 FAILURES 0** and after **1037/1037 FAILURES 0**.
+Coverage TOTAL read fresh: `33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged
+from the CLASS 4 commit, as expected, since nothing on the render path moved.
