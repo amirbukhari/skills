@@ -11657,3 +11657,145 @@ re-render, and **this commit turns it red again**: 65 clauses now differ from th
 That is the expected, understood consequence of any renderer change, and it clears with one
 `write-en-files.js` run — but Amir's authorisation was for that single run and it has been spent.
 **Not re-run, not asked for sideways.** The drift queue restarts here at 65 sites / 42 files.
+
+---
+
+## `receiver-shapes` — R-LANG-24 at the shapes the receiver rung could not reach (8 sites, 6 files)
+
+### THE BRIEF SAID THIS WAS UNBUILT. THE REPO SAYS IT SHIPPED, AND THE REPO WINS.
+
+The item was handed to me as *"a rule for a call used as a statement that reads out the receiver
+(``call `set` on `acc` ``) rather than the bare method (`call set`)"*, with §5D.3G §11's gains
+described as the prize for building it. **That rule is already in the tree.**
+`tools/prd/11-requirements-register.md:175` records R-LANG-24 as implemented and measured at
+`1b20b62` — corpus identifiers 77,766 → 82,975, namable leaves 20 → 6, 14 authored names retired —
+and `enfile.js:1433` carries the rule with its own comment above the working rung. The §11 gains
+have already happened; they are not available to be won twice.
+
+What I actually parked at 04:00 (this file, the `class-4` section) was the narrower thing: the
+statement rung **could not name a receiver that is not a plain dotted name**, because `dottedText`
+declines those and every later rung is reached only once this one has passed.
+
+### THE CLASS, MEASURED FRESH — 71 SITES IN 44 FILES, NOT 8
+
+The 8 in the brief is a COULD-FIRE / attribution figure (LESSON 1). Measured over all 33,918
+statements, method-call statements whose receiver is not a plain dotted name:
+
+| receiver shape | sites | example | renders today |
+|---|---:|---|---|
+| a CALL | 54 | `getManager('hydra').save(...)` | `await save` |
+| an ELEMENT ACCESS | 8 | `acc[lineId].push(ui)` | `call push` |
+| await / parenthesised | 7 | `(await acc).push(...p)` | `await push` |
+| an ARRAY LITERAL | 2 | `[a, b].forEach(...)` | `call for each` |
+| | **71** | in **44** files | |
+
+A further **303** method-call statements never reach this rung at all: an EARLIER rung claims them
+and reads better — `log a message “… cpus available”`, ``serve GET `/` ``. They are not in the
+class and none of them moved.
+
+### THE LEAD-IN QUESTION, DECIDED AGAINST AMIR'S CRITERION
+
+Amir's ruling, verbatim, spelling kept: *"I want to be able to type English and get deterministic
+code. If grammer rules is the answer then that's what we do. And we do our naming of our patterns
+in a way that fits the grammer then"*. Naming is SUBORDINATE to grammar — a lead-in must EXPAND a
+production, never REPLACE it.
+
+So the question asked of each shape was **not** "can I word it?" but **"does the phrasebook already
+produce a noun phrase for this receiver?"** — filling the existing `‹verb› ‹method› on ‹receiver›`
+slot with a phrase the phrasebook already emits is expansion; coining one is replacement. Measured
+by rendering each of the 71 receivers through `NKR.render`:
+
+| shape | renders | outcome |
+|---|---:|---|
+| element access | 8 of 8 | **REACHED** |
+| array literal | 2 of 2 | declined by judgement |
+| await / parenthesised | 1 of 7 | declined by judgement |
+| a call | **0 of 54** | **REFUSED BY CONSTRUCTION** |
+
+**The 54 are a refusal with evidence, not an omission.** The phrasebook's `CallExpression` rule
+declines any method outside its `VERBS` list, and `getManager`, `where`, `orWhere`,
+`mockResolvedValue` are all outside it. There is no production to expand, so naming those receivers
+would mean coining a lead-in — precisely what the ruling forbids. They stay as they are, and this is
+the item's answer, not a gap in it.
+
+**The 2 + 1 that COULD render are declined deliberately, and that is a judgement, not a mechanism.**
+Both glosses SYNTHESISE structure words instead of naming something in the source — *"…, and 30 more
+entries as a list"*, *"`invoice.splitIds` if it is set, otherwise an empty list"*. Hung off a
+statement verb, that trailing qualifier reads as if it conditioned the CALL. **That is the same
+falseness the optional-chain reach was cut back to avoid**, and the line drawn here is the same one:
+reach only where the receiver gloss names things that are IN THE SOURCE. An element access names
+two — the base and the index.
+
+### NO PHRASING WAS COINED
+
+The receiver slot now also accepts the phrasebook's own `ElementAccessExpression` rule,
+``base + " at " + idx`` (`node-kind-rules.js:368`). `enfile.js` already emits that exact wording in
+this same `call ` frame at the `call ‹elem›` rung (`enfile.js:1382`) and through `elemAccess` in the
+return ladder. One production, widened by one slot; no new terminal.
+
+**The dotted-base bar is load-bearing and is shown able to fail.** Against a copy of `enfile.js`
+with that bar removed, `getRows()[0].push(x)` renders ``call `push` on the result of `getRows` at
+`0` `` — a synthesised noun in a slot meant for source names. `acc[compute(k)].push(x)` declines
+even in that wider cut, so its gate's control is the phrasebook's OWN index decline, not this rung's
+bar. Recorded rather than claimed.
+
+### WHAT MOVED — 8 SITES, 6 FILES, READ INDIVIDUALLY
+
+Positional differential over all 33,918 statements, walk order, before vs after: **MOVED 8**, and
+nothing else. Every one is `‹base›[‹key›].push(‹x›)`, every one said `call push` before, and every
+base and index below was checked against the source line:
+
+| file:line | now |
+|---|---|
+| `findAptusWithoutMatchingSuip.ts:52` | ``call `push` on `groupedBySuiteType` at `suiteTypeId` `` |
+| `doMultipleSubscriptionsHaveSameBuilding.ts:40` | ``call `push` on `acc` at `shb.buildingId` `` |
+| `doMultipleSubscriptionsHaveSameBuilding.ts:56` | ``call `push` on `acc` at `baseId` `` |
+| `documentNotifications.ts:71` | ``call `push` on `acc` at `docTypeKey` `` |
+| `report.infinity_bundle_properties_journal_entries.ts:30` | ``call `push` on `groups` at `clientKey` `` |
+| `report.infinity_bundle_properties_journal_entries.ts:46` | ``call `push` on `groups` at `glCodeKey` `` |
+| `invoices.ts:670` | ``call `push` on `acc` at `lineId` `` |
+| `apiHelper.ts:236` | ``call `push` on `results` at `sub_id` `` |
+
+**0 lose a name.** The method was already there; the receiver is added beside it.
+
+**That the class of 71 yielded exactly 8 moved, and the brief's could-fire figure was also 8, is a
+coincidence.** The two numbers count different things and are not evidence for one another.
+
+### MEASUREMENTS
+
+| | before (`7dc5388`) | after |
+|---|---|---|
+| byte-identity | `files: 1037  byte-identical: 1037  FAILURES: 0` | `files: 1037  byte-identical: 1037  FAILURES: 0` |
+| coverage TOTAL | `33918 32248 95% 1608 5% 62 0` | `33918 32256 95% 1600 5% 62 0` |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| `receiver-shapes.test.js` | — | **9 passed** |
+| `callee-inputs.test.js` | 7 passed | 7 passed |
+| `optional-chain.test.js` | 13 passed | 13 passed |
+| `enfile.test.js` | 5 passed, corpus FAIL | 5 passed, corpus FAIL |
+
+The ladder moved by exactly the 8 sites and by nothing else: site-specific +8, generic −8, vacuous
+62 unchanged, un-clausable 0 unchanged. Unlike the last two commits this one IS a coverage change as
+well as a truth change — the 8 gain a quoted name that is verbatim in their statement.
+
+**Shown able to fire:** against `7dc5388`, **2 of the 9** new assertions FAIL — the two reaches. The
+other 7 are gates and controls; they pass at the parent by construction, so their negative control is
+the wider cut recorded above, not the parent.
+
+### `name-words.js retire`, RE-RUN PER §5D.3G §11 — AND NOT APPLIED
+
+Dry run: `word-names` holds 4 leaf names; 1 is now rule-covered, 2 still unreached, 1 not in the
+plan. Concrete identifiers across 1037 files: **53,791 → 53,791, no change.**
+
+**The one retirement candidate is not mine.** It is a RETURN-position name
+(*"return array if property exceeds threshold else null"*); this commit touches only the
+ExpressionStatement call rung. It is a pre-existing candidate, so applying it here would sweep an
+unrelated change into a commit whose message describes something else (CLAUDE.md §7). **Run, not
+applied** — `word-names.json` is untouched, and the candidate is reported for ranking rather than
+actioned.
+
+### DRIFT
+
+This commit adds **8 sites in 6 files** to the drift queue, 1 of those files already in it. The
+lane's queue now stands at **73 sites in 47 files**. `enfile.test.js`'s corpus case stays RED, in
+the same way and for the same reason. **The re-render authorisation is spent and was not re-run,
+not asked for sideways, and not worked around.**

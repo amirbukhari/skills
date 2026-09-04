@@ -1457,6 +1457,25 @@ function spanActions(win, sf) {
              * were a variable would be worse than saying nothing about it. */
             const recv = dottedText(e.expression.expression, sf);
             if (recv) { actions.push(verb + q(e.expression.name.text) + " on " + q(recv)); continue; }
+            /* THE RECEIVER IS AN ELEMENT ACCESS -- `acc[lineId].push(ui)` rendered "call push",
+             * the method alone, because `dottedText` declines an element access and every later
+             * rung is reached only once this one has passed.
+             *
+             * THIS WIDENS THE RECEIVER SLOT; IT DOES NOT ADD A PRODUCTION. The rung is still
+             * `‹verb› ‹method› on ‹receiver›`, and the noun phrase now allowed into that slot is
+             * the phrasebook's OWN ElementAccessExpression rule -- "`acc` at `lineId`" -- which
+             * this file already emits, in this same "call " frame, at the `call ‹elem›` rung
+             * above, and in the return ladder through `elemAccess`. No phrasing is coined here.
+             *
+             * THE BASE MUST BE A PLAIN DOTTED NAME, which is the bar `dottedText` sets one line
+             * up. It keeps the slot filled with two names the reader can grep for -- the base and
+             * the index -- and declines any base the phrasebook would have to SYNTHESISE. That is
+             * where this reach stops, and the shapes it therefore leaves alone are recorded in
+             * receiver-shapes.test.js as gates, with the evidence for each. */
+            const eaRecv = e.expression.expression;
+            const ea = ts.isElementAccessExpression(eaRecv) && dottedText(eaRecv.expression, sf)
+              ? elemAccess(eaRecv, sf) : null;
+            if (ea) { actions.push(verb + q(e.expression.name.text) + " on " + ea); continue; }
           } else if (ts.isIdentifier(e.expression)) {
             actions.push(verb + q(e.expression.text)); continue;
           }
