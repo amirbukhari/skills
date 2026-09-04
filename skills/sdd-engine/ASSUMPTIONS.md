@@ -10923,3 +10923,61 @@ Grepped: the only site-specificity cell is **R-LANG-4** (register:159), which go
 rule (*"A leaf MUST be named only where `spanProse` has nothing site-specific to say"*), not the
 *measure*. Recording this as a new register row would be authoring a requirement, which is not a
 lane's to do. Recorded here only.
+
+## CLASS 4 — a return is not named after one part of a compound expression (32 sites)
+
+Top unclaimed item on the ranked backlog (`.pepper/lists.md:101`, rank 2 from the 340-site census at
+`9a5a4b1`). **The premise was re-measured against today's tree before any edit, and it reproduces
+exactly**: 2,990 returns with an expression, **106** reach the `firstCallName` rung, **74** correctly
+(the outermost callee IS the returned value) and **32** wrongly.
+
+**The backlog says these are THIN. Several are FALSE, and that is the stronger reason to fix them.**
+
+| code | clause before |
+|---|---|
+| `return !existingSnapshotKeys.has(snapshotKey)` | `return has` — states the **un-negated** thing |
+| `return !!setClientRerunsToErrorState([ intVal(id) ])` | `return set client reruns to error state` |
+| `return (new Date(expiry)).getTime() < Date.now()` | `return get time` — the value is a **boolean** |
+| `return errorResponse && (typeof errorResponse.status === 'number' \|\| …)` | `return is array` |
+
+`firstCallName` walks the **whole statement** and takes the first call it finds anywhere, so a call
+buried in one operand was named as though it were the returned thing. This is the same defect as the
+callee enumerated among its own inputs (class 3, `655c55e`) one rung over: **a clause assembled from
+a name reached out of the middle of an expression.**
+
+**The fix is a REFUSAL, not a wider reach.** `enfile.js` admits `firstCallName`'s answer only when
+the call IS the value being returned; otherwise the rungs below describe the whole expression, which
+they already do truthfully. Nothing was widened and no check was weakened.
+
+**Differential, measured both ways over all 2,990 returns, positionally aligned:**
+
+```
+returns compared 2990   MOVED 32   unchanged 2958
+```
+
+The 32 are exactly the census's 32; the 74 correct sites are untouched. Every moved clause becomes
+true, and every one now quotes real identifiers:
+
+```
+return (new Date(expiry)).getTime() < Date.now()
+  was  return get time
+  now  return a value worked out from `expiry` and `Date`
+
+return !existingSnapshotKeys.has(snapshotKey)
+  was  return has
+  now  return a value worked out from `existingSnapshotKeys` and `snapshotKey`
+```
+
+**Fresh figures.** Coverage TOTAL read fresh: `33918  32241  95%  1615  5%  62  0` — site-specific
+**32209 → 32241 (+32)**, generic **1647 → 1615 (−32)**, exactly the 32 sites and no collateral.
+`42 passed, 10 failed` unchanged. Byte-identity **files 1037 / byte-identical 1037 / FAILURES 0**.
+
+**`enfile.test.js`'s corpus case is still RED, and it is NOT mine.** Proven with a positive control
+rather than asserted: `git show HEAD:./engine/enfile.js` was run in place of the edited file and the
+failure came back **byte-identical**, on `headings.map` vs `headings` — the signature of the class-3
+`inputsOf` change in `655c55e`. It is the KNOWN, EXPECTED red recorded for the pending re-render.
+
+**This ADDS to the persisted-`.en` drift.** 32 more sites now render differently from what is on
+disk, so the drifted-file count is higher than the 104 recorded earlier. It clears with the same
+single re-render, which is **authorised but currently blocked at the permission layer** — the
+sandbox denied `node write-en-files.js`. Nothing was adjusted to work around that.

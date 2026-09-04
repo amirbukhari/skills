@@ -1165,7 +1165,30 @@ function spanActions(win, sf) {
       const viaRule = NKR.render(bare, sf, NKRP);
       if (viaRule) { actions.push("return " + viaRule); continue; }
       const c = firstCallName(st);
-      if (c) { actions.push("return " + P.words(c)); continue; }
+      /* CLASS 4 — A RETURN IS NOT NAMED AFTER ONE PART OF A COMPOUND EXPRESSION. `firstCallName`
+       * walks the WHOLE statement and takes the first call it finds anywhere, so it answered for
+       * returns whose value is a comparison, a negation, an object or a lambda, naming a call
+       * buried inside one operand as though it were the returned thing. Measured over the corpus:
+       * 106 returns reached this rung, 74 correctly (the outermost callee IS the subject) and 32
+       * wrongly. Those 32 are not merely THIN — several are FALSE:
+       *
+       *   return !existingSnapshotKeys.has(snapshotKey)   ->  "return has"        (the NEGATION)
+       *   return !!setClientRerunsToErrorState([ … ])     ->  "return set client reruns …"
+       *   return (new Date(expiry)).getTime() < Date.now()->  "return get time"   (a BOOLEAN)
+       *   return errorResponse && (typeof … === 'number') ->  "return is array"
+       *
+       * This is the same defect as the callee enumerated among its own inputs (`inputsOf`, class 3)
+       * one rung over: a clause assembled from a name reached out of the middle of an expression.
+       * The fix is a REFUSAL, not a wider reach — admit the name only when the call IS the value
+       * being returned, and let the rungs below describe the whole expression, which they already
+       * do truthfully ("return a value worked out from `a`, `b`"). */
+      let bareCallee = null;
+      if (c && ts.isCallExpression(bare)) {
+        const callee = bare.expression;
+        if (ts.isIdentifier(callee)) bareCallee = callee.text;
+        else if (ts.isPropertyAccessExpression(callee)) bareCallee = callee.name.text;
+      }
+      if (c && bareCallee === c) { actions.push("return " + P.words(c)); continue; }
       /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we
        * can truthfully say which values feed it, which is what a reader actually wants. */
       if (ts.isTemplateExpression(bare)) {
