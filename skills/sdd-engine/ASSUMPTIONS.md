@@ -10326,3 +10326,114 @@ refuse slice 1.
 question (CLAUDE.md §6)"* and that *"which closure lands is Amir's call"*. Q-1 is **CLOSED** and
 Amir **has** ruled (b). Recorded here rather than edited, to keep this commit to the derivation.
 
+
+## R-PAY-6 slice 2 SCOPING — the payload integer blocker, priced (record only)
+
+**This section adds no code and changes no behaviour.** It is the measurement asked for: enumerate
+the options for carrying a content-derived word id through `payload.js`, and price them on the
+shipped dictionary. **No option is chosen here.** The probe was read-only and ran in the scratchpad;
+nothing under `engine/` was modified by it.
+
+### 1. What `payload.js` accepts TODAY, unchanged — measured, not read
+
+```
+today's shape, id 123                 round-trips, marker `lzw1 n123⟨x`
+53-bit max, Number.MAX_SAFE_INTEGER   round-trips, marker `lzw1 n9007199254740991⟨x`
+2^53 (one past safe)                  round-trips, marker `lzw1 n9007199254740992⟨x`
+a 64-bit value as a Number            round-trips, marker `lzw1 n18446744073709552000⟨x`
+a 16-hex content id                   REFUSED — payload: word id must be a non-negative integer, got "a3f19c22bb04de71"
+decoding a hex marker                 threw — payload: generator payload carries no word id
+```
+
+Three facts follow, and the first one **corrects the framing this scoping was handed under**:
+
+- **A 53-bit decimal id is NOT a dialect change.** The encoder at `payload.js:230` interpolates the
+  number and the decoder at `:267` scans digits; `Number.MAX_SAFE_INTEGER` survives both legs today,
+  with the grammar byte-for-byte as shipped. "A content-derived INTEGER id keeps the surface" is not
+  an assumption — it round-trips.
+- **A hex id IS a dialect change, on both legs.** `encode` refuses it at `:228` and `decode` cannot
+  see it at `:267` (it scans `"0"`–`"9"` only, so `a3f1…` reads as *no id at all*). That is
+  R-PAY-1 grammar, it re-renders every `.en`, and it is **Amir's ruling, not mine.**
+- **The `Number.isInteger` guard at `:228` does not enforce the safe-integer ceiling, and the
+  failure is silent.** `2^53` passes it. `18446744073709551615` passes it *and encodes as*
+  `18446744073709552000` — the value was already rounded before the guard ever saw it, so two
+  distinct 64-bit ids can encode to the same marker with no error anywhere. **"64 bits as an
+  integer" is not merely unsafe in theory; it is measured, silent corruption.** If a 53-bit decimal
+  id is ever adopted, `:228` needs `obj.w <= Number.MAX_SAFE_INTEGER` added. That is a check being
+  **strengthened**, which is allowed; it is recorded here, not done here.
+
+### 2. Collision table on the SHIPPED dictionary (the width question)
+
+Measured per axis over the live `generators-lzw.json`, by truncating the slice-1 content id.
+`E[coll]` is the analytic birthday expectation `n²/2m` at `n=126348`.
+
+```
+bits | narrow n=126348 | wide n=118447 | analytic E[coll] | decimal digits | JS safe int?
+  24 |             436 |           427 |          4.76e+2 |              8 | yes
+  32 |               0 |             1 |          1.86e+0 |             10 | yes
+  40 |               0 |             0 |          7.26e-3 |             13 | yes
+  44 |               0 |             0 |          4.54e-4 |             14 | yes
+  48 |               0 |             0 |          2.84e-5 |             15 | yes
+  52 |               0 |             0 |          1.77e-6 |             16 | yes
+  53 |               0 |             0 |          8.86e-7 |             16 | yes
+  56 |               0 |             0 |          1.11e-7 |             17 | NO
+  64 |               0 |             0 |         4.33e-10 |             20 | NO
+```
+
+- **32 bits already collides once, on the live corpus, on the wide axis.** That is the empirical
+  floor and it is not a projection — it is a measured collision on today's dictionary.
+- 40 bits and up show **0 measured collisions on both axes**. The separation between 53 and 64 is
+  analytic only: `8.86e-7` against `4.33e-10`, a factor of ~2000, both far below one expected
+  collision. At 10x the current corpus the 53-bit figure is `8.9e-5`; at 100x it is `8.9e-3`.
+- The 24-bit row is the **negative control**: it must be non-zero, and it is (436/427), matching the
+  analytic 476. A collision table whose every row reads zero measures nothing.
+
+### 3. What each option costs the `.en` corpus
+
+```
+.en files 1037   citations 9724   total .en bytes 6,585,414
+id characters today: 36,739  (1ch x1098, 2ch x834, 3ch x1213, 4ch x2626, 5ch x3888, 6ch x65)
+53-bit decimal (grammar unchanged)   -> 155,584 chars, delta +118,845 bytes (+1.80%)
+64-bit hex     (dialect change)      -> 155,584 chars, delta +118,845 bytes (+1.80%)
+```
+
+**The two options cost exactly the same**, because 2^53-1 is 16 decimal digits and a 64-bit hex id
+is 16 hex characters. **Disk size does not separate them and must not be used as an argument.**
+
+### 4. One further non-discriminator, and one real one
+
+**Not a discriminator — key iteration order.** Today's ids are `0…126347`, array-index-like, so
+`Object.keys(axis.words)` iterates in ascending numeric order. Measured: a 53-bit decimal key still
+iterates numerically (`2,10,9007199254740991`), a hex key does not (`10,a3f1,0b22`, insertion
+order). Either way the *shipped* ordering changes, because the ids themselves change. Nothing found
+in the walk depends on that order being the mining order.
+
+**A real one — numeric coercion sites.** `word-names.js:100` and `:103` do `leavesOf(axis, +id)` and
+`id: +id`. Under a decimal id `+id` is exact; under a hex id `+"a3f1…"` is **`NaN`**, silently. That
+is 2 sites found by grep across `engine/` and the top-level tools, excluding tests — a small,
+nameable blast radius, but it is on the hex leg only, and `NaN` is exactly the shape of failure this
+project keeps paying for.
+
+### 5. What this measurement does and does not decide
+
+It does **not** say a dialect change is the only honest answer — so I am not stopping on that
+ground, because the repo says otherwise. The decimal leg round-trips through the shipped grammar
+today; the hex leg does not.
+
+What remains is a genuine choice between two live options, and **it is not mine to take**, because
+choosing the decimal leg is choosing *against* the hex leg for the same slot:
+
+- **53-bit decimal.** Grammar unchanged, `payload.js` unchanged except for one guard that must be
+  *added*, no `NaN` coercion sites, 0 measured collisions, analytic risk `8.86e-7`, +1.80% `.en`.
+- **64-bit hex.** R-PAY-1 dialect change on both encode and decode legs, 2 coercion sites to fix,
+  0 measured collisions, analytic risk `4.33e-10`, +1.80% `.en` — the same +1.80%.
+
+Both re-render all 1,037 `.en` files either way, because the ids change under both. **A5 (re-mine
+idempotence) still sequences before that re-render**, unchanged by anything measured here.
+
+### Banked, still open, not touched by this section
+
+`rekeyAxis` rebuilds each entry from a **field whitelist**. Harmless while nothing is written; a
+corpus-corruption hazard the instant a slice writes the rekeyed artifact. Before any write:
+enumerate the real key sets on both axes and either copy-and-override, or assert the key set is
+exactly what the whitelist covers — a check that CAN fail.
