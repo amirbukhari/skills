@@ -11416,3 +11416,125 @@ authorised re-render** already queued for RULING 4's 104 files, CLASS 4's 32 sit
 markers. One command clears all of it. `node write-en-files.js` remains blocked at the permission
 layer. Labels are DISPLAY ONLY — the compiler reads the payload, never the label — which is why
 byte-identity is unmoved by a 10-clause rendering change.
+
+## walkDir's 1,038 — the one extra file is a GENERATED DEMO, and the guard against this could not fire
+
+**2026-09-04. `imtmx2m46c25dfa`. Established before fixing, as instructed.**
+
+### 1. THE ONE FILE
+
+```
+pipeline walkDir (no skip set) : 1038
+walk-skip walkers              : 1037
+in walkDir, not in the skip walk:  coined-demo/syncWhenProd.ts
+in the skip walk, not in walkDir:  (none)
+```
+
+**`engine/pipeline.js:26`'s `walkDir` had NO skip set at all.** Not a divergent one — none. It
+predates the 2026-08-31 consolidation into `engine/walk-skip.js` and was missed by it.
+
+### 2. WHICH SIDE IS WRONG — the SKIP set, and `walkDir` is the one to move
+
+Not assumed from the smaller number. `coined-demo/syncWhenProd.ts` is a **generated artifact of the
+coining demo**, and five independent facts say so:
+
+- it sits beside `coined-demo/coin-demo-report.json` and an `.empty-typeroots` scaffold dir;
+- it declares its own ambient `process` and `console` inline — a self-contained synthetic sample,
+  not Hydra source;
+- `walk-skip.js` lists `demo` and `coined-demo` **deliberately**, and `corpus-walk.test.js` pins
+  that inventory;
+- no `.en` was ever rendered for it — `sen/files/coined-demo/` does not exist;
+- `files-index.json` (`totalFiles = 1037`) and `generators-lzw.json` (`fileCount = 1037`) both
+  exclude it.
+
+**Measured for every one of the twelve skipped names in this corpus: `coined-demo` is the ONLY one
+that excludes anything (1 file). The other eleven exclude ZERO today** — the same shape
+`walk-skip.js` records for the MINIMAL walkers: exposure was one file, the rest is latent.
+
+### 3. DOES ANYTHING DEPEND ON THEM AGREEING — YES, AND IT HAD ALREADY LEAKED
+
+Not "two things measuring different things for good reason". `corpus-walk.test.js`'s own header
+states the requirement: *"the miner and the renderer must walk the SAME file set"*. That was FALSE
+for `pipeline.js` by exactly one file, and the file reached published output:
+
+```
+COVERAGE.json     .topWords[2].example.rel        = coined-demo/syncWhenProd.ts
+COVERAGE.json     .topWords[3].example.rel        = coined-demo/syncWhenProd.ts
+word-library.json .topWordsByReuse[2].example.rel = coined-demo/syncWhenProd.ts
+word-library.json .topWordsByReuse[3].example.rel = coined-demo/syncWhenProd.ts
+```
+
+**A generated demo file is the worked EXAMPLE for the corpus's 3rd and 4th most-reused words.** It
+did not reach the §8B tracked artifacts — `generators-lzw.json`, `mined-library.json` and
+`word-names.json` contain zero hits for `syncWhenProd` or its one string literal, because
+`build-lzw-generators.js` uses the shared set.
+
+Two corpus-root indexes carry the inflated denominator: `archetype-index.json` `totalFiles = 1038`
+and `COVERAGE.json` `corpusFiles = 1038` / `byteIdentityGate = "1038/1038 files byte-identical
+@ cut3"`. The PRD publishes that denominator in at least six places (*"626 of 1038"*, *"57 of
+1038"*, *"533 of 1038"*, *"1038 files, 17 archetypes"*, `narrate-census.js:23`). **All of those are
+off by one in the denominator, and each counted a generated demo file as corpus source.**
+
+### 4. THE GUARD THAT EXISTS TO PREVENT THIS COULD NOT FIRE ON IT
+
+`corpus-walk.test.js` is the drift guard, written after the miner/renderer mismatch hid 696 of 937
+un-collapsed bodies. It missed this in **two** independent ways:
+
+1. its `WALKERS` inventory is hand-maintained (*"If you add one, add it here"*) and never listed
+   `engine/pipeline.js`;
+2. and it would not have mattered if it had. Its only detector is `skipOf(f) !== null` — *did anyone
+   reintroduce a **local** SKIP set*. `pipeline.js` had **no** set, so `skipOf` returns `null` and it
+   reads as **CLEAN**.
+
+**A walker with no skip set is the worse of the two shapes and was the invisible one.** §3, one
+layer up, failing in the reassuring direction — the same defect as the sweep detector run against
+commit subjects and the MIN_SKEL probe that asserted a dial equals itself. A detector that answers
+*"did anyone write a WRONG set"* cannot answer *"did anyone write NO set"*.
+
+### 5. THE FIX
+
+`engine/pipeline.js` requires `./walk-skip` and skips. **One line plus the require**, +14 with the
+comment. `walkDir` now returns **1037**.
+
+`engine/corpus-walk.test.js` gains three assertions and three names in `WALKERS`:
+
+- **the positive requirement** — every live walker REQUIRES the shared module. Decidable, no third
+  state, and it is the assertion the old detector could not express.
+- **a behavioural pin in a throwaway tree** — one `.ts` under every one of the twelve skipped names
+  plus one that must survive. Corpus-independent, so it cannot go quiet if this corpus stops
+  containing a `coined-demo`.
+- **the count pin over the live corpus** — `walkDir`'s paths must equal the shared-set walk's paths.
+  Paths, not totals, so a fix that dropped one file and added another could not pass.
+
+`test-gen-roundtrip.js` and `test-lzw-roundtrip.js` moved from the *"add these two when that lane
+commits"* comment into `WALKERS`; measured, both require the shared set on disk and at HEAD, so the
+TODO is discharged rather than left to rot.
+
+**Shown able to fire.** Against `HEAD`'s `pipeline.js`, the three new assertions FAIL and the two
+old ones still PASS — which is the finding in one line. The synthetic tree returns **13 files where
+1 is right**; the corpus pin names `coined-demo/syncWhenProd.ts` exactly.
+
+### 6. MEASUREMENTS — 1037/1037 UNMOVED, AND WHY THAT IS THE CORRECT OUTCOME
+
+| | before | after |
+|---|---|---|
+| byte-identity | `files: 1037  byte-identical: 1037  FAILURES: 0` | **identical** |
+| coverage TOTAL | `33918 32248 95% 1608 5% 62 0` | **identical** |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| `corpus-walk.test.js` | 4 assertions | **7 assertions** |
+| `corpus-root.test.js` | 9 passed | 9 passed |
+| `pipeline.walkDir` | **1038** | **1037** |
+
+The byte-identity figure was flagged as a stop-condition if it moved in **either** direction. It did
+not move, and it could not have: `test-lzw-roundtrip.js` has used the shared set since the
+consolidation and never called `pipeline.walkDir`. The 1037 it reports and the 1037 `walkDir` now
+returns are the same file set arrived at independently — which is the first time that has been true.
+
+**WHAT THIS DOES NOT DO — the artifacts on disk still say 1038.** `archetype-index.json` and
+`COVERAGE.json` are stale the moment this lands, and `COVERAGE.json`'s and `word-library.json`'s
+top-words examples still point at the demo file. Regenerating them means `package-hydra-source.js`
+and `build-archetypes.js`, both expensive and both behind the explicit-ask gate — **not run, not
+authorised, and not silently attempted.** The code is now right and the artifacts are now visibly
+wrong, which is the honest state to leave this in: the alternative was leaving both wrong and
+agreeing. The PRD's 1038 figures are dated historical records and are **not** rewritten; this
+section is the correction.

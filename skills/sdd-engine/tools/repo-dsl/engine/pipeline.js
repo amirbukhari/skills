@@ -23,8 +23,22 @@ const { build, segment } = require("./lzw");
 const { idFor, slotsAreTyped } = require("../lib/skeleton");
 const crypto = require("crypto");
 
+/* THE SHARED CORPUS SKIP SET, WHICH THIS WALKER NEVER HAD. It predates the 2026-08-31
+ * consolidation and was missed by it: `walkDir` walked EVERYTHING, so the miner's corpus was
+ * `Examples/hydra-source` plus the coining demo's own output. Measured 2026-09-04: walkDir 1038
+ * files against the enfile layer's 1037, and the one file is `coined-demo/syncWhenProd.ts` — a
+ * GENERATED artifact of a demo, sitting beside its `coin-demo-report.json`, with no `.en` rendered
+ * for it and no entry in `files-index.json`. It reached `COVERAGE.json` and `word-library.json` as
+ * the worked EXAMPLE for the corpus's 3rd and 4th most-reused words.
+ *
+ * The other eleven names in the set exclude ZERO files here today (measured, all of them), exactly
+ * as `walk-skip.js` records for the MINIMAL walkers it consolidated: the exposure was one file and
+ * the rest is latent. */
+const { SKIP } = require("./walk-skip");   // the ONE canonical corpus walk-skip set
+
 function walkDir(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) walkDir(p, out);
     else if (e.isFile() && p.endsWith(".ts") && !p.endsWith(".d.ts")) out.push(p);

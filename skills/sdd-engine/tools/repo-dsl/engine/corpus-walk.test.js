@@ -44,14 +44,15 @@ const skipOf = (file) => {
 const WALKERS = ["build-lzw-generators.js", "write-en-files.js", "measure-english.js",
   "measure-uncollapsed.js", "name-words-lzw.js", "measure-bespoke-composites.js",
   "measure-callgraph.js", "measure-logic-english.js", "measure-operations.js",
+  "test-gen-roundtrip.js", "test-lzw-roundtrip.js", path.join("engine", "pipeline.js"),
   path.join("engine", "uncollapsed-density.test.js"), path.join("engine", "data-english.test.js")];
 
-/* MIGRATED IN THE WORKING TREE BUT NOT IN THIS COMMIT. test-gen-roundtrip.js and
- * test-lzw-roundtrip.js carry another lane's uncommitted exit-code work in the same files, so
- * committing them here would have swept it. Their SKIP migration is done on disk and lands with
- * that lane's commit. Move them into WALKERS above once it does — this list exists to shrink, and
- * a name sitting here is a TODO, not an exemption. */
-/*   test-gen-roundtrip.js, test-lzw-roundtrip.js   <- add these two when that lane commits. */
+/* THE TWO ROUND-TRIP WALKERS ARE NOW IN THE LIST. They sat below in a comment reading "add these
+ * two when that lane commits"; measured 2026-09-04, both require the shared set on disk and at
+ * HEAD, so the TODO is discharged rather than left to rot. The list exists to shrink.
+ *
+ * `engine/pipeline.js` IS THE THIRD ADDITION, and it is why the assertion below exists at all —
+ * see it. */
 
 ok("miner and renderer walk the same file set — now by construction", () => {
   for (const f of ["build-lzw-generators.js", "write-en-files.js"]) {
@@ -66,6 +67,70 @@ ok("no live corpus walker declares its own SKIP set", () => {
   assert.deepStrictEqual(rogue, [],
     `these reintroduced a local SKIP set instead of requiring engine/walk-skip.js:\n    ${rogue.join("\n    ")}\n` +
     `  Divergent walk sets once hid 696 of 937 un-collapsed bodies.`);
+});
+
+/* THE ASSERTION ABOVE COULD NOT FIRE ON THE SHAPE THAT ACTUALLY OCCURRED, and this one exists
+ * because of it. `skipOf` detects a walker that reintroduces a LOCAL set; `engine/pipeline.js` had
+ * NO set — it walked everything — so `skipOf` returned null and it would have read as CLEAN even
+ * had it been listed, which it was not. A walker with no skip set is the *worse* of the two shapes
+ * and was the invisible one. Measured 2026-09-04: `walkDir` returned 1038 files against the enfile
+ * layer's 1037, the extra being `coined-demo/syncWhenProd.ts`, a generated demo artifact.
+ *
+ * §3, one layer up, and in the reassuring direction: a detector that answers "did anyone write a
+ * WRONG set" cannot answer "did anyone write NO set". So the pin is now the positive requirement —
+ * every live walker REQUIRES the shared module — which is decidable and has no third state. */
+ok("every live corpus walker REQUIRES the shared set — a walker with NO skip set is the invisible shape", () => {
+  const missing = WALKERS.filter((f) => {
+    const src = fs.readFileSync(path.join(R, f), "utf8");
+    return !/require\(["'][^"']*walk-skip(?:\.js)?["']\)/.test(src);
+  });
+  assert.deepStrictEqual(missing, [],
+    `these walk a corpus without the shared SKIP set:\n    ${missing.join("\n    ")}\n` +
+    `  engine/pipeline.js did exactly this and mined a generated demo file as corpus source.`);
+});
+
+/* AND THE BEHAVIOURAL PIN, because requiring the module is not the same as USING it. Built in a
+ * throwaway tree so it does not depend on what this corpus happens to contain: one .ts under every
+ * skipped name plus one that must survive. Against the pre-fix `walkDir` this fails with 13 files
+ * where 1 is right. */
+ok("pipeline.walkDir actually applies the set (synthetic tree, every skipped name populated)", () => {
+  const os = require("os");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "walkskip-"));
+  fs.writeFileSync(path.join(root, "keep.ts"), "export const a = 1;\n");
+  for (const name of SKIP) {
+    fs.mkdirSync(path.join(root, name), { recursive: true });
+    fs.writeFileSync(path.join(root, name, "generated.ts"), "export const b = 2;\n");
+  }
+  const { walkDir } = require("./pipeline");
+  const got = walkDir(root).map((f) => path.relative(root, f)).sort();
+  fs.rmSync(root, { recursive: true, force: true });
+  assert.deepStrictEqual(got, ["keep.ts"],
+    "walkDir walked into a skipped directory: " + got.join(", "));
+});
+
+/* THE ORIGINAL DRIFT, PINNED AS A COUNT. The header's promise is "the miner and the renderer walk
+ * the SAME file set"; until 2026-09-04 that was FALSE for `pipeline.js` by exactly one file. This
+ * asserts the two walks are identical over the live corpus — the paths, not just the totals, so a
+ * fix that dropped one file and added another could not pass. */
+ok("pipeline.walkDir and the shared-set walk return the SAME corpus files", () => {
+  const CR = require("./corpus-root");
+  const SRC = CR.sourceRoot();
+  const walkShared = (d, o = []) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (SKIP.has(e.name)) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walkShared(p, o); else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) o.push(p);
+    }
+    return o;
+  };
+  const { walkDir } = require("./pipeline");
+  const a = walkDir(SRC).sort(), b = walkShared(SRC).sort();
+  const onlyA = a.filter((f) => !b.includes(f)).map((f) => path.relative(SRC, f));
+  const onlyB = b.filter((f) => !a.includes(f)).map((f) => path.relative(SRC, f));
+  assert.deepStrictEqual(onlyA, [], "pipeline.walkDir mines files the renderer never sees: " + onlyA.join(", "));
+  assert.deepStrictEqual(onlyB, [], "pipeline.walkDir misses files the renderer renders: " + onlyB.join(", "));
+  assert.equal(a.length, b.length);
+  console.log(`      (both walks: ${a.length} files)`);
 });
 
 ok("the shared SKIP set is the expected inventory", () => {
