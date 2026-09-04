@@ -115,14 +115,51 @@ function contentId(words, id, memo) {
   return sha256(contentOf(patternOf(words, id, memo))).slice(0, CID_HEX);
 }
 
-/** rekeyAxis(axis) -> { words, map } — the same dictionary keyed by content id.
+/* The fields rekeyAxis KNOWS. Anything outside these is REFUSED, never dropped.
+ *
+ * WHY A REFUSAL AND NOT A WHITELIST-AND-CARRY-ON. The first version of this function rebuilt each
+ * entry from a whitelist, so a field the miner adds later would vanish with no error anywhere —
+ * the same defect class as payload.js rounding a 64-bit id to a different number and reporting
+ * success. Measured on the shipped dictionary the entry-level exposure is ZERO (narrow: 121561
+ * `d,len,m` + 4787 `d,len,sym`; wide: 116125 + 2322; `freq` and `appended` do not occur at all),
+ * so this check is green today AND CAN FAIL — which is the only kind worth having. */
+const LEAF_FIELDS = new Set(["len", "d", "sym"]);
+const COMP_FIELDS = new Set(["len", "d", "m"]);
+const OPTIONAL_FIELDS = new Set(["freq", "appended"]);   // carried through when present
+
+/* The axis-level fields. `words`, `leaf` and `ext` are id-bearing and are REKEYED; the rest are
+ * scalars and counters the caller owns. An axis field outside this set is REFUSED for the same
+ * reason: it might carry ids, and leaving it positional beside a content-keyed dictionary is a
+ * dangling pointer that no metric would see. */
+const AXIS_REKEYED = new Set(["words", "leaf", "ext"]);
+const AXIS_PASSTHROUGH = new Set(["axis", "minCount", "minSkel", "counts"]);
+
+/** rekeyAxis(axis) -> { words, leaf, ext, map } — the same dictionary keyed by content id.
  *
  *  REFUSES on a collision rather than picking a winner. A collision here means two different
  *  patterns share an id, and every `.en` citing it would compile to whichever one the object
  *  happened to keep — the wrong-bytes compile this whole requirement exists to prevent. Measured
  *  zero at this width on the shipped dictionary; if it ever fires, the width is wrong and the
- *  answer is a wider id, never a tie-break. */
+ *  answer is a wider id, never a tie-break.
+ *
+ *  `leaf` AND `ext` ARE REKEYED TOO, AND THAT IS NOT COSMETIC. `build-lzw-generators.js:158-168`
+ *  writes `leaf[sym] -> wordId` and `ext[prefixWordId + "|" + appendedSym] -> wordId`, and
+ *  `enlzw.js:106` and `:111` walk exactly those two tables — they are the renderer's greedy
+ *  automaton, not a mining accelerator. An earlier version of this function returned `{words, map}`
+ *  only, so a caller writing `{...axis, ...rekeyAxis(axis)}` would have got a content-keyed `words`
+ *  beside a POSITIONAL `leaf`/`ext`: every automaton lookup would miss, silently, on all 126348
+ *  narrow and 118447 wide entries. Returning them rekeyed is what makes the result renderable. */
 function rekeyAxis(axis) {
+  for (const k of Object.keys(axis)) {
+    if (AXIS_REKEYED.has(k) || AXIS_PASSTHROUGH.has(k)) continue;
+    throw new Error(
+      "content-id: UNKNOWN AXIS FIELD " + JSON.stringify(k) + " — refusing to rekey\n" +
+      "  rekeys: " + [...AXIS_REKEYED].join(", ") + "\n" +
+      "  passes through (caller's): " + [...AXIS_PASSTHROUGH].join(", ") + "\n" +
+      "  If this field carries word ids it must be remapped; if it does not, add it above.\n" +
+      "  Dropping it silently is how a positional id survives beside a content-keyed dictionary.");
+  }
+
   const words = axis.words;
   const memo = new Map();
   const map = new Map();          // old positional id -> content id
@@ -143,14 +180,68 @@ function rekeyAxis(axis) {
         "  whichever survived — wrong bytes, not an error. Widen the id; never tie-break.");
     }
     owner.set(cid, id);
+
     const w = words[id];
-    out[cid] = (w.len === 1)
+    const isLeaf = w.len === 1;
+    const known = isLeaf ? LEAF_FIELDS : COMP_FIELDS;
+    for (const k of Object.keys(w)) {
+      if (known.has(k) || OPTIONAL_FIELDS.has(k)) continue;
+      throw new Error(
+        "content-id: UNKNOWN ENTRY FIELD " + JSON.stringify(k) + " on word " + id +
+        " (len " + w.len + ") — refusing to rekey\n" +
+        "  known for this branch: " + [...known].join(", ") + "\n" +
+        "  optional, carried when present: " + [...OPTIONAL_FIELDS].join(", ") + "\n" +
+        "  Rebuilding the entry would DROP it with no error. Add it above, deliberately.");
+    }
+    if (!isLeaf && w.appended !== undefined) {
+      throw new Error(
+        "content-id: `appended` on a COMPOSITE word " + id + " (len " + w.len + ") — refusing\n" +
+        "  The earlier whitelist dropped this case silently. It does not occur on the shipped\n" +
+        "  dictionary (measured 0 on both axes); if it ever does, decide what it means first.");
+    }
+
+    out[cid] = isLeaf
       ? { len: 1, d: w.d, sym: w.sym }
       : { len: w.len, d: w.d, m: [map.get(String(w.m[0])), map.get(String(w.m[1]))] };
     if (w.freq !== undefined) out[cid].freq = w.freq;
-    if (w.appended !== undefined && w.len === 1) out[cid].appended = w.appended;
+    if (w.appended !== undefined) out[cid].appended = w.appended;
   }
-  return { words: out, map };
+
+  /* `leaf[sym] -> wordId`. Keys are skeletons and do not move; only the values are ids. */
+  const leaf = Object.create(null);
+  if (axis.leaf) {
+    for (const sym of Object.keys(axis.leaf)) {
+      const cid = map.get(String(axis.leaf[sym]));
+      if (cid === undefined) throw new Error(
+        "content-id: leaf[" + JSON.stringify(sym) + "] cites word " + axis.leaf[sym] +
+        ", which is not in this axis's dictionary — refusing to rekey a dangling edge");
+      leaf[sym] = cid;
+    }
+  }
+
+  /* `ext["<prefixWordId>|<appendedSym>"] -> wordId`. BOTH halves move: the value is an id, and the
+   * key EMBEDS one. Split at the FIRST "|" — an appended skeleton may itself contain "|" (`a || b`
+   * is a real skeleton), while an id never does, in either the positional or the hex spelling. */
+  const ext = Object.create(null);
+  if (axis.ext) {
+    for (const key of Object.keys(axis.ext)) {
+      const bar = key.indexOf("|");
+      if (bar < 0) throw new Error(
+        "content-id: ext key " + JSON.stringify(key) + " has no \"|\" — refusing to rekey a key " +
+        "whose shape build-lzw-generators.js:168 does not produce");
+      const pre = map.get(key.slice(0, bar));
+      const val = map.get(String(axis.ext[key]));
+      if (pre === undefined) throw new Error(
+        "content-id: ext key " + JSON.stringify(key) + " cites prefix word " + key.slice(0, bar) +
+        ", which is not in this axis's dictionary — refusing to rekey a dangling edge");
+      if (val === undefined) throw new Error(
+        "content-id: ext[" + JSON.stringify(key) + "] cites word " + axis.ext[key] +
+        ", which is not in this axis's dictionary — refusing to rekey a dangling edge");
+      ext[pre + "|" + key.slice(bar + 1)] = val;
+    }
+  }
+
+  return { words: out, leaf, ext, map };
 }
 
 module.exports = { CID_HEX, patternOf, contentOf, contentId, rekeyAxis };

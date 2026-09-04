@@ -105,5 +105,78 @@ for (const axisName of ["narrow", "wide"]) {
   eq(checked, Object.keys(axis.words).length, `${axisName}: every word was rekeyed, none dropped`);
 }
 
+/* ---- 5. leaf/ext ARE REKEYED — the renderer's automaton still walks ----------------------
+ *
+ * `enlzw.js:106` reads `axis.leaf[sym]` and `:111` reads `axis.ext[cur + "|" + sym]`. Those two
+ * tables ARE the greedy automaton on the render path, not a mining accelerator, and every word id
+ * in them is positional. rekeyAxis returned `{words, map}` only until this section existed, so a
+ * caller writing `{...axis, ...rekeyAxis(axis)}` would have got a content-keyed dictionary beside
+ * a POSITIONAL automaton — every lookup missing, with no error anywhere. The negative controls
+ * below are the point of this section: they show the misses are total, so the checks CAN fail. */
+for (const axisName of ["narrow", "wide"]) {
+  const axis = cat[axisName];
+  const { words, leaf, ext, map } = CID.rekeyAxis(axis);
+
+  eq(Object.keys(leaf).length, Object.keys(axis.leaf).length, `${axisName}: |leaf| preserved by the rekey`);
+  eq(Object.keys(ext).length, Object.keys(axis.ext).length, `${axisName}: |ext| preserved by the rekey`);
+
+  let leafDangling = 0;
+  for (const sym of Object.keys(leaf)) if (!(leaf[sym] in words)) leafDangling++;
+  eq(leafDangling, 0, `${axisName}: every rekeyed leaf edge lands on a word in the rekeyed dictionary`);
+
+  /* The automaton's own invariant, checked on EVERY composite rather than sampled:
+   * `ext[prefix + "|" + <appended leaf's skeleton>]` must be the composite itself. Measured to
+   * hold 121561/121561 narrow and 116125/116125 wide on the POSITIONAL dictionary before this
+   * section was written, so it is the right invariant and not one chosen to be easy. */
+  const invariantHolds = (W, E) => {
+    let held = 0, total = 0;
+    for (const id of Object.keys(W)) {
+      const w = W[id]; if (w.len === 1) continue; total++;
+      const child = W[String(w.m[1])];
+      if (!child || child.sym === undefined) continue;
+      if (String(E[w.m[0] + "|" + child.sym]) === String(id)) held++;
+    }
+    return { held, total };
+  };
+  const after = invariantHolds(words, ext);
+  console.log(`  ${axisName}: leaf ${Object.keys(leaf).length}  ext ${Object.keys(ext).length}  automaton edges ${after.held}/${after.total}`);
+  eq(after.held, after.total, `${axisName}: the rekeyed ext reproduces every automaton edge`);
+
+  /* NEGATIVE CONTROL — the pre-fix shape. Content-keyed words, positional leaf/ext. If either of
+   * these ever reads non-zero, the checks above have stopped being able to fail and this section
+   * is measuring nothing. Do not delete them to make the file quieter. */
+  let staleLeafResolves = 0;
+  for (const sym of Object.keys(axis.leaf)) if (String(axis.leaf[sym]) in words) staleLeafResolves++;
+  eq(staleLeafResolves, 0, `${axisName}: NEGATIVE CONTROL — a positional leaf table resolves on NOTHING beside a content-keyed dictionary`);
+  const stale = invariantHolds(words, axis.ext);
+  eq(stale.held, 0, `${axisName}: NEGATIVE CONTROL — a positional ext table reproduces NO automaton edge beside a content-keyed dictionary (${stale.held}/${stale.total})`);
+
+  eq(map.size, Object.keys(axis.words).length, `${axisName}: the old->new map covers every word`);
+}
+
+/* ---- 6. THE REFUSALS FIRE — a dropped field is the defect, not the guard ------------------ */
+{
+  let threw = null;
+  try { CID.rekeyAxis({ words: { 0: { len: 1, d: 0, sym: "x", surprise: 1 } } }); }
+  catch (e) { threw = e.message; }
+  ok(threw && /UNKNOWN ENTRY FIELD "surprise"/.test(threw),
+    "an entry field outside the known set is REFUSED, not silently dropped" + (threw ? "" : " (did not throw)"));
+
+  threw = null;
+  try {
+    CID.rekeyAxis({ words: {
+      0: { len: 1, d: 0, sym: "a" }, 1: { len: 1, d: 0, sym: "b" },
+      2: { len: 2, d: 1, m: [0, 1], appended: 1 } } });
+  } catch (e) { threw = e.message; }
+  ok(threw && /`appended` on a COMPOSITE/.test(threw),
+    "`appended` on a composite is REFUSED — the old whitelist dropped it silently" + (threw ? "" : " (did not throw)"));
+
+  threw = null;
+  try { CID.rekeyAxis({ words: { 0: { len: 1, d: 0, sym: "x" } }, mystery: {} }); }
+  catch (e) { threw = e.message; }
+  ok(threw && /UNKNOWN AXIS FIELD "mystery"/.test(threw),
+    "an axis field outside the known set is REFUSED — it might carry ids" + (threw ? "" : " (did not throw)"));
+}
+
 console.log(`content-id.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -10437,3 +10437,136 @@ idempotence) still sequences before that re-render**, unchanged by anything meas
 corpus-corruption hazard the instant a slice writes the rekeyed artifact. Before any write:
 enumerate the real key sets on both axes and either copy-and-override, or assert the key set is
 exactly what the whitelist covers — a check that CAN fail.
+
+## A5 is BUILT — the backlog entry is stale, and the repo wins
+
+**Refusal with evidence, not work avoided.** The backlog reads *"A5: re-mine idempotence has no
+corpus-wide gate"*, with *"confirm ownership before starting"*. Confirmed: it landed in **`1001b6f`**
+as `tools/repo-dsl/engine/en-idempotence.test.js`, and `R-ARCH-23`
+(`tools/prd/11-requirements-register.md:129`) already carries it. Run fresh just now:
+
+```
+1037 compared, 0 drifted, 0 threw, 0 with no .ts counterpart
+ok  HALF 1 — every persisted .en is EXACTLY what a fresh render produces
+    ids allocated positionally: true;  1034/1037 .en carry a word id;  0 name a dictionary
+ok  HALF 2 — statement 2 is NOT satisfiable today: ids are positional and no .en pins a dictionary
+ok  half 1 passing is NOT statement 2 — the two must not be conflated
+3 assertions passed
+```
+
+**Half 2 is red on purpose and is blocked on exactly the fork now with Amir** — the gate's own header
+says so: *"half 1 green, half 2 unbuildable until R-PAY-6 picks a closure … Neither closure is
+chosen here — that is Amir's call."* So A5 is not startable work.
+
+**My own sequencing sentence needs restating, and it was loose.** I wrote *"A5 before slice 3"* as
+though A5 were a thing to build. It is not. The accurate statement: **half 1 is the gate to RUN on
+either side of slice 3** — it is green today, so it is a usable before-baseline, and it goes red the
+moment a re-render changes a persisted `.en` without the corpus being re-rendered with it. **Half 2
+closes as a side effect of the fork landing, not as separate work.**
+
+## The rekeyAxis silent-drop hazard, CLOSED — and it was bigger than I banked it
+
+### Blast radius, measured BEFORE the edit
+
+Entry-level key sets present on the shipped `generators-lzw.json`:
+
+```
+narrow — 126348 words (4787 leaf, 121561 composite)
+    121561  comp   d,len,m
+      4787  leaf   d,len,sym
+  keys the whitelist would DROP: none
+  `appended` present on a COMPOSITE (dropped by the len===1 guard): 0
+
+wide   — 118447 words (2322 leaf, 116125 composite)
+    116125  comp   d,len,m
+      2322  leaf   d,len,sym
+  keys the whitelist would DROP: none
+  `appended` present on a COMPOSITE: 0
+```
+
+**So the hazard as I banked it has ZERO live exposure.** `freq` and `appended` do not occur on either
+axis at all. The whitelist reproduces every entry exactly. That half is a *latent* assumption, not a
+present defect, and saying otherwise would have been the same overstatement the payload scoping
+caught.
+
+### The real defect, found by the same measurement one level up
+
+The axis object carries **seven** fields, not one:
+
+```
+axis-level keys on cat.narrow / cat.wide: axis, minCount, minSkel, counts, words, leaf, ext
+```
+
+`rekeyAxis` returned `{ words, map }`. **`leaf` and `ext` are id-bearing, and they are on the RENDER
+path, not the mining side:**
+
+- `build-lzw-generators.js:164` writes `leaf[sym] -> wordId`; `:168` writes
+  `ext[prefixWordId + "|" + appendedSym] -> wordId`.
+- `enlzw.js:106` reads `axis.leaf[syms[p]]` and `:111` reads `axis.ext[cur + "|" + syms[q+1]]`.
+  **Those two lines are the renderer's greedy automaton.**
+
+So a caller writing the obvious `{ ...axis, ...rekeyAxis(axis) }` would have got a **content-keyed
+`words` beside a POSITIONAL `leaf`/`ext`** — 4,787 + 121,561 narrow and 2,322 + 116,125 wide edges,
+**every one of them missing, silently, with no error anywhere.** That is not a dropped field; it is a
+dictionary that cannot render, and it is the same defect class as `payload.js` rounding a 64-bit id
+to a different number and reporting success. **It arms under BOTH legs of Amir's fork**, since both
+re-render all 1,037 `.en`.
+
+### What changed
+
+`rekeyAxis` now **refuses rather than drops**, in three places that are all green today and all CAN
+fail, and it **rekeys `leaf` and `ext`**:
+
+- an entry field outside `{len,d,sym}` / `{len,d,m}` + `{freq,appended}` → **refuses**, naming the
+  field and the word. Was: silently dropped.
+- `appended` on a composite → **refuses**. Was: silently dropped by a `len === 1` guard.
+- an axis field outside `{words,leaf,ext}` ∪ `{axis,minCount,minSkel,counts}` → **refuses**,
+  because it might carry ids. Was: silently absent from the result.
+- `leaf` values are remapped; `ext` has **both halves** remapped — the value is an id and the key
+  embeds one. The key is split at the **first** `|`, because an appended skeleton can itself
+  contain `|` (`a || b` is a real skeleton) while an id cannot, in either spelling.
+- a `leaf` or `ext` edge citing a word not in the axis → **refuses** as a dangling edge.
+
+### The invariant the test now asserts, and why it is the right one
+
+`ext[prefix + "|" + <appended leaf's skeleton>]` must be the composite itself — the automaton's own
+edge. **Measured on the POSITIONAL dictionary first, before writing the assertion:** it holds
+**121,561/121,561** narrow and **116,125/116,125** wide. It was chosen because it already held
+totally, not because it was easy to satisfy after the change.
+
+### The negative controls, and an honest limit on one of them
+
+`content-id.test.js` goes **15 → 32 assertions**. Fresh:
+
+```
+narrow: 126348 words   distinct patterns 126348   collisions @64 0   @24 436
+wide:   118447 words   distinct patterns 118447   collisions @64 0   @24 427
+narrow: rekeyed 126348 words   expandKey moved on 0
+wide:   rekeyed 118447 words   expandKey moved on 0
+narrow: leaf 4787  ext 121561  automaton edges 121561/121561
+wide:   leaf 2322  ext 116125  automaton edges 116125/116125
+content-id.test.js: 32 passed, 0 failed
+```
+
+The controls: the pre-fix shape — content-keyed `words` beside the positional `leaf`/`ext` —
+reproduces **0** leaf edges and **0/121561** automaton edges. That is the state the code was in
+before this commit, so the assertion `held === total` **would have read 0/121561, i.e. RED**, which
+is what makes it a check and not a decoration. Three refusal controls fire on constructed input
+(unknown entry field, `appended` on a composite, unknown axis field).
+
+**The limit, stated rather than left implied:** the leaf control's zero is *structural*, not
+statistical — a positional id is at most 6 digits and a content id is 16 hex characters, so the two
+key spaces cannot overlap. It proves disjointness; it does not prove the check would catch a subtler
+drift. The `ext` control is the load-bearing one, because it reproduces the exact pre-fix state.
+
+### Byte-identity
+
+`test-lzw-roundtrip.js`, fresh, after the change: **`files: 1037  byte-identical: 1037  FAILURES: 0`**.
+Nothing on the compile path imports `content-id.js` — its only consumer is its own test — so this is
+a confirmation, not a rescue.
+
+### Still banked, deliberately not done
+
+`obj.w <= Number.MAX_SAFE_INTEGER` at `payload.js:228`. **It is correct only under the decimal leg of
+Amir's fork**, so implementing it now would be building on an assumed ruling. Recorded here so it
+cannot be lost.
