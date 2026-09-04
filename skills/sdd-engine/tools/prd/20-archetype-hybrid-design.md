@@ -172,6 +172,37 @@ Four choices, each forced rather than preferred:
   grammar is the definition.** This is what keeps the sentence primary and the reference secondary,
   and it is also the R-PAY-6 fix: a re-mine cannot renumber a content hash.
 
+**THE UNIT OF `<sha256-10>` IS HEX CHARACTERS — 10 hex characters, 40 bits, 5 bytes.** *Added
+2026-09-04; the spelling appeared here and in §5A without ever saying which.* The unit is not a
+preference: **every** hash-width producer on disk truncates a hex digest, so the convention is
+measured, not chosen —
+
+| producer | expression | width |
+|---|---|---|
+| `engine/pipeline.js:93` | `sha256(e.key).digest("hex").slice(0, 6)` | 6 hex chars = 24 bits |
+| `engine/word-names.js:28,33,67` | `HASH_LEN = 16`, `digest("hex").slice(0, HASH_LEN)` | 16 hex chars = 64 bits |
+| `engine/content-id.js` | `CID_HEX = 16`, `sha256(...).slice(0, CID_HEX)` | 16 hex chars = 64 bits |
+
+Read `<sha256-N>` anywhere in this PRD as **N hex characters of a sha256 digest, i.e. 4N bits**.
+
+**Two things this record is NOT, and both matter more than the unit.**
+
+1. **`a_entity_<sha256-10>` HAS NO PRODUCER.** Grepped 2026-09-04: nothing on disk emits an `a_`
+   id. This block is a design record for unbuilt work, so its width is an intent, not a fact, and
+   nothing can be verified against it yet.
+2. **THE ONLY LIVE `<sha256-10>` SPELLING CONTRADICTS THE CODE, AND THAT IS RECORDED HERE, NOT
+   RESOLVED.** §5A and **R-WIDE-4** both say a promoted generator's `id` is `g_<len>_<sha256-10>`.
+   R-WIDE-4 is normative (*"MUST carry `id`"*). `pipeline.js:93` emits **6** hex characters.
+   Measured on the shipped `mined-library.json`: **1063 composites, sample `g_2_038daf`, hash tails
+   6 chars × 1063, 0 duplicate ids, 1063 distinct 6-hex tails.** So the deviation is real and
+   currently harmless (`E[coll]` at 24 bits, n=1063, is `3.4e-2`).
+
+   **It is a fork, and neither leg is a lane's to take**, because one of them edits a `MUST` cell:
+   either the code widens to 10 to satisfy R-WIDE-4 — which changes every composite id and so
+   re-keys `mined-library.json` — or R-WIDE-4 is amended to 6 to match what shipped. **Amending the
+   register to match the code is re-baselining a requirement**, which is exactly what this project
+   forbids doing to make something pass, so it is not done here. Recorded for the owner of R-WIDE-4.
+
 **The inverse direction must be a FUNCTION, and this is a new requirement.** Because the lifecycle
 runs both ways (§5D.0 statement 4), the grammar must be unambiguous in **both** directions:
 
