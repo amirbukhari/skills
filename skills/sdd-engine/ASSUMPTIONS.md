@@ -9986,3 +9986,60 @@ still parses, named enums still parse. What is no longer accepted is a split THR
 group or a quoted string, and a column name containing a parenthesis — neither of which any
 renderer in this repo can produce.
 
+
+## DEFECT 1 — a mined value now enters a sentence flat. Sentence leg 56/58 -> 58/58.
+
+**One file, `tools/repo-dsl/engine/entity-sentence.js`, +24/−1.** Byte-identity
+`files: 1037  byte-identical: 1037  FAILURES: 0` before and after. `generate.test.js` 35 passed, 0
+failed. The check from `bd89c64` is untouched — same assertions, same asserted denominator of 58,
+same population.
+
+**The fix, at the mining end.** `modelFromExtraction` took `p.enum` verbatim out of the source, so
+`Charge.hydraState` and `InvoiceRaw.rawInterfaceType` — inline enum literals written across several
+lines — carried their newlines straight into the mined sentence. `sentences()` collapses `\s+` by
+design, so the re-rendered sentence was single-spaced and could never equal the mined one. A
+`flattened()` helper is now applied where the value is lifted, and only there.
+
+**Why not the splitter.** Teaching the splitter to tolerate newlines would widen the PARSER to
+accept a sentence the RENDERER should never have emitted. That makes the accepted language larger
+than the produced one, and the gap between those two is where every regression in this grammar has
+come from today. The parse direction needs no call at all: `sentences()` has already collapsed the
+text before a column phrase is matched, so a value arriving from a sentence is flat by construction.
+
+**BLAST RADIUS, MEASURED BEFORE THE EDIT — 2 columns, both in the two named files.** Across the 58
+conforming entities, 40 columns carry an enum: 35 are a bare identifier, 3 more are an inline
+literal already on one line, and **exactly 2** hold a value whose whitespace `flattened()` would
+change. Those 38 pass through byte-unchanged.
+
+**THE RESULT, THE TWO LEGS REPORTED SEPARATELY.**
+
+```
+  DENOMINATOR 58
+    render(parse(s)) === s                       58/58     (was 56/58)
+    re-mine of the emitted .ts === s             53/58     (unchanged)
+    the emitted .ts is a fixpoint                53/58     (unchanged)
+    REPORT ONLY, not asserted -- emit === the corpus file's own bytes   0/58
+entity-sentence.test.js: 18 passed, 2 failed
+```
+
+The sentence leg is closed. **The emit legs did not move and were not expected to**: all five are
+blocked behind defect 2, `emitEntityCanonical` treating `c.enum` as an identifier and emitting
+`import { ['active', 'deleted'] } from './enums';`. That is a design question and it is Amir's, not
+mine. Nothing here patches around it.
+
+**THE EMIT PATH IS PROVABLY UNTOUCHED, and this was measured rather than argued.** A differential
+against the previous HEAD, over all 58 entities, comparing both the mined sentence and the emitted
+canonical `.ts` byte for byte:
+
+```
+  entities compared: 58
+  mined sentence UNCHANGED by this commit:            56/58   (Charge, InvoiceRaw — the intended change)
+  emitted canonical .ts UNCHANGED by this commit:     58/58
+```
+
+**58/58 on emit bytes includes Charge and InvoiceRaw**, which I had expected to move. The reason is
+that the OLD path already emitted from a COLLAPSED model: `sentences()` collapsed the newlines before
+`parseEntitySentence` ever saw them, so the emitted literal was already flat on both sides of this
+commit. The defect was confined to the mined sentence never matching its own re-render. I had
+reasoned that the emit bytes for those two would change; the measurement says they do not.
+

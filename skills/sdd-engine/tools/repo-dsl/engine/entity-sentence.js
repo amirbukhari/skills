@@ -59,6 +59,29 @@ const TYPE_TS = { int: "number", integer: "number", tinyint: "number", smallint:
   float: "number", double: "number", decimal: "string", numeric: "string", bit: "boolean", bool: "boolean",
   boolean: "boolean", varchar: "string", char: "string", text: "string", timestamp: "Date", datetime: "Date", date: "Date" };
 
+/* A MINED VALUE ENTERS A SENTENCE ON ONE LINE, OR IT CAN NEVER ROUND-TRIP.
+ *
+ * `sentences()` collapses `\s+` — it has to, because a sentence is a run of words and the grammar
+ * cannot depend on how the author pressed return. So any value the miner lifts VERBATIM out of the
+ * source and drops into a sentence must already be flat, or the mined sentence carries formatting
+ * the renderer is structurally unable to reproduce and `render(parse(s)) === s` fails on
+ * whitespace alone.
+ *
+ * Measured 2026-09-04, and it is why this is the MINING end and not the splitting end: exactly two
+ * columns in the corpus carry a multi-line value — `Charge.hydraState` and
+ * `InvoiceRaw.rawInterfaceType`, both inline enum literals written across several lines. 58
+ * entities conform, 40 of their columns carry an enum, 35 of those are a bare identifier and 3 more
+ * are already one line; those 38 pass through this function byte-unchanged.
+ *
+ * The alternative — teaching the splitter to tolerate newlines — would widen the PARSER to accept
+ * a sentence the RENDERER should never have emitted. That is the wrong direction: it makes the
+ * accepted language larger than the produced one, and the gap between those two is where every
+ * regression in this grammar has come from.
+ *
+ * The parse direction needs no such call: `sentences()` has already collapsed the text before a
+ * column phrase is ever matched, so a value arriving from a sentence is flat by construction. */
+const flattened = (minedValue) => String(minedValue).replace(/\s+/g, " ").trim();
+
 /* db form <-> spoken form. `account_id` is spoken `account id`. Injective in both directions for
  * snake_case and single words, which is the whole authored space. */
 const spaced = (dbName) => dbName.replace(/_/g, " ");
@@ -270,7 +293,7 @@ function modelFromExtraction(ex) {
     const p = c.parsed || {};
     const col = { role: "column", prop: c.prop, src: p.name || c.prop, nullable: p.nullable === "true" || p.nullable === true };
     if (p.name) col.name = p.name;
-    if (p.enum) { col.colType = "enum"; col.enum = p.enum; col.tsType = p.enum; }
+    if (p.enum) { col.colType = "enum"; col.enum = flattened(p.enum); col.tsType = col.enum; }
     else { col.colType = p.type || "varchar"; col.tsType = TYPE_TS[col.colType] || "string"; }
     model.members.push(col);
   }
