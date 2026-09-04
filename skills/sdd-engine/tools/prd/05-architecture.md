@@ -37,11 +37,15 @@ see §5F, R-ARCH-20.)*
 
 **On-disk layout.**
 - `<corpus>/sen/files/<rel>.en` — the **canonical human artifact** (English + verbatim TS). Edited by hand.
-- `.cache/` — derived compose IR (`.calc`) and build intermediates. **Gitignored, regenerable, never committed.**
+- `.cache/` — build intermediates and the derived `spec-derived/` artifacts. **Gitignored, regenerable, never committed.**
+
+> **RETRACTED 2026-09-04 — `.calc` is retired.** Amir: *"I dont think we do .calc anymore bro"*, then *"yeah kill that lol"*. Kept and corrected in place rather than deleted (`../../CLAUDE.md` §9) so a stale memory cannot re-derive it. **Measured 2026-09-04:** `sen/files/` holds **1,037 `.en` and zero `.calc`**, there is no `.calc` anywhere under `CORPUS`, `.cache/compose/` does not exist, and **no step of the 14-step `sdd-run --list` manifest reads or writes one**.
+> This line used to read *"derived compose IR (`.calc`) and build intermediates"*. The `.en` under `sen/files/` is the user-facing view and there is no second derived form beside it. `.cache/` still exists and is still gitignored — it holds `spec-derived/` (the naming plan, name queue, en-index, gate, language) — but it holds no `.calc`, and `.cache/compose/` was never created.
+
 - `.ts` — derived output; byte-identical to what the `.en` compiles to.
 
 **The panel loop.** `mine → author (.en) → compile → verify`, driven by `repo-dsl.js`:
-`repo-dsl mine` (fan-out + LZW + promote generators, write library + coverage) → author/edit `.en` (`enfile.js`, `author.js` for the CNL authoring grammar) → `compileFileEn` back to TS → `repo-dsl verify` / `verify-expand` (byte-diff, machine JSON verdict with coverage + residue classes) → `gate` (pass/fail on corpus coverage). `prose.js` narrates a file across the tiers for the panel, with an explicit HONESTY RULE (un-named bodies read as "custom logic (N statements)", never invented prose).
+`repo-dsl mine` (fan-out + LZW + promote generators, write library + coverage) → author/edit `.en` (`enfile.js`, `author.js` for the CNL authoring grammar) → `compileFileEn` back to TS → `repo-dsl verify` (byte-diff over the token stream) → `gate` (pass/fail on corpus coverage). **`verify-expand` was removed from this loop on 2026-09-04** with the rest of the `.calc` surface; the corpus-wide `verify` is what remains. `prose.js` narrates a file across the tiers for the panel, with an explicit HONESTY RULE (un-named bodies read as "custom logic (N statements)", never invented prose).
 
 ---
 

@@ -55,6 +55,6 @@ the requirement silently. Whether that override should exist at all is not settl
   no amount of re-mining brings back.
 - **`word-library.json` / coined-word catalog** and **`catalog/english-idioms.json`** — read-time coined-phrase and narration vocabularies.
 
-Only `.calc` IR, coverage/index reports, and naming worksheets are wipable-derived (§5 on-disk layout). A cleanup that cannot tell these apart must **stop and ask**, never delete a catalog.
+Only coverage/index reports and naming worksheets are wipable-derived (§5 on-disk layout). A cleanup that cannot tell these apart must **stop and ask**, never delete a catalog. *(This sentence used to lead with "`.calc` IR" — retracted 2026-09-04, `.calc` is retired and none exists on disk to wipe. **The rule itself is unweakened**, and note that removing an item from the wipable list makes it more conservative, never less.)*
 
 ---

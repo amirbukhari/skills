@@ -15,12 +15,14 @@
  *                                       of re-mining (snappy on a large corpus).
  *   repo-dsl verify <dir>               Byte-identity plumbing check: every file
  *                                       reconstructs exactly from its token stream.
- *   repo-dsl verify-expand <calc>       PER-MODULE gate: expand one .calc and byte-
- *                        [--against F]  diff it against its target (default the
- *                        [--min P]      module's generated file); machine JSON verdict
- *                                       {pass, coveragePct, byteIdentical, residueClasses}.
- *   repo-dsl expand <file>              Curated surface -> code: expand a .calc
- *                                       (DSL) or composition .json to native code.
+ *   (RETIRED 2026-09-04 -- `verify-expand <calc>` and `expand <file.calc>` were here.
+ *    Amir: "yeah kill that lol". The .calc IR is retired corpus-wide: the corpus holds
+ *    1,037 .en and ZERO .calc, .cache/compose/ does not exist, and no step of the 14-step
+ *    sdd-run manifest reads or writes one. The implementations are in archive/verify-expand.js
+ *    and in git history. The .en rendering under sen/files/ is the user-facing view.
+ *    NOTE: expander.js itself is NOT retired -- engine/dsl-surface.test.js and
+ *    refine-language.js both still call expand() over IN-MEMORY composition trees, which
+ *    never touch a .calc file. Retiring the IR is not retiring the expander.)
  *   repo-dsl explain <calc>             Emit the GENERATOR TREE a composition invokes
  *                                       (composites + leaf ids + typed signatures,
  *                                       nesting order) as machine JSON for the panel.
@@ -292,19 +294,6 @@ function cmdVerify(args) {
   process.exit(fail ? 1 : 0);
 }
 
-function cmdVerifyExpand(args) {
-  const { verifyExpand } = require("./verify-expand");
-  const calc = args.find((a) => !a.startsWith("--"));
-  if (!calc) { console.error("usage: repo-dsl verify-expand <calc> [--against <file>] [--min <pct>]"); process.exit(1); }
-  const out = verifyExpand(path.resolve(process.cwd(), calc), {
-    against: flag(args, "--against", null), min: flag(args, "--min", 100),
-  });
-  fs.mkdirSync(RESULTS, { recursive: true });
-  fs.writeFileSync(path.join(RESULTS, `verify-expand-${out.module}.json`), JSON.stringify(out, null, 2) + "\n");
-  console.log(JSON.stringify(out, null, 2));
-  process.exit(out.pass ? 0 : 1);
-}
-
 function cmdExplain(args) {
   const { explainTree } = require("./explain");
   const calc = args.find((a) => !a.startsWith("--"));
@@ -316,7 +305,7 @@ function cmdExplain(args) {
 
 function cmdRefineLanguage(args) {
   const { refineLanguage } = require("./refine-language");
-  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "verify-expand");
+  const dir = resolveCorpus(args[0] && !args[0].startsWith("--") ? args[0] : DEFAULT_CORPUS, "refine-language");
   const out = refineLanguage(dir, {
     apply: args.includes("--apply"),
     only: flag(args, "--only", "naming"),
@@ -325,16 +314,6 @@ function cmdRefineLanguage(args) {
   });
   console.log(JSON.stringify(out, null, 2));
   process.exit(out.gate.passed ? 0 : 1);
-}
-
-function cmdExpand(args) {
-  const file = args[0];
-  if (!file) { console.error("usage: repo-dsl expand <file.calc|composition.json>"); process.exit(1); }
-  const { expand } = require("./expander");
-  let tree;
-  if (file.endsWith(".json")) tree = JSON.parse(fs.readFileSync(file, "utf8"));
-  else tree = require("./dsl").parseText(fs.readFileSync(file, "utf8"));
-  process.stdout.write(expand(tree));
 }
 
 /**
@@ -417,14 +396,12 @@ function main() {
     case "publish": return cmdPublish(args);
     case "gate": return cmdGate(args);
     case "verify": return cmdVerify(args);
-    case "verify-expand": return cmdVerifyExpand(args);
-    case "expand": return cmdExpand(args);
     case "explain": return cmdExplain(args);
     case "language": return cmdLanguage(args);
     case "refine-language": return cmdRefineLanguage(args);
     case "report": return cmdReport();
     default:
-      console.error("usage: repo-dsl <mine|publish|gate|verify|verify-expand|expand|explain|language|refine-language|report> [args]  (see README)");
+      console.error("usage: repo-dsl <mine|publish|gate|verify|explain|language|refine-language|report> [args]  (see README)");
       process.exit(1);
   }
 }

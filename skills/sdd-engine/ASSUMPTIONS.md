@@ -6847,3 +6847,109 @@ about, not absorbed by a `<=` threshold.
 appearing inside prose would inflate it.** Today `marks === payloads === 9724`, matching the goal
 test's independent payload count, so nothing is being over-counted. If those two ever diverge, the
 regex is the first suspect, not the corpus.
+
+## 2026-09-04 — the `.calc` retirement: what was archived, what was not, and what we could actually prove
+
+**Provenance — Amir's decision, in his words.** He opened with *"I dont think we do .calc anymore
+bro"*, and after being shown the evidence both ways answered the pipeline-C question with *"yeah kill
+that lol"*. That is the authority for everything below. Quoted rather than paraphrased per §7,
+because the scope of "that" is exactly what was at stake: he was answering **(a) retire `.calc`
+corpus-wide**, having been told in the same breath that a live producer still existed.
+
+**What the measurement actually said, before his word.** The corpus half was unambiguous:
+`sen/files/` holds **1,037 `.en` and zero `.calc`**, there is no `.calc` anywhere under `CORPUS`,
+`.cache/compose/` does not exist, and **no step of the 14-step `sdd-run --list` manifest mentions
+`.calc` in `reads` or `writes`**. The tree half disagreed: five unarchived scripts still implemented
+the `.calc` surface, two of them with unconditional `writeFileSync(..., "composition.calc")`. That
+disagreement was reported and NOT resolved by inference — it went back to Amir, which is why this
+entry exists at all.
+
+**Judgment call: PROVEN DEAD and SUSPECTED-DEAD-NOT-PROVEN are kept apart, and the difference is a
+human at a keyboard.** A library is dead when nothing `require`s it — that is decidable by grep. A
+**human-invoked CLI is not**, because its caller is a person, and no search of this tree can see a
+person. So:
+
+| script | classification | what the evidence was |
+|---|---|---|
+| `verify-expand.js` | **PROVEN DEAD** | both callers died in the same pass (`repo-dsl.js`'s subcommand, `sdd-code-from-spec.js`). Labelled **TEST** in `README.md` but absent from `run-tests.js` and not under `engine/`, so the glob never saw it — **nothing ever ran it** |
+| `decompose.js` | **PROVEN DEAD** | one live caller, `selfhost-package.js`, archived in the same pass |
+| `selfhost-package.js` | **PROVEN DEAD** | zero code references, no test, no npm script, no `sdd-run` step; and its "self-hosting" is a different claim from the PRD's live one |
+| `sdd-code-from-spec.js` | **SUSPECTED DEAD, NOT PROVEN** | identical grep result — zero references, no test — but it is a human entry point. Archived on Amir's word, not on proof |
+
+All four were archived regardless; he said so. The distinction records **what we could demonstrate**,
+not what we decided, and it is written down precisely because the two are easy to blur after the
+fact.
+
+**Judgment call: `expander.js` was NOT archived, against the letter of the instruction, and this is
+the one place the pass deliberately stopped short.** Two live things still call `expand()`:
+`engine/dsl-surface.test.js:36` — a UNIT test picked up by `run-tests.js`'s `engine/*.test.js` glob,
+so it runs in plain `npm test`, **9 assertions, green when re-run 2026-09-04** — and
+`refine-language.js:45`, the live `repo-dsl refine-language` pass. Both operate on an **in-memory
+composition tree** and never open a `.calc` file. **Retiring the IR is not retiring the expander**;
+the two were conflated because one file's name sits next to the other's in the README. Archiving it
+would have broken a green test, and the standing rule is to stop and report rather than weaken a
+test to make a move succeed. Reported, not worked around.
+
+**Judgment call: R-REND-5's `.calc` clause was REMOVED, not re-mechanized, and the reason is worth
+more than the edit.** The row asserted *"derived `.calc` IR MUST go to a gitignored `.cache/`"* — and
+**that clause had never been enforced**. The mechanized body walks for `.en` and checks where they
+sit; it has never looked for a `.calc`, in any location, under any condition. So half the row ran and
+half was prose, and the prose half **borrowed the credibility of the half that runs** while the row
+reported HOLDS. That is the same defect class as a guard that cannot fire (`CLAUDE.md` §3) and a
+detector that cannot fire (§7), now inside a *requirement*: it fails in the reassuring direction.
+There was nothing left to mechanize once `.calc` was retired, so the clause is gone and the retraction
+sits in place above the body.
+
+**Judgment call: the corpus `.gitignore` line `*.calc` was left alone.** It now ignores a form that
+cannot be produced, which is harmless, and removing it is the one change that could let a stray
+`.calc` reach a remote if anything is ever restored from `archive/`. A dead-but-protective ignore rule
+is cheaper than the alternative.
+
+**Judgment call: `repo-dsl explain <calc>` was left alone and is flagged rather than changed.** It is
+the last `.calc`-shaped surface in the live CLI. It also accepts a composition `.json` and was not in
+the scope Amir approved, and `repo-dsl.js` is what `npm run gate` runs, so the blast radius of an
+unrequested edit there is worse than the rot. **Named here so it is a known open item, not an
+oversight.**
+
+**Measured, not assumed: `npm run gate` still reports `GATE: FAIL` at 41.4% corpus coverage, and
+that is PRE-EXISTING.** Proven rather than argued: `repo-dsl.js` was recovered from `HEAD` into a
+scratch probe and run against the same persisted catalog, and it gave the identical verdict —
+`pass: false`, `corpusCoveragePct: 41.4`. The retirement did not move it. **Side effect to be aware
+of:** `repo-dsl.js gate` **writes** `.cache/spec-derived/gate.json`, so verifying the gate restamped
+that artifact (same 633 B, same content). A read-only-looking verification command that publishes an
+artifact is worth knowing about before you run it to "just check".
+
+**CORRECTION, same session, caught before it was reported as fact: I briefly measured this pass as
+having taken the register from 68 hold / 15 fail to 73 hold / 9 fail. IT DID NOT. The register is
+73 hold / 9 fail before and after; my edit is a `req` string and a comment and cannot move a
+mechanized row.** The "before" reading was an artifact of **how** I took it. To get a baseline in a
+shared tree I copied `verify-register.js` from `HEAD` to `.vr-head-probe.js` and ran that — and
+several rows exclude themselves from their own scan by **filename**:
+
+```js
+if (path.basename(rel) === path.basename(__filename)) continue;   // R-ART-6
+```
+
+Run under any other name, that guard stops excluding the real `verify-register.js`, which is then
+scanned as an ordinary live file — and it is a 1,700-line file full of the very patterns those rows
+hunt for. Six rows (`R-ART-6`, `R-LANG-14`, `R-MECH-4`, `R-MINE-4`, `R-PAY-5`, `R-PIN-4`) flip to
+FAIL against the register's own source.
+
+**Proven, not inferred:** I copied my *own* unmodified file to a second name and ran it — byte-
+identical content, different filename — and got the identical 68/15 with the identical six extra
+rows. Same bytes, same tree, different answer, and the only variable was the name.
+
+**Why this is worth writing down rather than just fixing my number.** "Copy the file from `HEAD` and
+run it to get a before/after" is the obvious way to prove you did not break something in a tree
+several sessions are writing to — it is the same instinct as the private-index commit recipe, and I
+used it twice in this session. For `repo-dsl.js gate` it was **sound** (the gate verdict came back
+identically 41.4% / FAIL, and coverage does not depend on the runner's filename). For
+`verify-register.js` it is **silently invalid**, and it fails in the alarming direction rather than
+the reassuring one — it invents failures, so the danger is not a missed regression but a false one
+that sends the next person hunting a bug that does not exist. *(A self-exclusion keyed to
+`__filename` is fine for the real file and wrong for every copy of it; whether that guard should key
+on something sturdier is a question for Amir, not a change I made here.)*
+
+**The rule I would apply next time: a baseline taken by running a RENAMED copy is only valid for a
+tool whose result cannot depend on its own path.** Check that before trusting the number — and if
+the tool scans the tree it lives in, assume it can.

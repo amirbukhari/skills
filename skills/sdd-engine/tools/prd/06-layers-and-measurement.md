@@ -12,7 +12,10 @@ sees fewer files and a smaller total. **Every English-coverage and statement-col
 enfile-layer total as its denominator**, because the `.en` lives in that layer. A compose-layer
 figure must always be labelled as such, and **the two are never mixed inside one ratio.**
 
-## Layer A — word-tiling / compose (the generator library + `.calc` IR)
+## Layer A — word-tiling / compose (the generator library)
+
+> **RETRACTED 2026-09-04 — `.calc` is retired.** Amir: *"I dont think we do .calc anymore bro"*, then *"yeah kill that lol"*. Kept and corrected in place rather than deleted (`../../CLAUDE.md` §9) so a stale memory cannot re-derive it. **Measured 2026-09-04:** `sen/files/` holds **1,037 `.en` and zero `.calc`**, there is no `.calc` anywhere under `CORPUS`, `.cache/compose/` does not exist, and **no step of the 14-step `sdd-run --list` manifest reads or writes one**.
+> This heading used to read *"(the generator library + `.calc` IR)"*. Layer A is unchanged as a **mechanism** — fan-out, LZW, generator promotion, byte-lossless tiling all still run and are still measured. What is retired is the `.calc` **serialization** of it. The composition tree survives as an in-memory IR (`expander.js`, and the recursive word dictionary in `sen/catalog/generators-lzw.json`); it simply never lands on disk as a `.calc` file.
 
 `fanout → LZW → generators (pipeline.js) → compose.js`. Every file is byte-losslessly tiled into an
 ordered stream of **words** (recurring parameterized spans that refill byte-exact) and **literal
@@ -26,7 +29,7 @@ The `.ts` is rendered to an editable `.en` by swapping **only verified spans** i
 leaves via `data-english.js` ("an object with a = `x`", "a list of …") and pure-logic simple
 statements via the `cnl.js` grammar ("Let `x` be …", "When <cond>, …", "Return …"). Everything else
 stays verbatim TypeScript. The `.en` files are written to `<corpus>/sen/files/<rel>.en`; the derived
-`.calc` IR is relocated to a gitignored `.cache/`.
+there is no second derived on-disk form beside it. *(This sentence used to end "the derived `.calc` IR is relocated to a gitignored `.cache/`" — retracted 2026-09-04, see the note under Layer A above.)*
 
 ## The middle-tier gap
 

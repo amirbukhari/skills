@@ -201,17 +201,17 @@ investigation, kept for its findings; not on any path.
 | `language.js` | **LIBRARY**/TOOL | publishes the vocabulary + grammar as machine JSON for a cross-repo consumer. `repo-dsl language <dir> --json`. Hand-authors nothing: every name, param, keyword, marker, tier and token rule is read live from `generators.js`/`dsl.js` at call time, and `engine/language.test.js` fails if this file ever names a composite or leaf literally |
 | `dsl.js` | **LIBRARY** | the readable surface over the composition-tree IR. 30 references — the most-used module here |
 | `generators.js` | **LIBRARY** | the deterministic generator library for the SDD code stage |
-| `expander.js` | **LIBRARY** | composition tree → code |
-| `decompose.js` | **LIBRARY** | the deterministic `.calc` author (no LLM) |
+| `expander.js` | **LIBRARY** (**LIVE — deliberately NOT archived**) | composition tree → code. **Kept when the rest of the `.calc` surface was retired on 2026-09-04**, because two live things still call `expand()` over an **in-memory** composition tree, which never touches a `.calc` file: `engine/dsl-surface.test.js:36` (a UNIT test, auto-discovered by `run-tests.js`'s `engine/*.test.js` glob, so it runs in plain `npm test` — **9 assertions, green 2026-09-04**) and `refine-language.js:45` (the live `repo-dsl refine-language` pass). Retiring the IR is not retiring the expander |
+| `archive/decompose.js` | **ARCHIVED 2026-09-04** | was the deterministic `.calc` author (no LLM). Retired with the whole `.calc` surface — Amir: *"yeah kill that lol"*. **PROVEN DEAD**: its only live caller was `selfhost-package.js`, archived in the same pass |
 | `explain.js` | **LIBRARY**/TOOL | walks a composition tree into the generator tree it invokes |
 | `build-skeletons.js` | pipeline **C** | the skeleton tier over the whole corpus |
 | `build-archetypes.js` | pipeline **C** | the archetype tier. Deliberately NOT wired in (PRD §5 tier 1) |
 | `package-hydra-source.js` | pipeline **C** | deterministic packager for the billing-system corpus |
-| `selfhost-package.js` | pipeline **C** | zero-LLM self-hosting package |
+| `archive/selfhost-package.js` | **ARCHIVED 2026-09-04** | was pipeline **C**'s zero-LLM self-hosting package: `mine -> decompose -> .calc -> expand -> verify`. Retired with the `.calc` surface — Amir: *"yeah kill that lol"*. **PROVEN DEAD**: zero code references, no test, and its `self-hosting` sense is not the one the PRD uses today (there, self-hosting means `SOURCE === CORPUS`, R-CFG-2/R-CFG-9 — a different claim entirely) |
 | `test-gen-roundtrip.js` | **TEST** (slow) | render every corpus `.ts` to `.en` and compile back; assert byte-identical. ~24s, ~850MB peak |
 | `test-lzw-roundtrip.js` | **TEST** (slow) | the same gate through the recursive word dictionary. ~22s, ~840MB peak |
 | `engine/dsl-surface.test.js` | **TEST** | proves the surface layer is lossless: print/parse round-trip and byte-identical expansion, over every form the live grammar reports. Replaces `verify-dsl.js`, which is now in `archive/` — it read `compositions/` and `surface/` fixtures that were gitignored as derived and so did not survive the skill extraction, and its producer `build-compositions.js` was already archived |
-| `verify-expand.js` | **TEST** | the per-module gate |
+| `archive/verify-expand.js` | **ARCHIVED 2026-09-04** | was the per-module gate over one `.calc`. **PROVEN DEAD**: its two callers were `repo-dsl.js`'s `verify-expand` subcommand (retired in the same pass) and `sdd-code-from-spec.js` (archived in the same pass); it was never in `run-tests.js`, so despite the **TEST** label nothing ever ran it |
 | `measure-bespoke-composites.js` | measurement | STEP 1 of the coverage push (MEASURE ONLY) |
 | `measure-callgraph.js` | measurement | STEP 5 (MEASURE ONLY) |
 | `measure-operations.js` | measurement | STEP 3 (MEASURE ONLY): discovers higher-level operations |
@@ -226,7 +226,7 @@ investigation, kept for its findings; not on any path.
 | `resolve-imports.js` | **ONE-OFF** | mines a symbol → module-specifier map |
 | `archive/strip-comments.js` | **ONE-OFF** | deterministic AST-safe comment stripper — **ARCHIVED 2026-09-03**, see `archive/README.md` |
 | `refine-language.js` | LLM pass | the "librarian" pass over the mined language. Reaches into `../sdd-lib.js` |
-| `sdd-code-from-spec.js` | LLM pass | the code-stage composition emitter. Sibling of `../sdd-spec-from-intent.js` |
+| `archive/sdd-code-from-spec.js` | **ARCHIVED 2026-09-04** | was the code-stage composition emitter (`spec.md -> composition.calc -> native code`). Retired with the `.calc` surface. **SUSPECTED DEAD, NOT PROVEN** — zero code references and no test, but it is a human-invoked CLI, so grep cannot prove nobody ran it. Archived on Amir's word, not on proof |
 | `archive/package-delonix.js` | **ONE-OFF, do not run** | packages a corpus at a path that `../../CLAUDE.md` §1 puts **out of bounds** and `.claude/settings.json` denies reads to. Kept for history only — **ARCHIVED 2026-09-03**, see `archive/README.md` |
 
 ### subdirectories

@@ -36,6 +36,10 @@ The live pipeline is stated in `../README.md`. If a script is in here, it is **n
 | `strip-comments.js` | deterministic AST-safe comment stripper | **ARCHIVED 2026-09-03.** ONE-OFF. Zero references outside its `../README.md` row. The corpus is mined and rendered from source as written; nothing on the `.en` path strips comments. |
 | `coin-word.js` | coin-a-word demo, proves the growth loop end to end | **ARCHIVED 2026-09-03.** ONE-OFF demo. Zero code references; the only mentions are historical entries in `../../../ASSUMPTIONS.md` recording that it was gated for byte-identity even though it was never a §7.0 gate. |
 | `package-delonix.js` | packages a corpus from the Delonix tree | **ARCHIVED 2026-09-03.** Its own `../README.md` row already read **"ONE-OFF, do not run"**: it targets a path that `../../CLAUDE.md` §1 puts out of bounds and that `.claude/settings.json` denies reads to. Kept for history; it cannot legitimately be run from this repo. |
+| `selfhost-package.js` | pipeline C's zero-LLM self-hosting package: `mine -> decompose -> .calc -> expand -> verify` | **ARCHIVED 2026-09-04 — the `.calc` retirement.** Amir: *"I dont think we do .calc anymore bro"*, then *"yeah kill that lol"*. **PROVEN DEAD**: zero code references anywhere, no test, never wired to an npm script or an `sdd-run` step. Note its "self-hosting" is NOT the sense the PRD uses today — there it means `SOURCE === CORPUS` (R-CFG-2/R-CFG-9), which is live and unaffected. |
+| `decompose.js` | the deterministic `.calc` author (no LLM) | **ARCHIVED 2026-09-04 — the `.calc` retirement.** **PROVEN DEAD**: its only live caller was `selfhost-package.js`, archived in the same pass. Moving it here also repairs `package-delonix.js:28`'s `require("./decompose")`, which had been dangling since that file was archived alone on 2026-09-03. |
+| `verify-expand.js` | the per-module gate: expand one `.calc`, byte-diff it against its target | **ARCHIVED 2026-09-04 — the `.calc` retirement.** **PROVEN DEAD**: its only two callers were `repo-dsl.js`'s `verify-expand` subcommand (retired in the same pass) and `sdd-code-from-spec.js` (archived in the same pass). Labelled **TEST** in `../README.md` but never listed in `run-tests.js` and not under `engine/`, so the glob never picked it up — **nothing ever ran it**. |
+| `sdd-code-from-spec.js` | the code-stage composition emitter: `spec.md -> composition.calc -> native code` | **ARCHIVED 2026-09-04 — the `.calc` retirement.** **SUSPECTED DEAD, NOT PROVEN.** Zero code references and no test — but it is a **human-invoked CLI**, and a CLI whose caller is a person cannot be proven unused by grep. Archived on Amir's explicit word, not on evidence. If it is ever wanted back, it needs `expander.js` (still live) and `archive/verify-expand.js`. |
 
 `archive/engine/` mirrors the `engine/` path a module was retired from, so its origin is
 recoverable by moving it back. Note that a retired module's *relative* requires (`./operations`,
@@ -46,3 +50,18 @@ retired, not maintained; restore a file to its old path before running it.
 Nothing here is required to build a `.en`. To confirm that claim rather than trust it:
 `node measure-english.js` must still report byte-identity 1037/1037 with this folder
 present or absent.
+
+## On the four archived 2026-09-04, and the one that was not
+
+`expander.js` **stayed live** and is not in this folder. Retiring the `.calc` IR is not the same as
+retiring the expander: `engine/dsl-surface.test.js:36` and `refine-language.js:45` both call
+`expand()` over an **in-memory** composition tree and never open a `.calc` file. Archiving it would
+have broken a green unit test that runs in plain `npm test`, so it was not archived — see
+`../../../ASSUMPTIONS.md`.
+
+**The standard applied here, stated so the next reader can hold us to it:** a human-invoked CLI
+cannot be proven unused by grep, because its caller is a person, not a `require`. So each row above
+says **PROVEN DEAD** (zero code references, no live test, superseded in the docs) or **SUSPECTED
+DEAD, NOT PROVEN** (the same grep result, but a human entry point). All four were archived either
+way, on Amir's word — the distinction records what we could actually demonstrate, not what we
+decided.

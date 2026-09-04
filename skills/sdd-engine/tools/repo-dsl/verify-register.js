@@ -1664,12 +1664,28 @@ const ROWS = [
                 "the measured denominator is not the corpus -- silent under-reporting (R-PIN-6)");
     } },
 
-  { id: "R-REND-5", req: "The .en MUST be written to <CORPUS>/sen/files/<rel>.en; derived .calc IR to a gitignored .cache/.",
+  { id: "R-REND-5", req: "The .en MUST be written to <CORPUS>/sen/files/<rel>.en. It is the user-facing view; there is no second derived form.",
     run() {
       /* Two different answers must not be confused here, which is the whole reason this row is
        * mechanized separately from R-REND-1: "render has not been run" is a STATE, and ".en files
        * exist somewhere other than sen/files/" is a VIOLATION. An in-memory round-trip score says
-       * nothing either way -- see the note on R-REND-1. */
+       * nothing either way -- see the note on R-REND-1.
+       *
+       * RETRACTED 2026-09-04 (../../CLAUDE.md §9). This `req` string used to end "; derived .calc
+       * IR to a gitignored .cache/." -- asserting .calc as a LIVE derived form. Amir, in the
+       * moment: "I dont think we do .calc anymore bro", then "yeah kill that lol". The .calc IR is
+       * retired corpus-wide. MEASURED 2026-09-04: sen/files holds 1,037 .en and ZERO .calc, there
+       * is no .calc anywhere under CORPUS, .cache/compose/ does not exist, and no step of the
+       * 14-step sdd-run manifest reads or writes one.
+       *
+       * AND THE .calc HALF WAS NEVER ENFORCED ANYWAY, which is the more useful finding: the body
+       * below walks for `.en` and checks WHERE they sit. It has never looked for a .calc, in any
+       * location, under any condition. So the clause read as a mechanized requirement while being
+       * inert prose inside a row that HOLDS -- the register rot its own header warns about
+       * ("a wrong pointer sends the next reader to a retired file that answers a different
+       * question with confidence"), one level in: a half-mechanized row whose unmechanized half
+       * borrows the credibility of the half that runs. The clause is removed rather than
+       * mechanized: there is nothing left to mechanize. */
       let CR2, root;
       try { CR2 = require("./engine/corpus-root"); root = CR2.corpusRoot(); }
       catch (e) { return FAILS(null, `root unresolvable: ${e.message.split("\n")[0]}`); }
