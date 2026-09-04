@@ -8867,3 +8867,90 @@ point.** Every one of these 33 sites is already correct English. The figure exis
 session does not rank them as silence and fund a rule that would overwrite good prose, which is
 exactly what happened to the 17 route sites before `one-char-credit.js` existed. This is the fourth
 time the metric has been caught measuring the wrong thing.
+
+## The condGloss negation trap — 6 clauses, 6 improvements, and a first cut that was NET NEGATIVE (2026-09-04)
+
+The three legacy `.replace` calls had **two** holes, and both put a *confidently wrong* clause on
+disk rather than a silent one. Live in the corpus, before this change:
+
+```
+if (!(await doesTokenFileExist()))          ->  "the test on `doesTokenFileExist` PASSES"
+if (!await verifyUserCredentials(e, p))     ->  "the test on ... `email`, and `password` PASSES"
+if (!(typeof month === 'string'))           ->  "`month` IS A STRING"
+!(chargeHasTaxes.length > 0)                ->  "`chargeHasTaxes.length` IS OVER `0`"
+```
+
+Every one is the exact opposite of its source, and one of them is an authentication guard.
+
+- **Hole 1** — a phrase outside the whitelist returned the inner clause **un-negated**, which is the
+  documented trap; this is it firing on shapes that were already in the tree, not a hypothetical.
+- **Hole 2, and it is why hole 1 kept firing** — ` passes ` carried a **trailing space**, so
+  "the test on `x` passes", which *ends* the clause, never matched. The commonest negatable shape in
+  the corpus could not be negated by the table meant to negate it.
+
+`negate()` now returns a correctly negated clause **or null**. There is no path that returns the
+clause unchanged — the property the three `.replace` calls could not have.
+
+### THE FIRST CUT WAS NET NEGATIVE, and only reading every change showed it
+
+The obvious guard — decline whenever the inner clause contains `" and "` or `" or "`, on the theory
+that those mark a compound — **changes 25 clauses: 19 REGRESSIONS against 6 improvements.**
+
+`P.list` joins its inputs with `" and "`, so "`Array.isArray` and `ctx.request.body` passes
+`isArray`" is a **single predicate over a list**, not a conjunction. The guard could not tell a list
+separator from a logical operator, so it threw away 19 negations that were already correct:
+
+```
+before : when `Array.isArray` and `ctx.request.body` fails `isArray`, add created   <- CORRECT
+after  : if a condition holds, add created                                          <- WORSE
+```
+
+**An aggregate count would have called that cut a success** — 25 clauses moved, and the six known
+inversions were among them. It is net negative, and nothing but reading all 25 against their sources
+says so. Recorded because the item's own brief predicted exactly this, and it was right.
+
+### The shipped cut — count the hits, do not look for " and "
+
+Exactly one negatable phrase in the clause, or decline (§5C). Two hits is a compound — `!(A && B)`
+is `!A || !B`, so negating one half and keeping the conjunction states something the source does
+not. Zero hits is a phrase this table cannot invert.
+
+**Full-corpus differential over 33,918 statements: 6 clauses change, all 6 improvements, 0
+regressions.** Every one read against its source:
+
+| site | before → after | kind of fix |
+|---|---|---|
+| `auth.ts:21` | "…`doesTokenFileExist` passes" → "**fails**" | inversion fixed, prose kept |
+| `auth.ts:74` | same | inversion fixed, prose kept |
+| `commissions.ts:462` | "…`DistinctGenSubCommissions` passes" → "**fails**" | inversion fixed, prose kept |
+| `users.ts:46` | "…`email`, and `password` passes" → "**fails**" | inversion fixed, prose kept |
+| `clientBillingHelpers.ts:265` | "`chargeHasTaxes.length` is over `0`" → the inner declines, clause collapses to "the test on … passes" | false → vague but TRUE |
+| `subscriptions.ts:261` | "`month` is a string" → the inner declines, clause collapses | false → vague but TRUE |
+
+Four fix an inversion **while keeping the prose**, because widening ` passes ` to ` passes` lets the
+table negate the shape it was missing instead of declining on it. Two trade a false clause for a
+vague true one, which is the §5C trade the file already makes everywhere else: a clause that is
+confidently wrong is worse than one that says little.
+
+**The improvement-site figure is 6, measured on the rendering path** (`spanActions`, the path that
+writes the `.en`), not from the attribution model.
+
+### Measured, before and after
+
+| | before (`2949845`) | after |
+|---|---|---|
+| `test-gen-roundtrip.js` | files 1037, byte-identical **1037**, FAILURES 0 | files 1037, byte-identical **1037**, FAILURES 0 |
+| coverage TOTAL generic | 1645 | 1645 |
+| coverage TOTAL site-specific | 32207 | 32207 |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| series → REAL | 921 / 117 / 15 → **592** | unchanged |
+| attribution | 174 / 50 / 8 / 360 = 592 | unchanged |
+
+**The ladder does not move, and that is the correct outcome.** All six sites were already
+site-specific and stay so; four keep the same shape with the polarity corrected, two become vaguer
+without crossing the threshold. This change buys TRUTH, not coverage — and a change that bought
+coverage here would be the suspicious one.
+
+The live tree was re-diffed against the measured candidate: **0 clauses differ**.
+`clause-quality.js` shows 0 changed lines; `SAYS_NOTHING`, `VACUOUS` and `bare.length >= 2` are
+untouched; no assertion, gate or exit code moved.

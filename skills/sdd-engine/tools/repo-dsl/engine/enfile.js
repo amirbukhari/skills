@@ -690,9 +690,42 @@ function recordGloss(n, sf) {
   return NKR.render(n, sf, NKRP);
 }
 
-/* The phrases `condGloss` knows how to NEGATE, beside the three `.replace` calls below that
- * predate them. See the comment in the `!` branch for what a missing entry costs. */
-const NEGATABLE = [[" is an instance of ", " is not an instance of "], [" is a key in ", " is not a key in "]];
+/* THE PHRASES `condGloss` KNOWS HOW TO NEGATE. The three `.replace` calls this replaced were the
+ * whole vocabulary until 2026-09-04 and they had two holes, both of which put a CONFIDENTLY WRONG
+ * clause on disk rather than a silent one:
+ *
+ *   1. A phrase outside the list returned the inner clause UN-NEGATED. Live in the corpus:
+ *      `if (!(await doesTokenFileExist()))` read "the test on `doesTokenFileExist` PASSES", and
+ *      `if (!(typeof month === 'string'))` read "`month` IS A STRING". Both the exact opposite of
+ *      the source. `if (!await verifyUserCredentials(email, password))` was one of them.
+ *   2. ` passes ` carried a TRAILING SPACE, so "the test on `x` passes" -- which ends the clause --
+ *      never matched, which is how hole 1 kept firing on the commonest shape of all.
+ *
+ * `negate` returns a correctly negated clause or NULL. There is no path that returns the clause
+ * unchanged, which is the property the three `.replace` calls could not have. */
+const NEGATABLE = [[" is an instance of ", " is not an instance of "], [" is a key in ", " is not a key in "],
+  [" passes", " fails"], [" is set", " is missing"], [" holds", " does not hold"]];
+
+/* EXACTLY ONE negatable phrase, or decline (§5C). Two hits means a compound -- `!(A && B)` is
+ * `!A || !B`, so negating one half and keeping the conjunction states something the source does
+ * not -- and zero hits means the phrase is not one this table can invert.
+ *
+ * COUNTING HITS IS NOT THE SAME AS LOOKING FOR " and ", and the difference is the whole measurement.
+ * A first cut declined whenever the clause contained " and " or " or ", on the theory that those
+ * mark a compound. They do not: `P.list` joins its inputs with " and ", so
+ * "`Array.isArray` and `ctx.request.body` passes `isArray`" is a SINGLE predicate over a list.
+ * Measured over the corpus, that cut changed 25 clauses -- 19 of them REGRESSIONS, correct
+ * negations thrown away for "if a condition holds" -- against 6 improvements. Net negative, and
+ * only reading all 25 against their sources showed it. */
+function negate(inner) {
+  let hit = null, total = 0;
+  for (const [ph, neg] of NEGATABLE) {
+    const n = inner.split(ph).length - 1;
+    if (!n) continue;
+    total += n; if (!hit) hit = [ph, neg];
+  }
+  return total === 1 ? inner.replace(hit[0], hit[1]) : null;
+}
 function condGloss(n, sf, strict) {
   if (!n) return null;
   if (ts.isParenthesizedExpression(n)) return condGloss(n.expression, sf, strict);
@@ -710,12 +743,7 @@ function condGloss(n, sf, strict) {
        * trap, which is why the negations are a table and not three more `.replace` calls.
        * A phrase appearing more than once, or inside a compound, DECLINES rather than negating
        * the first occurrence and calling it done -- the honesty rule (§5C). */
-      for (const [ph, neg] of NEGATABLE) {
-        if (!inner.includes(ph)) continue;
-        if (inner.split(ph).length !== 2 || / and | or /.test(inner)) return null;
-        return inner.replace(ph, neg);
-      }
-      return inner.replace(/ passes /, " fails ").replace(/ is set$/, " is missing").replace(/ holds$/, " does not hold");
+      return negate(inner);
     }
   }
   /* `typeof x === 'number'` is a type test, and saying so is more informative than either
