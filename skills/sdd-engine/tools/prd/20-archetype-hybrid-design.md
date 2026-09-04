@@ -675,3 +675,57 @@ pass from any drop it would cause.
 
 **Guard:** `engine/review-surface-ratchet.test.js` carries `MUTE_CEILING` beside the two review-surface
 ceilings and prints all three together, surface first, per the ruling.
+
+### Which metric scores which work — the mapping, added alongside (2026-09-04)
+
+**Nothing is redefined or retired here.** Per R-ARCH-16B's own ruling a metric is never replaced,
+only accompanied; this section adds no number and no requirement. It names which scoreboard can see
+which kind of work, because **a lane that reads the wrong one concludes its work did nothing** —
+which is exactly how R-ARCH-16B came to exist.
+
+| the work | scored by | read at | blind to |
+|---|---|---|---|
+| **MINING** — skeletons, holes, nesting, scheduling | **REVIEW SURFACE** (R-ARCH-16) and the **byte accounting** in `measure-english.js` | `engine/review-surface-ratchet.test.js`; `measure-english.js` | what any clause *says* — a statement can collapse into a word and say nothing |
+| **PRODUCTIONS / THE PHRASEBOOK** — what a clause says about its own site | **MUTE** (R-ARCH-16B) `= generic + vacuous` | `review-surface-ratchet.test.js`; per statement kind and as a corpus TOTAL in `engine/statement-kind-coverage.test.js` | bytes, entirely — and REVIEW SURFACE is blind to IT, this section's founding measurement |
+
+The two harnesses read the **same two numbers**: measured together at `a05c5f3`, MUTE **1,662** =
+**1,600 generic + 62 vacuous**, and the coverage TOTAL row carries the same 1,600 and 62. Read either
+**fresh**; a generic figure carried between sessions is how the retracted counts got published.
+
+### The third number, and why phrasebook work cannot move it
+
+`measure-english.js` also prints a byte reading — its final `--> reads as English` line. **It is
+structurally incapable of moving on phrasebook work, and that is not a defect.** Its inputs are (a)
+the LZW skeleton key with its hole marks removed and (b) the hole VALUES bucketed by shape. **Clause
+prose is not one of its inputs**, so a production that rewrites what a span *says* moves no byte
+between those buckets.
+
+**Measured, not reasoned** — a full-corpus rendering-path differential of that whole report across
+`a05c5f3` (a phrasebook commit; 8 clauses moved) against its parent `7dc5388`: **every line
+byte-for-byte identical**, including the two clause metrics (i) and (ii). Over the same pair the
+coverage TOTAL's generic column fell by exactly the 8.
+
+**Metrics (i) and (ii) do read clause prose and still do not score genericness.** (i) counts only
+the 13 exact strings frozen in `clause-quality.js`'s `VACUOUS`; (ii) asks only whether TypeScript
+syntax survives outside the quoted regions. `call push` for `acc[lineId].push(ui)` is neither
+vacuous nor incomplete and passes both — R-ARCH-16B's blind spot, one layer down.
+
+**So: if the byte share is the number someone wants moved, the work order is hole and skeleton
+coverage — MINING — and NOT the phrasebook.** State that; do not report a flat delta from a
+phrasebook commit as a stall.
+
+**And the PRD already rules that share is not a target at all.** §4: *"Coverage-% is not the
+north-star metric. A high English-% achieved by paraphrasing unique code would be worthless."* §15:
+*"Explicitly not a metric: English-%. It is a by-product; a rise from paraphrasing unique code is a
+regression in disguise."* R-MEAS-6: it *"MUST be reported and MUST NOT be optimised"*. **Reopening
+that is Amir's ruling, not a lane's** — this section does not reopen it.
+
+### Two live readings that are point-in-time, and are not corrected here
+
+- **R-ARCH-16B's own last series entry** — *"2,362 (2,293 generic + 69 vacuous)"*, and the register
+  row R-ARCH-16B repeating it — was current on 2026-09-03 and is **not** current now. It is a
+  retroactively-computed BASELINE SERIES and is left exactly as written; the live value is read from
+  the harnesses named above. Fresh at `a05c5f3`: **1,662**.
+- **`MUTE_CEILING` is slack by 700.** The ratchet says so itself in its output: *"mute ceiling is
+  slack by 700 — lower MUTE_CEILING to 1662."* Lowering a ceiling is a deliberate act in a commit
+  that says why (that file's own rule), and it is **not** done in this documentation pass.

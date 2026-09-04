@@ -23,6 +23,59 @@
  * accounting below prints the live split; read the ceiling off that.
  *
  * Label-region only. compileChunk never reads a label, so nothing here can move a byte.
+ *
+ * ── WHICH METRIC SCORES WHICH WORK ────────────────────────────────────────────────────────────
+ *
+ * ADDED ALONGSIDE, NOTHING HERE REDEFINED OR RETIRED (R-ARCH-16B: "Do NOT redefine `reviewSurface`.
+ * It stays exactly as it is, unedited. Add a SECOND metric alongside it, never replacing it." —
+ * Amir, 2026-09-03). This block adds no number and changes no output. It says which of the three
+ * live scoreboards can see which kind of work, because a lane that reads the wrong one concludes
+ * its work did nothing.
+ *
+ *   MINING — skeletons, holes, nesting, scheduling
+ *     scored by  REVIEW SURFACE (R-ARCH-16), and by the BYTE ACCOUNTING printed below
+ *     read at    engine/review-surface-ratchet.test.js  ·  this file
+ *     blind to   what any clause says — a statement can collapse into a word and say nothing
+ *
+ *   PRODUCTIONS / THE PHRASEBOOK — what a clause SAYS about its own site
+ *     scored by  MUTE (R-ARCH-16B) = generic + vacuous, by the frozen definitions
+ *     read at    engine/review-surface-ratchet.test.js  ·  per statement kind, and as a corpus
+ *                TOTAL row, in engine/statement-kind-coverage.test.js
+ *     blind to   bytes — see below; and REVIEW SURFACE is blind to IT, which is R-ARCH-16B's
+ *                founding measurement: a production was landed and the number did not move
+ *
+ *   Those two harnesses read the SAME two numbers: MUTE 1662 = 1600 generic + 62 vacuous, and the
+ *   coverage TOTAL row's generic and vacuous columns, measured together at `a05c5f3`. Read either
+ *   FRESH; never carry a generic figure between sessions.
+ *
+ * THE BYTE ACCOUNTING BELOW CANNOT MOVE ON PHRASEBOOK WORK, AND THAT IS STRUCTURAL, NOT A BUG.
+ * Its inputs are (a) the LZW skeleton key with its hole marks removed and (b) the hole VALUES,
+ * bucketed by shape — `wordLike` / `codeBearing` / gap. Clause prose is not one of them. A
+ * production that rewrites what a span SAYS moves no byte between those buckets, so every line
+ * from "BYTE ACCOUNTING" down is invariant under it by construction.
+ *
+ * MEASURED, not reasoned: a full-corpus rendering-path differential across `a05c5f3` (a phrasebook
+ * commit that moved 8 clauses) against its parent `7dc5388` — this whole report, every line of it,
+ * byte-for-byte IDENTICAL. Over the same pair the coverage TOTAL's GENERIC column fell by exactly
+ * 8 (1608 -> 1600), which is the whole of that commit. Stated exactly: MUTE itself was read at
+ * `a05c5f3` only (1662); the two harnesses agree on both columns there, so the parent's MUTE is an
+ * inference from its coverage row, not a second reading.
+ *
+ * METRICS (i) AND (ii) DO READ CLAUSE PROSE, AND STILL DO NOT SCORE GENERICNESS. (i) counts only
+ * the 13 exact strings frozen in `clause-quality.js`'s `VACUOUS` (counted, not carried); (ii) asks only whether TypeScript
+ * syntax survives outside the quoted regions. A clause that says nothing about its site — "call
+ * push" for `acc[lineId].push(ui)` — is neither vacuous nor incomplete, and passes both. That is
+ * the same blind spot R-ARCH-16B was created for, one layer down.
+ *
+ * IF THE "reads as English" SHARE IS THE NUMBER SOMEONE WANTS MOVED, THE WORK ORDER IS HOLE AND
+ * SKELETON COVERAGE — MINING — AND NOT THE PHRASEBOOK. Say that plainly rather than reporting a
+ * flat delta from a phrasebook commit and calling it a stall.
+ *
+ * AND READ THE PRD BEFORE TAKING THAT AS A WORK ORDER AT ALL: it already rules that this share is
+ * NOT a target. §4: "Coverage-% is not the north-star metric. A high English-% achieved by
+ * paraphrasing unique code would be worthless." §15: "Explicitly not a metric: English-%. It is a
+ * by-product; a rise from paraphrasing unique code is a regression in disguise." R-MEAS-6: it
+ * "MUST be reported and MUST NOT be optimised". Reopening that is Amir's ruling, not a lane's.
  */
 const fs = require("fs");
 const path = require("path");

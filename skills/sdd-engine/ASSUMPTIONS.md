@@ -11799,3 +11799,86 @@ This commit adds **8 sites in 6 files** to the drift queue, 1 of those files alr
 lane's queue now stands at **73 sites in 47 files**. `enfile.test.js`'s corpus case stays RED, in
 the same way and for the same reason. **The re-render authorisation is spent and was not re-run,
 not asked for sideways, and not worked around.**
+
+---
+
+## `metric-mapping` — name which metric scores which work (documentation only, no number changed)
+
+### THE FILE IS NOT WHERE THE BRIEF SAID
+
+The item points at `engine/measure-english.js`. The file is `tools/repo-dsl/measure-english.js` —
+a tool, not an engine module, and the same path-convention slip that has now shown up on four
+items. The repo wins; picked up from the real file.
+
+### WHAT THIS COMMIT IS
+
+**No metric is redefined, retired or replaced, and no output changes.** R-ARCH-16B's ruling, Amir
+verbatim: *"Do NOT redefine `reviewSurface`. It stays exactly as it is, unedited. Add a SECOND
+metric alongside it, never replacing it."* This adds the MAPPING alongside — a header block in
+`measure-english.js` and a section under R-ARCH-16B in `tools/prd/20-archetype-hybrid-design.md`.
+Proven inert: `measure-english.js`'s full report is **byte-for-byte identical before and after the
+header addition**, diffed over a complete run.
+
+| the work | scored by | read at | blind to |
+|---|---|---|---|
+| **MINING** — skeletons, holes, nesting, scheduling | REVIEW SURFACE (R-ARCH-16) and the byte accounting in `measure-english.js` | `review-surface-ratchet.test.js`; `measure-english.js` | what any clause *says* |
+| **PRODUCTIONS / THE PHRASEBOOK** — what a clause says about its site | MUTE (R-ARCH-16B) `= generic + vacuous` | `review-surface-ratchet.test.js`; per kind and as a TOTAL in `statement-kind-coverage.test.js` | bytes, entirely |
+
+### THE STRUCTURAL CLAIM, MEASURED RATHER THAN REASONED
+
+`measure-english.js`'s byte reading takes two inputs: the LZW skeleton key with its hole marks
+removed, and the hole VALUES bucketed by shape. **Clause prose is not one of them.** A full-corpus
+rendering-path differential of the whole report across `a05c5f3` (a phrasebook commit that moved 8
+clauses) against its parent `7dc5388` came back **byte-for-byte identical on every line** — the byte
+accounting, the per-archetype panel reading, AND both clause metrics. Over the same pair the
+coverage TOTAL's generic column fell by exactly those 8, 1608 → 1600.
+
+**Metrics (i) and (ii) DO read clause prose and still cannot score genericness.** (i) counts only
+the 13 strings frozen in `clause-quality.js`'s `VACUOUS` (counted, not carried); (ii) asks only
+whether TypeScript syntax survives outside the quoted regions. `call push` for `acc[lineId].push(ui)`
+is neither vacuous nor incomplete and passes both. That is R-ARCH-16B's blind spot one layer down,
+and it is why the mapping needed writing at all.
+
+### THE TWO HARNESSES AGREE, AND BOTH WERE READ FRESH AT `a05c5f3`
+
+`review-surface-ratchet.test.js`: **MUTE 1,662 = 1,600 generic + 62 vacuous** of 33,918; review
+surface **top 1,086 / tree 20,152**, both exactly at their 2026-09-03 ceilings; 4 passed, 0 failed.
+`statement-kind-coverage.test.js` TOTAL: `33918 32256 95% 1600 5% 62 0`, 42 passed / 10 failed. The
+generic and vacuous columns match across the two.
+
+**The item's own description carries dead figures — 2,284 → 1,839 — and they are not used here.**
+Nothing in this commit quotes them, and the mapping's only generic figures are the two read fresh
+above.
+
+### IF THE BYTE SHARE IS THE NUMBER TO MOVE, THE WORK ORDER IS MINING — AND THE PRD ALREADY RULES IT
+### IS NOT A TARGET
+
+Stated in both places, plainly, and NOT decided here: if that share is what someone wants moved, the
+work order is hole and skeleton coverage, not the phrasebook. But the PRD has already answered the
+question behind it — §4: *"Coverage-% is not the north-star metric. A high English-% achieved by
+paraphrasing unique code would be worthless."* §15-success-criteria: *"Explicitly not a metric:
+English-%. It is a by-product; a rise from paraphrasing unique code is a regression in disguise."*
+R-MEAS-6: it *"MUST be reported and MUST NOT be optimised"*. **Reopening that is Amir's ruling, not
+a lane's, and this commit does not reopen it.**
+
+### TWO POINT-IN-TIME READINGS RECORDED, NEITHER CORRECTED
+
+- R-ARCH-16B's series ends at **2,362 (2,293 generic + 69 vacuous)** and the register row repeats
+  it. That was current on 2026-09-03. It is a retroactively-computed BASELINE and is left exactly as
+  written; the live value is 1,662, read from the harnesses.
+- **`MUTE_CEILING` is slack by 700** — the ratchet prints *"lower MUTE_CEILING to 1662"* itself.
+  Lowering a ceiling is a deliberate act in a commit that says why (that file's own rule). **Not
+  done here**, and reported for ranking rather than actioned.
+
+### MEASUREMENTS
+
+| | |
+|---|---|
+| byte-identity | `files: 1037  byte-identical: 1037  FAILURES: 0` |
+| `measure-english.js` report | identical before and after this commit, whole-file diff |
+| coverage TOTAL | `33918 32256 95% 1600 5% 62 0` — 42 passed, 10 failed |
+| ratchet | top 1086 / tree 20152 / MUTE 1662 — 4 passed, 0 failed |
+| `verify-register.js` | 72 hold, 10 fail (4 red on purpose, 6 unexplained), 4 manual — it reads CODE, not the PRD markdown this commit edits, so it cannot have moved |
+
+No renderer was touched, so nothing is added to the drift queue: it stays at **73 sites in 47
+files**, and `enfile.test.js`'s corpus case stays RED for the same carried reason.
