@@ -10237,3 +10237,92 @@ paraphrased. This section carries what the repo says about building it.
 
 **Nothing was implemented.** No engine file changed in this commit.
 
+
+## R-PAY-6, SLICE 1 — the content-addressed id derivation, implemented and pinned. No corpus write.
+
+**Two NEW files, nothing existing changed.** `engine/content-id.js` and `engine/content-id.test.js`.
+Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`. No engine file was modified, no
+artifact rewritten, no `.en` touched, no mine, no dialect change.
+
+### The two things the item said were mine to NAME
+
+**(1) WHAT THE ID IS A FUNCTION OF — the ordered list of leaf skeleton strings the word expands to,
+and nothing else.**
+
+- **Not the entry's `key`** — that is the trap, and `pipeline.js:93` already fell into it:
+  `"g_" + e.len + "_" + sha256(e.key)[0:6]` hashes `symbols.join(",")` over symbolIds, and a
+  symbolId is `idOfSym.set(s, symOfId.length)` — first-seen order, the same defect one level down.
+- **Not the tree.** A composite is stored `m: [prefixId, appendedId]`, so a Merkle hash over that
+  pair would be cheaper and would be a function of how the builder happened to decompose the
+  pattern — the mining-order dependence being removed. The flat leaf list is the pattern; the tree
+  is one builder's route to it.
+
+**Measured on the shipped dictionary: the pattern is INJECTIVE.** 126,348 narrow words →
+**126,348 distinct patterns**; 118,447 wide → **118,447**. No two dictionary entries share a
+pattern, so the id is well defined before any hashing is considered.
+
+**(2) WHAT IT COLLIDES ON — two risks, and only one of them is the hash.**
+
+- **SEPARATOR INJECTION, which no hash width fixes.** A leaf skeleton may contain any literal the
+  source contained, so joining on a byte a skeleton can hold makes `[A, BC]` and `[AB, C]` hash
+  identically — a collision manufactured by the ENCODING between genuinely different patterns.
+  Every element is LENGTH-PREFIXED (`<len>:<skeleton>`), injective for any content. The test
+  **proves** this on a constructed pair and asserts that the naive join *does* collide on the same
+  input, so the guard is shown to be load-bearing rather than described as such.
+- **TRUNCATION WIDTH, measured rather than reasoned about:**
+
+  | width | narrow (126,348) | wide (118,447) |
+  |---|---|---|
+  | 24 bits — `pipeline.js:93`'s width **today** | **436 collisions** | **427 collisions** |
+  | 64 bits — `artifact-contract.js:96`'s width | **0** | **0** |
+
+  436 is close to the analytic expectation `n²/2m ≈ 476`, which is how the measurement and the
+  theory check each other. **A CORRECTION TO MY OWN FIRST PASS:** the scratch probe reported "3",
+  because it was counting its own capped EXAMPLE list rather than the collisions. The test counts
+  them properly. The corrected figure makes the case stronger, not weaker.
+
+  **THE REPO WINS OVER PRD §20.** §20's `sha256-10` does not state its unit; if it means ten hex
+  characters that is 40 bits, whose analytic risk at this size is 0.7%/2.7%, and for a payload
+  reference a collision is a **wrong-bytes compile, not an error**. 64 bits is what this repo
+  already ships for the same job at `artifact-contract.js:96`, so that is the width used. **This is
+  applying an existing scheme, not inventing one.**
+
+### What the test pins, including a control that can fail
+
+15 assertions, 0 failed, 5.5s. Beyond the two above: `rekeyAxis` **refuses** two patterns sharing an
+id (shown to fire, with a constructed pair) rather than keeping one, and rekeying is
+**meaning-preserving** — `expandKey` compared before and after for **all 244,795 words**, moved on
+**0**.
+
+**The negative control:** the 24-bit row is asserted to be **greater than zero**. Without it,
+"0 collisions at 64 bits" is a number with nothing to compare it to. If it ever reads 0 the
+derivation or the corpus changed and the 64-bit result stops meaning anything.
+
+### WHAT IS LEFT, and why it is not in this commit
+
+Slice 1 is provable with no corpus write. The remaining slices are not, and one of them is a
+**dialect change nobody's design notes have mentioned**:
+
+1. **`payload.js` constrains the word id to an INTEGER.** `:228` — `if (!Number.isInteger(obj.w) ||
+   obj.w < 0) throw` — and `:269` decodes it by scanning **digits only**
+   (`text[i] >= "0" && text[i] <= "9"`). A 16-hex-character id is therefore an **R-PAY-1 dialect
+   change**, not a drop-in. Neither the PRD nor the backlog scope names this; it was found by
+   reading the encoder.
+2. **The artifact rekey** — `rekeyAxis` exists and is tested, but writing `generators-lzw.json` is a
+   corpus write.
+3. **1,034 `.en` re-rendered** — corpus-wide, on a tree `Examples/` gitignores, so no git safety net.
+4. The remaining read/write sites across the 12 files the scope names.
+
+**ON THE DEPS (A5/A1) — they do not block slice 1, and they DO block slice 3.** A5 is
+*"re-mine idempotence has no corpus-wide gate"*. Slice 1 is proved against the shipped dictionary
+in-process and needs no re-mine at all. The corpus re-render is different: without an idempotence
+gate there is no mechanised way to show the re-render is stable, which is the only property that
+makes the migration safe to repeat. That is a reason to sequence A5 before slice 3, not a reason to
+refuse slice 1.
+
+### One stale framing noted, not edited
+
+`measure-id-stability.js:12-14` says closure (b) *"is entangled with the reserved direction-of-truth
+question (CLAUDE.md §6)"* and that *"which closure lands is Amir's call"*. Q-1 is **CLOSED** and
+Amir **has** ruled (b). Recorded here rather than edited, to keep this commit to the derivation.
+
