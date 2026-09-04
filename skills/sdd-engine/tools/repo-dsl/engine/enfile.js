@@ -32,7 +32,7 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 const NKR = require("./node-kind-rules");
 /* the primitives the phrasebook renders WITH — passed in rather than duplicated there, so "how an
  * identifier is spelled" keeps exactly one definition (node-kind-rules.js header). */
-const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
+const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf), literal: (n, sf) => literalGloss(n, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
 const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
@@ -501,7 +501,12 @@ function assertSubject(n, sf) {
     const c = firstCallName(n.body);
     return c ? "calling " + q(c) : null;
   }
-  if (ts.isElementAccessExpression(n)) { const b = dottedText(n.expression, sf); return b ? q(b) + "'s entry" : null; }
+  /* FALLS THROUGH when it cannot name the base, rather than returning null. Returning null here
+   * SHADOWED the phrasebook rule below: `expect(mock.calls[0][1])` has an element-access subject,
+   * so this branch answered first, failed on a base that is itself an element access, and refused
+   * for the whole statement. A narrow old branch that declines in front of a general new one is
+   * indistinguishable from the rule not existing. */
+  if (ts.isElementAccessExpression(n)) { const b = dottedText(n.expression, sf); if (b) return q(b) + "'s entry"; }
   /* LAST RESORT, and deliberately last: the phrasebook (§5D.3C). Placed after every existing branch
    * so it can only speak where this function previously declined — 257 of the 327 generic
    * `expect(...)` statements, all of them a property reached through a call, which `dottedText`
@@ -634,10 +639,10 @@ const CMP = { [ts.SyntaxKind.EqualsEqualsEqualsToken]: "is", [ts.SyntaxKind.Equa
  * Only when BOTH sides are quotable; an index that is itself an expression stays code. */
 function elemAccess(n, sf) {
   if (!n || !ts.isElementAccessExpression(n)) return null;
-  const obj = dottedText(n.expression, sf);
-  const arg = n.argumentExpression;
-  const idx = arg && (dottedText(arg, sf) ? q(dottedText(arg, sf)) : literalGloss(arg, sf));
-  return obj && idx ? q(obj) + " at " + idx : null;
+  /* DELEGATES to the phrasebook's ElementAccessExpression rule (§5D.3C). This was a second
+   * definition of the same gloss, restricted to a plain dotted base; one rule now serves both the
+   * return ladder and the phrasebook's own recursion. */
+  return NKR.render(n, sf, NKRP);
 }
 
 /* `[...a, ...b]` / `[x, y]` — say which lists are being joined, by name. */

@@ -35,7 +35,8 @@
  * (§5D.3C's own table lists StringLiteral third; it counted literals, this pass excludes everything
  * at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)
  *
- * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression — in measured order of the
+ * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression,
+ * ElementAccessExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -193,6 +194,33 @@ const RULES = {
     const base = baseGloss(cur, sf, P);
     if (!base) return null;                        /* base unnameable -> decline, do not waffle */
     return P.q(names.join(".")) + " from " + base;
+  },
+
+  /* ── ElementAccessExpression ───────────────────────────────────────────────────────────────────
+   * `notes[0]` -> "`notes` at `0`". Written as rule 4 because rule 3 MEASURED the need for it:
+   * `PropertyAccessExpression` declined on 243 of its 257 sites purely because its base was an
+   * element access that nothing could render — `expect(notes[0].subscriptionIds)` came out as
+   * "call to equal". A rule renders by rendering its children (R-LANG-17), so a missing CHILD rule
+   * silently caps a parent rule's yield. That is the mechanism, and it is why the phrasebook is
+   * built child-first once a parent points at the gap.
+   *
+   * BOTH SIDES RECURSE. The base goes through `baseGloss`, so `a().b[0]` and `x[0][1]` render by
+   * composition rather than by a case per shape; the index does too, so a named index reads
+   * "`rows` at `idx`" rather than being dropped.
+   *
+   * `enfile.js`'s `elemAccess` now delegates here, so there is ONE definition of this gloss. It had
+   * been a second one, restricted to a plain dotted base — the duplication class CLAUDE.md §8
+   * records against the walk SKIP sets, which drifted and hid 696 of 937 un-collapsed bodies. */
+  ElementAccessExpression(node, sf, P) {
+    if (!ts.isElementAccessExpression(node)) return null;
+    const arg = node.argumentExpression;
+    if (!arg) return null;
+    const base = baseGloss(node.expression, sf, P);
+    if (!base) return null;
+    const d = P.dotted(arg, sf);
+    const idx = d ? P.q(d) : (P.literal(arg, sf) || render(arg, sf, P));
+    if (!idx) return null;                         /* an index we cannot name -> decline */
+    return base + " at " + idx;
   },
 };
 

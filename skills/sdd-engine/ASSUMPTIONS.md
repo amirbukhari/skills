@@ -7336,3 +7336,55 @@ and never inspects what they are — and it means **`ElementAccessExpression` is
 remaining 243 sites come with it.** Recording the mispredicted number rather than quietly
 re-scoping: the estimate came from bucketing by *subject* kind when the deciding kind was the
 *base*'s.
+
+## Phrasebook rule 4 — `ElementAccessExpression` (2026-09-04)
+
+Written because **rule 3 measured the need for it**, not because it was next on an instance table.
+`PropertyAccessExpression` declined on 243 of its 257 sites purely because its base was an element
+access that nothing could render: `expect(notes[0].subscriptionIds)` came out as **"call to equal"**.
+
+A rule renders by rendering its children (R-LANG-17), so **a missing CHILD rule silently caps a
+parent rule's yield.** That is worth stating as a general property of the phrasebook: a rule's
+measured yield is not a property of the rule alone, and a disappointing delta is a pointer to the
+child, not evidence against the parent. The phrasebook is therefore built child-first once a parent
+points at the gap.
+
+Both sides recurse — the base through `baseGloss`, the index through the rule set — so `a().b[0]`
+and `x[0][1]` render by composition rather than by a case per shape. `enfile.js`'s `elemAccess` now
+delegates here, leaving **one** definition of this gloss instead of two (the duplication class
+CLAUDE.md §8 records against the SKIP sets).
+
+**A shadowing bug found by rendering a site, not by reading the rule.** After the rule was in, one
+sample still failed. `assertSubject` had an older, narrower element-access branch that **returned
+null** instead of falling through, so it answered first for every element-access subject, failed on a
+base that was itself an element access, and refused for the whole statement — with the new rule sat
+directly underneath, unreachable. **A narrow old branch that declines in front of a general new one
+is indistinguishable from the rule not existing.** It now falls through when it cannot name the base
+and keeps its exact old wording when it can.
+
+```
+expect(mockGet.mock.calls[0][1]).toStrictEqual(MONTH_START);
+  before ==>  "call to strict equal"
+  after  ==>  "expect `mockGet.mock.calls` at `0` at `1` to equal `MONTH_START`"
+```
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ExpressionStatement 724 -> 457 generic  (-267);  site-specific 90% -> 94%
+                    vacuous 15 -> 9 (the 6 were the shadowed branch, now unshadowed)
+ReturnStatement     663, unchanged — the elemAccess delegation is byte-identical for plain bases
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+**Also recorded: a silent no-op in my own tooling.** The first attempt at this rule changed nothing
+because the Python `str.replace` anchor did not match (two blank lines where I wrote one) and
+`replace` fails silently. The measurement said "no change" and looked exactly like a rule that does
+not fire. `KINDS` from the module showed three entries where there should have been four. Every
+subsequent edit asserts its anchor matched before writing. Same defect class as CLAUDE.md §7's
+`GIT_INDEX_FILE` no-op: **a step that silently does nothing is worse than one that fails, because
+the transcript shows it was run.**
