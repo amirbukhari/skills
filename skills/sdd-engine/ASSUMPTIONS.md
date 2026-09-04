@@ -9718,7 +9718,7 @@ enough to build from — it specifies a GRAMMAR, not a parser.** Both claims are
 payload, calls `deriveGloss(obj, compiled, cat)`, and compares to the written sentence.
 
 **Then it tries to HONOUR the edit before refusing — `repairFromSentence`, `enfile.js:2278`.** The
-hole layer reaches exactly this far, and the boundary is four explicit `return null`s:
+hole layer reaches exactly this far, and the boundary is seven explicit `return null`s:
 
 ```
 2288  if (!holes.length) return null                     no per-site holes -> nothing to invert
