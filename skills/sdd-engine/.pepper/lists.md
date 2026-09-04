@@ -65,7 +65,7 @@ So `w:` cannot carry `3f2a…` as written. Options are s2's to enumerate and MEA
 
 **So the workstream's genuine-vocabulary ceiling is ~42 of 286 (~15%), and even that 42 is unverified against the same `>= 2` threshold.** Three of the four families are not vocabulary work at all — they are one artifact, one defect class, and two new shapes.
 
-**Rule 10's ~85–93 is not refuted, so it takes the #1 rank back.** This item cannot be ranked honestly until the one-char column exists — see the ROOT FIX item above it, which is now #1 precisely because it settles the ~42.
+**Rule 10's ~85–93 is not refuted, so it takes the #1 rank back.** **The one-char count is a measurement BLIND SPOT in the frozen predicate, not a quality score. It is RECORD-ONLY and must never rank or prioritise anything** — the same framing the `Block` cross-ref already carries: *"Both record-only. **Do NOT widen `>= 2`**."* So this item is **not** waiting on a "one-char column": that column cannot exist as a ranking input under the frozen measure, and the "ROOT FIX item above it" it pointed at names no item that exists in this file. Rank this item on the ~42 genuine-vocabulary ceiling itself, measured against the live ladder.
 
 Current measured state: `CallExpression` declining distinct-site net **286 → 251**; overall residual `{frozen 1695, credited 921, net 774, noHead 146}`. Detail per family lives in the sub-list — read it before touching this.
 [.] REFUSED WITH EVIDENCE 156e6d9 — my "54 not 53, 101 not 100" appears in NO measurement. No digit changed.
@@ -336,6 +336,8 @@ Keep this in mind when judging any future rule: a rule that moves the frozen num
 
 **Pick it up from:** Q-5 in `tools/prd/18-open-questions.md`; `tools/prd/12-constants.md:16`; `repo-dsl.js:250`.
 [!] BANKED (Amir's ruling, unmade): 116 one-char-quote sites — the `isSiteSpecific` length >= 2 threshold
+
+**RULED 2026-09-04 — no longer unmade.** The threshold stays FROZEN; the class is recorded as a measurement blind spot and is **not** a ranking input. See `ASSUMPTIONS.md` § "RULING 3" (commit `0619dd8`). Kept below as the record of how it was found.
       **A second scoring artifact, measured 2026-09-04 alongside `5dbcfc1`. Recorded here because it is NOT in ASSUMPTIONS.md — only in s2's transcript.**
 
 `isSiteSpecific` requires a quoted run of length **>= 2**, so a site whose clause quotes exactly ONE character scores generic on the threshold alone, even though the clause already says the site's own words:
@@ -350,6 +352,8 @@ Keep this in mind when judging any future rule: a rule that moves the frozen num
 
 Frozen series unchanged: coverage test TOTAL row **1,729** generic, 42 passed / 10 failed; byte-identity **1037/1037**.
 [!] BANKED (Amir's ruling, unmade — RECORD ONLY): TWO separate predicate questions — 117 one-char runs vs 325 zero-run sites
+
+**RULED 2026-09-04 — QUESTION A is answered NO.** `bare.length >= 2` is not widened to `>= 1`, not now and not for anything. Recorded, not patched — `ASSUMPTIONS.md` § "RULING 3" (commit `0619dd8`).
       **CORRECTED 2026-09-04 by the census at `2f0e1e2`.** The earlier framing ("the same threshold question as the 117") was WRONG and is retracted. There are TWO questions and they reach DISJOINT sites.
 
 **QUESTION A — widen `bare.length >= 2` to `>= 1`.** `>= 2` tests the LENGTH OF ONE QUOTED RUN, so it can only reach sites that HAVE a quoted run whose bare text is one character: the 117 one-char sites (banked at `imtmynumr2bb716`) plus the 11 Block sites. **It reaches NONE of the sites this item was filed for.**
@@ -471,7 +475,7 @@ source:  it('rounds an artefact reproduced from that button\\'s own expression',
 
 Every one of them already reads correctly as English. Only **4** of the 68 were ever reachable by a Block rule.
 
-That is now: the 116/117 one-char sites, the route family, and these 11 — all blocked by the same `bare.length >= 2` threshold, all measured, none actionable without the ruling.
+That is now: the one-char sites, the route family, and these 11 — all blocked by the same `bare.length >= 2` threshold, all measured, and **RULED 2026-09-04: the threshold stays frozen and the one-char class is a recorded blind spot.** So they are not "awaiting a ruling" and are not actionable at all. Record-only; they rank nothing.
 
 **The rule stands unchanged: the threshold is NOT to be widened, weakened or re-baselined to make anything pass.** The artifacts are counted BESIDE the frozen figure in separately named modules that feed no assertion — that is the whole discipline, and it is holding.
 
