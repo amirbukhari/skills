@@ -8385,3 +8385,82 @@ touched. Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`; coverag
 **No pressure on `isSiteSpecific`.** Nothing in this pass turned on the `>= 2` threshold: these 45
 clauses (`return then`, `call catch`, `await finally`) quote nothing at all, so they are generic
 under any threshold. Amir's unmade ruling is untouched by this item.
+
+## The vocabulary-row approach has a CEILING — measured across the whole family table (2026-09-04)
+
+Prompted by the promise refusal: its reasons 1 and 2 looked like properties of the MECHANISM rather
+than facts about `then`/`catch`/`finally`. Tested across all **188** vocabulary-blocked REAL sites at
+once (partition: familyOnly 183 + BOTH 5 = 188, of the live REAL 606) instead of family by family.
+
+**The mechanism.** The `CallExpression` rule renders exactly two things: the **base**, and — through
+`VERB_PREP` — an arrow callback whose body is an **expression**. Every other argument is discarded.
+So a row can say something true and informative only where the site's content lives entirely in the
+base.
+
+**The census. Three DISJOINT buckets, summing exactly:**
+
+```
+  88   content sits in NON-FUNCTION arguments the rule never renders
+         mgr.save(entity) · qb.where("x = :y", {...}) · list.push(item) · s.includes(needle)
+  49   content sits in a BLOCK-BODIED callback, which ArrowFunction declines by design
+         "a block is statements, not a value" — .forEach(cb) · .then(cb)
+  51   the base alone can carry the sentence          <- the only reachable ground
+ ---
+ 188
+```
+
+The two conditions are **disjoint, measured: A1 ∩ B = 0**, so they are two distinct escapes of
+content from the base, not one counted twice. (The earlier promise-only framing folded the block
+callback into "arguments"; separated here, `88 + 49 = 137`, and `137 + 51 = 188`.)
+
+**Per family — A1 = data arguments, B = block callback, neither = base alone:**
+
+| family | sites | A1+B | base alone |
+|---|---|---|---|
+| promise | 45 | 37 | 8 |
+| queryBuilder | 43 | 36 | 7 |
+| (unclassified) | 42 | 21 | 21 |
+| arrayMutation | 26 | 25 | 1 |
+| matcher | 9 | 9 | 0 |
+| date | 8 | **0** | **8** |
+| log | 7 | 7 | 0 |
+| string | 7 | 1 | **6** |
+| routes | 1 | 1 | 0 |
+
+**Then the render test, not a proxy.** A row was written for every remaining blocked method and all
+188 sites rendered both ways. **85 clauses change.** Of the 51 base-alone sites, **40 do not change
+at all** — the ladder's earlier rungs already answer them — **11 change, and about 8 improve**:
+4 × `.getTime` ("return the result of `dateFromYmd` as a timestamp minus the result of `dateFromYmd`
+as a timestamp", vs *"return get time"*), 2 × `.toLowerCase`, `.trim`, and one `.find`
+("`subscription.subscriptionsHasBuildings` found by whether `shb.buildingId` is `aptu.buildingId`").
+
+**A row does not merely say less — it can say something FALSE.** `getManager().save(entity)` renders
+as *"the result of `getManager` saved"*: the base is the MANAGER, the thing saved is the ARGUMENT.
+That shape is **22 of queryBuilder's 43** (`.save` 13, `.insert` 4, `.update` 5). `.orWhere`/
+`.andWhere` produce contentless repetition — *"call `qb` narrowed then widened then widened then
+widened then widened"* — because the WHERE clauses are string arguments. `.every`, `.includes`,
+`.comparedTo`, `.getAll` and the matcher rows **trail off mid-phrase** (*"return `documentNames` all
+satisfying"*) because `VERB_PREP` has nothing renderable to append. And `.all` collides across
+families: `Promise.all` rendered as *"`Promise` for every route"*.
+
+**VERDICT: CAPPED.** queryBuilder (43) and arrayMutation (26) are **not** structurally different
+from the promise family — they are worse: 36/43 and 25/26 blocked by argument content, and
+arrayMutation's single base-alone site *regresses*. The only families genuinely different in kind
+are **date (8 sites, zero arguments, base IS the value)** and **string (7)**, which together hold
+most of the ~8 improvements. **Total honest yield of the entire remaining vocabulary programme:
+single digits, against 606 REAL sites.**
+
+**What this means for the ranking** — reported, not applied; the backlog is Amir's to write. The
+per-family REAL counts (queryBuilder 43, arrayMutation 26, matcher 9, log 7, routes 1) are
+could-fire numbers, and the improvement-site counts behind them are approximately 1, 0, 0, 0, 0.
+Only date and string carry work, and they are the two smallest rows. Anything beyond them needs a
+rule that can render **arguments** — a different mechanism, and a decision rather than a task.
+
+**No renderer change.** Comment only: `node-kind-rules.js` +35/−1, the one deletion being a comment
+line whose `*/` moved; zero added non-comment lines, confirmed by filtering the diff. Byte-identity
+`files: 1037  byte-identical: 1037  FAILURES: 0`; coverage TOTAL generic **1659**; `42 passed, 10
+failed`. All unchanged, as a comment cannot move them.
+
+**No pressure on `isSiteSpecific`.** Every clause in this census is generic because it quotes nothing
+or quotes only what the base supplies; none turns on the `>= 2` threshold. Amir's unmade ruling is
+untouched.

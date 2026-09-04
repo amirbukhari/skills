@@ -141,7 +141,41 @@ const RULES = {
    * IT DECLINES RATHER THAN GUESSES (§5C rule 3). Any method outside VERBS, a base that does not
    * render, or a chain of length zero returns null and the caller keeps its older output. A verb
    * table that de-camel-cased unknown methods would manufacture confident English about code it had
-   * not understood, which is the failure this engine exists to eliminate. */
+   * not understood, which is the failure this engine exists to eliminate.
+   *
+   * ── THE CEILING ON VOCABULARY ROWS, MEASURED 2026-09-04 ───────────────────────────────────────
+   * This rule renders exactly TWO things: the BASE, and — through VERB_PREP — an arrow callback
+   * whose body is an expression. Every other argument is discarded. So a VERBS row can produce a
+   * true, informative sentence ONLY where the site's content lives entirely in the base, and that
+   * is a property of THIS MECHANISM, not of any one method.
+   *
+   * All 188 vocabulary-blocked REAL sites in the corpus, classified. The three buckets are
+   * DISJOINT and sum exactly:
+   *
+   *     88   the content sits in NON-FUNCTION arguments this rule never renders
+   *            `mgr.save(entity)`, `qb.where("x = :y", {...})`, `list.push(item)`,
+   *            `s.includes(needle)`, `expect(x).toHaveBeenNthCalledWith(2, ...)`
+   *     49   the content sits in a BLOCK-BODIED callback, which ArrowFunction declines by design
+   *            ("a block is statements, not a value") — `.forEach(cb)`, `.then(cb)`
+   *     51   the base alone can carry the sentence            <- the only reachable ground
+   *    ---
+   *    188
+   *
+   * Of those 51, FORTY already render correctly without a row (the ladder's earlier rungs answer
+   * first). Eleven change when a row is added, and about eight of the eleven improve. So the honest
+   * yield of the whole remaining vocabulary programme is single digits, against 606 REAL sites.
+   *
+   * AND A ROW CAN MAKE A CLAUSE FALSE, not merely thin. `getManager().save(entity)` renders as
+   * "the result of `getManager` saved" — the base is the MANAGER and the thing saved is the
+   * ARGUMENT, so the sentence asserts something untrue. That shape is 22 of queryBuilder's 43.
+   * `.every`/`.includes`/`.comparedTo` trail off mid-phrase ("`documentNames` all satisfying")
+   * because VERB_PREP has nothing renderable to append.
+   *
+   * SO: queryBuilder (43) and arrayMutation (26) are NOT structurally different from the promise
+   * family refused above — they are worse, 36/43 and 25/26 blocked by argument content. The two
+   * families that ARE different are date (8 sites, zero arguments, base IS the value) and string
+   * (7). Everything beyond them needs a rule that can render ARGUMENTS, which is a different
+   * mechanism and a different decision. See ASSUMPTIONS.md, 2026-09-04. */
   CallExpression(node, sf, P) {
     const links = [];
     let cur = unwrap(node);
