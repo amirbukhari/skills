@@ -27,20 +27,74 @@ let pass = 0;
 const ok = (name, fn) => { try { fn(); pass++; console.log("  ok  " + name); }
   catch (e) { console.error(`FAIL  ${name}\n      ${e.message}`); process.exitCode = 1; } };
 
+/* A REAL, MINED DICTIONARY — built ONCE per run and reused by every fixture.
+ *
+ * WHY NOT A LITERAL. A hand-written `{"mined":true}` stub is what this file used, and the artifact
+ * contract refuses it the moment anything actually READS it (schema undefined) — which nothing did
+ * until the DRIFTED signal arrived on 2026-09-04. Hand-stamping a plausible-looking body is no
+ * better: `generators-lzw` is a real structure (axis/minCount/counts/words/leaf/ext per axis) and a
+ * fabricated one either refuses or renders wrong, so the fixture would be asserting against a
+ * dictionary that cannot exist. CLAUDE.md §8 says artifacts are published through the producer, not
+ * assembled by hand; this obeys it by running the producer.
+ *
+ * It mines a one-file corpus whose source is byte-identical to the `src/a.ts` every fixture writes,
+ * so a render through it is the render the cleaner will recompute. ~1s, once. */
+let DICT_JSON = null;
+function realDictionary() {
+  if (DICT_JSON) return DICT_JSON;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-clean-dict-"));
+  fs.mkdirSync(path.join(tmp, "src"), { recursive: true });
+  fs.writeFileSync(path.join(tmp, "src", "a.ts"), SRC_A);
+  execFileSync(process.execPath,
+    [path.resolve(__dirname, "..", "build-lzw-generators.js"), "--source", tmp, "--corpus", tmp],
+    { stdio: "ignore" });
+  DICT_JSON = fs.readFileSync(path.join(tmp, "sen", "catalog", "generators-lzw.json"), "utf8");
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return DICT_JSON;
+}
+
+/* the ONE source body every fixture uses, named so the dictionary above is mined from exactly it */
+const SRC_A = "export const a = 1;\n";
+
 /* A corpus with the shape that matters: source dirs, the legacy catalog, a derived cache, and a
  * sen/ tree whose catalog holds an artifact with AUTHORED names in it. */
 function makeCorpus() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "sdd-clean-test-"));
   const w = (rel, body) => { fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
     fs.writeFileSync(path.join(root, rel), body); };
-  w("src/a.ts", "export const a = 1;\n");
+  w("src/a.ts", SRC_A);
   w("catalog/coined-words.json", '{"hand":"curated"}\n');          /* legacy STEP-4, out of scope */
   w(".cache/spec-derived/en-index.json", '{"derived":true}\n');
-  w("sen/files/src/a.ts.en", "«some english»\n");
-  w("sen/catalog/generators-lzw.json", '{"mined":true}\n');
-  w("sen/catalog/word-names.json", JSON.stringify({
-    names: { "n:deadbeefdeadbeef": { sym: "x;", en: "do the thing" } }, chunks: {}, orphans: {},
-  }) + "\n");
+  w("sen/catalog/generators-lzw.json", realDictionary());
+  /* THE .en MUST BE A REAL RENDER OF ITS .ts, and this line used to read:
+   *
+   *     w("sen/files/src/a.ts.en", "«some english»\n");
+   *
+   * a hand-written placeholder. That was harmless while the flip gate had two signals, and became
+   * the single most refused shape in the tree when DRIFTED was added on 2026-09-04: a .en that no
+   * render of its source reproduces is precisely the hand-authored English the new gate exists to
+   * protect, so the fixture was asking the cleaner to destroy exactly what it must refuse. Seven
+   * assertions failed and every one of them was the gate WORKING.
+   *
+   * Rendering it here (with the same stub dictionary the cleaner will load, so both sides compute
+   * the same bytes) makes the fixture an ORDINARY corpus again, which is what these cases are
+   * about. The refusing shapes get their own cases below — written, not inherited by accident. */
+  /* STAMPED, not hand-built — same §8 rule as the dictionary above, and the same reason. This was
+   * a bare `{names,chunks,orphans}` object with no schema header, which `loadIndex` refuses on
+   * sight; the DRIFTED signal then reported "could not load the dictionary to re-render" and
+   * refused the wipe. The artifact contract was right both times: an artifact with no header is
+   * not an artifact. The authored name inside it is unchanged — it is what the catalog refusal
+   * counts. */
+  w("sen/catalog/word-names.json", JSON.stringify(
+    require("./artifact-contract").stamp("word-names", {
+      names: { "n:deadbeefdeadbeef": { sym: "x;", en: "do the thing" } }, chunks: {}, orphans: {},
+    })) + "\n");
+  /* RENDERED LAST, AND THAT ORDER IS LOAD-BEARING. `loadIndex` reads word-names.json too, so a .en
+   * rendered before it exists is rendered through a DIFFERENT index than the one the cleaner will
+   * use, and every fixture then reads as drifted. Measured 2026-09-04: rendering above this line
+   * failed four cases with "sen/files/ should be gone" — the gate refusing a fixture the fixture
+   * had made unreproducible one line later. */
+  w("sen/files/src/a.ts.en", require("./enfile").renderFileEn(SRC_A, require("./enfile").loadIndex(root)).en);
   return root;
 }
 const has = (root, rel) => fs.existsSync(path.join(root, rel));
@@ -193,6 +247,58 @@ ok("with every .en backed by a source file the gate is silent and the wipe proce
   assert.strictEqual(has(root, "sen/files/src/a.ts.en"), false, "the ordinary wipe still works");
 });
 
+/* ─── THE THIRD FLIP SIGNAL: DRIFTED. Added 2026-09-04, Amir's call. ────────────────────────────
+ *
+ * §1B.3 makes a wipe tolerable on ONE premise — sen/ is entirely re-derivable from SOURCE. That
+ * premise weakened for real on 2026-09-03, when `compileChunk` began READING the sentence
+ * (`repairFromSentence`): a hand-edit to a .en now changes the compiled TypeScript, so a .en can
+ * carry meaning its .ts does not. Neither existing signal sees that — a hand-edited .en still has
+ * its counterpart, so it is no orphan, and nobody has to have written a DIRECTION file.
+ *
+ * Amir, taking the conservative direction deliberately: hardening only ever makes deletion harder,
+ * so being early costs an extra confirmation and being late costs hand-authored English.
+ *
+ * The three cases below are the discriminator set. (k) proves it FIRES and names the loss, (m)
+ * proves it does NOT fire on an ordinary tree, and (l) proves an unmeasurable corpus refuses
+ * rather than reading "could not check" as "nothing to lose". Without (m) the signal could be a
+ * blanket refusal and (k) would look identical. */
+ok("a hand-edited .en refuses the wipe, names the file, and deletes nothing", () => {
+  const root = makeCorpus();
+  const en = path.join(root, "sen/files/src/a.ts.en");
+  fs.writeFileSync(en, fs.readFileSync(en, "utf8") + "\nhand written line the render cannot produce\n");
+  const r = run(root, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 3, "a drifted .en must DECLINE the run, not proceed");
+  assert.ok(has(root, "sen/files/src/a.ts.en"), "AUTHORED ENGLISH DELETED — this is the hole the signal exists to close");
+  assert.ok(/1 of 1 \.en file\(s\) DIFFER/.test(r.out) && /src\/a\.ts\.en/.test(r.out),
+    `the refusal must name exactly what would be lost, got:\n${r.out}`);
+});
+
+ok("an unmeasurable corpus refuses too — unknown is not zero", () => {
+  const root = makeCorpus();
+  fs.rmSync(path.join(root, "sen/catalog/generators-lzw.json"));
+  const r = run(root, ["--wipe-sen", "--go"]);
+  assert.strictEqual(r.code, 3, "no dictionary means no proof of re-derivability, so no wipe");
+  assert.ok(has(root, "sen/files/src/a.ts.en"), "nothing may be deleted on an unproven tree");
+  assert.ok(/could NOT BE ESTABLISHED/.test(r.out) && /unknown is not zero/.test(r.out),
+    `it must say it could not measure, NOT that the files drifted, got:\n${r.out}`);
+  /* the diagnosis matters as much as the verdict: an absent dictionary reported as drift sends
+   * someone hunting for hand-edits that do not exist. Measured 2026-09-04 — the first version of
+   * this signal did exactly that, and reached the right refusal for the wrong reason. */
+  assert.ok(!/DIFFER from a fresh render/.test(r.out), "an absent dictionary is not drift");
+});
+
+ok("drift does NOT block the cache clean — the expensive check is scoped to --wipe-sen", () => {
+  const root = makeCorpus();
+  const en = path.join(root, "sen/files/src/a.ts.en");
+  fs.writeFileSync(en, fs.readFileSync(en, "utf8") + "\nhand written\n");
+  const r = run(root, ["--go"]);                       /* scope 1 only */
+  assert.strictEqual(r.code, 3, "sen/ still declines for want of --wipe-sen, as it always did");
+  assert.strictEqual(has(root, ".cache/spec-derived/en-index.json"), false, "the cache clean must still happen");
+  assert.ok(has(root, "sen/files/src/a.ts.en"), "and sen/ must be untouched");
+  assert.ok(!/DIFFER from a fresh render|could NOT BE ESTABLISHED/.test(r.out),
+    `a run that cannot touch sen/ must not pay for the render, got:\n${r.out}`);
+});
+
 /* ─── SOURCE SEPARATION (CLAUDE.md §2, §4). Added 2026-09-01 by a second lane.
  *
  * THE GAP THIS FILLS. Every case above calls run(), which passes `--source root --corpus root` —
@@ -216,11 +322,17 @@ function makeTwoRoots({ nested }) {
   const cor = nested ? path.join(src, "rendered") : path.join(base, "corpus");
   const w = (root, rel, body) => { fs.mkdirSync(path.join(root, path.dirname(rel)), { recursive: true });
     fs.writeFileSync(path.join(root, rel), body); };
-  w(src, "src/a.ts", "export const a = 1;\n");
-  /* The .en's counterpart MUST exist in SOURCE. Without it the flip gate refuses first and every
-   * assertion below would pass for the wrong reason — a refusal, yes, but not this one. */
-  w(cor, "sen/files/src/a.ts.en", "«some english»\n");
-  w(cor, "sen/catalog/word-names.json", JSON.stringify({ names: {}, chunks: {}, orphans: {} }) + "\n");
+  w(src, "src/a.ts", SRC_A);
+  /* The .en's counterpart MUST exist in SOURCE, AND must be a real render of it. Without the
+   * counterpart the flip gate's DETECTED signal refuses first; without the render its DRIFTED
+   * signal (2026-09-04) refuses first. Either way every assertion below would pass for the wrong
+   * reason — a refusal, yes, but not this one. The two artifacts are stamped for the same reason
+   * they are in makeCorpus: loadIndex reads them, and it refuses an unstamped one. */
+  w(cor, "sen/catalog/generators-lzw.json", realDictionary());
+  w(cor, "sen/catalog/word-names.json", JSON.stringify(
+    require("./artifact-contract").stamp("word-names", { names: {}, chunks: {}, orphans: {} })) + "\n");
+  w(cor, "sen/files/src/a.ts.en",
+    require("./enfile").renderFileEn(SRC_A, require("./enfile").loadIndex(cor)).en);
   return { src, cor };
 }
 function runRoots(src, cor, args) {

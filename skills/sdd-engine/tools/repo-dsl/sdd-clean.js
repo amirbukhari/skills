@@ -29,10 +29,20 @@
  *      minutes; generators-lzw.json alone is ~41 MB).
  *
  *      READ THIS BEFORE WIPING (PRD §1B.3): sen/ is safely wipable only because it is entirely
- *      re-derivable from SOURCE — the .en is rendered FROM the .ts, not the reverse. §1B.5 intends
- *      to FLIP that, and §1B.3 requires this gate to harden from "explicit flag" to "refuse" when
- *      it does. IMPLEMENTED 2026-09-01 as THE FLIP GATE below: a declared `sen/DIRECTION`, or any
- *      .en with no counterpart in SOURCE, refuses the run and NO token releases it.
+ *      re-derivable from SOURCE — the .en is rendered FROM the .ts, not the reverse. §1B.3 requires
+ *      this gate to harden from "explicit flag" to "refuse" when that stops being true.
+ *      IMPLEMENTED 2026-09-01 as THE FLIP GATE below, and HARDENED 2026-09-04 with a third signal.
+ *      Any one of them refuses the run and NO token releases it:
+ *
+ *        DECLARED  a `sen/DIRECTION` file naming the English as authoritative
+ *        DETECTED  a .en with no counterpart in SOURCE — nothing can re-derive it
+ *        DRIFTED   a .en that differs from a FRESH RENDER of its counterpart, i.e. a hand-edit
+ *                  that was never compiled back. Added because the premise weakened for real on
+ *                  2026-09-03: compileChunk now reads the sentence, so a .en can carry meaning the
+ *                  .ts does not. *(§1B.5 used to be cited here as intending to FLIP the direction.
+ *                  Retracted 2026-09-04 — Q-1 closed 2026-09-03: BOTH directions are first-class
+ *                  and there is no flip. The gate's reasoning is unchanged and its trigger is
+ *                  nearer, not further: re-derivability, not authority, is what it turns on.)*
  *
  *   3. sen/catalog/ — THE §8A SOURCE-PROTECTED ARTIFACT HOME. Its own token, `--wipe-catalog`,
  *      on top of --wipe-sen. Added 2026-09-01 after a measured data-loss hole: `--wipe-sen --go`
@@ -287,9 +297,90 @@ function orphanEn(cap = 8) {
   return { total, sample: found };
 }
 
+/* ─── THIRD SIGNAL: DRIFTED (added 2026-09-04, Amir's call) ──────────────────────────────────────
+ * THE PARTIAL TRIGGER. §1B.3's premise is that a wipe is tolerable because *"sen/ is entirely
+ * re-derivable from SOURCE"*. That premise weakened on 2026-09-03: `compileChunk` now READS the
+ * sentence (`enfile.js` -> `repairFromSentence`), so a hand-edit to a .en changes the compiled
+ * TypeScript. The two signals above do not see it — a hand-edited .en still has its .ts
+ * counterpart, so it is not an orphan, and nobody has to have written a DIRECTION file.
+ *
+ * Amir, 2026-09-04, taking the conservative direction deliberately: *"Hardening only ever makes
+ * deletion harder, so the failure mode of being early is an annoying extra confirmation; the
+ * failure mode of being late is lost hand-authored English."*
+ *
+ * WHAT DRIFT ACTUALLY MEANS, precisely, because the word is doing real work here. A persisted .en
+ * that does not equal a FRESH RENDER of its SOURCE counterpart is English no re-render reproduces.
+ * If a hand-edit was compiled back to the .ts, the .ts carries it and a render rebuilds the .en —
+ * no drift, nothing lost, no refusal. It is the edit that has NOT been compiled back that this
+ * catches, and that edit exists only on disk in the file about to be deleted.
+ *
+ * IT IS NOT MEASURABLE FOR FREE, so it is computed ONLY when --wipe-sen is present: a full render
+ * of the corpus, minutes. That cost is proportional — it is paid once, by the run that is about to
+ * delete the tree, and never by the cheap `--go` cache clean.
+ *
+ * UNKNOWN IS NOT ZERO. If the dictionary is absent or a render throws, the answer is "could not
+ * measure", and that REFUSES. `{ optional: true }` returns a reason, never a bare null (CLAUDE.md
+ * §8); a destructive tool that reads "I could not check" as "nothing to lose" is the same defect
+ * with the blast radius reversed.
+ *
+ * Like the two signals above, NO TOKEN RELEASES IT. */
+function driftedEn(cap = 8) {
+  const base = path.join(CORPUS, SEN, "files");
+  if (!fs.existsSync(base)) return { ok: true, total: 0, checked: 0, sample: [] };
+  let EN, index;
+  try {
+    /* THE DICTIONARY MUST BE PRESENT BEFORE ANYTHING IS COMPARED. `loadIndex` does NOT throw on an
+     * absent generators-lzw.json — it disables the generator layer and returns a working index, so
+     * every .en then differs from its "fresh render" and all of them read as DRIFTED. Measured
+     * 2026-09-04 in a throwaway corpus: with the dictionary moved aside, this reported "2 of 2 .en
+     * differ", which is a TRUE refusal reached by a FALSE reason. The verdict was right and the
+     * diagnosis would have sent someone hunting for hand-edits that do not exist. Checked through
+     * the contract rather than by joining a path (§8B). */
+    const AC = require("./engine/artifact-contract");
+    const dict = AC.pathFor("generators-lzw", CORPUS);
+    if (!fs.existsSync(dict))
+      return { ok: false, why: `the dictionary is absent at ${dict}, so no .en can be re-rendered for comparison` };
+    EN = require("./engine/enfile");
+    index = EN.loadIndex(CORPUS);
+  } catch (e) {
+    return { ok: false, why: `could not load the dictionary to re-render: ${e.message.split("\n")[0]}` };
+  }
+  const sample = [];
+  let total = 0, checked = 0, unreadable = 0;
+  const stack = [base];
+  while (stack.length) {
+    const dir = stack.pop();
+    let ents;
+    try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of ents) {
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) { stack.push(abs); continue; }
+      if (!e.name.endsWith(".en")) continue;
+      const rel = path.relative(base, abs).replace(/\.en$/, "");
+      const src = path.join(SOURCE, rel);
+      if (!fs.existsSync(src)) continue;            /* an ORPHAN — already refused by signal 2 */
+      let persisted, fresh;
+      try {
+        persisted = fs.readFileSync(abs, "utf8");
+        fresh = EN.renderFileEn(fs.readFileSync(src, "utf8"), index).en;
+      } catch { unreadable++; continue; }
+      checked++;
+      if (persisted !== fresh) { total++; if (sample.length < cap) sample.push(rel); }
+    }
+  }
+  /* a file that could not be re-rendered is a file whose re-derivability is UNPROVEN, so it is
+   * reported as such rather than counted as clean. */
+  if (unreadable) return { ok: false, why: `${unreadable} .en could not be re-rendered for comparison`,
+                           total, checked, sample };
+  return { ok: true, total, checked, sample };
+}
+
 const DIRECTION = declaredDirection();
 const ORPHANS = orphanEn();
-const FLIPPED = DIRECTION === "en-authoritative" || ORPHANS.total > 0;
+/* computed only when the run would actually touch sen/ — see the cost note above */
+const DRIFT = WIPE_SEN ? driftedEn() : null;
+const DRIFTED = !!DRIFT && (!DRIFT.ok || DRIFT.total > 0);
+const FLIPPED = DIRECTION === "en-authoritative" || ORPHANS.total > 0 || DRIFTED;
 
 if (FLIPPED) {
   console.log(`REFUSING to touch ${SEN}/ — the English in it is NOT re-derivable from SOURCE.`);
@@ -300,6 +391,19 @@ if (FLIPPED) {
     for (const r of ORPHANS.sample) console.log(`      ${SEN}/files/${r}.en`);
     if (ORPHANS.total > ORPHANS.sample.length) console.log(`      … and ${ORPHANS.total - ORPHANS.sample.length} more`);
     console.log(`  a render cannot produce those. They were authored, and no mine rebuilds them.`);
+  }
+  if (DRIFTED) {
+    if (!DRIFT.ok) {
+      console.log(`  the re-derivability of ${SEN}/files/ could NOT BE ESTABLISHED: ${DRIFT.why}.`);
+      console.log(`  unknown is not zero. A wipe is refused until it can be measured.`);
+    } else {
+      console.log(`  ${DRIFT.total} of ${DRIFT.checked} .en file(s) DIFFER from a fresh render of their SOURCE:`);
+      for (const r of DRIFT.sample) console.log(`      ${SEN}/files/${r}.en`);
+      if (DRIFT.total > DRIFT.sample.length) console.log(`      … and ${DRIFT.total - DRIFT.sample.length} more`);
+      console.log(`  those bytes exist ONLY there. A re-render rebuilds what the .ts says, not what was`);
+      console.log(`  written into the .en — so a wipe loses exactly this, and nothing reports it later.`);
+      console.log(`  to keep the edit: compile it back into the .ts first, then the render reproduces it.`);
+    }
   }
   console.log(`  PRD §1B.3: at the flip this gate hardens from "explicit flag" to "refuse". This is that.`);
   console.log(`  --wipe-sen and --wipe-catalog do NOT release it. Deleting authored source is not an`);
