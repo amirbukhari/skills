@@ -9101,3 +9101,67 @@ obvious:
 **This will move renders and must be measured by differential with every change read individually,
 exactly as `d41b064` was — where the first, obvious cut was net negative.** That is the next item,
 not this one.
+
+---
+
+## `isGuardThrow` — stating the condition instead of asserting a polarity (2026-09-04)
+
+Executes the ruling on the inversion-sweep census (`998c0ca`). One commit, not three: part (1)'s
+code is DELETED by part (2), so landing it separately would be churn. It was still measured
+separately, and the answer corrects the census.
+
+**Part (1) — `firstCallName(st)` walking into the throw body. Real reach is 1, NOT 2.** Candidate
+`gA` (drop `|| firstCallName(st)`, change nothing else) over the whole corpus: **1 clause changed**,
+`src/routers/documents.ts:30`, "`filter` does not hold" → "a check fails" — `filter` came from the
+error message, not the condition. The census's second wrong-subject site,
+`sandbox.payment_sync_statement.dev.ts:85`, names `doesFreshbooksPaymentNoteContainPID`, which **is**
+the last disjunct of the condition. That is an ordinary INVERTED site, not a wrong-subject one.
+**THE REPO WINS: the census's 26 inverted / 5 false / 2 wrong-subject is 26 / 5 / 1.** The total of
+32 wrong clauses is unchanged.
+
+**Part (2) IS mechanically derivable, and no derivation was invented.** `guards` renders after
+`"failing when "` joined by `P.list` (enfile.js:1373, 1414, 1518), so the slot wants a bare
+predicate — which is exactly `condGloss`'s output shape, already the `IfStatement` ladder's own
+renderer. The whole `cd`/`c` block became `guards.push(condGloss(st.expression, sf) || "a check
+fails")`.
+
+**Part (3) fires on ZERO sites.** `condGloss` covers all 52, including the four that previously
+landed on `"a check fails"`. The fallback is kept for the corpus that needs it, but **no clause was
+deliberately declined here, so none of the ladder movement is a decline.** The anticipated
+worsening did not materialise; that is a measurement, not a choice.
+
+**Differential (rendering-path, full corpus, 33918 statements): 52 clauses changed, all 52 read
+individually against their source. IMPROVEMENTS 52, REGRESSIONS 0.**
+
+- 32 were WRONG before. `src/hydra-api/payments.ts:162` `if (errors.length > 0) throw`:
+  "`errors.length` does not hold" → "`errors.length` is over `0`". It throws precisely BECAUSE it
+  holds. `src/routers/billingAccounts.ts:36`: "a check fails" → "`minimumFromConfig` is missing or
+  `maximumFromConfig` is missing". `src/hydra-api/invoice.ts:1448`: a FALSE clause →
+  "the test on `floatVal`, `unPaidDollarAmountForInvoice`, and `Number.isNaN` passes" — vague, but
+  true, and truth was the ruled preference.
+- 14 were already correct and changed IDIOM only, to `condGloss`'s house forms: `if (!invoice)`
+  "`invoice` does not hold" → "`invoice` is missing"; `if (!isITieredUnitCountConfiguration(x))`
+  → "`baseSubscriptionConfig` fails `isITieredUnitCountConfiguration`", which additionally names the
+  subject the old form dropped.
+- 6 carry a PROSE WART, recorded rather than tuned away: where the callee is a dotted path,
+  `condGloss` lists it as an input *and* names it, e.g. `src/xero-api/invoicing.ts:276` →
+  "`ThirdPartyLedger.instance.isThirdPartyError` and `transformed` passes `isThirdPartyError`".
+  Clunky and TRUE, against an INVERTED before. Not counted as a regression, and not fixed here.
+
+**Ladder, both directions, measured on HEAD `998c0ca` and on the live tree in the same session:**
+
+```
+BEFORE  TOTAL 33918  site-specific 32207  95%  generic 1645  5%  unruled 66  0   42 passed, 10 failed
+AFTER   TOTAL 33918  site-specific 32211  95%  generic 1645  5%  unruled 62  0   43 passed,  9 failed
+```
+
+It got BETTER, which was not the expectation. The whole movement is the IfStatement row
+(1505 → 1509 site-specific, 4 → 0 vacuous): the four `"a check fails"` clauses are in the frozen
+`VACUOUS` list, and they were the four that gained a subject. A **previously FAILING frozen
+assertion now passes** — `no site of IfStatement gets a frozen vacuous clause (got 4, want 0)` →
+`(got 0, want 0)`. **Nothing in `engine/clause-quality.js` or the coverage test was touched**
+(`git diff --numstat` lists neither); the renderer stopped emitting the vacuous string. Generic is
+unchanged at 1645, so the REAL series is unmoved and no report-only figure shifts.
+
+**Byte-identity: BEFORE 1037 files / 1037 byte-identical / FAILURES 0; AFTER 1037 / 1037 /
+FAILURES 0.**

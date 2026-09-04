@@ -961,20 +961,26 @@ function spanActions(win, sf) {
     if (isGuardThrow(st)) {
       const msg = throwMessage(throwStmtOf(st.thenStatement));
       if (msg) guards.push('“' + msg + '”');
-      else {
-        /* QUOTE THE PREDICATE, DO NOT DE-CAMEL-CASE IT. `P.words` turned
-         * `ThirdPartyLedger.instance.isThirdPartyError(x)` into the sentence "a is third party
-         * error check fails", which is not English and names nothing greppable. The predicate's own
-         * identifier is the clearest available word (§3) and is what the reader will search for.
-         * Prefer the condition's dotted text -- for `errors.length > 0` that is `errors` -- and
-         * fall back to the callee. */
-        const cd = dottedText(st.expression, sf)
-          || (ts.isPrefixUnaryExpression(st.expression) ? dottedText(st.expression.operand, sf) : null)
-          || (ts.isBinaryExpression(st.expression) ? dottedText(st.expression.left, sf) : null);
-        const c = firstCallName(st.expression) || firstCallName(st);
-        if (cd) guards.push(q(cd) + " does not hold");
-        else guards.push(c ? q(c) + " does not hold" : "a check fails");
-      }
+      /* STATE THE CONDITION, DO NOT ASSERT A POLARITY IT MAY NOT HAVE. `guards` renders after
+       * "failing when", so this slot wants a PREDICATE -- and `condGloss` is the engine's predicate
+       * renderer, already used by the `IfStatement` ladder. Using it here is consistency, not a new
+       * idiom.
+       *
+       * WHAT THIS REPLACED WAS WRONG ON 32 OF 52 SITES. `isGuardThrow` matches `if (COND) throw`
+       * for ANY COND, and the old branch then said "`X` does not hold" unconditionally, taking the
+       * condition's dotted text as it stood or -- deliberately, the old comment said so -- a binary
+       * expression's LEFT operand. So `if (errors.length > 0) throw` rendered
+       * "`errors.length` does not hold", and it throws precisely BECAUSE it does. Measured
+       * 2026-09-04 over the whole corpus: 26 INVERTED, 5 FALSE, 1 naming an identifier from the
+       * THROW MESSAGE rather than the condition (`firstCallName(st)` walked the whole statement).
+       *
+       * NONE OF THE 32 WAS VISIBLE TO ANY PUBLISHED FIGURE. Each quoted an identifier that IS in
+       * the statement, so `isSiteSpecific` scored it site-specific -- counted as a SUCCESS.
+       *
+       * "a check fails" is kept as the honest landing for a condition `condGloss` cannot state.
+       * Measured: it fires on ZERO sites in this corpus now, because `condGloss` covers all 52 --
+       * including the four that used to land on it. It stays because the next corpus may need it. */
+      else guards.push(condGloss(st.expression, sf) || "a check fails");
       continue;
     }
 
