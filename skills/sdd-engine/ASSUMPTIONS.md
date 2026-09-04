@@ -9294,3 +9294,62 @@ a 28-call block?), and belongs in its own item.
 **Guardrails: byte-identity 1037 files / 1037 byte-identical / FAILURES 0, and the ladder
 33918 / 32211 / 1645 / 62, 43 passed 9 failed — identical before and after, because no engine file
 was touched.**
+
+---
+
+## CLASS 1 — the loop subject taken from the loop BODY (2026-09-04)
+
+The ruled ordering fix: try `dottedText(st.expression)` FIRST, fall back to `firstCallName(st)` only
+if it declines. Same shape as `f1bb87c`. `enfile.js:1301`.
+
+**Differential (rendering-path, full corpus, 33,918 statements): 40 clauses changed, all 40 read
+individually against their source. IMPROVEMENTS 40, REGRESSIONS 0.**
+
+21 are `for...of` and every one now names the actual collection:
+
+```
+hydra-api/invoice.ts:289    for (const invoice of invoices)          loop over `info`                  -> loop over `invoices`
+updateMissingHubspotClients.ts:18  for (const client of clients)     loop over `createHubspotCompany`  -> loop over `clients`
+hydra-api/invoice.ts:448    for (const filename of invoiceFilenames) loop over `push`                  -> loop over `invoiceFilenames`
+hubspot/apiHelper.ts:177    for (const batch of batches)             loop over `update`                -> loop over `batches`
+```
+
+19 are counting `for` loops, which name the condition's first non-`i`/`j`/`k` input:
+
+```
+src/helpers.ts:51           for (let i = 0; i < list.length; i++)    loop over `handler`               -> loop over `list.length`
+billing/partnerMonthly.ts:366                                        loop over `getManager`            -> loop over `oldFreshbooksPartnerIds.length`
+hubspot/tools.ts:169        for (let year = 2019; year <= 2028; ...) loop over `getMonthlyRevenueKey`   -> loop over `year`
+dateHelpers.test.ts:106     for (let d = 1; d <= 29; d++)            loop over `test`                  -> loop over `d`
+```
+
+**Two prose warts, recorded rather than tuned away.** 7 counting loops say "`list.length`" where a
+reader would prefer "`list`", and 2 name a bare counter (`d`, `y`) because the filter excludes only
+`i`/`j`/`k`. Both are TRUE and both are what the loop header actually says. What they replaced —
+"loop over `handler`", "loop over `test`" — was not. Truth over prose.
+
+**THE RULED ORDERING REACHES 40 OF THE 60, NOT 60, AND NO SECOND MECHANISM WAS INVENTED FOR THE
+REST.** The other 20 are `while`/`do` loops (where `over` is not computed at all) and `for...of`
+over a non-dotted iterable such as `(unpublished || [])` (where `dottedText` correctly declines).
+They still name a call from the body. That is a separate item, and the instruction not to invent a
+third mechanism was followed.
+
+**Ladder, measured before and after in the same session:**
+
+```
+BEFORE  33918  site-specific 32211  generic 1645  unruled 62   43 passed,  9 failed
+AFTER   33918  site-specific 32209  generic 1647  unruled 62   42 passed, 10 failed
+```
+
+**A FROZEN ASSERTION FLIPPED FROM ok TO FAIL, and it is reported rather than worked around.**
+`every site of ForStatement gets a clause that quotes something from the site` was 21/21 100% and is
+now 19/21 (got 2, want 0). The two sites are "loop over `d`" and "loop over `y`": a quoted run of
+length 1, which `isSiteSpecific`'s `bare.length >= 2` does not count. **Nothing in the metric was
+touched** — `clause-quality.js`, the assertion and the published series are all unchanged
+(`git diff --numstat` lists only `enfile.js` and this file). The only way to make it green again is
+to widen the `i`/`j`/`k` filter so `d` and `y` fall through to `firstCallName` and get "loop over
+`test`" and "loop over `forEach`" back — both FALSE. Restoring untruth to protect a count is the
+wrong option, and the count movement was pre-authorised.
+
+**Byte-identity: BEFORE 1037 files / 1037 byte-identical / FAILURES 0; AFTER 1037 / 1037 /
+FAILURES 0.**

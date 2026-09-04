@@ -1298,11 +1298,40 @@ function spanActions(win, sf) {
         const dot = dottedText(it.expression, sf);
         if (dot) { actions.push("loop over the result of " + q(dot)); continue; }
       }
-      const c = firstCallName(st);
-      if (c) { actions.push("loop over " + q(c)); continue; }
+      /* THE HEADER FIRST, THE BODY ONLY AS A FALLBACK -- the same ordering defect as the guard
+       * throw fixed in f1bb87c, and found by the same sweep. `firstCallName(st)` walks the WHOLE
+       * loop, so it reached into the BODY and named a call there as the thing being looped over:
+       * `for (const invoice of invoices)` came out "loop over `info`", naming a LOGGER as the
+       * collection. The correct subject was already computed on the next line and was tried
+       * SECOND, so it only ever spoke when the body contained no call at all.
+       *
+       * Measured 2026-09-04 over the whole corpus: 60 of 65 loops named a call that appears
+       * nowhere in the loop header. This ordering reaches 40 of them -- 40 changed clauses,
+       * 40 improvements, 0 regressions. The remaining 20 are `while`/`do` loops and `for...of`
+       * over a non-dotted iterable such as `(unpublished || [])`, where `over` declines; they
+       * are NOT addressed here and no second mechanism was invented for them.
+       *
+       * TWO PROSE WARTS, RECORDED RATHER THAN TUNED AWAY. A counting loop names its condition's
+       * first input, so `for (let i = 0; i < list.length; i++)` says "loop over `list.length`"
+       * rather than "`list`" (7 sites), and a counter not called i/j/k is named as itself --
+       * "loop over `d`", "loop over `y`" (2 sites). Both are TRUE and both are what the loop
+       * header actually says; the strings they replaced ("loop over `handler`", "loop over
+       * `test`") were not. Truth over prose (§5C). The two single-letter ones carry a quoted run
+       * of length 1, so `isSiteSpecific` stops counting them and the generic count RISES by 2 --
+       * a truthful correction, not a regression, and it is not to be softened to protect it.
+       *
+       * IT ALSO FLIPS A FROZEN ASSERTION FROM ok TO FAIL, and that is recorded here rather than
+       * worked around: `every site of ForStatement gets a clause that quotes something from the
+       * site` was 21/21 and is now 19/21 (got 2, want 0). NOTHING IN THE METRIC WAS TOUCHED --
+       * `isSiteSpecific`'s `bare.length >= 2` is unchanged and the assertion is unchanged. The
+       * only way to make it green again is to widen the i/j/k filter so `d` and `y` fall through
+       * to `firstCallName` and get "loop over `test`" and "loop over `forEach`" back, which are
+       * FALSE. Restoring untruth to protect a count is the wrong option (§5C). */
       const over = (ts.isForOfStatement(st) || ts.isForInStatement(st)) ? dottedText(st.expression, sf)
         : (ts.isForStatement(st) && st.condition ? inputsOf(st.condition, sf).filter((x) => !/^i$|^j$|^k$/.test(x))[0] : null);
-      actions.push(over ? "loop over " + q(over) : "loop"); continue;
+      if (over) { actions.push("loop over " + q(over)); continue; }
+      const c = firstCallName(st);
+      actions.push(c ? "loop over " + q(c) : "loop"); continue;
     }
 
     if (ts.isIfStatement(st)) {
