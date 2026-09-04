@@ -9165,3 +9165,132 @@ unchanged at 1645, so the REAL series is unmoved and no report-only figure shift
 
 **Byte-identity: BEFORE 1037 files / 1037 byte-identical / FAILURES 0; AFTER 1037 / 1037 /
 FAILURES 0.**
+
+---
+
+## SUBJECT-FIDELITY SWEEP — census only, no fix (2026-09-04)
+
+Same method as the inversion sweep. The question, per mechanism: **can it name a subject, object or
+input that is not the thing the statement acts on?** Record-only; nothing in `engine/` changed.
+
+**This class is INVISIBLE to every published figure, and the census measured that rather than
+assuming it.** A misnamed clause still quotes an identifier that IS in the statement, so
+`isSiteSpecific` scores it a SUCCESS. Measured over the three quoting classes below: **64/64, 225/225
+and 58/58 are scored site-specific** — every one sits inside the 32,211, none inside the 1,645.
+
+### Cleared BY CONSTRUCTION
+
+| mechanism | why it cannot misname |
+|---|---|
+| `dottedText` (enfile.js:422) | reads only the node handed to it — an identifier's own text, or a property access's own base plus its own `.name`. Returns null for a call, index, await or operator, so it can never step sideways into a sibling. |
+| `q`, `sanitizeLabel`, `P.list` | formatting and joining. They choose no name. |
+| `literalGloss` (enfile.js:436) | describes the node given; an object or array by its OWN keys, never by a child's. |
+| declaration rendering (993–1008) | `st.name.text` — the declared node's own name. |
+| import / export rendering (866–918) | names come from the declaration's own clause elements and its own module specifier. |
+| `routeClause` (377) | verb from the described callee, path from that call's own first string literal. |
+| assignment subject (1184–1205) | `dottedText(inner.left, sf)` — the assignment's own LHS, which is the subject being described. |
+| receiver naming (1264–1270) | `e.expression.name.text` and `dottedText(e.expression.expression)` — both from the described call. |
+| `matchAssertion` (549) | subject is `assertSubject(recv.arguments[0])`, the `expect(...)` argument itself; the `.not`/`.resolves` walk DECLINES on any unrecognised property rather than guessing. |
+
+### Cleared BY MEASUREMENT (bounded population, enumerated exhaustively, 0 defects)
+
+- **VariableStatement subject picker** (`firstCallName(st)`, 1036): **9,586 sites, 0** where the name
+  differs from the initializer's own first call. The hazard is real in principle — `forEachChild`
+  visits the binding pattern before the initializer, so `const { a = f() } = g()` would name `f` —
+  but no such statement exists in this corpus.
+- **ExpressionStatement subject picker** (`firstCallName(st)`, 1284): **6,453 sites, 0** where the
+  name differs from the unwrapped expression's own first call.
+
+### THE REPO WINS on known instance 2
+
+**The cited `CallExpression` base/argument defect is NOT PRESENT on HEAD.** "the result of
+`getManager` saved" for `getManager().save(entity)`, said to hold on 22 of `queryBuilder`'s 43 sites,
+does not exist: **1,025 statements mention `queryBuilder`/`getManager`/`createQueryBuilder`, and
+exactly ONE renders "the result of `X`"** — `hydra-api/subscription.ts:65`, "return the result of
+`queryBuilder.getMany`", which names the right subject. The actual site,
+`freshbooks-api/FreshbooksLedger.ts:103` `await getManager('hydra').save(Invoice, {...})`, renders
+**"await `save` into `saveResult`"** — through the VariableStatement rung, not the CallExpression
+rule. Corpus-wide, only **1** clause of the form "the result of `X`" ends in a persistence verb, and
+it is a correct `expect(...)` rendering. The argument-discard behaviour is real (1,549 chains drop a
+non-callback argument) but what they drop is separators and seeds — `split(/re/)`, `join(',')`,
+`reduce(fn, {})` — where the base IS the subject. **That is omission, not misnaming, and it is not
+this defect class.**
+
+### DEFECTS FOUND — 340 sites, and this is LARGE
+
+**1. The loop subject is taken from the loop BODY — 60 of 65 loops (`enfile.js:1301`).** The single
+largest instance found, and it is the SAME SHAPE as the guard-throw bug fixed in `f1bb87c`:
+`firstCallName(st)` walks the whole statement, and the correct subject — `dottedText(st.expression)`,
+line 1303 — is tried SECOND, so it only ever speaks when there is no call anywhere in the body.
+
+```
+handlers/updateMissingHubspotClients.ts:18   for (const client of clients)      ->  loop over `createHubspotCompany`
+hydra-api/invoice.ts:289                     for (const invoice of invoices)    ->  loop over `info`
+freshbooks-api/invoicing.ts:597              for (const invoice of (unpublished || []))  ->  loop over `getFullYear`
+batchQueueProcessor/xeroBatchQueueProcessor.ts:120  while (xeroWebhookInvoiceIdQueue.length > 0) -> loop over `shift`
+src/helpers.ts:51                            for (let i = 0; i < list.length; i++)  ->  loop over `handler`
+```
+
+`loop over \`info\`` names a LOGGER as the collection. 65 loops, 65 "loop over" clauses, 64 of the
+form "loop over `X`", **60 of those name a call that appears nowhere in the loop header.**
+
+**2. One arbitrary call stands for the whole try block — 190 of 230 (`enfile.js:1335`).**
+`firstCallName(st.tryBlock)` names the first call in document order, which is frequently a log line:
+
+```
+src/doRun.ts:119   try block containing 20 calls  ->  try `info`
+src/doRun.ts:202   try block containing 22 calls  ->  try `info`
+src/doRun.ts:110   try block containing 28 calls  ->  try `createJobRerunRecords`
+freshbooks-api/invoicing.ts:383  4 calls          ->  try `error`
+```
+
+The try block IS the described region, so this is not cross-region the way (1) is — it is an
+arbitrary pick presented as the subject. 40 of the 230 name the only call there is and are correct.
+
+**3. The CALLEE is listed as one of its own INPUTS — 58 sites across 37 files (`inputsOf`, 648).**
+`inputsOf` collects dotted paths anywhere under a node, and a dotted callee is a dotted path:
+
+```
+src/subscriptionHelpers.ts:12  if (Number.isNaN(A))                          -> stop early when `Number.isNaN` and `A` passes `isNaN`
+src/app.ts:75                  if (ctx.request.href.includes('notifications')...) -> when `ctx.request.href.includes` passes `includes` and ...
+freshbooks-api/invoicing.ts:276 if (ThirdPartyLedger.instance.isThirdPartyError(transformed)) -> `ThirdPartyLedger.instance.isThirdPartyError` and `transformed` passes `isThirdPartyError`
+```
+
+The last is the six-site prose wart recorded in `f1bb87c`. **Measured corpus-wide it is 58, not 6** —
+`f1bb87c` saw only the subset its own differential moved. THE REPO WINS over that entry.
+
+**4. A return is named from ONE PART of a compound expression — 32 sites (`enfile.js:1110`).** 106
+returns are named by the `firstCallName` rung; 74 of those are a plain `CallExpression` whose
+outermost callee IS the subject (correct, merely de-camelCased). The other **32** are compound —
+17 BinaryExpression, 8 PrefixUnaryExpression, 4 ObjectLiteralExpression, 2 ConditionalExpression,
+1 ArrowFunction — and the name comes from inside one part:
+
+```
+src/typeGuards.ts:5        return errorResponse && (typeof ... ) && (typeof ...)   ->  return is array
+freshbooks-api/auth.ts:23  return (new Date(expiry)).getTime() < Date.now();       ->  return get time
+hydra-api/payments.ts:64   return !!( purportedData.invoiceId && typeof ... )      ->  return includes
+caching/memoize.ts:62      return ((...args) => { const argStr = JSON.stringify(...  ->  return stringify
+```
+
+These 32 carry no quoted run at all, so **unlike classes 1–3 they are already inside the generic
+1,645** — the metric sees them as thin, not as wrong.
+
+### Census total, and the stop
+
+```
+cleared by construction   9 mechanisms
+cleared by measurement    2 mechanisms, 16,039 sites, 0 defects
+known instance 1          FIXED in f1bb87c (real reach 1, not 2)
+known instance 2          NOT PRESENT on HEAD -- the repo wins
+DEFECTS FOUND             60 + 190 + 58 + 32 = 340 sites
+```
+
+**340 is large and none of it is fixed here.** Classes 1 and 4 are the same defect as `f1bb87c` — the
+correct subject is available and is tried second — and class 1 is the one to take first: it is
+bounded at 65, the fix is an ordering change at `enfile.js:1301`, and `dottedText(st.expression)` is
+already written on the next line. Class 2 is a design question, not a bug fix (what should stand for
+a 28-call block?), and belongs in its own item.
+
+**Guardrails: byte-identity 1037 files / 1037 byte-identical / FAILURES 0, and the ladder
+33918 / 32211 / 1645 / 62, 43 passed 9 failed — identical before and after, because no engine file
+was touched.**
