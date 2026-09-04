@@ -7947,3 +7947,48 @@ net-of-elision orders stay inspectable.
 `one-char-credit.js` rather than imported, so the two can never move together by accident. Whether
 the definition of mute changes is Amir's ruling, unmade. Coverage test TOTAL row **1,695**,
 42 passed / 10 failed; byte-identity **1037/1037**.
+
+## Rule 10 on `Block` is REFUSED — it earns 4 sites, not 68 (2026-09-04)
+
+Measured before writing it, and it does not survive the measurement. `Block`'s 68 REAL sites split:
+
+| | sites | |
+|---|---|---|
+| **gated by the parent `CallExpression`** | **50 (74%)** | `.then` 29, `.forEach` 13, `.catch` 5, `.andWhere` 1, `.finally` 1, `.mockImplementation` 1 |
+| escape artifact (below) | 11 | |
+| IIFE — callee is an arrow, a different gap | 3 | |
+| **reachable by a `Block` rule** | **4** | `return stringify`, `await info`, and two `specify` clauses |
+
+**The gate is proven, not inferred.** The `CallExpression` rule refuses the whole chain at
+`if (!name || !VERBS[name]) return null;` **before it ever looks at the callback**. A probe over
+three synthetic chains, callback identical in each:
+
+```
+rows.map((r) => r.id)      callback renders `r.id`  ->  parent renders "`rows` mapped to `r.id`"
+rows.then((r) => r.id)     callback renders `r.id`  ->  parent NULL
+rows.forEach((r) => r.id)  callback renders `r.id`  ->  parent NULL
+```
+
+So a `Block` rule would render a child that the parent refuses to use. This is **R-LANG-17 running
+backwards**: the driver attributes a blocked site to the deepest unruled kind, but the binding
+constraint is the parent's VOCABULARY. `Block` and `Parameter` are not a work item — they are the
+promise and arrayMutation families seen from underneath, and those two families are ranked BELOW
+them precisely because the same sites were counted twice, in two places, under two names.
+
+**A FOURTH artifact, found on the way: escaped string literals — 15 sites corpus-wide, disjoint from
+both the elision (921) and the one-char (117).** The clause quotes the DECODED string; the statement
+holds the ESCAPED source, so `isSiteSpecific` compares against a backslash that is not in the prose:
+
+```
+clause:  specify “rounds an artefact reproduced from that button's own expression”
+source:  it('rounds an artefact reproduced from that button\'s own expression', () => {
+```
+
+Every one of these already reads correctly. **REAL after all three artifacts: 642**, from the frozen
+1,695. Measured report-only; `isSiteSpecific` untouched and not proposed to move — that remains
+Amir's unmade ruling.
+
+**Nothing was written for rule 10 and no rule shipped.** The instrument was wrong a third time, in a
+third way, and the honest next step is the fourth column, not a rule that would move 4 sites.
+
+Coverage test TOTAL row **1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**.
