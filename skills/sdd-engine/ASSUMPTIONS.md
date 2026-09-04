@@ -7483,3 +7483,46 @@ follow either way:
 
 Recorded as a measurement, not acted on. The instruction that produced this entry — never weaken,
 skip or re-baseline a check to make something pass — is the reason the number is still 1,503.
+
+## Phrasebook rule 6 — `ConditionalExpression` (2026-09-04)
+
+50 generic `ReturnStatement` sites, and **every one rendered as a method name lifted from inside one
+branch**:
+
+```
+return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+  before ==>  "return locale compare"
+  after  ==>  "return the result of `valA.localeCompare` if `ascending`, otherwise the result of
+              `valB.localeCompare`"
+```
+
+The choice between the branches — the entire content of a ternary — was being thrown away.
+
+**The cause was shadowing, for the third time in this file.** The ladder *did* have a conditional
+case; `firstCallName` sat in front of it and answered first. Naming a callee's last segment is the
+weakest truthful thing this ladder can say, and it was out-ranking rules that describe the whole
+expression. The phrasebook is now called **in front of** `firstCallName`, which is the general fix
+rather than a per-kind one: any future rule outranks the weakest fallback automatically.
+
+Both arms and the condition recurse — arms through `baseGloss` (so rules 2–5 apply inside a ternary),
+the condition through the engine's existing `condGloss` rather than a second condition vocabulary.
+The rule **declines if either arm is unnameable**: "returns X if …" while silently dropping the
+alternative would be a confident sentence about code it had not understood.
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ReturnStatement     623 -> 591 generic  (-32);  site-specific 80% -> 81%
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+**Shadowing is now the recurring cause, not the incidental one** — rule 4 (element access branch
+returning null), rule 6 (`firstCallName` in front of the conditional case), and the parenthesised
+short ladder in rule 2. In each, a *narrower older branch answered first and refused*, which from the
+outside is indistinguishable from the new rule not existing. Worth stating as a rule of this
+codebase: **when a phrasebook rule under-delivers, suspect the ladder above it before the rule
+itself.**

@@ -36,7 +36,8 @@
  * at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)
  *
  * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression,
- * ElementAccessExpression, ArrayLiteralExpression — in measured order of the
+ * ElementAccessExpression, ArrayLiteralExpression,
+ * ConditionalExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -259,6 +260,35 @@ const RULES = {
     if (!rest && shown.length === 1) return spread ? "a copy of " + shown[0] : "a list holding " + shown[0];
     const tail = rest ? [rest + " more entr" + (rest === 1 ? "y" : "ies")] : [];
     return P.list(shown.concat(tail)) + (spread ? " joined together" : " as a list");
+  },
+
+  /* ── ConditionalExpression ─────────────────────────────────────────────────────────────────────
+   * `ascending ? valA.localeCompare(valB) : valB.localeCompare(valA)`
+   *   ->  "the result of `valA.localeCompare` if `ascending`, otherwise the result of
+   *        `valB.localeCompare`".
+   *
+   * 50 generic ReturnStatement sites, measured after rules 1-5, and every one of them rendered as
+   * **"return locale compare"** — a method name lifted from INSIDE ONE BRANCH, with the choice
+   * between the branches, which is the entire content of a ternary, thrown away. The ladder did
+   * have a conditional case, but `firstCallName` sat in front of it and answered first: the same
+   * shadowing that hid rule 4, and the third time on this file that an older narrow branch
+   * out-ranked a general one.
+   *
+   * BOTH ARMS AND THE CONDITION RECURSE. The arms go through `baseGloss`, so a branch that is an
+   * object literal or an `a().b[0]` chain renders through rules 2-5; the condition goes through the
+   * caller's `cond`, which is the engine's existing condition vocabulary rather than a second one.
+   *
+   * IT DECLINES IF EITHER ARM IS UNNAMEABLE. Half a ternary is not a truthful description of a
+   * ternary — "returns X if …" while silently dropping the alternative would be a confident
+   * sentence about code the rule had not understood. Without a condition it still says "either X or
+   * Y", which is true and useful; without an arm it says nothing. */
+  ConditionalExpression(node, sf, P) {
+    if (!ts.isConditionalExpression(node)) return null;
+    const a = baseGloss(node.whenTrue, sf, P) || P.literal(node.whenTrue, sf);
+    const b = baseGloss(node.whenFalse, sf, P) || P.literal(node.whenFalse, sf);
+    if (!a || !b) return null;                     /* half a ternary is not a ternary */
+    const cond = P.cond ? P.cond(node.condition, sf) : null;
+    return cond ? a + " if " + cond + ", otherwise " + b : "either " + a + " or " + b;
   },
 };
 

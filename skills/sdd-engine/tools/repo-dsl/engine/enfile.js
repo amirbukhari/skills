@@ -32,7 +32,7 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 const NKR = require("./node-kind-rules");
 /* the primitives the phrasebook renders WITH — passed in rather than duplicated there, so "how an
  * identifier is spelled" keeps exactly one definition (node-kind-rules.js header). */
-const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf), literal: (n, sf) => literalGloss(n, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
+const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf), literal: (n, sf) => literalGloss(n, sf), cond: (n, sf) => condGloss(n, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
 const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
@@ -993,6 +993,13 @@ function spanActions(win, sf) {
        * the top five clusters alone. Declines (receiver is itself a call) fall through unchanged. */
       const rcg = returnCallGloss(e, sf);
       if (rcg) { actions.push(rcg); continue; }
+      /* THE PHRASEBOOK GOES IN FRONT OF `firstCallName`, DELIBERATELY. Naming the callee's last
+       * segment is the weakest truthful thing this ladder can say, and it was out-ranking rules
+       * that describe the whole expression: every one of the 50 ternary returns came out as
+       * "return locale compare", a method name from inside ONE branch, because `firstCallName`
+       * answered before the conditional case further down could. */
+      const viaRule = NKR.render(e, sf, NKRP);
+      if (viaRule) { actions.push("return " + viaRule); continue; }
       const c = firstCallName(st);
       if (c) { actions.push("return " + P.words(c)); continue; }
       /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we
