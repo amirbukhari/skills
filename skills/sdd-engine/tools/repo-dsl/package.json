@@ -36,8 +36,7 @@
     "gate": "node repo-dsl.js gate",
     "clean": "node sdd-clean.js",
     "clean:sen": "node sdd-clean.js --wipe-sen",
-    "build": "npm run mine && npm run name && npm run render && npm run measure && npm run preflight -- --soft",
-    "name:author": "node author-names.js"
+    "build": "npm run mine && npm run name && npm run render && npm run measure && npm run preflight -- --soft"
   },
   "engines": {
     "node": ">=18"

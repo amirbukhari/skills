@@ -197,7 +197,7 @@ investigation, kept for its findings; not on any path.
 | `report-server.js` | **TOOL** | the **reporting layer**: reads the published artifacts and renders one page. `npm run report` (http://127.0.0.1:8787), or `npm run report:once > out.html`. **READ-ONLY — GET only, no write path**: nothing here mines, renders, names or cleans, and an absent artifact is reported as a named miss with the command that produces it, never as a zero |
 | `sdd-clean.js` | **TOOL** | wipes derived content out of CORPUS. Dry-run unless `--wipe-sen --go`. Never touches SOURCE. `npm run clean` |
 | `repo-dsl.js` | **TOOL** | the pipeline-B CLI: `mine\|publish\|gate\|verify\|verify-expand\|expand\|explain\|language\|refine-language\|report`. `npm run gate` |
-| `author-names.js` | **TOOL** (broken input) | proposes names for leaf skeletons. `npm run name:author` — **needs a census file as argv[2] and nothing live produces one**; it crashes without one. See `../../CLAUDE.md` §9 |
+| `author-names.js` | **TOOL** (broken input, **deliberately unwired**) | proposes names for leaf skeletons — the third naming path, distinct from `name` (chunk worksheet) and `name:tier` (gated apply). **Needs a census file as argv[2] and nothing live produces one**; it crashes without one. Its `npm run name:author` entry was **REMOVED 2026-09-03**: line 34 defaults its OUTPUT to `AC.pathFor("word-names")` and line 125 writes it, so a "fixed" input would overwrite 3,820 chunk names with leaf names only, against a file with no git history. Only the §8B `requires` refusal stands in the way. Kept for its admission rules; do not re-wire. See `../../RUNBOOK.md` §10 and `../../CLAUDE.md` §9 |
 | `language.js` | **LIBRARY**/TOOL | publishes the vocabulary + grammar as machine JSON for a cross-repo consumer. `repo-dsl language <dir> --json`. Hand-authors nothing: every name, param, keyword, marker, tier and token rule is read live from `generators.js`/`dsl.js` at call time, and `engine/language.test.js` fails if this file ever names a composite or leaf literally |
 | `dsl.js` | **LIBRARY** | the readable surface over the composition-tree IR. 30 references — the most-used module here |
 | `generators.js` | **LIBRARY** | the deterministic generator library for the SDD code stage |
@@ -220,14 +220,14 @@ investigation, kept for its findings; not on any path.
 | `narrate-census.js` | measurement | READ-ONLY scan of every `.ts` in the corpus |
 | `finer-granularity-sweep.js` | **ONE-OFF** | granularity investigation |
 | `guard-idiom.js` | **ONE-OFF** | guard-idiom probe |
-| `cnl-author.js` | **ONE-OFF** | controlled-English logic authoring, end-to-end proof |
-| `coin-word.js` | **ONE-OFF** | coin-a-word demo, proves the growth loop end to end |
+| `archive/cnl-author.js` | **ONE-OFF** | controlled-English logic authoring, end-to-end proof — **ARCHIVED 2026-09-03**, see `archive/README.md` |
+| `archive/coin-word.js` | **ONE-OFF** | coin-a-word demo, proves the growth loop end to end — **ARCHIVED 2026-09-03**, see `archive/README.md` |
 | `archive/wholefile-mine.js` | **ARCHIVED 2026-09-02** | CLI over `engine/wholefile.js`. Retired with `catalog/mined-library.v5.json`: no npm script, no caller, artifact absent from the corpus. Requires repointed `../engine/`; `engine/wholefile.js` itself stays live (`package-hydra-source.js:22`) |
 | `resolve-imports.js` | **ONE-OFF** | mines a symbol → module-specifier map |
-| `strip-comments.js` | **ONE-OFF** | deterministic AST-safe comment stripper |
+| `archive/strip-comments.js` | **ONE-OFF** | deterministic AST-safe comment stripper — **ARCHIVED 2026-09-03**, see `archive/README.md` |
 | `refine-language.js` | LLM pass | the "librarian" pass over the mined language. Reaches into `../sdd-lib.js` |
 | `sdd-code-from-spec.js` | LLM pass | the code-stage composition emitter. Sibling of `../sdd-spec-from-intent.js` |
-| `package-delonix.js` | **ONE-OFF, do not run** | packages a corpus at a path that `../../CLAUDE.md` §1 puts **out of bounds** and `.claude/settings.json` denies reads to. Kept for history only |
+| `archive/package-delonix.js` | **ONE-OFF, do not run** | packages a corpus at a path that `../../CLAUDE.md` §1 puts **out of bounds** and `.claude/settings.json` denies reads to. Kept for history only — **ARCHIVED 2026-09-03**, see `archive/README.md` |
 
 ### subdirectories
 
