@@ -39,7 +39,10 @@
  *    source contained, so if elements were joined by a byte a skeleton can hold, the patterns
  *    [A, BC] and [AB, C] would hash IDENTICALLY — a collision manufactured by the ENCODING, not by
  *    chance, between two genuinely different patterns. Every element is therefore LENGTH-PREFIXED
- *    (`<byteLength>:<skeleton>`), which is injective regardless of content, so no joiner byte has
+ *    (`<codeUnitLength>:<skeleton>` — `s.length`, i.e. UTF-16 code units, NOT bytes, while sha256
+ *    hashes the utf8 encoding; the mismatch is deliberate, because injectivity is the only property
+ *    the guard needs and code-unit prefixing has it, while switching to a true byte length would
+ *    move every id with a non-ASCII skeleton for no gain), which is injective regardless of content, so no joiner byte has
  *    to be trusted. `content-id.test.js` proves this with a constructed pair rather than asserting
  *    it, and shows the naive join collides on the same input.
  *
