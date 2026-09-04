@@ -10043,3 +10043,90 @@ that the OLD path already emitted from a COLLAPSED model: `sentences()` collapse
 commit. The defect was confined to the mined sentence never matching its own re-render. I had
 reasoned that the emit bytes for those two would change; the measurement says they do not.
 
+
+## THE SILENT CLASS AT `enfile.js:2420` DOES NOT EXIST. It was closed on 2026-09-02 and I reported it as live on 2026-09-04.
+
+**THE FINDING IS A RETRACTION OF MY OWN, and the repo wins.** In `28100a9` I wrote that a
+structural chunk returns before the derive check, so its name is never compared even with
+`SDD_DERIVE_CHECK=1`. **That is false.** I read the comment at `enfile.js:2420` and repeated it
+without reading the forty lines beneath it or running the harness sitting in the same directory.
+
+### (a) The early return, and what it actually guards
+
+There is no early return past the check. The structural branch (`compileChunk`, `chunk[0] ===
+GEN_NEST`) has **its own** derive check at `enfile.js:2481`: `deriveStructuralGloss(kid === null ?
+built : kid, index._lzw)`, compared against `split.heading`, refusing at `:2517` with *"HEADING AND
+BODY DISAGREE (R-REND-6 — the sentence is authoritative)"*. It even carries a `childHonoured`
+discriminator that re-compiles the body with repair off to tell "stale by consequence" apart from a
+real contradiction. The one literally accurate clause in the stale comment is that this branch
+returns before the **atomic** `deriveCheck` further down — which is true and irrelevant, and is what
+made the wrong conclusion look plausible.
+
+**Dates settle it.** The comment landed in `cecfd70` (2026-09-01) and was **true when written**.
+`a5501a7` (2026-09-02) — the commit CLAUDE.md §6 already names as where Q-1's mechanics landed —
+added the structural check directly beneath it and did not update it. It has been stale for two
+days and cost a full investigation on the third.
+
+### (b) Exposure, measured by editing headings and compiling — not by reading
+
+`measure-hand-edit.js --files 150`, re-run today, its own table:
+
+```
+    gloss-structural-name    structural   120        0     0   120   |    0   120     0
+                                         tried  took  ref  SIL  |  took   ref   SIL
+                                         ---- check OFF ----   |  ---- check ON ----
+```
+
+**120 tried, 120 refused, 0 silent with the check on.** Its structural class only ever edits the
+FIRST `▷` chunk in a file, and all 120 sit at depth 0 — **777 of 9,611** structural chunks
+corpus-wide, so 91.9% of the population was untested by it. A separate read-only probe therefore
+edited **nested** headings, taking the deepest structural chunk in each file:
+
+```
+  files sampled: 250   with a NESTED structural chunk: 184   without one: 66   base compile failed: 0
+  sampled site depths: {"1":50,"3":76,"5":36,"7":14,"9":8}
+    deriveCheck OFF    took-effect 0   refused 0     SILENT 184
+    deriveCheck ON     took-effect 0   refused 184   SILENT 0
+```
+
+**184 of 184 refused, at depths 1 through 9. Zero silent at any depth.** Across both harnesses, 304
+structural heading edits, 304 refusals, 0 silent.
+
+And the check is **on by default** — `enfile.js:2330` is `process.env.SDD_DERIVE_CHECK !== "0"` —
+so refusal is what an author meets today, not an opt-in. (I did not touch that variable; both modes
+are reached through `opts.deriveCheck`, which is how the existing harness already does it.)
+
+### (c) What a wrong structural name would DO — the question that decides whether it matters
+
+**Took-effect is 0 in every run and every mode**: 0 of 447 English edits in the harness, 0 of 184 in
+the nested probe, with the check off *and* on. A wrong structural heading has never changed what
+compiles. With the check off it is silent and **cosmetic — a review-surface defect**; with the check
+on it **refuses**. It was never a trust problem, and the distinction is now stated at the site.
+
+### (d) Extending the check — there is nothing to extend
+
+The check already reaches every case measured. The residual boundary is not the branch but
+`if (derived !== null && ...)`: `deriveStructuralGloss` returns `null` when the compiled bytes carry
+parse diagnostics or produce no statements, and a null is not compared. **Measured behaviourally,
+that path did not fire once in 304 edits** — every one of them refused. I am not proposing a change
+to the check: there is no measured hole to close, and widening it on a `null` I cannot demonstrate
+would be inventing a guard for a case I have never seen fire.
+
+### What I changed — DOCUMENTATION ONLY, three stale sites, no behaviour
+
+1. `engine/enfile.js:2419` — the comment now states that the name **is** compared, carries both
+   measurements, states the took-effect-0 consequence, and keeps the retracted text verbatim with
+   the two commits and dates that made it stale.
+2. `measure-hand-edit.js` header — *"The mode is off by default … the left is what an author meets
+   today"* corrected: the check is on by default, so the **right** column is today's behaviour.
+3. `measure-hand-edit.js` printed commentary — it told the reader *"there is nothing to derive from
+   and the check cannot fire on it. A structural row staying SILENT in the 'on' column is a
+   documented boundary of that guard, not a hole in it"* **on the same page as its own table
+   reporting 120 refused**. A report whose prose contradicts its own numbers is worse than one with
+   no prose, because the sentence is what gets quoted onward — it was, by me. It now says a silent
+   structural row would be a REGRESSION, and tells the reader to read the number.
+
+Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after. `enfile.test.js`
+exit 0, 7 assertions, 0 FAIL. `entity-sentence.test.js` unchanged at 18 passed / 2 failed — the two
+emit legs behind defect 2. `engine/clause-quality.js` untouched; `SDD_DERIVE_CHECK` untouched.
+

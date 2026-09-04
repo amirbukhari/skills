@@ -2416,16 +2416,40 @@ function compileChunk(chunk, index, opts) {
      * escaped verbatim — so byte-exactness is inherited from the children rather than asserted
      * here. The body is delimited by the LAST BODY_CLOSE, matched against the first BODY_OPEN
      * after the marker, so a ⟨ inside a child's payload cannot end it early. */
-    /* WHERE THE R-REND-6 DERIVE CHECK STOPS, and it is structural, not an oversight. This branch
-     * returns before the deriveCheck below, so a structural chunk's OWN name is never compared
-     * against anything — it has no payload to disagree with. Its CHILDREN are still checked, on
-     * the recursive call. So a hand-edit to a nested chunk's sentence is refused; a hand-edit to
-     * the NAME this chunk carries is silent, even with SDD_DERIVE_CHECK=1.
-     * Measured 2026-09-01 (`measure-hand-edit.js`, another lane): of 580 hand edits, the check
-     * turns all 460 atomic-chunk edits into refusals and leaves the 120 structural ones silent —
-     * and all 120 sit at chunk depth 0, which is 777 of 9,611 structural chunks corpus-wide, so
-     * the silent class is measured on the atypical 8.1%. Closing it is not a comment's business:
-     * it needs a second producer of the run grouping, which is the shape R-REND-9 forbids. */
+    /* WHERE THE R-REND-6 DERIVE CHECK STOPS — AND IT NO LONGER STOPS HERE.
+     *
+     * A structural chunk's OWN name IS compared, in this branch, a few lines below: the
+     * `deriveStructuralGloss` block derives the heading from the compiled child bytes and refuses
+     * with "HEADING AND BODY DISAGREE (R-REND-6)". So a hand-edit to a structural heading is
+     * REFUSED, not silent. `DERIVE_CHECK` is on by default (`!== "0"`, above), so that is what an
+     * author meets today rather than an opt-in.
+     *
+     * Measured 2026-09-04, by editing headings and compiling, not by reading either the code or
+     * this comment. `measure-hand-edit.js --files 150`: the 120 `gloss-structural-name` edits are
+     * 120 refused, 0 silent, with the check on. Its structural class only ever edits the FIRST ▷
+     * chunk in a file, and all 120 of those sit at depth 0 — 777 of 9,611 structural chunks
+     * corpus-wide, so a separate probe edited NESTED headings: 184 files, sampled depths 1, 3, 5, 7
+     * and 9, and 184 of 184 refused with the check on. Zero silent at any depth.
+     *
+     * WHAT THE EDIT DOES WITH THE CHECK OFF is worth stating in the same breath, because it is what
+     * makes this a review-surface question and not a trust one: took-effect is 0 in every run and
+     * every mode. A wrong structural heading has never changed what compiles — with the check off
+     * it is silent and cosmetic, with the check on it refuses.
+     *
+     * RETRACTED 2026-09-04, and the retraction is kept rather than the text quietly replaced. This
+     * comment used to read: *"This branch returns before the deriveCheck below, so a structural
+     * chunk's OWN name is never compared against anything — it has no payload to disagree with …
+     * a hand-edit to the NAME this chunk carries is silent, even with SDD_DERIVE_CHECK=1."* It was
+     * TRUE when written (`cecfd70`, 2026-09-01) and false ONE DAY LATER: `a5501a7` (2026-09-02)
+     * added the structural check directly beneath it and did not update it. Its one literally
+     * accurate clause — this branch does return before the ATOMIC deriveCheck further down — is
+     * what made the wrong conclusion look plausible.
+     *
+     * IT COST A REAL INVESTIGATION. On 2026-09-04 this comment was read, believed, and written up
+     * as a live silent class in a §5E.3.2 design record (`28100a9`), which then reached Amir as a
+     * finding. Nobody ran the harness sitting in the same directory whose own table says 120
+     * refused. That is CLAUDE.md §9's first entry repeating itself one layer up: reading produced
+     * a confident wrong answer; running produced the right one in minutes. */
     const split = splitStructural(chunk);
     if (!split) throw new Error("enfile: malformed structural chunk (no ⟨…⟩ body)");
     const body = chunk.slice(split.bodyStart, split.bodyEnd);

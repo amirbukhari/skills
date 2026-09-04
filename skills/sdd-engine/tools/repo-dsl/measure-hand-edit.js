@@ -31,10 +31,14 @@
  *                edit is gone. It is the `{ optional: true } / catch { return null }` defect class
  *                this engine exists to eliminate, at the level of the source language itself.
  *
- * MEASURED IN BOTH MODES. `SDD_DERIVE_CHECK=1` re-derives each gloss from its payload and throws on
- * disagreement (`enfile.js` ~1665), which converts SILENT into refused without making any edit
- * take effect. The mode is off by default, so both columns are reported: the left is what an author
- * meets today, the right is what the existing guard would give them if it were on.
+ * MEASURED IN BOTH MODES. The derive check re-derives each gloss and throws on disagreement, which
+ * converts SILENT into refused without making any edit take effect. Both columns are reported.
+ *
+ * CORRECTED 2026-09-04 — this paragraph said *"The mode is off by default, so … the left is what
+ * an author meets today, the right is what the existing guard would give them if it were on."*
+ * `enfile.js` reads `process.env.SDD_DERIVE_CHECK !== "0"`, so the check is ON by default and the
+ * RIGHT column is what an author meets today. The left column is what they get only by explicitly
+ * setting it to "0".
  *
  *   node measure-hand-edit.js [--files N] [--json]
  *
@@ -375,10 +379,20 @@ if (JSON_OUT) {
       `${c(r.off.effect)}${c(r.off.refused)}${c(r.off.silent)}    ${c(r.on.effect)}${c(r.on.refused)}${c(r.on.silent)}`);
   }
   console.log(`\n  » = CONTROL (the machine half of the file, not English)`);
-  console.log(`  SHAPE MATTERS AND IS NOT A FINDING: SDD_DERIVE_CHECK re-derives a gloss FROM ITS PAYLOAD,`);
-  console.log(`  and a STRUCTURAL chunk (▷, R-ARCH-19) has children instead of a payload — so there is`);
-  console.log(`  nothing to derive from and the check cannot fire on it. A structural row staying SILENT`);
-  console.log(`  in the "on" column is a documented boundary of that guard, not a hole in it.\n`);
+  /* CORRECTED 2026-09-04. These four lines used to read: *"SHAPE MATTERS AND IS NOT A FINDING …
+   * a STRUCTURAL chunk has children instead of a payload — so there is nothing to derive from and
+   * the check cannot fire on it. A structural row staying SILENT in the 'on' column is a documented
+   * boundary of that guard, not a hole in it."* THE TABLE PRINTED DIRECTLY ABOVE THEM SAYS
+   * OTHERWISE: gloss-structural-name is 120 refused, 0 silent, in the "on" column. `a5501a7`
+   * (2026-09-02) gave the structural branch its own check — deriveStructuralGloss over the compiled
+   * CHILD bytes — one day after this prose was written, and the prose was not updated. A report
+   * whose commentary contradicts its own numbers is worse than one with no commentary, because the
+   * sentence is what gets quoted onward. It was, on 2026-09-04. */
+  console.log(`  SHAPE MATTERS, AND THE STRUCTURAL ROW IS NOT A BOUNDARY OF THE GUARD. An ATOMIC gloss is`);
+  console.log(`  derived from its PAYLOAD; a STRUCTURAL chunk (▷, R-ARCH-19) has children instead, and is`);
+  console.log(`  derived from its compiled CHILD BYTES by deriveStructuralGloss (a5501a7). Both are`);
+  console.log(`  compared and both refuse. A structural row going SILENT in the "on" column would be a`);
+  console.log(`  REGRESSION, not a documented limit — read the number, not this sentence.\n`);
   console.log(`  AND THE STRUCTURAL SITES ARE NOT A RANDOM SAMPLE OF STRUCTURAL CHUNKS. Every structural`);
   console.log(`  class edits the FIRST ▷ chunk in a file, and ${sampledStructuralDepth0} of ${sampledStructural} of those sat at chunk depth 0 —`);
   console.log(`  the file's OWN chunk. Corpus-wide there are ${census.total} structural chunks, ${census.depth0} at depth 0 and`);
