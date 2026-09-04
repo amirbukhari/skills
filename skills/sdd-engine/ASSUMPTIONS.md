@@ -7289,3 +7289,50 @@ phrasebook rules at all, so if that is the number he wants moved, the work order
 longer renders anywhere. It is a naming artifact, not a render; round-trip and idempotence are green,
 so nothing is broken by it. Refreshing names means re-running the naming step, which is not part of
 shipping this rule, and `author-names.js` / `name:author` is banned outright.
+
+## Phrasebook rule 3 — `PropertyAccessExpression` (2026-09-04)
+
+Rank **1** by instance count (31,687, 11.6% of all structural nodes) and, measured before writing it,
+the largest single cause of contentless `ExpressionStatement` clauses: of the **327** generic
+`expect(...)` statements, **257** have a `PropertyAccessExpression` subject.
+
+`assertSubject` reached for `dottedText`, which spells only a pure `a.b.c` chain, and declined the
+moment a call appeared anywhere in the base:
+
+```
+expect(getCreditNotePostedAmounts(artefactCredits).roundingAdjustment).toBe('0.00000');
+  ==>  "call to be"
+```
+
+— a clause with nothing of the site in it, built from a matcher's method name. Same defect the
+`CallExpression` rule closed for returns, one kind over: the receiver *can* be named truthfully, just
+not as a dotted string. It now renders:
+
+```
+expect `roundingAdjustment` from the result of `getCreditNotePostedAmounts` to be “0.00000”
+```
+
+The rule is ordered **behind** `dotted` and wired as `assertSubject`'s **last** resort, so it can only
+speak where there was previously no clause — it cannot reword an existing one. That is what keeps its
+effect attributable.
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ExpressionStatement 738 -> 724 generic  (-14)
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+**The prediction was −257 and the delivery is −14, and the gap is the finding, not a failure.**
+Rendering one site at a time showed why: the dominant base is not a call but an **element access** —
+`expect(notes[0].subscriptionIds)` — and the phrasebook has no `ElementAccessExpression` rule, so
+`baseGloss` declines and the whole chain declines with it. The rule is correct; its *children* cannot
+render yet. This is R-LANG-17 behaving exactly as designed — a rule renders by rendering its children
+and never inspects what they are — and it means **`ElementAccessExpression` is rule 4, and rule 3's
+remaining 243 sites come with it.** Recording the mispredicted number rather than quietly
+re-scoping: the estimate came from bucketing by *subject* kind when the deciding kind was the
+*base*'s.

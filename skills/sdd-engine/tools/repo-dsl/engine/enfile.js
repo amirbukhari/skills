@@ -502,6 +502,12 @@ function assertSubject(n, sf) {
     return c ? "calling " + q(c) : null;
   }
   if (ts.isElementAccessExpression(n)) { const b = dottedText(n.expression, sf); return b ? q(b) + "'s entry" : null; }
+  /* LAST RESORT, and deliberately last: the phrasebook (§5D.3C). Placed after every existing branch
+   * so it can only speak where this function previously declined — 257 of the 327 generic
+   * `expect(...)` statements, all of them a property reached through a call, which `dottedText`
+   * cannot spell and so refused entirely. Anything already named keeps its old wording. */
+  const viaRule = NKR.render(n, sf, NKRP);
+  if (viaRule) return viaRule;
   const lit = literalGloss(n, sf);
   return lit && lit !== "some text" ? lit : null;
 }

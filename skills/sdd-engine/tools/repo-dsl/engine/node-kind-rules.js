@@ -35,7 +35,7 @@
  * (§5D.3C's own table lists StringLiteral third; it counted literals, this pass excludes everything
  * at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)
  *
- * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression — in measured order of the
+ * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -149,7 +149,69 @@ const RULES = {
     const tail = rest ? [rest + " more field" + (rest === 1 ? "" : "s")] : [];
     return "a record of " + P.list(shown.concat(tail));
   },
+
+  /* ── PropertyAccessExpression ──────────────────────────────────────────────────────────────────
+   * Names a property reached through something that is NOT a plain identifier chain:
+   * `getCreditNotePostedAmounts(credits).roundingAdjustment`
+   *   ->  "`roundingAdjustment` from the result of `getCreditNotePostedAmounts`".
+   *
+   * RANK 1 BY INSTANCE COUNT (31,687, 11.6% of all structural nodes) and, measured 2026-09-04, the
+   * largest single cause of contentless ExpressionStatement clauses: of the 327 generic
+   * `expect(...)` statements, 257 have a PropertyAccessExpression subject. `assertSubject` reached
+   * for `dotted`, which handles only a pure `a.b.c` chain, and declined the moment a call appeared
+   * anywhere in the base — so
+   *
+   *     expect(getCreditNotePostedAmounts(artefactCredits).roundingAdjustment).toBe('0.00000');
+   *       ==>  "call to be"
+   *
+   * a clause with nothing of the site in it, assembled from a matcher's method name. This is
+   * exactly the defect the CallExpression rule closed for returns ("receiver is itself a call ->
+   * cannot name it truthfully"), one kind over: the receiver CAN be named truthfully, just not as
+   * a dotted string.
+   *
+   * RECURSION IS THE MECHANISM (§5D.3C §2.2). The trailing property names are peeled off, and the
+   * base is rendered by the phrasebook itself — so a base this rule has never heard of renders
+   * through whatever rule owns its kind, and this rule never inspects what its child IS, only that
+   * it rendered (R-LANG-17).
+   *
+   * IT IS ORDERED BEHIND `dotted`, DELIBERATELY. A plain `a.b.c` still renders exactly as before,
+   * so this rule can only add clauses where there were none — it cannot restate an existing one
+   * differently, which is what keeps its effect attributable to a measurement. */
+  PropertyAccessExpression(node, sf, P) {
+    if (!ts.isPropertyAccessExpression(node)) return null;
+    const flat = P.dotted(node, sf);
+    if (flat) return P.q(flat);                    /* plain chain -> unchanged, byte for byte */
+    const names = [];
+    let cur = node;
+    while (cur && ts.isPropertyAccessExpression(cur)) {
+      const nm = cur.name && cur.name.text;
+      if (!nm) return null;
+      names.unshift(nm);
+      cur = unwrap(cur.expression);
+    }
+    if (!names.length || !cur) return null;
+    const base = baseGloss(cur, sf, P);
+    if (!base) return null;                        /* base unnameable -> decline, do not waffle */
+    return P.q(names.join(".")) + " from " + base;
+  },
 };
+
+
+/* What a property hangs off, said truthfully. Tries the phrasebook FIRST so the base goes through
+ * whatever rule owns its kind (R-LANG-17), and only then falls back to naming a plain call by its
+ * callee. A base with no honest name at all returns null and its caller declines. */
+function baseGloss(n, sf, P) {
+  if (!n) return null;
+  const d = P.dotted(n, sf);
+  if (d) return P.q(d);
+  const viaRule = render(n, sf, P);
+  if (viaRule) return viaRule;
+  if (ts.isCallExpression(n)) {
+    const callee = P.dotted(n.expression, sf) || (ts.isIdentifier(n.expression) ? n.expression.text : null);
+    return callee ? "the result of " + P.q(callee) : null;
+  }
+  return null;
+}
 
 /** Render ONE node through the phrasebook. Null = no rule for this kind, or the rule declined. */
 function render(node, sf, P) {
