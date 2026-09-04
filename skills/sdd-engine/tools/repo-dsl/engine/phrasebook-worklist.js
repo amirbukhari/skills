@@ -286,9 +286,23 @@ function computeWorklist(opts) {
   let genericTotal = 0, creditedTotal = 0, noHead = 0, oneCharTotal = 0, bothTotal = 0, escapedTotal = 0;
   let escXelision = 0, escXoneChar = 0, allThree = 0;
   /* THE ACCEPTANCE TEST FOR THE ATTRIBUTION FIX, computed rather than asserted. Every REAL site
-   * lands in exactly one of these four buckets. If `both` is large the tables still double-count
-   * and the fix is incomplete; if the four sum to REAL, no site is counted twice or lost. */
+   * lands in exactly one of these four buckets; if the four sum to REAL, no site is counted twice
+   * or lost.
+   *
+   * `both` IS NOT A DEFECT COUNT, and reading it as one cost a work item. It used to be labelled
+   * "still double-counted", which said the attribution fix was unfinished. It is finished. A `both`
+   * site has TWO INDEPENDENT BLOCKERS — a declining method AND an unruled kind — because
+   * BinaryExpression refuses on `!a || !b` ("half an expression is not the expression"), so each
+   * operand must render and either blocker alone leaves the site generic. Measured 2026-09-04 on
+   * all five: `return !!hash && passwordVerify(password, hash)` blocks on PrefixUnaryExpression
+   * (unruled) and on `passwordVerify` (a bare function, not in VERBS) at once. Both work items are
+   * NECESSARY and neither is SUFFICIENT, so the site belongs in both tables and no code change
+   * removes it. What the number is for is the addition key printed under the partition. */
   const bucket = { familyOnly: 0, kindOnly: 0, both: 0, neither: 0 };
+  /* Rows in the worklist are per KIND, so a site reaching two unruled kinds prints on two rows.
+   * This is the ONLY reason those rows out-sum the distinct sites; carried so the key below is
+   * computed rather than asserted. */
+  let multiKindExcess = 0;
 
   for (const abs of files) {
     let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
@@ -356,6 +370,7 @@ function computeWorklist(opts) {
           }
           if (!credited && !oneChar && !escaped) {
             const f = !!acc0.method, k = siteMissing.size > 0;
+            if (siteMissing.size > 1) multiKindExcess += siteMissing.size - 1;
             if (f && k) bucket.both++; else if (f) bucket.familyOnly++; else if (k) bucket.kindOnly++; else bucket.neither++;
           }
           if (acc0.method) {
@@ -400,7 +415,8 @@ function computeWorklist(opts) {
 
   return {
     coverage: { kindsOccurring: occurring.size, kindsRuled: ruled.length, rules: NKR.KINDS.slice() },
-    attribution: { ...bucket, total: bucket.familyOnly + bucket.kindOnly + bucket.both + bucket.neither },
+    attribution: { ...bucket, multiKindExcess,
+      total: bucket.familyOnly + bucket.kindOnly + bucket.both + bucket.neither },
     /* `frozen` and `net` KEEP THEIR PUBLISHED MEANINGS (2,284 -> 1,729 -> 1,695, and net = frozen
      * minus elision credit). `oneChar` is added BESIDE them and `netOfBoth` is a separate name, so
      * no consumer of the existing series silently changes value. */
@@ -476,9 +492,25 @@ function report(w) {
   console.log("ATTRIBUTION OF THE " + w.residual.real + " REAL SITES — each lands in exactly ONE bucket");
   console.log("  a declining rule's own VOCABULARY (the family table) ... " + w.attribution.familyOnly);
   console.log("  an UNRULED kind (the worklist) ......................... " + w.attribution.kindOnly);
-  console.log("  BOTH — still double-counted ............................ " + w.attribution.both);
+  console.log("  BOTH — two independent blockers, in both tables ........ " + w.attribution.both);
   console.log("  NEITHER — no head, or nothing attributable ............. " + w.attribution.neither);
   console.log("  sum .................................................... " + w.attribution.total + (w.attribution.total === w.residual.real ? "   == REAL" : "   != REAL — SITES ARE LOST OR DOUBLED"));
+  console.log("");
+  /* THE ADDITION KEY. Neither table's rows are addable on their own, and printing the reconciliation
+   * is what stops the next reader inventing a total. Both lines are computed; if either stops
+   * balancing, the attribution model has drifted and the mismatch marker says so. */
+  const famSum = w.families.reduce((t, r) => t + r.real, 0);
+  const wlSum = w.worklist.reduce((t, r) => t + r.sitesReal, 0);
+  const famKey = w.attribution.familyOnly + w.attribution.both;
+  const wlKey = w.attribution.kindOnly + w.attribution.both + w.attribution.multiKindExcess;
+  console.log("  HOW THE TWO TABLES ADD — rows are per family / per kind, sites are not");
+  console.log("    family REAL rows sum ..... " + String(famSum).padStart(4)
+    + "   = familyOnly " + w.attribution.familyOnly + " + both " + w.attribution.both
+    + (famSum === famKey ? "" : "   != — ATTRIBUTION HAS DRIFTED"));
+  console.log("    worklist REAL rows sum ... " + String(wlSum).padStart(4)
+    + "   = kindOnly " + w.attribution.kindOnly + " + both " + w.attribution.both
+    + " + " + w.attribution.multiKindExcess + " (sites reaching TWO unruled kinds)"
+    + (wlSum === wlKey ? "" : "   != — ATTRIBUTION HAS DRIFTED"));
   console.log("");
   console.log("WORKLIST — UNRULED kinds, RANKED BY REAL = distinct sites − elision − one-char − escape  <-- next rule here");
   const byFrozen = w.worklist.slice().sort((a, b) => b.blocked - a.blocked);
@@ -509,8 +541,9 @@ function report(w) {
   /* NO LONGER PROVISIONAL. These used to overlap the worklist above: a site whose parent refused
    * the chain was attributed to the child kind it stopped at as WELL as to the parent's method, so
    * `Block`/`Parameter` and the promise/arrayMutation families were partly the same sites under two
-   * names. `blockersOf` now descends only where the rule looks, and the partition below reports how
-   * many sites are still counted in both tables. */
+   * names. `blockersOf` now descends only where the rule looks. The five sites the partition still
+   * reports under BOTH are not that overlap returning: they are blocked twice over, by a method and
+   * by a kind at once, and appear in both tables correctly. */
   w.families.forEach((r) => {
     console.log("    " + String(r.sites).padStart(5) + "   " + String(r.credited).padStart(7) + "   " + String(r.oneChar).padStart(6)
       + "   " + String(r.escaped).padStart(6) + "   " + String(r.real).padStart(5) + "   " + r.family);

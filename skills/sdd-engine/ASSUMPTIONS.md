@@ -8189,3 +8189,72 @@ FAILURES 0** both before and after. 42 passed / 10 failed.
 `SAYS_NOTHING` lines); `clause-quality.js` and `statement-kind-coverage.test.js` are untouched
 entirely. No metric was redefined in this commit, and the fall in the count comes only from clauses
 that now say more.
+
+## The 5 BOTH sites are not double-counted — they are blocked twice (2026-09-04)
+
+The backlog carried "5 REAL sites still counted in BOTH attribution tables" as the residue of
+`caf4fad`'s attribution fix, to be fixed. **It is not a residue and there is nothing to fix.** The
+work order was re-run against the current REAL of 606 before anything was touched, because the
+183/49/5/405 partition that produced the "5" was measured against 642 and predated two commits of
+renderer work (`709275a`, `b1432e3`).
+
+**The re-run:** partition `{familyOnly: 183, kindOnly: 49, both: 5, neither: 369}`, sum **606 ==
+REAL**. The double-count is still exactly **5**. Every one of the 36 sites the two renderer commits
+closed came out of **NEITHER** and none out of the other three buckets — consistent with what those
+commits did, which was stop `firstCallName` shadowing a phrasebook that could already render the
+site. Such a site has no blocker *in the phrasebook*, so `blockersOf` correctly found nothing to
+attribute and it sat in NEITHER until the ladder was fixed.
+
+**Why the 5 are irreducible.** `BinaryExpression` refuses on `if (!a || !b) return null;` — *"half
+an expression is not the expression"*. A `both` site is an `&&`/`??` chain with one operand blocked
+by a declining method and the other by an unruled kind, so **both work items are NECESSARY and
+neither is SUFFICIENT**. Measured by rendering each operand:
+
+```
+return !!hash && passwordVerify(password, hash);       parent null
+  PrefixUnaryExpression  "!!hash"                  -> null   (unruled kind)
+  CallExpression         "passwordVerify(...)"     -> null   (bare function, not in VERBS)
+```
+
+All five are that shape: `isArray` + `TypeOfExpression` (×2), `default`/`(bare function)`/`trim` +
+`PrefixUnaryExpression` (×3). The site belongs in both tables, correctly, and no code change removes
+it from either.
+
+**So the change is to the LABEL, not the number.** The line read `BOTH — still double-counted`,
+which asserted the attribution fix was unfinished; the driver's own comment said *"if `both` is
+large the tables still double-count and the fix is incomplete"*. Both were wrong, and a warning that
+outlives its landmine costs the same attention as a real one (CLAUDE.md §8). It now reads `BOTH —
+two independent blockers, in both tables`, and the comment records the measurement.
+
+**The addition key is now printed rather than left to the reader.** Neither table's rows are
+addable, which had to be re-derived by hand every time:
+
+```
+    family REAL rows sum .....  188   = familyOnly 183 + both 5
+    worklist REAL rows sum ...   58   = kindOnly 49 + both 5 + 4 (sites reaching TWO unruled kinds)
+```
+
+Both lines are **computed**, and print `!= — ATTRIBUTION HAS DRIFTED` if either stops balancing.
+*Verified the marker can fire* — a scratch copy with `+ 1` added to each key printed the drift
+marker on both lines, so this is not a guard that cannot fail (CLAUDE.md §3). The family table has
+**zero** internal double-count: 188 rows == 188 distinct sites, because `acc0.method` is a single
+value per site. The worklist's excess of 4 is measured, not inferred — the per-site histogram of
+unruled kinds is `{0: 406, 1: 50, 2: 4}`, and 406 + 50 + 4 + 146 no-head sites == 606.
+
+**Nothing here changes a render.** `phrasebook-worklist.js` is required by no live module (grep:
+every other mention is a comment), the only modified file in the commit is that driver, and both
+figures were re-measured either side: byte-identity **files 1037, byte-identical 1037, FAILURES 0**;
+coverage TOTAL generic row **1659**, `42 passed, 10 failed`. `clause-quality.js`,
+`statement-kind-coverage.test.js` and `enfile.js` all diff to **0 lines** against an 88-line
+positive control on the driver.
+
+**One correction to the record, made rather than inherited.** The standing orientation described
+`statement-kind-coverage.test.js` as byte-for-byte frozen. It is not: `4357715` added an `EC`
+require, an `elided` counter, the credit counted inside the `else` beside `rec.generic++`, a totals
+field and a second printed block. The **metric definition** is intact — `isSiteSpecific`'s body is
+untouched, `bare.length >= 2` is verbatim at line 64, `rec.generic++` fires on the identical
+condition, and no assertion changed. What is frozen there is the definition, not the file.
+
+**Recorded, not acted on.** The driver prints one-char **117**; the banked item says **116**. The
+discrepancy is noted and left alone — it is an `isSiteSpecific` threshold question and Amir's
+unmade ruling.
