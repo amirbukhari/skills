@@ -36,7 +36,7 @@
  * at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)
  *
  * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression,
- * ElementAccessExpression — in measured order of the
+ * ElementAccessExpression, ArrayLiteralExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -221,6 +221,44 @@ const RULES = {
     const idx = d ? P.q(d) : (P.literal(arg, sf) || render(arg, sf, P));
     if (!idx) return null;                         /* an index we cannot name -> decline */
     return base + " at " + idx;
+  },
+
+  /* ── ArrayLiteralExpression ────────────────────────────────────────────────────────────────────
+   * `[...a, ...b]` -> "`a` and `b` joined together"; `[x, y]` -> "`x` and `y` as a list".
+   *
+   * 75 generic ReturnStatement sites, measured 2026-09-04 after rules 1-4, and the same two defects
+   * rule 2 closed for object literals — this was written as their sibling and shares its shape:
+   *
+   *   - A CLIFF at four elements, above which `arrayGloss` said nothing at all (not even a count).
+   *   - AN OUTRIGHT DECLINE if ANY element failed to spell as a dotted name, discarding the ones
+   *     that did. Arity is a parameter (R-LANG-16); one unnameable element is not grounds to refuse
+   *     the other three.
+   *
+   * RECURSION IS WHAT MAKES IT WORTH MORE THAN rule 2's, and it is the first rule to collect on the
+   * ones before it: an element is rendered by `baseGloss`, so a list of object literals now reads
+   * "a record of `id`, `name` and 3 more fields, and one more entry" instead of nothing. A rule
+   * never inspects WHAT its children are, only that they render (R-LANG-17).
+   *
+   * THE SPREAD DISTINCTION IS KEPT because it is a real difference in meaning: spreading joins
+   * existing lists, listing builds a new one from items. */
+  ArrayLiteralExpression(node, sf, P) {
+    if (!ts.isArrayLiteralExpression(node)) return null;
+    if (!node.elements.length) return "an empty list";
+    const named = [];
+    let hidden = 0;
+    for (const el of node.elements) {
+      const inner = ts.isSpreadElement(el) ? el.expression : el;
+      const g = baseGloss(inner, sf, P) || P.literal(inner, sf);
+      if (g) named.push(g); else hidden++;
+    }
+    if (!named.length) return null;
+    const SHOWN = 4;                               /* matches what `arrayGloss` used to list in full */
+    const shown = named.slice(0, SHOWN);
+    const rest = named.length - shown.length + hidden;
+    const spread = node.elements.some(ts.isSpreadElement);
+    if (!rest && shown.length === 1) return spread ? "a copy of " + shown[0] : "a list holding " + shown[0];
+    const tail = rest ? [rest + " more entr" + (rest === 1 ? "y" : "ies")] : [];
+    return P.list(shown.concat(tail)) + (spread ? " joined together" : " as a list");
   },
 };
 

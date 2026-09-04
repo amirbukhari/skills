@@ -648,16 +648,9 @@ function elemAccess(n, sf) {
 /* `[...a, ...b]` / `[x, y]` — say which lists are being joined, by name. */
 function arrayGloss(n, sf) {
   if (!n || !ts.isArrayLiteralExpression(n) || !n.elements.length) return null;
-  const names = [];
-  for (const el of n.elements) {
-    const t = ts.isSpreadElement(el) ? dottedText(el.expression, sf) : dottedText(el, sf);
-    if (!t) return null;
-    names.push(t);
-  }
-  if (names.length > 4) return null;
-  const spread = n.elements.some(ts.isSpreadElement);
-  return names.length === 1 ? (spread ? "a copy of " + q(names[0]) : "a list holding " + q(names[0]))
-    : P.list(names.map(q)) + (spread ? " joined together" : " as a list");
+  /* DELEGATES to the phrasebook's ArrayLiteralExpression rule (§5D.3C), as `recordGloss` and
+   * `elemAccess` do — one definition of this gloss, not two. */
+  return NKR.render(n, sf, NKRP);
 }
 
 /* `{ a, b, c }` — name the fields, which is what the reader is looking for. */

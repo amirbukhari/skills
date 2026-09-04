@@ -7388,3 +7388,51 @@ not fire. `KINDS` from the module showed three entries where there should have b
 subsequent edit asserts its anchor matched before writing. Same defect class as CLAUDE.md §7's
 `GIT_INDEX_FILE` no-op: **a step that silently does nothing is worse than one that fails, because
 the transcript shows it was run.**
+
+## Phrasebook rule 5 — `ArrayLiteralExpression` (2026-09-04)
+
+The sibling of rule 2, sharing its two defects: `arrayGloss` had a **cliff at four elements**, above
+which it said nothing at all (not even a count), and it **declined outright if any one element**
+failed to spell as a dotted name — discarding the ones that did. Arity is a parameter; one
+unnameable element is not grounds to refuse the other three.
+
+**This is the first rule to collect on the ones before it.** An element renders through `baseGloss`,
+so a list whose entries are object literals or `a().b[0]` chains now reads, where before rules 2–4 it
+could only have declined. That is R-LANG-17 paying compound interest: each rule raises the yield of
+every rule that can contain it.
+
+`enfile.js`'s `arrayGloss` now delegates, joining `recordGloss` and `elemAccess` — three helpers that
+were each a second definition of a gloss now have one.
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ReturnStatement     663 -> 623 generic  (-40);  site-specific 78% -> 80%
+ExpressionStatement 457 -> 453 generic  (-4)
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+−44 against a measured 75. The remainder decline honestly: elements that are calls with no nameable
+callee, or template strings that `literalGloss` will only call "some text". Named rather than
+smoothed over, because the same gap under-delivered rule 3 and it is how rule 4 got chosen.
+
+### Where the phrasebook stands after five rules, and what is next
+
+Corpus generic clauses **2,404 → 1,839** across the five rules (ReturnStatement 792 → 623,
+ExpressionStatement 738 → 453). Byte-identity 1037/1037 at every step, round-trip and idempotence
+green at every step, and **`reads as English` has not moved off 31.8% once** — for the reason under
+rule 2, which Amir should read before judging the night's work by that number.
+
+Measured candidates for rule 6, from the current distribution rather than a guess:
+
+| kind | generic sites | note |
+|---|---|---|
+| `CallExpression` (returns) | 90 | needs VERBS entries, i.e. measured vocabulary, not a new rule |
+| `NullKeyword` / `TrueKeyword` / `FalseKeyword` | 74 + 22 + 28 | **already correct English** — `return null;` cannot read better; this is the ~345-clause inflation in the work order already flagged, not work |
+| `BinaryExpression` | 50 + 13 paren | |
+| `ConditionalExpression` | 30 + 20 paren | |
+| `IfStatement` / `ThrowStatement` | 380 / 349 | untouched statement kinds; ThrowStatement is the worst rate in the corpus at 40% generic |
