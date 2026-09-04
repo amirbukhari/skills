@@ -10570,3 +10570,71 @@ a confirmation, not a rescue.
 `obj.w <= Number.MAX_SAFE_INTEGER` at `payload.js:228`. **It is correct only under the decimal leg of
 Amir's fork**, so implementing it now would be building on an assumed ruling. Recorded here so it
 cannot be lost.
+
+## AT-ARCH-1 now has the negative control §20 demands — and building it read RED first
+
+**The premise held.** §20 states it in its own words: AT-ARCH-1 *"is nonetheless MUTATION-CHECKED at
+authoring time (R-TEST-3) with an explicit negative control: de-register the archetype, re-run, and
+assert `en₁ ≠ en₀`. A test that cannot be made to fail is not evidence, whatever it prints."*
+**That control did not exist.** Section 6 of `entity-sentence.test.js` carries a negative control for
+the **denominator** — no two sources render the same sentence — which guards the population, not the
+assertion. Every leg in section 6 is an identity check, and an identity check structurally incapable
+of moving prints 58/58 forever. **R-ARCH-4 records exactly that failure one layer down** (`checkTiling`
+re-slices the source and rejoins it, so `byteIdentical: 100%` is a tautology), and §20 names it as
+what AT-ARCH-1 must not become.
+
+### It read RED on the first run, and the red was MINE
+
+```
+a column renamed         detected   8/58   SILENT 50
+a column's type changed  detected  56/58   SILENT 2
+entity-sentence.test.js: 34 passed, 2 failed
+```
+
+**Both silences were defects in the mutations, not holes in AT-ARCH-1**, and the difference was
+settled by measuring, not by reasoning about it:
+
+- **`prop` is DERIVED, not independent state.** Measured over all 58 entities: **611 columns, 355
+  carrying an explicit `name`, `camel(name) === prop` on 355/355, 0 independent.** So mutating
+  `prop` while leaving `name` builds a model the emitter can never emit, and a sentence that does
+  not move is **correct** there. The mutation now targets `name` (falling back to `prop` only for
+  the 256 columns that have no `name`), and **the invariant it rests on is now asserted**, so it
+  fails the day a corpus carries a property name the sentence does not spell.
+- **An enum column speaks through `enum`/`tsType`, not `colType`.** Flipping `colType` on an
+  enum-first entity leaves the sentence rightly unmoved; two of 58 were enum-first. The mutation now
+  skips enum columns and lets the denominator fall rather than the assertion.
+
+**This is the outcome the exercise is for.** The first red was not the check catching the engine; it
+was the check catching its own author, which is the same service one turn earlier.
+
+### Green, with every family carrying its own denominator
+
+```
+AT-ARCH-1 NEGATIVE CONTROL over the same 58 entities
+  POSITIVE CONTROL, unmutated emit re-mines to the same sentence   58/58
+  class name changed         detected  58/58   (moved 58, refused 0)   SILENT 0
+  table name changed         detected  58/58   (moved 58, refused 0)   SILENT 0
+  a column renamed           detected  58/58   (moved 58, refused 0)   SILENT 0
+  a column's type changed    detected  58/58   (moved 58, refused 0)   SILENT 0
+  required <-> optional      detected  58/58   (moved 58, refused 0)   SILENT 0
+  two columns swapped        detected  58/58   (moved 58, refused 0)   SILENT 0
+  a column dropped           detected  58/58   (moved 58, refused 0)   SILENT 0
+  de-registered (@Entity stripped) refuses a sentence               58/58
+  invariant: columns 611, carrying an explicit name 355, camel(name) === prop 355/355
+entity-sentence.test.js: 37 passed, 0 failed          (was 26)
+```
+
+Four deliberate choices, each because the cheaper version would have measured less:
+
+- **The POSITIVE CONTROL runs first, per entity.** A mutation harness whose unmutated case is
+  already broken proves nothing — every mutation would "move" and the section would pass on noise.
+- **All 58 entities, not a specimen.** A control measured on one hand-picked file proves the field
+  is carried *there*, which is not the claim.
+- **A refusal is counted SEPARATELY from a moved sentence.** Refusing is the louder failure and must
+  not be laundered into the same column as a quiet difference.
+- **`two columns swapped`** exists because §20 says *"a slot binds by NAME, never by position …
+  and breaks it silently"*. It is the one mutation that changes no value at all.
+
+Section 6 is **byte-for-byte unchanged**: the denominator is still 58 and all three legs still read
+58/58. Byte-identity after: **`files: 1037  byte-identical: 1037  FAILURES: 0`** — run even though
+the change is confined to a test file that nothing imports.

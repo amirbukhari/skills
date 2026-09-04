@@ -183,5 +183,146 @@ throws(() => S.parseEntitySentence("PaymentPlan is an entity stored in payment_p
   eq(collisions.length, 0, `no two entity sources render the same sentence${collisions.length ? ": " + collisions.map(([, v]) => v.join(" == ")).join("; ") : ""}`);
 }
 
+/* ---- 7. THE AT-ARCH-1 NEGATIVE CONTROL (PRD §20, "It must be able to fail") ---------------
+ *
+ * §20 states the requirement in its own words: AT-ARCH-1 "is nonetheless MUTATION-CHECKED at
+ * authoring time (R-TEST-3) with an explicit negative control: de-register the archetype, re-run,
+ * and assert en1 != en0. A test that cannot be made to fail is not evidence, whatever it prints."
+ *
+ * THAT CONTROL DID NOT EXIST. Section 6 carries a negative control for the DENOMINATOR -- no two
+ * sources render the same sentence -- which is a different claim: it guards the population, not the
+ * assertion. Every leg in section 6 is an identity check, and an identity check that is structurally
+ * incapable of moving prints 58/58 forever. R-ARCH-4 records exactly that failure one layer down
+ * (`checkTiling` re-slices the source and rejoins it, so `byteIdentical: 100%` is a tautology), and
+ * §20 names it as the thing AT-ARCH-1 must not become.
+ *
+ * SO THIS SECTION MAKES THE LOOP READ RED ON PURPOSE. Each mutation changes ONE field of the model,
+ * emits the .ts from the mutated model, re-mines it, and requires the sentence to MOVE. A mutation
+ * the sentence does not notice is a field the grammar has stopped carrying -- and section 6 would
+ * stay green through all of it. Run over the SAME 58 entities, not a specimen: a control measured on
+ * one hand-picked file proves the field is carried there, which is not the claim.
+ *
+ * A mutation that makes emit or re-mine REFUSE also counts as detected, and is counted separately,
+ * because refusing is a louder failure than a moved sentence and must not be confused with one. */
+{
+  const fs = require("fs"), path = require("path");
+  const CR = require("./corpus-root.js");
+  const { SKIP } = require("./walk-skip.js");
+  const walk = (d, out = []) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (SKIP.has(e.name)) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (p.endsWith(".ts") && !p.endsWith(".d.ts")) out.push(p);
+    }
+    return out;
+  };
+  const clone = (m) => JSON.parse(JSON.stringify(m));
+  const cols = (m) => m.members.map((x, i) => [x, i]).filter(([x]) => x.role === "column");
+
+  /* Each returns a mutated model, or null when this entity cannot carry the mutation. */
+  const MUTATIONS = {
+    "class name changed":        (m) => { const x = clone(m); x.className = x.className + "Zz"; return x; },
+    "table name changed":        (m) => { const x = clone(m); x.table = x.table + "_zz"; return x; },
+    /* MUTATE THE FIELD THAT CARRIES THE IDENTITY, NOT ONE DERIVED FROM IT. `prop` is DERIVED:
+     * measured over all 58 entities, 611 columns, 355 of them carrying an explicit `name`,
+     * `camel(name) === prop` on 355/355 -- so changing `prop` alone builds a model the emitter can
+     * never emit, and a sentence that does not move is CORRECT there. The first version of this
+     * control did exactly that and read 8/58; the 50 "silences" were its own bug, not a hole in
+     * AT-ARCH-1. The invariant that makes this the right target is asserted below, so it can fail. */
+    "a column renamed":          (m) => { const x = clone(m); const c = cols(x); if (c.length < 2) return null;
+                                          const col = x.members[c[1][1]];
+                                          if (col.name !== undefined) { col.name = col.name + "_zz"; col.src = col.name; }
+                                          else col.prop = col.prop + "Zz";
+                                          return x; },
+    /* An enum column speaks through `enum`/`tsType`, so flipping `colType` alone leaves the
+     * sentence rightly unmoved -- two of 58 are enum-first and were silent for that reason. Target
+     * a non-enum column, and let the denominator fall rather than the assertion. */
+    "a column's type changed":   (m) => { const x = clone(m); const c = cols(x).filter(([y]) => y.colType && y.colType !== "enum");
+                                          if (!c.length) return null;
+                                          x.members[c[0][1]].colType = x.members[c[0][1]].colType === "varchar" ? "text" : "varchar";
+                                          return x; },
+    "required <-> optional":     (m) => { const x = clone(m); const c = cols(x).filter(([y]) => y.nullable !== undefined);
+                                          if (!c.length) return null;
+                                          x.members[c[0][1]].nullable = !x.members[c[0][1]].nullable; return x; },
+    "two columns swapped":       (m) => { const x = clone(m); const c = cols(x); if (c.length < 3) return null;
+                                          const [i, j] = [c[1][1], c[2][1]];
+                                          const t = x.members[i]; x.members[i] = x.members[j]; x.members[j] = t; return x; },
+    "a column dropped":          (m) => { const x = clone(m); const c = cols(x); if (c.length < 2) return null;
+                                          x.members.splice(c[c.length - 1][1], 1); return x; },
+  };
+
+  const tally = {}; for (const k of Object.keys(MUTATIONS)) tally[k] = { n: 0, moved: 0, refused: 0, silent: [] };
+  let baseline = 0, population = 0, deregRefused = 0, deregSilent = [];
+  let colTotal = 0, colNamed = 0, propDerived = 0, propIndependent = [];
+  const camelOf = (x) => String(x).replace(/[_-]+(.)/g, (_, ch) => ch.toUpperCase());
+
+  for (const f of walk(CR.sourceRoot()).filter((x) => /entities\//.test(x))) {
+    const base = path.basename(f);
+    let s0; try { s0 = S.sentenceFromSource(fs.readFileSync(f, "utf8"), base); } catch (_) { continue; }
+    population++;
+    let m0, ts0;
+    try { m0 = S.parseEntitySentence(s0); ts0 = G.emitEntityCanonical(m0); } catch (_) { continue; }
+
+    /* POSITIVE CONTROL FIRST. A mutation harness whose unmutated case is already broken proves
+     * nothing at all -- every mutation would "move" and the section would pass while measuring
+     * noise. This is the same order the enum work used: establish the baseline, then perturb it. */
+    let sBase = null; try { sBase = S.sentenceFromSource(ts0, base); } catch (_) {}
+    if (sBase === s0) baseline++;
+
+    /* THE INVARIANT THE RENAME MUTATION RESTS ON, measured rather than assumed. */
+    for (const c of m0.members.filter((x) => x.role === "column")) {
+      colTotal++;
+      if (c.name === undefined) continue;
+      colNamed++;
+      if (camelOf(c.name) === c.prop) propDerived++;
+      else propIndependent.push(base + ": name=" + c.name + " prop=" + c.prop);
+    }
+
+    for (const [name, mutate] of Object.entries(MUTATIONS)) {
+      let mm; try { mm = mutate(m0); } catch (_) { mm = null; }
+      if (!mm) continue;
+      const t = tally[name]; t.n++;
+      let s1 = null, refused = false;
+      try { s1 = S.sentenceFromSource(G.emitEntityCanonical(mm), base); }
+      catch (_) { refused = true; }
+      if (refused) t.refused++;
+      else if (s1 !== s0) t.moved++;
+      else t.silent.push(base);
+    }
+
+    /* THE CONTROL §20 NAMES BY NAME -- de-register the archetype. Strip the @Entity decorator and
+     * the loop must REFUSE, not fabricate a sentence from a class that is no longer an entity. */
+    const dereg = ts0.replace(/@Entity\([^)]*\)\n/, "");
+    if (dereg === ts0) { deregSilent.push(base + " (no @Entity to strip)"); continue; }
+    let sd = null; try { sd = S.sentenceFromSource(dereg, base); } catch (_) { sd = null; }
+    if (!sd) deregRefused++; else deregSilent.push(base + " -> " + sd.slice(0, 40));
+  }
+
+  console.log(`  AT-ARCH-1 NEGATIVE CONTROL over the same ${population} entities`);
+  console.log(`    POSITIVE CONTROL, unmutated emit re-mines to the same sentence   ${baseline}/${population}`);
+  for (const [name, t] of Object.entries(tally))
+    console.log(`    ${name.padEnd(26)} detected ${String(t.moved + t.refused).padStart(3)}/${String(t.n).padEnd(3)}` +
+      `  (moved ${t.moved}, refused ${t.refused})   SILENT ${t.silent.length}` +
+      (t.silent.length ? "  <-- " + t.silent.slice(0, 3).join(", ") : ""));
+  console.log(`    de-registered (@Entity stripped) refuses a sentence               ${deregRefused}/${population}`);
+  console.log(`    invariant: columns ${colTotal}, carrying an explicit name ${colNamed}, camel(name) === prop ${propDerived}/${colNamed}`);
+
+  eq(baseline, population, `POSITIVE CONTROL: the unmutated loop closes on every entity (${baseline}/${population})`);
+  for (const [name, t] of Object.entries(tally)) {
+    ok(t.n > 0, `the "${name}" mutation applies to at least one entity (${t.n})`);
+    eq(t.silent.length, 0,
+      `AT-ARCH-1 DETECTS "${name}" on every entity that can carry it -- ${t.moved + t.refused}/${t.n}` +
+      (t.silent.length ? `, SILENT on ${t.silent.slice(0, 5).join(", ")}` : ""));
+  }
+  eq(deregSilent.length, 0,
+    `de-registering the archetype refuses on every entity${deregSilent.length ? ", SILENT on " + deregSilent.slice(0, 3).join("; ") : ""}`);
+  /* If this ever fails, `prop` has become independent state the sentence does not carry, and the
+   * rename mutation above must target it directly again -- the AT-ARCH-1 loop would be lossy. */
+  eq(propIndependent.length, 0,
+    `every explicitly named column derives prop from name (${propDerived}/${colNamed} of ${colTotal} columns)` +
+    (propIndependent.length ? ", INDEPENDENT on " + propIndependent.slice(0, 3).join("; ") : ""));
+}
+
 console.log(`entity-sentence.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
