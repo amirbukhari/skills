@@ -7566,3 +7566,64 @@ with a bare `Node.js v25.6.1` trailer; run individually all four pass. That is m
 this shared machine, not a regression — the same hazard CLAUDE.md §7 records as "never run the full
 test suite here". Recorded because the failure signature is alarming and says nothing about the code:
 **run the corpus-wide tests one per shell.**
+
+## Phrasebook rule 8 — `TemplateExpression` (2026-09-04)
+
+A template literal named by **what feeds it**: `` `${rawTaxProduct}` `` → "the text built from
+`rawTaxProduct`".
+
+Small directly — 19 assertion subjects and 15 return sites — but it is a **leaf that four rules above
+it were declining on**. A template as a ternary arm, an array element, a `??` operand or an
+`expect(...)` subject took its whole clause down with it, because each of those rules refuses rather
+than describing half of itself. Rule 4 established that a missing child rule caps its parents; this
+is the same effect claimed deliberately, and it is why a leaf with a small direct count was worth
+writing ahead of larger but flatter clusters.
+
+`literalGloss` already covers a template with no substitutions. This rule is for the interpolated
+ones, where the literal text alone is a lie by omission: "some text" tells a reader nothing, while
+the names spliced into it are exactly what they are tracking. It declines when nothing nameable feeds
+the template, rather than falling back on "some text".
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ReturnStatement     565 -> 548 generic  (-17);  site-specific 81% -> 82%
+ExpressionStatement 453 -> 445 generic  (-8)
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+110 occurrences in the persisted `.en` — more than the 34 direct sites, which is the recursion
+gain being visible rather than asserted.
+
+### Where the phrasebook stands after eight rules
+
+```
+                     start (after rule 1)   now      delta
+ReturnStatement              783            548      -235
+ExpressionStatement          738            445      -293
+corpus generic             2,284          1,839      -445 (-19.5%)
+byte-identity            1037/1037      1037/1037     held at every single step
+reads as English             31.8%          31.8%      0.0 at every step
+```
+
+Rules: `CallExpression`, `ObjectLiteralExpression`, `PropertyAccessExpression`,
+`ElementAccessExpression`, `ArrayLiteralExpression`, `ConditionalExpression`, `BinaryExpression`,
+`TemplateExpression`. Eight of the ~28 §5D.3C says reach 90% of node instances in any TypeScript
+codebase. Four `enfile.js` helpers that were second definitions of a gloss (`recordGloss`,
+`elemAccess`, `arrayGloss`, and the `VERBS` table) now delegate, so the phrasebook is the single
+definition rather than a parallel one.
+
+**What is left, and it is not more of the same.** The remaining `ExpressionStatement` tail is 301
+distinct forms with a top cluster of 19 — flat, so no further rule buys what these did. The two
+things that would move the number materially are both decisions for Amir, not code:
+
+1. **The `…` credit question** (own section above) — ~623 clauses that are already correct English.
+2. **A statement-level call rule** that names the receiver rather than the method (`call `push` on
+   `groupedBySuiteType` at `suiteTypeId``). I did not write it: making it read correctly in both
+   statement and return position needs a lead-in choice the phrasebook has no way to express today,
+   and inventing one at 4am to chase eight sites is how a clean design acquires a wart. Named here so
+   it is a decision rather than an omission.

@@ -37,7 +37,8 @@
  *
  * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression,
  * ElementAccessExpression, ArrayLiteralExpression,
- * ConditionalExpression, BinaryExpression — in measured order of the
+ * ConditionalExpression, BinaryExpression,
+ * TemplateExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -339,6 +340,30 @@ const RULES = {
     const b = baseGloss(node.right, sf, P) || P.literal(node.right, sf);
     if (!a || !b) return null;                     /* half an expression is not the expression */
     return shape(a, b);
+  },
+
+  /* ── TemplateExpression ────────────────────────────────────────────────────────────────────────
+   * A template literal named by WHAT FEEDS IT: `` `${rawTaxProduct}` `` -> "the text built from
+   * `rawTaxProduct`".
+   *
+   * Small directly — 19 assertion subjects and 15 return sites — but it is a LEAF that four rules
+   * above it were declining on. A template as a ternary arm, an array element, an operand or an
+   * `expect(...)` subject took its whole clause down with it, because every one of those rules
+   * refuses rather than describing half of itself. Rule 4 established that a missing child rule
+   * caps its parents; this is the same effect claimed in the other direction, and it is why a leaf
+   * with a small direct count is still worth writing.
+   *
+   * `literalGloss` already handles a template with no substitutions (it is just a string). This
+   * rule is for the interpolated ones, where the literal text alone would be a lie by omission —
+   * "some text" tells a reader nothing, while the names of the values spliced into it are exactly
+   * what they are tracking.
+   *
+   * IT DECLINES when nothing nameable feeds the template, rather than saying "some text". */
+  TemplateExpression(node, sf, P) {
+    if (!ts.isTemplateExpression(node)) return null;
+    const names = P.inputs ? P.inputs(node, sf) : null;
+    if (!names || !names.length) return null;
+    return "the text built from " + P.list(names.map(P.q));
   },
 };
 

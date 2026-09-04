@@ -32,7 +32,7 @@ const P = require("./prose"); // reuse deterministic humanisation helpers (words
 const NKR = require("./node-kind-rules");
 /* the primitives the phrasebook renders WITH — passed in rather than duplicated there, so "how an
  * identifier is spelled" keeps exactly one definition (node-kind-rules.js header). */
-const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf), literal: (n, sf) => literalGloss(n, sf), cond: (n, sf) => condGloss(n, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
+const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf), literal: (n, sf) => literalGloss(n, sf), cond: (n, sf) => condGloss(n, sf), inputs: (n, sf) => inputsOf(n, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
 const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
