@@ -125,6 +125,56 @@ function firstEditableStructural(en) {
   return null;
 }
 
+/* THE MATCHING CLOSE for a chunk that starts at `i`, by depth walk. Needed because a STRUCTURAL
+ * chunk contains other chunks by construction, so `indexOf(CLOSE)` finds a child's close, not its
+ * own — the shortcut `firstEditableAtomic` is allowed to take and this is not. */
+function chunkEnd(en, i) {
+  let d = 0;
+  for (let j = i; j < en.length; j++) {
+    if (en[j] === OPEN) d++;
+    else if (en[j] === CLOSE) { d--; if (d === 0) return j; }
+  }
+  return -1;
+}
+
+/* A GENUINELY NESTED PAIR: a structural chunk whose heading names an identifier, and an ATOMIC
+ * clause INSIDE that chunk's body naming the same one. Section 9 needs both halves of that
+ * sentence and used to assert neither — see the note above section 9.
+ *
+ * Both labels must carry the identifier EXACTLY ONCE. `editLabel` renames the first occurrence
+ * only, so a heading that says a name twice ("compute `rate` then return `rate`") would be edited
+ * on one side and left saying the old name on the other: 9b's "child and heading agree" would then
+ * be a heading that agrees with the child in one clause and contradicts it in the next, and its
+ * outcome would prove nothing about consistency. Requiring one occurrence keeps the experiment the
+ * one the section describes. */
+function firstNestedPair(en) {
+  for (let i = 0; i + 1 < en.length; i++) {
+    if (en[i] !== OPEN || en[i + 1] !== GEN_NEST) continue;
+    const bo = en.indexOf(BODY_OPEN, i);
+    if (bo < 0) continue;
+    const label = en.slice(i + 2, bo);
+    const m = label.match(/`([A-Za-z_$][\w$]{2,})`/);
+    if (!m) continue;
+    const end = chunkEnd(en, i);
+    if (end < 0) continue;
+    const ident = m[1], tick = "`" + ident + "`";
+    if (label.split(tick).length - 1 !== 1) continue;
+    for (let k = bo; k < end; k++) {
+      if (en[k] !== OPEN || en[k + 1] !== GEN) continue;
+      const pay = en.indexOf(PAY_OPEN, k), ce = en.indexOf(CLOSE, k);
+      if (pay < 0 || ce < 0 || pay > ce || pay > end) continue;
+      const alab = en.slice(k + 2, pay);
+      if (alab.split(tick).length - 1 !== 1) continue;
+      return {
+        ident,
+        outer: { at: i, labelStart: i + 2, labelEnd: bo, label, ident },
+        inner: { at: k, labelStart: k + 2, labelEnd: pay, label: alab, ident },
+      };
+    }
+  }
+  return null;
+}
+
 /* apply the rename inside ONE label region only, leaving the payload untouched. That asymmetry IS
  * the experiment: it is precisely what a human editing the prose and not the index would produce. */
 function editLabel(en, site) {
@@ -141,19 +191,23 @@ function compileOutcome(en) {
 
 /* pick specimens from the real corpus — the first files that offer each shape, so this test is
  * about the engine and not about a fixture written to suit it. */
-let atomicSpec = null, structSpec = null;
+let atomicSpec = null, structSpec = null, nestedSpec = null;
 for (const abs of files) {
-  if (atomicSpec && structSpec) break;
+  if (atomicSpec && structSpec && nestedSpec) break;
   let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
   let r; try { r = EN.renderFileEn(source, index); } catch (_) { continue; }
   if (EN.compileFileEn(r.en, index) !== source) continue;   /* only reason from files that round-trip */
   const rel = path.relative(SRC, abs);
   if (!atomicSpec) { const s = firstEditableAtomic(r.en); if (s) atomicSpec = { rel, source, en: r.en, site: s }; }
   if (!structSpec) { const s = firstEditableStructural(r.en); if (s) structSpec = { rel, source, en: r.en, site: s }; }
+  /* the nested pair is searched for SEPARATELY and may come from a later file than either of the
+   * two above. It must not be inferred from them — see the note above section 9. */
+  if (!nestedSpec) { const s = firstNestedPair(r.en); if (s) nestedSpec = { rel, source, en: r.en, pair: s }; }
 }
 
 ok(!!atomicSpec, "found an atomic clause in the corpus whose English names an identifier");
 ok(!!structSpec, "found a structural chunk in the corpus whose name carries an identifier");
+ok(!!nestedSpec, "found a structural chunk with an atomic clause NESTED INSIDE IT naming the same identifier");
 if (!atomicSpec || !structSpec) { console.log("\n" + pass + " passed, " + fail + " failed"); process.exit(fail ? 1 : 0); }
 
 for (const spec of [atomicSpec, structSpec]) {
@@ -253,26 +307,66 @@ for (const on of [undefined, false, true]) {
  *                                            moved"; the pre-edit re-derivation is genuinely
  *                                            consulted, and a heading the human really did edit is
  *                                            still a contradiction.
- * Without 9c, the discriminator could be a blanket bypass and every row above would look the same. */
+ * Without 9c, the discriminator could be a blanket bypass and every row above would look the same.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * RETRACTED 2026-09-04 — HOW THIS SECTION SELECTED ITS SPECIMENS, AND WHY IT WENT RED.
+ *
+ * It used to read:
+ *
+ *     if (atomicSpec.rel !== structSpec.rel) { ...SKIPPED... }
+ *     else {
+ *       const inner = atomicSpec.site, outer = structSpec.site;
+ *       ok(inner.labelStart > outer.labelStart,
+ *         "9. the atomic clause is nested inside the structural chunk (offsets confirm it)");
+ *
+ * i.e. it inferred NESTING from the two independently-chosen specimens landing in the SAME FILE.
+ * That is a non-sequitur — same file is not the same chunk — and it was true only by coincidence
+ * on 2026-09-03. The rendering changed underneath it (8240298 spec-dialect productions, c4afe90
+ * guard clauses, 6628d3a the file-scale label, a7d2d55 the interior production), the first
+ * editable atomic clause in csvUtils.ts became a top-of-file `import` while the first structural
+ * chunk stayed `define \`csvToJson\``, and the import is not inside it. All three assertions then
+ * failed: 9 on the offsets, and 9b/9c because they were editing a heading unrelated to the child
+ * they had just edited, so the engine correctly answered a question nobody meant to ask.
+ *
+ * THE ENGINE WAS NEVER WRONG. Measured 2026-09-04 against a genuinely nested pair from the same
+ * file (`get \`lines\` from split` inside `get \`lines\` from split, ... then return \`table\``):
+ * 9a compiled carrying the probe, 9b compiled carrying the probe, 9c threw HEADING AND BODY
+ * DISAGREE — exactly the three outcomes this section was written to pin.
+ *
+ * So the fix is a SELECTOR, not a re-baseline, and it is strictly stronger than what it replaces:
+ * `firstNestedPair` requires the atomic clause to lie inside the structural chunk's body by a
+ * depth-walked offset range AND requires the heading's identifier to be the SAME one the child
+ * names — the echo relationship 9b's "agree" and 9c's "conflict" depend on for their meaning, and
+ * which the old version could not guarantee even on the day it passed. The old code could also
+ * SKIP itself into silence when the specimens landed in different files; this one asserts the pair
+ * exists, so an absent pair is a red line rather than a quiet paragraph.
+ * --------------------------------------------------------------------------------------------- */
 console.log("\n  --- 9. rule 2 survives nesting, and the bypass is not a blanket one ---");
-if (atomicSpec.rel !== structSpec.rel) {
-  console.log("    SKIPPED: the atomic and structural specimens came from different files");
-  console.log("    (" + atomicSpec.rel + " vs " + structSpec.rel + ") — this section needs one file offering both.");
-  ok(false, "9. specimens share a file so nesting can be exercised (see the skip note above)");
+if (!nestedSpec) {
+  console.log("    NO NESTED PAIR IN THE CORPUS — nothing below can run. This is a real failure:");
+  console.log("    the corpus offers no structural chunk whose heading echoes an identifier from an");
+  console.log("    atomic clause inside it, so rule 2 through nesting is untested, not passing.");
 } else {
   const OTHER = "zzSecondProbeIdent";
-  /* the atomic clause sits INSIDE the structural chunk, so its label offset is the larger one;
-   * editing it first leaves the heading's offsets untouched. */
-  const inner = atomicSpec.site, outer = structSpec.site;
-  ok(inner.labelStart > outer.labelStart,
+  const { inner, outer } = nestedSpec.pair;
+  console.log("  NESTED specimen: " + nestedSpec.rel + "   identifier `" + nestedSpec.pair.ident + "`");
+  console.log("    outer heading      : " + outer.label.trim().slice(0, 110));
+  console.log("    inner clause       : " + inner.label.trim().slice(0, 110));
+
+  /* now a PROPERTY of the selector rather than a coincidence of the corpus — kept as an assertion
+   * because a selector that stopped returning nested pairs must not pass silently. */
+  ok(inner.labelStart > outer.labelStart && inner.labelEnd <= chunkEnd(nestedSpec.en, outer.at),
     "9. the atomic clause is nested inside the structural chunk (offsets confirm it)");
 
-  const childOnly = editLabel(atomicSpec.en, inner);
+  const childOnly = editLabel(nestedSpec.en, inner);
   const a = compileOutcome(childOnly);
   console.log("    9a child only              -> " + a.kind + (a.kind === "threw" ? " : " + a.msg.split("\n")[0] : (a.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
   ok(a.kind === "compiled" && a.ts.includes(NEW_IDENT),
     "9a. a child clause edit is honoured THROUGH its enclosing heading, not blocked by it");
 
+  /* the inner clause sits AFTER the heading, so editing it first leaves the heading's offsets
+   * valid — which is why `both` is built from `childOnly` and not from the pristine .en. */
   const both = editLabel(childOnly, outer);   /* same NEW_IDENT at both levels */
   const b = compileOutcome(both);
   console.log("    9b child + heading agree   -> " + b.kind + (b.kind === "threw" ? " : " + b.msg.split("\n")[0] : (b.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
@@ -284,7 +378,7 @@ if (atomicSpec.rel !== structSpec.rel) {
     + childOnly.slice(outer.labelEnd);
   ok(conflicting !== childOnly, "9. the conflicting heading edit actually changed the .en text");
   const c = compileOutcome(conflicting);
-  console.log("    9c child + heading conflict -> " + c.kind + (c.kind === "threw" ? " : " + c.msg.split("\n")[0] : (c.ts === atomicSpec.source ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs")));
+  console.log("    9c child + heading conflict -> " + c.kind + (c.kind === "threw" ? " : " + c.msg.split("\n")[0] : (c.ts === nestedSpec.source ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs")));
   ok(c.kind === "threw" && /HEADING AND BODY DISAGREE/.test(c.msg),
     "9c. a heading edited to CONTRADICT the child edit is still refused — 9a is not a blanket bypass");
 }
