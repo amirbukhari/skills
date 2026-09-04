@@ -10795,3 +10795,56 @@ ruling does not ask for and that has not been done.
 **Fresh figures after the change.** `dialect-guard.test.js` 7 assertions pass; `hole-type-order`
 8 passed 0 failed; `tier2-recursion` 4 passed 0 failed; `goal-ceiling` 12 assertions pass;
 byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`.
+
+## RULING 2 REFUSED — R-WIDE-4 and `pipeline.js:93` do not describe the same record
+
+The ruling was: *"`pipeline.js:93` emits 6; R-WIDE-4 is normative and says MUST `g_<len>_<sha256-10>`
+… the code moves to the spec: 10 hex characters."* **Measured, and the premise does not hold.** The
+code was not changed and neither cell was touched.
+
+**1. A second normative cell governs `pipeline.js:93`, and it says SIX.**
+
+| cell | text | width | field |
+|---|---|---|---|
+| R-WIDE-4 (register:108) | *"Each promoted generator **MUST** carry `id` (`g_<len>_<sha256-10>`), `axis`, `template`, `holes[]`, `freq` and `filesUsing`."* | 10 | `id` |
+| **R-ART-8 (register:204)** | *"Compose-layer composites carry **no `id`**; they identify by `name` (`g_<len>_<6hex>`) plus `entryId` … Consumers **MUST** use `AC.idOf(record)`."* | **6** | **`name`** |
+
+Both are **MUST**, both in the same register. `13-artifact-contract.md:68` heads the same rule *"The
+composite id contract (settled — do not guess again)"*. `artifact-contract.js:327` implements it and
+names the count in a comment: *"`.id`, which is undefined for all 1,063 composites."* So widening the
+code to 10 would move it **into** R-WIDE-4's format and **out of** R-ART-8, §8B and every shipped
+record at once. "The code moves to the spec" has no single destination here.
+
+**2. R-WIDE-4 governs an UNBUILT layer, and the shipped composites satisfy 1 of its 6 fields.**
+Measured on the 1,063 shipped composites in `mined-library.json`:
+
+```
+id          present on    0/1063        axis        present on 0/1063
+template    present on    0/1063        holes       present on 0/1063
+filesUsing  present on    0/1063        freq        present on 1063/1063
+```
+
+R-WIDE-1..10 is the **middle-tier WIDE-axis** family, which `08-middle-tier-generator-layer.md:5`
+opens by calling *"the one piece of **new** work"*. R-WIDE-2 requires both axes *"separately labelled
+(`axis: "narrow"` / `"wide"`)"* — `axis` is on 0/1063, so the layer is not built. Widening the hash
+would produce a record matching R-WIDE-4's id **format** while still failing five of the same cell's
+six requirements. That is conformance theatre, not conformance.
+
+**3. The write is not reachable anyway, and the drift would be undetectable.** `pipeline.js:93` is a
+producer; the 1,063 six-char names are already on disk in `sen/catalog/mined-library.json`, written
+by `repo-dsl.js:200`. Changing the producer without a re-mine leaves code and artifact disagreeing
+with nothing able to see it — the exact silent-drift class this engine exists to eliminate. A mine is
+not authorised. **Only one file in the whole corpus contains a `g_` name, and it is
+`mined-library.json` itself** — no `.en` references one, so nothing else would break, and nothing
+else would notice.
+
+**What I am NOT doing, per the ruling and per the standing rules.** Not editing `pipeline.js:93`. Not
+amending R-WIDE-4 (re-baselining a MUST is banned). Not amending R-ART-8. Not touching
+`a_entity_<sha256-10>`. The fork now has a third leg — *the two cells govern different records and
+the conflict is between them, not between code and spec* — and naming which cell owns
+`pipeline.js:93` is a spec-ownership decision, not a lane's.
+
+**Correcting my own earlier record, which framed this wrongly.** `20-archetype-hybrid-design.md:194`
+(written by me in `fe12964`) states the fork as *"either the code widens to 10 … or R-WIDE-4 is
+amended to 6."* Both legs assume the two cells describe one record. They do not. That block is
+corrected in the same commit — my own design-doc note, not a normative cell.

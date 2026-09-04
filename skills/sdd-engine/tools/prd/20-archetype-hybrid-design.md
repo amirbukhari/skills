@@ -203,6 +203,24 @@ Read `<sha256-N>` anywhere in this PRD as **N hex characters of a sha256 digest,
    register to match the code is re-baselining a requirement**, which is exactly what this project
    forbids doing to make something pass, so it is not done here. Recorded for the owner of R-WIDE-4.
 
+   **CORRECTED 2026-09-04, by the lane that wrote the paragraph above.** Both legs of that fork
+   assume R-WIDE-4 and `pipeline.js:93` describe **one** record. Measured: they do not.
+
+   - A **second** normative cell already governs `pipeline.js:93`, and it says six. **R-ART-8**
+     (register:204): *"Compose-layer composites carry **no `id`**; they identify by `name`
+     (`g_<len>_<6hex>`) plus `entryId`."* §8B heads the same rule *"settled — do not guess again"*,
+     and `artifact-contract.js:327` implements it. So "widen the code to satisfy R-WIDE-4" is not a
+     leg that reaches conformance — it leaves R-ART-8 and all 1,063 shipped records behind.
+   - R-WIDE-4 belongs to R-WIDE-1..10, the **middle-tier WIDE-axis** family, which
+     §8 (`08-middle-tier-generator-layer.md:5`) opens by calling *"the one piece of **new** work."*
+     Field conformance on the shipped composites: `freq` 1063/1063, and `id`, `axis`, `template`,
+     `holes[]`, `filesUsing` **0/1063 each**. R-WIDE-2 requires the axes be *"separately labelled"*
+     and `axis` is on none of them, so the layer is unbuilt. Widening the hash would match
+     R-WIDE-4's id **format** while still failing five of that same cell's six requirements.
+
+   **So the open question is not 6-vs-10. It is which cell owns the compose-layer composite id** —
+   and that is a spec-ownership decision for the register's owner. Neither cell is amended here.
+
 **The inverse direction must be a FUNCTION, and this is a new requirement.** Because the lifecycle
 runs both ways (§5D.0 statement 4), the grammar must be unambiguous in **both** directions:
 
