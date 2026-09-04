@@ -973,47 +973,45 @@ function spanActions(win, sf) {
       if (!e) { actions.push("return"); continue; }
       /* `x as Foo` returns x; the cast is a type assertion, not part of what is returned. */
       let bare = e; while (ts.isAsExpression(bare) || ts.isTypeAssertionExpression(bare) || ts.isNonNullExpression(bare) || ts.isParenthesizedExpression(bare)) bare = bare.expression;
-      if (bare !== e) {
-        const bd = dottedText(bare, sf);
-        if (bd) { actions.push("return " + q(bd)); continue; }
-        if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
-        const bl = literalGloss(bare, sf);
-        if (bl) { actions.push("return " + bl); continue; }
-        /* THE PARENTHESISED BRANCH HAD A SHORTER LADDER than the bare one below: it went straight
-         * from `literalGloss` to the call glosses, so `return ({ ids, genSubId, type, ... })` never
-         * met `recordGloss` and came out as "return map" — a method name lifted from inside a
-         * property value. Same rule, same rung, so `(x)` and `x` now render alike. */
-        const brg = recordGloss(bare, sf) || arrayGloss(bare, sf) || elemAccess(bare, sf);
-        if (brg) { actions.push("return " + brg); continue; }
-        const brc = returnCallGloss(bare, sf);
-        if (brc) { actions.push(brc); continue; }
-        /* THE PHRASEBOOK, IN FRONT OF `firstCallName` — the SAME rung order the bare ladder below
-         * already has, and the third time this branch has been caught running a shorter one. The
-         * comment above records it being extended to `recordGloss`/`arrayGloss`/`elemAccess`; the
-         * phrasebook was added to the bare ladder afterwards and never mirrored here, so a single
-         * pair of parentheses decided whether a rule spoke:
-         *
-         *   return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
-         *   return ( parseFloat(a) * mult );  ->  "return parse float"
-         *
-         * A duplicated ladder that must be kept in step by hand is the drift class CLAUDE.md §8
-         * records against the walk SKIP sets. This rung makes the two agree; it does not merge
-         * them, because the bare branch's earlier rungs differ and merging is a separate change. */
-        const bvr = NKR.render(bare, sf, NKRP);
-        if (bvr) { actions.push("return " + bvr); continue; }
-        const bc = firstCallName(bare);
-        if (bc) { actions.push("return " + P.words(bc)); continue; }
-      }
-      if (ts.isNewExpression(e) && ts.isIdentifier(e.expression)) { actions.push("return a new " + q(e.expression.text)); continue; }
-      const lit = literalGloss(e, sf);
+      /* ONE LADDER, RUN AGAINST `bare`. There used to be a SECOND, SHORTER ladder here for the
+       * wrapped case, and keeping the two in step by hand failed three times: it was extended to
+       * `recordGloss`/`arrayGloss`/`elemAccess` after `return ({ ids, genSubId, ... })` came out
+       * "return map"; `returnCallGloss` and then the phrasebook were added to the ladder below and
+       * never mirrored, so `return parseFloat(a) * mult` said "the result of `parseFloat` times
+       * `mult`" while `return ( parseFloat(a) * mult )` said "return parse float". One pair of
+       * parentheses decided whether a rule spoke. That is the drift class CLAUDE.md §8 records
+       * against the walk SKIP sets, and a third mirroring would only have made a fourth likelier.
+       *
+       * THE MERGE IS SAFE BECAUSE THE REORDERED RUNGS ARE DISJOINT BY NODE KIND, not because it
+       * measured clean. The wrapped ladder ran `dottedText` before `new`/`literalGloss` and
+       * `recordGloss` before `arrayGloss`; `dottedText` answers only for an identifier, property
+       * access or `this`, `literalGloss` only for a literal, and `recordGloss`/`arrayGloss`/
+       * `elemAccess` only for an object, array or element-access node. No node can satisfy two, so
+       * no order between them is load-bearing.
+       *
+       * MEASURED 2026-09-04 over the corpus, every ReturnStatement rendered both ways: 302 of 2,990
+       * are wrapped, and exactly TWO clauses change — both because the tail rungs below were
+       * unreachable through a wrapper, and both improvements:
+       *
+       *   return ( x ? -1 : 1 )                    was "a value worked out from ..."
+       *                                            now "one of two values depending on whether ..."
+       *   return MAP[k as keyof typeof T] as X.Y   dropped `X` from the input list — it is a TYPE,
+       *                                            and the old clause named it as if it were a value.
+       *
+       * The tail rungs now test `bare`, which is why they became reachable; testing `e` meant a
+       * `ParenthesizedExpression` never matched `isConditionalExpression`. `bare` can never be a
+       * parenthesised node, so that predicate is gone from the arithmetic rung below rather than
+       * left standing as a branch nothing can take. */
+      if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
+      const lit = literalGloss(bare, sf);
       if (lit) { actions.push("return " + lit); continue; }
-      const dotted = dottedText(e, sf);
+      const dotted = dottedText(bare, sf);
       if (dotted) { actions.push("return " + q(dotted)); continue; }
-      const ag = arrayGloss(e, sf);
+      const ag = arrayGloss(bare, sf);
       if (ag) { actions.push("return " + ag); continue; }
-      const rg = recordGloss(e, sf);
+      const rg = recordGloss(bare, sf);
       if (rg) { actions.push("return " + rg); continue; }
-      const eg = elemAccess(e, sf);
+      const eg = elemAccess(bare, sf);
       if (eg) { actions.push("return " + eg); continue; }
       /* NAME THE RECEIVER, NOT JUST THE METHOD. `firstCallName` below yields the callee's last
        * segment, so `return rounded.map(...)` became "return map" and `return
@@ -1021,38 +1019,38 @@ function spanActions(win, sf) {
        * be", one statement kind over: a clause assembled from a method name, with the thing the
        * reader is actually tracking discarded. Measured 2026-09-03: 61 + 35 + 31 + 29 + 22 sites in
        * the top five clusters alone. Declines (receiver is itself a call) fall through unchanged. */
-      const rcg = returnCallGloss(e, sf);
+      const rcg = returnCallGloss(bare, sf);
       if (rcg) { actions.push(rcg); continue; }
       /* THE PHRASEBOOK GOES IN FRONT OF `firstCallName`, DELIBERATELY. Naming the callee's last
        * segment is the weakest truthful thing this ladder can say, and it was out-ranking rules
        * that describe the whole expression: every one of the 50 ternary returns came out as
        * "return locale compare", a method name from inside ONE branch, because `firstCallName`
        * answered before the conditional case further down could. */
-      const viaRule = NKR.render(e, sf, NKRP);
+      const viaRule = NKR.render(bare, sf, NKRP);
       if (viaRule) { actions.push("return " + viaRule); continue; }
       const c = firstCallName(st);
       if (c) { actions.push("return " + P.words(c)); continue; }
       /* An expression return. We cannot say what the arithmetic MEANS without guessing, but we
        * can truthfully say which values feed it, which is what a reader actually wants. */
-      if (ts.isTemplateExpression(e)) {
-        const parts = inputsOf(e, sf);
+      if (ts.isTemplateExpression(bare)) {
+        const parts = inputsOf(bare, sf);
         actions.push(parts.length ? "return text built from " + P.list(parts.map(q)) : "return some text");
         continue;
       }
-      if (ts.isConditionalExpression(e)) {
-        const cg = condGloss(e.condition, sf);
-        const a = dottedText(e.whenTrue, sf) || literalGloss(e.whenTrue, sf);
-        const b = dottedText(e.whenFalse, sf) || literalGloss(e.whenFalse, sf);
+      if (ts.isConditionalExpression(bare)) {
+        const cg = condGloss(bare.condition, sf);
+        const a = dottedText(bare.whenTrue, sf) || literalGloss(bare.whenTrue, sf);
+        const b = dottedText(bare.whenFalse, sf) || literalGloss(bare.whenFalse, sf);
         const fmt = (x, node) => (dottedText(node, sf) ? q(x) : x);
-        if (cg && a && b) { actions.push("return " + fmt(a, e.whenTrue) + " when " + cg + ", otherwise " + fmt(b, e.whenFalse)); continue; }
+        if (cg && a && b) { actions.push("return " + fmt(a, bare.whenTrue) + " when " + cg + ", otherwise " + fmt(b, bare.whenFalse)); continue; }
         if (cg) { actions.push("return one of two values depending on whether " + cg); continue; }
       }
-      if (ts.isBinaryExpression(e) || ts.isParenthesizedExpression(e) || ts.isPrefixUnaryExpression(e)) {
-        const parts = inputsOf(e, sf);
+      if (ts.isBinaryExpression(bare) || ts.isPrefixUnaryExpression(bare)) {
+        const parts = inputsOf(bare, sf);
         if (parts.length) { actions.push("return a value worked out from " + P.list(parts.map(q))); continue; }
       }
       /* LAST RESORT, as for conditions: name the values the returned expression reads. */
-      const rin = inputsOf(e, sf);
+      const rin = inputsOf(bare, sf);
       actions.push(rin.length ? "return a value worked out from " + P.list(rin.map(q)) : "return the result");
       continue;
     }
@@ -1095,7 +1093,14 @@ function spanActions(win, sf) {
       const assertion = matchAssertion(st, sf);
       if (assertion) { actions.push(assertion); continue; }
 
-      const inner = ts.isAwaitExpression(st.expression) ? st.expression.expression : st.expression;
+      /* ONE UNWRAP, NOT THREE. This branch is a single ladder -- there is no duplicated ladder to
+       * merge here -- but it carried three separate copies of the strip-the-wrapper walk, and they
+       * had already diverged: this one stripped `await` only, while the two below stripped `await`
+       * and parentheses both. Same drift class as the return ladder above, one size down, and the
+       * cheapest moment to remove it is before a fourth copy is added. Measured 2026-09-04 over
+       * 10,319 Return and Expression statements: hoisting them into this one changes ZERO clauses. */
+      let inner = st.expression;
+      while (ts.isAwaitExpression(inner) || ts.isParenthesizedExpression(inner)) inner = inner.expression;
       if (ts.isDeleteExpression(inner)) {
         const t = dottedText(inner.expression, sf) || (elemAccess(inner.expression, sf) && null);
         const ea = elemAccess(inner.expression, sf);
@@ -1174,8 +1179,7 @@ function spanActions(win, sf) {
        * serves every codebase, a name serves this corpus). The receiver is that hole. */
       const verb = isAwait(st) ? "await " : "call ";
       {
-        let e = st.expression;
-        while (ts.isAwaitExpression(e) || ts.isParenthesizedExpression(e)) e = e.expression;
+        const e = inner;
         if (ts.isCallExpression(e)) {
           if (ts.isPropertyAccessExpression(e.expression)) {
             /* dottedText returns null for anything that is not a plain dotted name, which is what
@@ -1195,9 +1199,7 @@ function spanActions(win, sf) {
        * the receiver-naming block above, so anything that block can already name keeps its wording;
        * this rung only speaks where the fall-through would otherwise say a method name. */
       {
-        let e2 = st.expression;
-        while (ts.isAwaitExpression(e2) || ts.isParenthesizedExpression(e2)) e2 = e2.expression;
-        const viaRule = NKR.render(e2, sf, NKRP);
+        const viaRule = NKR.render(inner, sf, NKRP);
         if (viaRule) { actions.push(verb + viaRule); continue; }
       }
       const name = firstCallName(st);

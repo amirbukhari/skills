@@ -8258,3 +8258,74 @@ condition, and no assertion changed. What is frozen there is the definition, not
 **Recorded, not acted on.** The driver prints one-char **117**; the banked item says **116**. The
 discrepancy is noted and left alone — it is an `isSiteSpecific` threshold question and Amir's
 unmade ruling.
+
+## The duplicated RETURN ladder is merged, and the reorderings were never load-bearing (2026-09-04)
+
+`spanActions` carried TWO return ladders: a short one for the wrapped case (`(x)`, `x as T`, `x!`)
+and the full one beneath it. Keeping them in step by hand failed **three times** — extended to
+`recordGloss`/`arrayGloss`/`elemAccess` after `return ({ ids, genSubId, ... })` came out
+*"return map"*; `returnCallGloss` and then the phrasebook (`b1432e3`) were added to the lower ladder
+and never mirrored. One pair of parentheses decided whether a rule spoke:
+
+```
+return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
+return ( parseFloat(a) * mult );  ->  "return parse float"
+```
+
+`b1432e3` mirrored the phrasebook rung and said in code that it deliberately did **not** merge. It is
+merged now, because a fourth mirroring was the likelier outcome than a fourth correct one — the drift
+class CLAUDE.md §8 records against the walk SKIP sets.
+
+**THE REORDERINGS ARE INERT BY CONSTRUCTION, not merely by measurement**, and that is the finding
+the refusal-or-proceed turned on. The wrapped ladder ran `dottedText` before `new`/`literalGloss`,
+and `recordGloss` before `arrayGloss`; the merged ladder keeps the lower ladder's order. Reading the
+guards: `dottedText` answers only for an Identifier, PropertyAccess or `this`; `literalGloss` only
+for a literal; `arrayGloss` requires `isArrayLiteralExpression`, `recordGloss`
+`isObjectLiteralExpression`, `elemAccess` `isElementAccessExpression`. **No node can satisfy two of
+them, so no order between them can change an output.** Nothing had to be reordered that would change
+what a site says, so there was nothing here to refuse.
+
+**MEASURED, every Return and Expression statement in the corpus rendered both ways (HEAD's `enfile.js`
+loaded beside the edited one, same walk, same SKIP set): 10,319 statements, 306 wrapped, and exactly
+TWO clauses change.** Both are improvements, and both come from the tail rungs having been
+*unreachable* through a wrapper rather than from any reordering:
+
+```
+return ( ((a.modified ?? a.created) > (b.modified ?? b.created)) ? -1 : 1 );
+  before  return a value worked out from `a.modified`, `a.created`, `b.modified`, and `b.created`
+  after   return one of two values depending on whether the test on ... passes
+
+return IInvoiceStatusMappedToXeroInvoiceStatus[invoiceStatus as keyof typeof InvoiceStatus]
+         as XeroInvoice.StatusEnum;
+  before  ... `IInvoiceStatusMappedToXeroInvoiceStatus`, `invoiceStatus`, `InvoiceStatus`, and `XeroInvoice`
+  after   ... `IInvoiceStatusMappedToXeroInvoiceStatus`, `invoiceStatus`, and `InvoiceStatus`
+```
+
+The second is a **correctness fix**: `XeroInvoice` is part of the cast's TYPE, and the old clause
+listed it among the values the expression reads. The tail rungs tested `e`, so a
+`ParenthesizedExpression` never matched `isConditionalExpression` and the ternary case could not
+fire; they test `bare` now. `bare` can never be parenthesised, so `isParenthesizedExpression` is gone
+from the arithmetic rung rather than left standing as a branch nothing can take.
+
+**REACH, stated as sites where the rule is an IMPROVEMENT and not merely ABLE to fire: 2.** The value
+of the change is the removed divergence surface, not the count — 300 of the 302 wrapped return sites
+render identically, which is the evidence that the two ladders had *nearly* converged and would have
+drifted again on the next rung.
+
+**The EXPRESSION fall-through is a different shape and got a different answer.** There is no
+duplicated ladder there to merge — it is one ladder. What it had was **three separate copies of the
+strip-the-wrapper walk**, already diverged: `inner` stripped `await` only, while the receiver-naming
+block and the phrasebook rung stripped `await` and parentheses both. Hoisted to one. *Measured:*
+**zero** clauses change across all 10,319 statements. Same drift class, one size down, removed before
+a fourth copy could be added.
+
+**Figures, both sides, as counts.** Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`
+before and after. Coverage TOTAL generic row **1659** before and after, `42 passed, 10 failed`
+unchanged — expected, since both changed clauses were generic on either wording. The published
+series is untouched. Frozen: `clause-quality.js` and `statement-kind-coverage.test.js` both diff to
+**0 lines** against a **175-line** positive control on `enfile.js`, with the path filter proved live
+by `git ls-files` returning both paths; `SAYS_NOTHING` lines in the `enfile.js` diff: **0**; VACUOUS
+still 13; `bare.length >= 2` verbatim at `statement-kind-coverage.test.js:61`.
+
+**Pressure recorded, not taken.** Nothing in this pass argued for widening `isSiteSpecific`'s `>= 2`;
+the two changed sites were generic before and after regardless. Amir's unmade ruling stands.
