@@ -6980,3 +6980,135 @@ the wrong one for a question already answered in a tracked file.
 become authoritative?"* — which presupposes a single winner in a design that has two. The closure
 text corrects it (*"neither direction is the derived one"*), but the title still reads as a flip
 question, and that framing is what §6 inherited. Not changed; flagged.
+
+## 2026-09-04 — Amir's four decisions of the night, and what each one turned out to be
+
+Logged with his reasoning, per his instruction, because three of the four changed a priority order
+or a contract rather than a line of code.
+
+### 1. The sentence-authority regression goes ABOVE the phrasebook
+
+**Amir's reasoning, his framing:** that test guards `repairFromSentence` — a hand-edit to the `.en`
+changing the compiled TypeScript. That **is** the editability half of Q-1, the half that makes his
+English authoritative rather than decorative, and his deliverable is *"I want to see this WORKING and
+read a FULLY English codebase"*. A red sentence-authority test means the working half is broken.
+
+**What it turned out to be, and the finding is not what the priority assumed.** The engine was never
+wrong. Section 9 chose two specimens independently and then inferred **nesting** from them landing in
+the same file — `if (atomicSpec.rel !== structSpec.rel) SKIP else ok(inner.labelStart >
+outer.labelStart)`. Same file is not the same chunk. It was true by coincidence on 2026-09-03 and
+stopped being true when the rendering moved under it (`8240298`, `c4afe90`, `6628d3a`, `a7d2d55`).
+
+Measured against a **genuinely** nested pair before changing anything: 9a compiled carrying the
+probe, 9b compiled carrying the probe, 9c threw `HEADING AND BODY DISAGREE`. Exactly the three
+outcomes the section was written to pin. So the fix is a **selector**, not a re-baseline, and it is
+stronger than what it replaced — it requires the child to be inside the parent by a depth-walked
+offset range **and** the heading's identifier to be the same one the child names, which is the echo
+relationship 9b and 9c need for their outcomes to mean anything. 17/3 → **21/0**. Byte-identity
+re-measured after: **1037/1037 both directions**. `fce9015`.
+
+**The rule this leaves:** a test that INFERS its precondition instead of asserting it is one
+refactor away from measuring nothing. This one degraded quietly for a day and its own footer was the
+only thing that said so.
+
+### 2. The `(RED)` conflict — and the exit code was the real defect
+
+**Amir:** *"a test that is expected-red in one place and a regression in another means nobody can
+tell a real failure from a known one, and that is how the sentence-authority failure went
+unnoticed."*
+
+He is right about the mechanism and it goes one layer deeper than the label. **Seven** tests are red
+by design and the runner computed its exit code from raw failures, so **every run was already red**
+and a sixth red changed nothing anybody could see. Correcting the one stale string would have left
+that intact.
+
+So expected colour is now **declared** — `expect: "green" | "red" | "skip"` — the same way tiering
+already is and for the reason the file itself gives: *"a test cannot quietly change tier by changing
+how it fails."* The run's verdict is now its **mismatches**: a green test that breaks, a red test
+that was fixed (a stale declaration, and it says so by name), or a timeout. Measured over all 9
+combinations against the shipped code, sliced out of the file by text rather than retyped: 9/9
+correct; 18 entries, 0 undeclared. `865cdbd`.
+
+**Not measured, and it says so in the header:** the colours are transcribed from what each entry's
+`why` already claimed, because running the suite is banned here. The first tier run reconciles them.
+
+### 3. Fixing CLAUDE.md while the PRD it defers to was still stale
+
+**Amir:** *"Fixing CLAUDE.md while the PRD it now defers to still carries the stale ruling leaves the
+trap one hop away."* Exactly right, and it was worse than one hop: §6's old text **cited §1B.5 as its
+detail link**, so the corrected file pointed readers at the uncorrected one.
+
+`14-two-roots.md` §1B.5 rewritten as **RULED** with the superseded text quoted; three live pointers
+that called it open corrected in place (`PRD.md`, `14-two-roots.md`'s own summary line,
+`12-constants.md`); Q-1's **title** corrected — *"does English ever become authoritative?"*
+presupposed one winner in a two-way design, and a title is what a reader in a hurry takes away.
+
+Also in the same pass, both flagged in the audit and both now amended in place:
+
+- **CLAUDE.md §8's SKIP-set landmine.** *Re-measured 2026-09-04:* **6** live files, one of which
+  **is** the canonical `engine/walk-skip.js` and three of which are its guard tests, with **33**
+  consumers. The bullet warned of drift in a place that had been consolidated — and `walk-skip.js`'s
+  own header records the true count as **18** in three shapes when it was fixed, so the line was
+  already wrong by five before it went stale. **A landmine warning that outlives its landmine spends
+  the same attention as a real one.**
+- **CLAUDE.md §9's worksheet note.** It recorded `npm run name` → `name-words-lzw.js worksheet` as
+  the resolution. **R-LANG-13** and Q-9 say the worksheet stance is *superseded* — the stage MUST
+  apply names. `name-words-lzw.js:11,22` still carries the superseded text verbatim. So that command
+  running cleanly is the **RED** state, and §9 was reading a crash-to-worksheet repair as a closure.
+
+### 4. HARDENING THE WIPE GATE — Amir's call, conservative direction, on a PARTIAL trigger
+
+**His reasoning, quoted:** *"Hardening only ever makes deletion harder, so the failure mode of being
+early is an annoying extra confirmation; the failure mode of being late is lost hand-authored
+English."*
+
+**Why the trigger is PARTIAL, stated rather than rounded up.** §1B.3 makes the wipe tolerable on one
+premise — `sen/` is *"entirely re-derivable from SOURCE"*. On 2026-09-03 `compileChunk` began reading
+the sentence (`enfile.js:2375` → `repairFromSentence`), so a hand-edit to a `.en` changes the
+compiled TypeScript and the premise is no longer strictly true. It is **partial** because only the
+**hole layer** honours edits: a restructured clause, added prose, or a renamed TEMPLATE token still
+refuses (the §5E.3.2 grammar parser is unbuilt), and a **structural heading** edit is a deliberate
+refusal. So the class of unre-derivable English is real but narrow today, and growing.
+
+**What was built, and the precise definition matters.** A third signal, **DRIFTED**, beside DECLARED
+and DETECTED, releasable by no token: a persisted `.en` that differs from a **fresh render** of its
+SOURCE counterpart. If a hand-edit was compiled back into the `.ts`, a render rebuilds it — no drift,
+no refusal. It is the edit **not** compiled back that this catches, and those bytes exist only in the
+file about to be deleted. The refusal names them, with counts, and says how to keep them.
+
+**Two judgment calls inside it.**
+
+- **Unknown is not zero.** If the dictionary is absent or a render throws, the answer is "could not
+  measure" and that **refuses**. A destructive tool reading "I could not check" as "nothing to lose"
+  is `catch { return null }` with the blast radius reversed.
+- **Scoped to `--wipe-sen`.** The check is a full corpus render, minutes. It is paid by the run that
+  is about to delete the tree and never by the cheap cache clean — asserted, not assumed.
+
+**Measured in throwaway temp trees, never against the real corpus:** clean corpus → wipes as before,
+`src/` intact, `sen/catalog/` still guarded; one hand-edited `.en` → **REFUSED, exit 3, names
+`sen/files/src/a.ts.en`, 3 files before and 3 after**; dictionary absent → refused with *"could NOT
+BE ESTABLISHED"*, exit 3, nothing deleted. `word-names.json` in the real corpus verified byte-
+identical throughout (1579170 bytes, sha256 `79f69c27…`, mtime 2026-09-03 21:27:12).
+
+**A first version of this reached the right verdict for the wrong reason** and it is worth recording:
+`loadIndex` does **not** throw on an absent `generators-lzw.json` — it disables the generator layer
+and returns a working index — so every `.en` differed from its "fresh render" and all of them read as
+DRIFTED. A true refusal with a false diagnosis, which would have sent someone hunting hand-edits that
+do not exist. The presence check now goes through the artifact contract, and the test asserts the
+**diagnosis**, not just the refusal.
+
+**AND THE TEST FIXTURES WERE THE REAL FIND.** `engine/sdd-clean.test.js` failed 7 assertions the
+moment the signal landed, and **every one of them was the gate working.** Its fixture wrote
+`sen/files/src/a.ts.en` as the literal `«some english»` — a hand-written placeholder that no render
+reproduces, i.e. **precisely the shape the new gate exists to refuse**. It also hand-wrote
+`generators-lzw.json` as `{"mined":true}` and `word-names.json` with no header at all, which the
+artifact contract refuses on sight (CLAUDE.md §8: artifacts are published through `AC.stamp`, never a
+hand-written header) — harmless only because nothing had ever READ them.
+
+So the fixtures were made legitimate rather than the assertions loosened: the dictionary is now
+**mined once by its real producer** and reused, the artifacts are stamped, and the `.en` is a real
+render — computed **after** `word-names.json` exists, because `loadIndex` reads that too and
+rendering before it produced an `.en` the cleaner could not reproduce one line later. **All 17
+original assertions are intact and passing**, and three new ones pin the new signal: it fires and
+names the loss, it does **not** fire on an ordinary tree (without which it could be a blanket refusal
+and look identical), and it does not block the cache clean. **17/3 → 20/0.**

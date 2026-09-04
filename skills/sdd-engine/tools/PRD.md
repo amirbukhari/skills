@@ -51,8 +51,12 @@ Engine source comments cite section labels directly — `artifact-contract.js` a
 **`§1A` resolves to nothing, on purpose.** The three-root proposal (`EN_ROOT` / `TS_ROOT` /
 `BUILD_ROOT`) was **cut**, not moved — Amir, 2026-08-31: *"The PRD still has a TON of stale data in
 it. like the 3 folders shit."* The engine has two roots; see
-[`14-two-roots.md`](prd/14-two-roots.md). What remains open about the direction of truth is `§1B.5`
-there, and `Q-1`.
+[`14-two-roots.md`](prd/14-two-roots.md). *(This used to end "What remains open about the direction
+of truth is `§1B.5` there, and `Q-1`." **Retracted 2026-09-04:** nothing is open there. **Q-1 CLOSED
+2026-09-03** — the lifecycle runs in BOTH directions, TS-first bootstrap, "neither direction is the
+derived one" (§5D.0 statement 4). §1B.5 is rewritten to record the ruling; what remains are
+**blockers** — R-PAY-6's content-addressed ids, the §5E.3.2 grammar parser, and a human authoring a
+`.en`.)*
 
 ## Editing rule
 

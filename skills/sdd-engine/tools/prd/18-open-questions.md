@@ -12,7 +12,15 @@ must settle so the register stops being ambiguous.
 
 ---
 
-## Q-1 — ~~Direction of truth: does English ever become authoritative?~~ **CLOSED 2026-09-03. Answered 2026-08-31 by Amir (YES); the mechanics landed in `a5501a7` and the last blocker — §2.2 — was ruled the same day.**
+## Q-1 — ~~Direction of truth: which side is authoritative?~~ **CLOSED 2026-09-03. BOTH ARE.** **Answered 2026-08-31 by Amir (YES); the mechanics landed in `a5501a7` and the last blocker — §2.2 — was ruled the same day.**
+
+**THE TITLE WAS WRONG BEFORE THE ANSWER WAS.** It used to read *"Direction of truth: does English
+ever become authoritative?"* — a question that presupposes ONE winner in a design that has two, and
+invites "not yet" as an answer. Amir's ruling is that **neither side is derived**, so the question
+was never "does English win"; it was "when do both directions hold". Corrected 2026-09-04, because
+the body below had said so since 2026-09-03 while the title went on framing a flip — and a title is
+what a reader in a hurry takes away. `CLAUDE.md` §6 inherited exactly that framing and cost a round
+trip.
 
 **Answered, not deduced.** Amir's §5D.0 statement 4 settles it: mine the codebase to get the `.en`,
 **hand-edit the `.en`**, and it goes back into the codebase — *"neither direction is the derived

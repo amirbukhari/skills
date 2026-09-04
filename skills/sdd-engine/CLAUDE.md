@@ -404,11 +404,21 @@ the PRD; **the PRD wins.**
 
 ## 8. Landmines worth knowing
 
-- **Walk SKIP sets are duplicated across 13 live files.** *Measured 2026-08-31* —
-  `grep -rl 'SKIP\s*=\s*new Set(' --include=*.js . | grep -v archive` → 13. They drift, and that
-  drift once hid 696 of 937 un-collapsed bodies. They currently contain **both** `sen` and `spec`
-  on purpose, so a not-yet-renamed corpus stays excluded — which is also why the root-literal guard
-  has an explicit exemption for them.
+- **The walk SKIP set is ONE module now — `engine/walk-skip.js`, 33 consumers.** It still contains
+  **both** `sen` and `spec` on purpose, so a not-yet-renamed corpus stays excluded, which is why the
+  root-literal guard has an explicit exemption for it. *Re-measured 2026-09-04* — the same grep
+  returns **6** live files, of which one **is** that module and three are its guard tests.
+
+  *(**RETRACTED 2026-09-04.** This bullet used to read: *"Walk SKIP sets are duplicated across 13
+  live files. Measured 2026-08-31 … They drift, and that drift once hid 696 of 937 un-collapsed
+  bodies."* The drift and the 696 are real history and are why the module exists — its own header
+  records them. What is stale is the standing warning: the duplication was **consolidated**, and
+  `walk-skip.js` also records that the true count was **18** in three distinct shapes when it was
+  fixed, not 13, so this line was already wrong by five before it was superseded. Two of those
+  shapes did not exclude `sen`, `spec`, `catalog` or `.cache` at all; exposure was measured at zero
+  at the time, so no published number was wrong. **A landmine warning that outlives its landmine
+  costs the same attention as a real one** — the failure mode this file exists to prevent, pointed
+  at itself.)*
 - **Artifacts must be published through `AC.stamp`**, never a hand-written header — a hand-built
   header is how `generators-lzw.json` was born without a `fingerprint` and failed 5 tests.
   *Verified 2026-08-31* — after the fix, a mine over a 2-file synthetic corpus produced
@@ -455,7 +465,14 @@ It now lives in the engine. A tool that deletes a tree must not live inside it.
 `process.argv[2]` as a census file and **nothing live produces one** — it crashed with
 `ERR_INVALID_ARG_TYPE` on a path of `undefined`. Found by running it, not by reading it. `name` now
 points at `name-words-lzw.js worksheet`, which works; `name:author` is separate and still needs an
-input file.
+input file. **Amended 2026-09-04 — "works" is not "done", and this entry read as a resolution.**
+The PRD ruled the worksheet stance **superseded**: **R-LANG-13** — *"The naming stage MUST APPLY
+names, gated mechanically … not emit a worksheet and wait for a human"* — and Q-9, *"That stance is
+superseded (§5D.3 note 3). The file needs an apply path and a model call, both gated."*
+`name-words-lzw.js:11,22` still carries the superseded text verbatim (*"the naming itself is Amir's
+pass"*, *"Deterministic; zero model calls"*). So `npm run name` running cleanly is the **RED**
+state, not the fixed one, and this section was recording a crash-to-worksheet repair as though it
+had closed the question it only stopped crashing in.
 
 **"`git check-ignore -q` tells you whether a file is ignored."** *Wrong, and it produced a wrong
 answer twice in ten minutes today.* It exits 0 for a **negated** match too, so a correctly

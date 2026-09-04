@@ -6,7 +6,9 @@
 the engine's real configuration model. **It is the only root design.** An earlier proposal for three
 roots (`EN_ROOT` / `TS_ROOT` / `BUILD_ROOT`) is **superseded and removed** — Amir, 2026-08-31:
 *"The PRD still has a TON of stale data in it. like the 3 folders shit."* Two roots is the design;
-what remains open about the *direction of truth* is §1B.5, stated in full there and nowhere else.
+the *direction of truth* is **RULED** — §1B.5, stated in full there and nowhere else. *(That line
+used to read "what remains open about the direction of truth is §1B.5". **Retracted 2026-09-04:**
+Q-1 closed 2026-09-03 and §1B.5 now records the ruling rather than an open question.)*
 
 ## 1B.1 Two environment variables, and only two
 
@@ -106,39 +108,62 @@ conflate them without a decision. `sen/catalog/` was chosen over the root `catal
 because the corpus `.gitignore` ignores root `catalog/*`, so a SOURCE-PROTECTED artifact put there
 would be silently untracked (§8B).
 
-## 1B.5 OPEN — the direction of truth is not settled
+## 1B.5 RULED — the direction of truth is BOTH directions
 
-**Unresolved. Do not resolve it by inference, and do not treat the two roots as having settled it.**
+**Q-1 is CLOSED (2026-09-03).** Answered **2026-08-31 by Amir (YES)**; the mechanics landed in
+`a5501a7`; the last blocker — §2.2 — was ruled the same day. See `18-open-questions.md`, Q-1.
 
-§1 states the thesis: the English is the source and the `.ts` is derived. **What is built is the
-opposite** — the `.ts` in `SOURCE` is authoritative, the `.en` in `CORPUS/sen/` is generated from
-it, and `sen/` is therefore wipable (§1B.3). Nothing in the two-root work moves the project across
-that line; it makes the two directions cheap to point at different trees, which is a **precondition**
-for a flip, not the flip.
+**Amir's ruling, §5D.0 statement 4:** the lifecycle runs in **BOTH directions**. Mine the codebase
+first to generate the `.en`; hand-edit the `.en`; it goes back into the codebase. And the reverse
+must also hold — edit the codebase, re-mine, get the `.en` back matching. ***"Neither direction is
+the derived one."*** Statement 7 gives the reason: *"so that it can be editable."*
 
-**Full-corpus byte-identity is necessary and NOT sufficient to flip**, for two specific reasons:
+So there is **no flip**, and the two roots were never a precondition for one. `SOURCE` is the READ
+root and `CORPUS` the WRITE root because a render needs somewhere to put its output — that is a
+plumbing fact, not a claim about which side is authoritative. The bootstrap is **TS-first**: you
+start with TypeScript and mine the language out of the repo. After that neither side is derived.
 
-1. **The gate only tests machine-rendered `.en`.** It asserts `compile(render(ts)) === ts`. A
-   *hand-edited* `.en` — the entire point of a flip — exercises paths the gate has never run. Until
-   a human has edited a `.en`, compiled it, and reviewed the resulting `.ts` as a normal diff,
-   "English is the source" is an assertion about a path nobody has walked.
-2. **THE BLOCKER — `.en` payloads reference word ids, and the ids move.** See **R-PAY-6**: ids are
-   array indices renumbered by every re-mine, so a `.en` is decodable only against the exact
-   dictionary it was rendered with. Harmless today, because the `.ts` is authoritative and a `.en`
-   can always be re-rendered. After a flip it is fatal: one re-mine silently invalidates every `.en`,
-   and the failure is a compile producing **wrong bytes, not an error**. **Nothing may flip until
-   R-PAY-6 is closed.**
+**The two reasons this section gave for "not sufficient to flip" are still true, and are now
+BLOCKERS of a decided direction rather than evidence of an open one:**
+
+1. **A human must actually author a `.en` and review the compiled `.ts` as a diff.** Unchanged, and
+   nobody has done it. *(Narrowed since: the gate is no longer the only thing exercising the
+   English. `engine/sentence-authority.test.js` edits real corpus `.en` and asserts the edit reaches
+   the TypeScript — 21 assertions, green 2026-09-04. That is the machine walking the path; a human
+   walking it is still owed.)*
+2. **R-PAY-6 — `.en` payloads reference word ids, and the ids move.** Ids are array indices
+   renumbered by every re-mine, so a `.en` is decodable only against the dictionary it was rendered
+   with, and a re-mine silently invalidates every `.en` — wrong bytes, not an error. **§5E.3.2's
+   content-addressed ids are the named fix.** This is the one blocker that has not moved.
 
 **And whatever happens, the `.ts` stays generated AND committed** — like generated clients or
 protobufs: authored elsewhere, checked in anyway. A broken compiler then costs a rebuild, never the
 code. The failure this ordering exists to prevent is a cleanup treating `src/` as derived output
 while the `.en` still cannot be trusted to reproduce it — deleting the only copy on the strength of a
 gate that never tested hand-authored input. This effort has already destroyed irreplaceable
-artifacts once.
+artifacts once. **Bidirectionality makes this MORE load-bearing, not less:** with neither side
+derived, neither side is disposable.
 
-**Any session that touches direction-of-truth must ask Amir which direction is current before
-assuming.** This gap was silently forgotten once already; it is written here so it cannot be again.
+**RETRACTED 2026-09-04 — this section asserted the opposite for four days.** It was headed
+*"1B.5 OPEN — the direction of truth is not settled"* and read:
 
+> **Unresolved. Do not resolve it by inference, and do not treat the two roots as having settled
+> it.**
+>
+> §1 states the thesis: the English is the source and the `.ts` is derived. **What is built is the
+> opposite** — the `.ts` in `SOURCE` is authoritative, the `.en` in `CORPUS/sen/` is generated from
+> it […] which is a **precondition** for a flip, not the flip. […] **Any session that touches
+> direction-of-truth must ask Amir which direction is current before assuming.**
+
+**Superseded by Q-1's closure on 2026-09-03**, one day after that text was last accurate. Three
+things in it are wrong: it frames the answer as a **one-way flip** when both directions are
+first-class; it says **ask Amir** when Amir had already answered on 2026-08-31; and it treats
+R-PAY-6 as proof the question is *open* when Q-1 lists it as a blocker of a decided one.
+
+**Why this retraction is filed here and not only in Q-1.** `CLAUDE.md` §6 carried the same stale
+ruling and cited **this section** as its detail link. §6 was fixed on 2026-09-04 (`d13d13b`) and now
+defers to the PRD — so leaving §1B.5 stale would have left the identical trap one hop away, in the
+file the fix points readers at. A summary corrected against a stale source is not corrected.
 
 ## 1B.6 Acceptance test — the one-file rule
 
