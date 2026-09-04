@@ -7992,3 +7992,53 @@ Amir's unmade ruling.
 third way, and the honest next step is the fourth column, not a rule that would move 4 sites.
 
 Coverage test TOTAL row **1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**.
+
+## The fourth column: escaped literals, and the families re-ranked on 642 (2026-09-04)
+
+`engine/escape-credit.js`, built on the `be8ce61` discipline — its own module, its own name, the
+`>= 2` threshold written out rather than imported, reported BESIDE the frozen count, feeding no
+assertion, gate or exit code.
+
+```
+RESIDUAL GENERIC (frozen) ...... 1695     published, unchanged
+  quoting through “…” .......... 921      54.3%
+  NET OF ELISION ............... 774      published, unchanged
+  quoting ONE character ........ 117      6.9%   (overlap with elision: 0)
+  NET OF BOTH ARTIFACTS ........ 657
+  an ESCAPED literal ........... 15       0.9%
+  REAL (net of all three) ...... 642   <-- the work that can actually be done
+```
+
+The decoder is deliberately minimal — backslash escapes of quotes and of the backslash itself, the
+only ones this corpus's literals contain. It does NOT evaluate the literal, because a fuller decoder
+would start CLAIMING matches rather than measuring them, and this file must never be able to flatter
+the number it reports.
+
+**Where the 15 land:** `ExpressionStatement` 13, `IfStatement` 1, `ThrowStatement` 1. Small in total
+and concentrated where it mattered — 11 of them are `Block`'s, which is why rule 10's target read 68
+and is now **57**.
+
+**The families, re-ranked on the 642 — PROVISIONAL, and the report says so on its own face:**
+
+| family | sites | credited | 1-char | escape | **REAL** |
+|---|---|---|---|---|---|
+| promise | 45 | 0 | 0 | 0 | **45** |
+| queryBuilder | 54 | 0 | 11 | 0 | **43** |
+| (unclassified) | 100 | 37 | 10 | 11 | **42** |
+| arrayMutation | 26 | 0 | 0 | 0 | **26** |
+| matcher | 9 | 0 | 0 | 0 | **9** |
+| date | 8 | 0 | 0 | 0 | **8** |
+| log | 285 | 272 | 4 | 2 | **7** |
+| string | 14 | 0 | 7 | 0 | **7** |
+| routes | 19 | 0 | 18 | 0 | **1** |
+
+**Correction to the audited brief:** `date` is not absent from the census — it reads **8 sites,
+8 REAL** (`.getTime`), and appears in the driver's own table. `log` confirmed at **285 → 7 REAL**.
+
+**These are CEILINGS, not totals.** A site whose PARENT refuses the chain attributes here to the
+CHILD kind it stopped at, so the promise and arrayMutation rows overlap `Block`/`Parameter` above —
+the same sites under two names. Fixing that attribution is its own item; until it lands, no family
+figure here may be summed with any worklist figure, and none of them is settled.
+
+`isSiteSpecific` untouched, its `>= 2` unchanged and not proposed to move. Coverage test TOTAL row
+**1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**.

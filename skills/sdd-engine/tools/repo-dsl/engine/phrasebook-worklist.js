@@ -56,6 +56,7 @@ const Q = require("./clause-quality");
 const { SKIP } = require("./walk-skip");
 const EC = require("./elision-credit");   /* the SECOND figure — see engine/elision-credit.js */
 const OC = require("./one-char-credit");  /* the THIRD figure — see engine/one-char-credit.js */
+const ES = require("./escape-credit");   /* the FOURTH figure — see engine/escape-credit.js */
 
 let SHOW_EXAMPLES = false;   /* set by computeWorklist(opts) — never read from argv here */
 let SHOW_CLAUSES = false;
@@ -235,6 +236,11 @@ function computeWorklist(opts) {
    * accept. The route family was 17 of these and was funded as a vocabulary gap. */
   const declinedSitesOneChar = new Map();
   const missingSitesOneChar = new Map();
+  /* THE FOURTH COLUMN. A clause that quotes a string literal correctly is compared against the RAW
+   * source, so an escaped apostrophe fails a verbatim match. 11 of `Block`'s 18 ungated sites were
+   * this, and rule 10 was ranked on them. */
+  const declinedSitesEscaped = new Map();
+  const missingSitesEscaped = new Map();
   /* THE METHOD CENSUS, and the reason it lives here rather than in a scratch script: the route
    * finding came out of one, so nothing downstream could consume it and nothing re-ran it. A kind
    * is too coarse to rank `CallExpression` — 217 of its declines are ONE cause, an unknown method,
@@ -244,7 +250,7 @@ function computeWorklist(opts) {
   const byStmt = new Map();          // unruled kind -> statement kind -> sites
   const clauses = new Map();         // unruled kind -> clause text -> sites
   const perStatement = new Map();    // statement kind -> { generic, credited }
-  let genericTotal = 0, creditedTotal = 0, noHead = 0, oneCharTotal = 0, bothTotal = 0;
+  let genericTotal = 0, creditedTotal = 0, noHead = 0, oneCharTotal = 0, bothTotal = 0, escapedTotal = 0;
 
   for (const abs of files) {
     let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
@@ -273,11 +279,13 @@ function computeWorklist(opts) {
           if (credited) creditedTotal++;
           const oneChar = OC.creditsOneChar(clause, text);
           if (oneChar) oneCharTotal++;
+          const escaped = ES.creditsEscape(clause, text);
+          if (escaped) escapedTotal++;
           if (credited && oneChar) bothTotal++;
           const sk = ts.SyntaxKind[st.kind];
           let ps = perStatement.get(sk);
-          if (!ps) { ps = { generic: 0, credited: 0, oneChar: 0 }; perStatement.set(sk, ps); }
-          ps.generic++; if (credited) ps.credited++; if (oneChar) ps.oneChar++;
+          if (!ps) { ps = { generic: 0, credited: 0, oneChar: 0, escaped: 0 }; perStatement.set(sk, ps); }
+          ps.generic++; if (credited) ps.credited++; if (oneChar) ps.oneChar++; if (escaped) ps.escaped++;
           const head = headOf(st);
           if (!head) { noHead++; continue; }
           const siteMissing = new Set(), siteDeclined = new Set();
@@ -287,16 +295,18 @@ function computeWorklist(opts) {
             missingSites.set(k, (missingSites.get(k) || 0) + 1);
             if (credited) missingSitesCredited.set(k, (missingSitesCredited.get(k) || 0) + 1);
             if (oneChar) missingSitesOneChar.set(k, (missingSitesOneChar.get(k) || 0) + 1);
+            if (escaped) missingSitesEscaped.set(k, (missingSitesEscaped.get(k) || 0) + 1);
           }
           for (const k of siteDeclined) {
             declinedSites.set(k, (declinedSites.get(k) || 0) + 1);
             if (credited) declinedSitesCredited.set(k, (declinedSitesCredited.get(k) || 0) + 1);
             if (oneChar) declinedSitesOneChar.set(k, (declinedSitesOneChar.get(k) || 0) + 1);
+            if (escaped) declinedSitesEscaped.set(k, (declinedSitesEscaped.get(k) || 0) + 1);
           }
           if (acc0.method) {
             let mm = byMethod.get(acc0.method);
-            if (!mm) { mm = { sites: 0, credited: 0, oneChar: 0 }; byMethod.set(acc0.method, mm); }
-            mm.sites++; if (credited) mm.credited++; if (oneChar) mm.oneChar++;
+            if (!mm) { mm = { sites: 0, credited: 0, oneChar: 0, escaped: 0 }; byMethod.set(acc0.method, mm); }
+            mm.sites++; if (credited) mm.credited++; if (oneChar) mm.oneChar++; if (escaped) mm.escaped++;
           }
         }
       }
@@ -320,8 +330,9 @@ function computeWorklist(opts) {
       sites: missingSites.get(kind) || 0,
       sitesCredited: missingSitesCredited.get(kind) || 0,
       sitesOneChar: missingSitesOneChar.get(kind) || 0,
+      sitesEscaped: missingSitesEscaped.get(kind) || 0,
       sitesNet: (missingSites.get(kind) || 0) - (missingSitesCredited.get(kind) || 0),
-      sitesReal: (missingSites.get(kind) || 0) - (missingSitesCredited.get(kind) || 0) - (missingSitesOneChar.get(kind) || 0),
+      sitesReal: (missingSites.get(kind) || 0) - (missingSitesCredited.get(kind) || 0) - (missingSitesOneChar.get(kind) || 0) - (missingSitesEscaped.get(kind) || 0),
       inStatements: Object.fromEntries([...(byStmt.get(kind) || new Map()).entries()].sort((a, b) => b[1] - a[1])),
       says: [...(clauses.get(kind) || new Map()).entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, n]) => ({ clause: c, sites: n })),
       example: eg.get(kind) || null,
@@ -341,10 +352,12 @@ function computeWorklist(opts) {
       frozen: genericTotal, credited: creditedTotal, net: genericTotal - creditedTotal, noHead,
       oneChar: oneCharTotal, creditedAndOneChar: bothTotal,
       netOfBoth: genericTotal - creditedTotal - oneCharTotal + bothTotal,
+      escaped: escapedTotal,
+      real: genericTotal - creditedTotal - oneCharTotal + bothTotal - escapedTotal,
     },
     perStatement: [...perStatement.entries()]
-      .map(([kind, v]) => ({ kind, generic: v.generic, credited: v.credited, oneChar: v.oneChar, net: v.generic - v.credited }))
-      .map((r) => ({ ...r, real: r.generic - r.credited - r.oneChar }))
+      .map(([kind, v]) => ({ kind, generic: v.generic, credited: v.credited, oneChar: v.oneChar, escaped: v.escaped, net: v.generic - v.credited }))
+      .map((r) => ({ ...r, real: r.generic - r.credited - r.oneChar - r.escaped }))
       .sort((a, b) => b.real - a.real || b.net - a.net),
     worklist,
     /* net-aware for the same reason the worklist is: a ruled kind that declines on sites whose
@@ -352,8 +365,8 @@ function computeWorklist(opts) {
     declining: [...declined.entries()].map(([kind, sites]) => {
       const credited = declinedCredited.get(kind) || 0;
       const st = declinedSites.get(kind) || 0, stc = declinedSitesCredited.get(kind) || 0;
-      const so = declinedSitesOneChar.get(kind) || 0;
-      return { kind, sites, credited, net: sites - credited, distinctSites: st, distinctCredited: stc, distinctOneChar: so, distinctNet: st - stc, distinctReal: st - stc - so };
+      const so = declinedSitesOneChar.get(kind) || 0, se = declinedSitesEscaped.get(kind) || 0;
+      return { kind, sites, credited, net: sites - credited, distinctSites: st, distinctCredited: stc, distinctOneChar: so, distinctEscaped: se, distinctNet: st - stc, distinctReal: st - stc - so - se };
     }).sort((a, b) => b.distinctReal - a.distinctReal || b.distinctNet - a.distinctNet),
     /* PER FAMILY, for the kind a single row cannot rank. `real` is what is left once BOTH artifacts
      * are taken out — it is the only column that has ever predicted the work correctly. */
@@ -362,11 +375,11 @@ function computeWorklist(opts) {
       for (const [meth, v] of byMethod) {
         const fam = FAMILY_OF.get(meth) || "(unclassified)";
         let r = f.get(fam);
-        if (!r) { r = { family: fam, sites: 0, credited: 0, oneChar: 0, methods: [] }; f.set(fam, r); }
-        r.sites += v.sites; r.credited += v.credited; r.oneChar += v.oneChar;
-        r.methods.push({ method: meth, sites: v.sites, credited: v.credited, oneChar: v.oneChar });
+        if (!r) { r = { family: fam, sites: 0, credited: 0, oneChar: 0, escaped: 0, methods: [] }; f.set(fam, r); }
+        r.sites += v.sites; r.credited += v.credited; r.oneChar += v.oneChar; r.escaped += v.escaped;
+        r.methods.push({ method: meth, sites: v.sites, credited: v.credited, oneChar: v.oneChar, escaped: v.escaped });
       }
-      return [...f.values()].map((r) => ({ ...r, real: r.sites - r.credited - r.oneChar, methods: r.methods.sort((a, b) => b.sites - a.sites) }))
+      return [...f.values()].map((r) => ({ ...r, real: r.sites - r.credited - r.oneChar - r.escaped, methods: r.methods.sort((a, b) => b.sites - a.sites) }))
         .sort((a, b) => b.real - a.real || b.sites - a.sites);
     })(),
   };
@@ -388,23 +401,27 @@ function report(w) {
    * and then the routes — 17 sites ranked as a vocabulary gap that already read `serve GET “/”`
    * and were generic only because “/” is one character. `isSiteSpecific` is untouched. */
   console.log("  of the frozen, quoting ONE character ... " + w.residual.oneChar + "   " + pc(w.residual.oneChar, w.residual.frozen) + " of frozen   (overlap with elision: " + w.residual.creditedAndOneChar + ")");
-  console.log("  RESIDUAL, NET OF BOTH ARTIFACTS ........ " + w.residual.netOfBoth + "   <-- the work that can actually be done");
+  console.log("  RESIDUAL, NET OF BOTH ARTIFACTS ........ " + w.residual.netOfBoth);
+  /* THE FOURTH COLUMN. The clause quotes a literal's DECODED value; `isSiteSpecific` compares
+   * against the RAW source, so an escaped apostrophe fails a match the prose deserves. */
+  console.log("  of the frozen, an ESCAPED literal ...... " + w.residual.escaped + "   " + pc(w.residual.escaped, w.residual.frozen) + " of frozen");
+  console.log("  RESIDUAL, REAL (net of all three) ...... " + w.residual.real + "   <-- the work that can actually be done");
   console.log("");
-  console.log("  STATEMENT KIND            frozen   credited   1-char      net   REAL");
+  console.log("  STATEMENT KIND            frozen   credited   1-char   escape      net   REAL");
   for (const r of w.perStatement) {
     console.log("    " + r.kind.padEnd(22) + String(r.generic).padStart(6) + "   " + String(r.credited).padStart(8)
-      + "   " + String(r.oneChar).padStart(6) + "   " + String(r.net).padStart(6) + "   " + String(r.generic - r.credited - r.oneChar).padStart(4));
+      + "   " + String(r.oneChar).padStart(6) + "   " + String(r.escaped).padStart(6) + "   " + String(r.net).padStart(6) + "   " + String(r.real).padStart(4));
   }
   console.log("    " + "(no single head expr)".padEnd(22) + String(w.residual.noHead).padStart(6));
   console.log("");
-  console.log("WORKLIST — UNRULED kinds, RANKED BY REAL = distinct sites − elision − one-char  <-- next rule here");
+  console.log("WORKLIST — UNRULED kinds, RANKED BY REAL = distinct sites − elision − one-char − escape  <-- next rule here");
   const byFrozen = w.worklist.slice().sort((a, b) => b.blocked - a.blocked);
   w.worklist.slice(0, 12).forEach((r, i) => {
     const fr = byFrozen.findIndex((x) => x.kind === r.kind) + 1;
     console.log("  " + String(i + 1).padStart(3) + ". REAL " + String(r.sitesReal).padStart(4) + "   net " + String(r.net).padStart(5)
       + "   (frozen " + String(r.blocked).padStart(4) + ", credited " + String(r.credited).padStart(4)
       + ", was rank #" + fr + ")   sites " + String(r.sitesNet).padStart(4)
-      + " (" + String(r.sites).padStart(4) + ", " + String(r.sitesCredited).padStart(4) + ", 1ch " + String(r.sitesOneChar).padStart(3) + ")   " + r.kind);
+      + " (" + String(r.sites).padStart(4) + ", " + String(r.sitesCredited).padStart(4) + ", 1ch " + String(r.sitesOneChar).padStart(3) + ", esc " + String(r.sitesEscaped).padStart(2) + ")   " + r.kind);
     const ins = Object.entries(r.inStatements);
     if (ins.length) console.log("            in:   " + ins.map(([k, c]) => k + " " + c).join(",  "));
     if (SHOW_CLAUSES) r.says.forEach((c) => console.log("            says: " + String(c.sites).padStart(4) + "  " + c.clause));
@@ -415,17 +432,23 @@ function report(w) {
   /* TWO COLUMNS BECAUSE THEY ANSWER TWO QUESTIONS, and only the right-hand one is comparable to
    * the worklist above. OCCURRENCES counts every node the renderer refused at; a single statement
    * can refuse at four nested calls. DISTINCT SITES counts the generic statements themselves. */
-  console.log("    occurrences (raw, credited)      DISTINCT SITES (raw, credited, 1-char)   REAL   kind");
+  console.log("    occurrences (raw, credited)      DISTINCT SITES (raw, credited, 1-char, esc)   REAL   kind");
   w.declining.forEach((r) => console.log(
     "    " + String(r.net).padStart(11) + " (" + String(r.sites).padStart(4) + ", " + String(r.credited).padStart(4) + ")"
-    + String(r.distinctNet).padStart(21) + " (" + String(r.distinctSites).padStart(4) + ", " + String(r.distinctCredited).padStart(4) + ", " + String(r.distinctOneChar).padStart(4) + ")"
-    + String(r.distinctSites - r.distinctCredited - r.distinctOneChar).padStart(7) + "   " + r.kind));
+    + String(r.distinctNet).padStart(21) + " (" + String(r.distinctSites).padStart(4) + ", " + String(r.distinctCredited).padStart(4) + ", " + String(r.distinctOneChar).padStart(4) + ", " + String(r.distinctEscaped).padStart(3) + ")"
+    + String(r.distinctReal).padStart(7) + "   " + r.kind));
   console.log("");
-  console.log("CallExpression BY FAMILY — the kind row above is too coarse to rank (217 of its declines are one cause)");
-  console.log("    sites  credited   1-char    REAL   family");
+  console.log("CallExpression BY FAMILY — PROVISIONAL: a site whose PARENT refuses attributes to the CHILD kind here,");
+  console.log("  so these overlap Block/Parameter above. Ceilings, not totals, until the attribution model is fixed.");
+  console.log("    sites  credited   1-char   escape    REAL   family");
+  /* PROVISIONAL, and it says so in the output. A site whose PARENT refuses the chain is attributed
+   * here to the child kind it stopped at, not to the parent's vocabulary — so `Block`/`Parameter`
+   * and the promise/arrayMutation families are partly the SAME sites counted twice, under two
+   * names. Fixing the attribution model is its own item; until it lands, every family figure below
+   * is a ceiling, not a total. */
   w.families.forEach((r) => {
     console.log("    " + String(r.sites).padStart(5) + "   " + String(r.credited).padStart(7) + "   " + String(r.oneChar).padStart(6)
-      + "   " + String(r.real).padStart(5) + "   " + r.family);
+      + "   " + String(r.escaped).padStart(6) + "   " + String(r.real).padStart(5) + "   " + r.family);
     console.log("             " + r.methods.slice(0, 8).map((m) => "." + m.method + " " + m.sites + (m.oneChar ? " (1ch " + m.oneChar + ")" : "")).join(",  "));
   });
   console.log("");
