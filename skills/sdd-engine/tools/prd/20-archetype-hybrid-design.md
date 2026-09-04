@@ -445,9 +445,19 @@ ignored every other byte. R-REND-6's defect was narrower than the requirement's 
 | hand-edit a generator gloss, check **OFF** | compiles **the un-edited code** and looks like it worked — the defect, now pinned by an assertion |
 | same edit, check **ON** | throws `SENTENCE AND PAYLOAD DISAGREE`, printing written vs derived |
 
-Off by default outside the tests (`SDD_DERIVE_CHECK=1` / `{deriveCheck:true}`) because it costs one
-parse per generator span on the round-trip hot path; **on** in `enfile.test.js`, which is where a
-drifted gloss would otherwise slip through.
+**ON BY DEFAULT EVERYWHERE — corrected 2026-09-04.** `enfile.js:2330` reads
+`const DERIVE_CHECK = process.env.SDD_DERIVE_CHECK !== "0"`, so the check runs unless it is switched
+**off** with `SDD_DERIVE_CHECK=0`; a per-call `opts.deriveCheck` overrides the env (`:2412`).
+Measured by evaluating that expression: unset → `true`, `=0` → `false`, `=1` → `true`.
+
+*This paragraph used to read: "Off by default outside the tests (`SDD_DERIVE_CHECK=1` /
+`{deriveCheck:true}`) because it costs one parse per generator span on the round-trip hot path; **on**
+in `enfile.test.js`, which is where a drifted gloss would otherwise slip through."* **Every clause of
+that is backwards about the default**, and the cost sentence is the reason it sounded plausible — a
+per-span parse is a real cost, and it is paid on every compile today. R-REND-6 carried the identical
+error and is corrected in the same commit. `enfile.js:2424` has said *"`DERIVE_CHECK` is on by
+default (`!== "0"`, above)"* in its own comment the whole time, so the code never agreed with either
+document.
 
 **What is still open here is mechanics only** (§Q-3): whether the payload stays in the `.en` at all
 once it is derivable, or moves to a sidecar cache. Keeping it in the `.en` costs bytes and buys a
