@@ -8521,3 +8521,73 @@ does not participate in the payload, as `clause-quality.js`'s header records.
 **Not done, deliberately:** the tables are prototype-less but not `Object.freeze`d. Freezing is a
 separate claim about mutability with its own failure mode (`Object.freeze` on a `Set` does not stop
 `.add()` — this file already records that trap for `VACUOUS`), and it is not what the defect was.
+
+## `date` and `string` — the last two reachable vocabulary rows, and three rows refused (2026-09-04)
+
+The backlog carried this item as "`date` (4 improvement-sites) + `string` (~3)", roughly 7 against
+606 REAL. **Both figures were audited against an older ladder, and the re-measure moves the count
+UP, not down.** That direction is worth stating explicitly, because every previous re-measure in
+this lane corrected downward (114 → 35, 45 → 0) and it would be easy to read "re-measure" as a
+synonym for "shrink".
+
+**Measured** — a full-corpus differential over 33,918 statements, rendering every site twice, once
+with the live `VERBS` table and once with a candidate copy, and diffing the clause text:
+
+| candidate row set | clauses changed |
+|---|---|
+| MIN — `getTime` "as a timestamp", `toLowerCase` "in lower case", `trim` "trimmed", `split` "split up" | **13** |
+| PLUS — MIN + `toUpperCase` "in upper case", `replace` "with a replacement made", `toISOString` "as ISO date text" | 14 |
+
+**All 13 MIN changes were read individually. Every one is an improvement; none is a regression.**
+The count exceeds the family census's 4 + ~3 because a row also unblocks CHILD positions inside
+larger clauses — sites the per-family count never attributed to `date` or `string` at all:
+
+- `xeroInvoiceStateCheckAndAutofix.ts:17` — "return `parsed` mapped then filtered" becomes
+  "return `parsed` mapped to the text built from `invoiceNumber` trimmed then filtered".
+- `animationStyles.ts:187` — "whether `length` from the result of `value.trim` is `0`" becomes
+  "whether `length` from `value` trimmed is `0`".
+- `helpers.ts:121` — "the result of `b.startTimestamp.getTime` minus the result of
+  `a.startTimestamp.getTime`" becomes "`b.startTimestamp` as a timestamp minus `a.startTimestamp`
+  as a timestamp".
+
+**MIN was adopted; PLUS was refused, on its own evidence.** `toUpperCase` and `toISOString` change
+**zero** clauses in this corpus. `replace` changes exactly one — `entityInterfaceCreator.ts:21`,
+where the chain renders as "some text with a replacement made then with a replacement made then
+with a replacement made then with a replacement made then trimmed". That is worse than the
+`return trim` it replaces: a phrase that reads identically four times in a row names the callee,
+not the result, which is the thing the `VERBS` table exists to avoid. **A table entry earns its
+place by measurement, and three of the seven candidates did not.** The refusal is recorded in the
+table itself, beside the rows, so the next session does not re-derive it.
+
+That site is also a clean confirmation of the parent gate running backwards (§ the ceiling comment
+above `CallExpression`): `entityInterfaceCreator.ts:21` does **not** appear in the MIN diff at all,
+even though `trim` and `split` are both MIN rows, because the unknown `replace` link makes
+`CallExpression` decline the whole chain before either row is reached.
+
+**Measured, before and after, on `68f86c5` and on this change:**
+
+| | before | after |
+|---|---|---|
+| `test-gen-roundtrip.js` | files 1037, byte-identical **1037**, FAILURES 0 | files 1037, byte-identical **1037**, FAILURES 0 |
+| coverage TOTAL, site-specific | 32188 | 32195 |
+| coverage TOTAL, generic | **1661** | **1654** |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+
+Generic falls by 7 and site-specific rises by the same 7: seven of the thirteen changed clauses
+cross the bucket boundary, and the other six were already site-specific and simply got truer. No
+assertion, gate, exit code or metric definition was touched — `clause-quality.js` is byte-for-byte
+unchanged, `SAYS_NOTHING` is unchanged, and `isSiteSpecific`'s `bare.length >= 2` is unchanged.
+
+**Ladder after:** REAL 606 → **601**, partition 174 vocabulary / 50 unruled-kind / 8 BOTH / 369
+NEITHER, sum 601 == REAL, and the addition key balances with no drift marker. **NEITHER is
+unchanged at 369** — this change moved nothing in the bucket the next item censuses.
+
+**Noted, not acted on:** the `parsedRate` conditional this change unblocks now renders its
+condition as "if `Number.isFinite` and `parsedRate` passes `isFinite`", which is awkward. That text
+comes from the pre-existing condition idiom, not from these rows — the rows only made the false arm
+renderable, so the roughness was always there and is merely now visible. It is a separate change on
+a separate commit, and it is not in this item's scope.
+
+**This closes the vocabulary chapter.** Of the seven families in the table, five are paused with
+evidence against the ceiling, one (promise) was refused with the row built and rendered, and these
+two were the only reachable ones. There is no eighth family to try.

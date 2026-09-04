@@ -66,6 +66,21 @@ const VERBS = closed({
   map: "mapped", filter: "filtered", reduce: "reduced", sort: "sorted",
   slice: "sliced", flat: "flattened", flatMap: "mapped and flattened",
   reverse: "reversed", join: "joined", concat: "with more appended",
+  /* Date and string, added 2026-09-04 — the only two families the ceiling census (above
+   * `CallExpression`) left reachable, because their receiver IS the value and their callbacks do not
+   * exist. Measured with a full-corpus differential over 33,918 statements: these four rows change
+   * 13 clauses and every one of the 13 is an improvement. The count is HIGHER than the 4 + ~3 the
+   * backlog carried, because a row unblocks CHILD positions inside larger clauses too, not only the
+   * sites its own family census counted.
+   *
+   * THREE MORE ROWS WERE BUILT AND REFUSED on the same evidence, because a table entry earns its
+   * place by measurement: `toUpperCase` and `toISOString` changed ZERO clauses, and `replace`
+   * changed exactly one — entityInterfaceCreator.ts:21, to "some text with a replacement made then
+   * with a replacement made then with a replacement made then with a replacement made then
+   * trimmed", which is worse than the `return trim` it replaces. A verb whose phrase reads the same
+   * four times in a row names the callee, not the result, which is the thing this table exists to
+   * avoid. */
+  getTime: "as a timestamp", toLowerCase: "in lower case", trim: "trimmed", split: "split up",
 });
 
 /* `then` / `catch` / `finally` DO NOT BELONG IN THAT TABLE, and the reason is grammar, not taste.
