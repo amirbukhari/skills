@@ -4,6 +4,23 @@ Every command below was **run on 2026-09-03** and is marked with the exit code i
 Where something failed, needed an argument I didn't expect, or contradicted its own documentation,
 that is stated rather than tidied away.
 
+> **EVERY NUMBER IN THIS FILE HAS A TIMESTAMP, AND THAT IS NOT DECORATION.** The corpus, the
+> dictionary and the name ledger are live shared files with no commit history of their own
+> (`Examples/` is gitignored). A re-mine or a render moves them in seconds, and every figure below
+> describes the moment it was measured. **Before quoting any number from this file, re-read the
+> artifact and check its mtime:**
+>
+> ```sh
+> cd skills/sdd-engine
+> stat -c '%y  %n' Examples/hydra-source/sen/catalog/generators-lzw.json >                  Examples/hydra-source/sen/catalog/word-names.json
+> find Examples/hydra-source/sen/files -name '*.en' -printf '%T+ %p\n' | sort -r | head -1
+> ```
+>
+> The figures below were measured against **dictionary `2026-09-03 21:16:20`**, **corpus
+> `2026-09-03 21:16:53`**, **`word-names.json` `2026-09-02 23:51:29`**. If those have moved, re-run
+> before you quote. A number without its mtime is a claim about the past presented as the present —
+> `tools/prd/16-test-integrity.md` calls that the stale-subject alarm.
+
 All paths are from the **repo root** (the directory containing `skills/`). Every command runs from:
 
 ```sh
@@ -150,8 +167,13 @@ Verified dry-run output:
   ONE WORD PER FILE (R-ARCH-15) . 1030/1037 files collapse to a single top-level word (99.3%)
 ```
 
-I confirmed `--no-write` really writes nothing: the newest `.en` mtime stayed at `03:38:49`,
-seventeen hours before the run.
+I confirmed `--no-write` really writes nothing: at the time of that run the newest `.en` mtime
+stayed at `03:38:49`, seventeen hours earlier — unmoved by the dry run.
+
+> **That mtime is historical and no longer current.** The corpus was legitimately re-mined and
+> re-rendered at **21:16** the same evening, so every `.en` now carries a `21:16:53` mtime. The
+> verification still stands — a dry run does not move mtimes — but check the *current* newest mtime
+> before and after if you want to reproduce the check, rather than looking for `03:38:49`.
 
 **Exit code is load-bearing:** `write-en-files.js` exits **1** if any file is not byte-identical, so
 it can fail a caller. Exit 0 means all 1,037 round-tripped.
@@ -330,8 +352,12 @@ node engine/en-idempotence.test.js             # is the corpus what the current 
 node engine/the-goal.test.js 2>&1 | grep -oE 'got [0-9]+ constructs across [0-9]+ of [0-9]+ non-empty RENDERED files'
 ```
 
-Expected today: exit 0, exit 0, exit 0, and
+Expected as of dictionary `2026-09-03 21:16:20` / corpus `21:16:53`: exit 0, exit 0, exit 0, and
 `got 106261 constructs across 1035 of 1035 non-empty RENDERED files`.
+
+**If `en-idempotence` (check 3) goes red, your first hypothesis is not a regression.** Names are an
+input to compilation, so applying the worksheet (§8) stales all 1,037 `.en` *by design* until a
+render. Check the mtimes above before diagnosing anything in the code.
 
 > ⚠️ Use the **full** pattern, not a shortened `grep -oE 'got [0-9]+ constructs'`. The short form
 > matches a **second** line too — the per-file assertion for `src/routers/links.ts.en` — and prints
