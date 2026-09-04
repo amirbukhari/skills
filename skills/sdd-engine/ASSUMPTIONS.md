@@ -10750,3 +10750,48 @@ not run it. Three reasons, in order:
 
 **So: the engine change is landed and measured; the corpus is knowingly one re-render behind, and
 that is recorded rather than quietly fixed.**
+
+## The 53-bit decimal id edge is now REFUSED on both sides of payload.js
+
+**Ruling 1 (R-PAY-6 id shape: 53-bit DECIMAL, not hex)** was made by the reviewer under Amir's
+delegation on 2026-09-04. The banked guard it authorises is now implemented.
+
+**What changed.** Two lines in `tools/repo-dsl/engine/payload.js`:
+
+| site | before | after |
+|---|---|---|
+| `encode`, after the `Number.isInteger(obj.w)` check | nothing | `if (obj.w > Number.MAX_SAFE_INTEGER) throw` |
+| `decode`, after `const w = Number(digits)` | nothing | `if (!Number.isSafeInteger(w)) throw` |
+
+**The decode-side guard goes one step beyond the literal ruling, which named `payload.js:228` only.**
+Stated plainly rather than reconciled quietly: it is the same defect, on the read side, and guarding
+encode alone would leave the corruption reachable from any `.en` already on disk. It is a refusal
+added, never a check widened. Revert that one line if the reviewer wants the ruling honoured to its
+letter.
+
+**Measured, not read — the positive control first.** `HEAD:engine/payload.js` was loaded alongside
+the edited file in one process, so both answer the same four probes:
+
+```
+BEFORE (HEAD)  encode({w: 2**53})    -> "lzw1 n9007199254740992"     no error
+               encode({w: 2**53+1})  -> "lzw1 n9007199254740992"     no error, SAME MARKER
+               decode("lzw1 n9007199254740993").w -> 9007199254740992  silently rounded
+AFTER          all three REFUSE, naming the value, the ceiling and R-PAY-6
+               encode/decode of the live id 126347 round-trips unchanged
+```
+
+Two distinct ids producing one marker with no error anywhere is the defect class this engine exists
+to eliminate: no metric can see it, because nothing fails.
+
+**The guard cannot fire on real data.** Measured fresh against the shipped `generators-lzw.json`:
+max live word id is **126,347** of 126,348 narrow words, and **118,446** of 118,447 wide words. The
+ceiling sits about 71 billion times above the live maximum.
+
+**Scope, stated because the ruling's title is larger than its instruction.** This guard does not make
+ids content-addressed. R-PAY-6 slice 2 proper — deriving 53-bit decimal ids from `content-id.js`,
+rekeying the shipped artifact, and re-rendering every payload — is an artifact+corpus write that this
+ruling does not ask for and that has not been done.
+
+**Fresh figures after the change.** `dialect-guard.test.js` 7 assertions pass; `hole-type-order`
+8 passed 0 failed; `tier2-recursion` 4 passed 0 failed; `goal-ceiling` 12 assertions pass;
+byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0`.

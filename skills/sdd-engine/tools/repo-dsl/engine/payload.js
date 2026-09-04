@@ -226,6 +226,12 @@ function encode(obj) {
   const axis = obj.a;
   if (axis !== "n" && axis !== "w") throw new Error(`payload: axis must be "n" or "w", got ${JSON.stringify(axis)}`);
   if (!Number.isInteger(obj.w) || obj.w < 0) throw new Error(`payload: word id must be a non-negative integer, got ${JSON.stringify(obj.w)}`);
+  /* R-PAY-6 chose the 53-bit DECIMAL id shape, so MAX_SAFE_INTEGER is the exact edge of the
+   * dialect and not a defensive round number. Number.isInteger alone is NOT enough: it returns
+   * true for 2**53, and it returns true for a 64-bit value that has ALREADY been rounded on the
+   * way in, so two distinct ids can encode to the same marker with no error raised anywhere and
+   * no metric able to see it. A loud refusal here is the only place that difference survives. */
+  if (obj.w > Number.MAX_SAFE_INTEGER) throw new Error(`payload: word id ${obj.w} exceeds Number.MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}) — the id dialect is 53-bit decimal (R-PAY-6)`);
   const holes = obj.h || [];
   let out = TAG + " " + axis + obj.w;
   if (obj.c !== undefined && obj.c !== null) {
@@ -267,6 +273,10 @@ function decode(text) {
   while (i < text.length && text[i] >= "0" && text[i] <= "9") { digits += text[i]; i++; }
   if (!digits) throw new Error("payload: generator payload carries no word id");
   const w = Number(digits);
+  /* The same edge, read side. Number("9007199254740993") silently yields ...992, so a payload
+   * carrying an out-of-dialect id would decode to a DIFFERENT, valid-looking id. Guarding encode
+   * alone leaves the corruption reachable from any .en on disk. */
+  if (!Number.isSafeInteger(w)) throw new Error(`payload: word id ${digits} exceeds Number.MAX_SAFE_INTEGER (${Number.MAX_SAFE_INTEGER}) — the id dialect is 53-bit decimal (R-PAY-6)`);
   const c = [];
   if (text[i] === C_MARK) {
     i++;
