@@ -28,6 +28,16 @@
  * `BINARY_OPS` entry) or a nameable child. Ranking the two together would send the next session to
  * write a second rule for a kind that already has one, which R-LANG-16 forbids outright.
  *
+ * DEDUPE — TWO COUNTS, AND ONLY ONE OF THEM IS COMPARABLE. Both tallies below count NODE
+ * OCCURRENCES: `blockersOf` descends THROUGH a declining node into its children, so one generic
+ * statement can tally `CallExpression` four times, and can tally several kinds at once. The unruled
+ * worklist has the SAME property one level down — a declining parent with three unruled children
+ * tallies three — so the two tables were never like-for-like, in EITHER direction. Every row now
+ * carries a DISTINCT-SITE count as well, each kind at most once per generic statement, reported
+ * BESIDE the raw one and never instead of it. Measured 2026-09-04: the collapse is uneven and it
+ * REORDERS the declining table — `PropertyAccessExpression` 133 -> 54 (2.5x) drops below
+ * `ArrowFunction` 99 -> 90 — which is exactly why the ranking cannot be taken from the raw column.
+ *
  * IT RE-IMPLEMENTS NOTHING. The generic predicate is `statement-kind-coverage.test.js`'s, the
  * vacuous set is `clause-quality.js`'s, the says-nothing set is `enfile.js`'s own export, and the
  * primitives handed to the phrasebook are `enfile.NKRP` — the very object the renderer passes. A
@@ -111,11 +121,14 @@ function blockersOf(node, sf, P, acc, depth) {
     if (out) return;                                  /* renders -> not a blocker */
     acc.declined.set(kind, (acc.declined.get(kind) || 0) + 1);
     if (acc.credited) acc.declinedCredited.set(kind, (acc.declinedCredited.get(kind) || 0) + 1);
+    /* PER DISTINCT SITE, BESIDE the occurrence count -- see DEDUPE in the header. */
+    if (acc.siteDeclined) acc.siteDeclined.add(kind);
     ts.forEachChild(n, (c) => blockersOf(c, sf, P, acc, depth + 1));
     return;
   }
   if (!isStructural(n)) return;
   acc.missing.set(kind, (acc.missing.get(kind) || 0) + 1);
+  if (acc.siteMissing) acc.siteMissing.add(kind);
   /* BESIDE, never instead of. `missing` stays the frozen-count blocker tally; this records how many
    * of those blocked sites already say the site's own words through the renderer's “…”. The ranking
    * subtracts one from the other and neither number is edited into the other. */
@@ -163,8 +176,19 @@ function computeWorklist(opts) {
   const occurring = new Set();       // every structural kind present in the corpus
   const missing = new Map();         // unruled kind -> generic sites it blocks       (FROZEN count)
   const missingCredited = new Map(); // unruled kind -> how many of those are “…”-credited
-  const declined = new Map();        // ruled kind that refused -> sites
+  const declined = new Map();        // ruled kind that refused -> NODE OCCURRENCES (not sites)
   const declinedCredited = new Map(); // ...and how many of those are “…”-credited
+  /* DEDUPED, per DISTINCT SITE. `declined`/`missing` above count node occurrences: blockersOf
+   * descends THROUGH a declining node into its children, so one generic statement can tally the
+   * same kind several times, and can tally several kinds. That is the right number for "where does
+   * the renderer refuse", and the WRONG number to rank against the unruled worklist -- which has
+   * exactly the same property, one level down, since a declining parent with three unruled children
+   * tallies three. These four maps count each kind at most ONCE per generic statement. Reported
+   * BESIDE the raw counts, never instead of them. */
+  const declinedSites = new Map();
+  const declinedSitesCredited = new Map();
+  const missingSites = new Map();
+  const missingSitesCredited = new Map();
   const eg = new Map();
   const byStmt = new Map();          // unruled kind -> statement kind -> sites
   const clauses = new Map();         // unruled kind -> clause text -> sites
@@ -202,7 +226,16 @@ function computeWorklist(opts) {
           ps.generic++; if (credited) ps.credited++;
           const head = headOf(st);
           if (!head) { noHead++; continue; }
-          blockersOf(head, sf, EN.NKRP, { missing, missingCredited, declined, declinedCredited, eg, byStmt, clauses, stmtKind: sk, clause, credited }, 0);
+          const siteMissing = new Set(), siteDeclined = new Set();
+          blockersOf(head, sf, EN.NKRP, { missing, missingCredited, declined, declinedCredited, eg, byStmt, clauses, stmtKind: sk, clause, credited, siteMissing, siteDeclined }, 0);
+          for (const k of siteMissing) {
+            missingSites.set(k, (missingSites.get(k) || 0) + 1);
+            if (credited) missingSitesCredited.set(k, (missingSitesCredited.get(k) || 0) + 1);
+          }
+          for (const k of siteDeclined) {
+            declinedSites.set(k, (declinedSites.get(k) || 0) + 1);
+            if (credited) declinedSitesCredited.set(k, (declinedSitesCredited.get(k) || 0) + 1);
+          }
         }
       }
       ts.forEachChild(n, visit);
@@ -222,6 +255,9 @@ function computeWorklist(opts) {
     const credited = missingCredited.get(kind) || 0;
     return {
       kind, blocked, credited, net: blocked - credited,
+      sites: missingSites.get(kind) || 0,
+      sitesCredited: missingSitesCredited.get(kind) || 0,
+      sitesNet: (missingSites.get(kind) || 0) - (missingSitesCredited.get(kind) || 0),
       inStatements: Object.fromEntries([...(byStmt.get(kind) || new Map()).entries()].sort((a, b) => b[1] - a[1])),
       says: [...(clauses.get(kind) || new Map()).entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, n]) => ({ clause: c, sites: n })),
       example: eg.get(kind) || null,
@@ -239,8 +275,9 @@ function computeWorklist(opts) {
      * prose is already correct is not a vocabulary gap worth funding. */
     declining: [...declined.entries()].map(([kind, sites]) => {
       const credited = declinedCredited.get(kind) || 0;
-      return { kind, sites, credited, net: sites - credited };
-    }).sort((a, b) => b.net - a.net || b.sites - a.sites),
+      const st = declinedSites.get(kind) || 0, stc = declinedSitesCredited.get(kind) || 0;
+      return { kind, sites, credited, net: sites - credited, distinctSites: st, distinctCredited: stc, distinctNet: st - stc };
+    }).sort((a, b) => b.distinctNet - a.distinctNet || b.net - a.net),
   };
 }
 
@@ -269,7 +306,8 @@ function report(w) {
     const fr = byFrozen.findIndex((x) => x.kind === r.kind) + 1;
     console.log("  " + String(i + 1).padStart(3) + ". net " + String(r.net).padStart(5)
       + "   (frozen " + String(r.blocked).padStart(4) + ", credited " + String(r.credited).padStart(4)
-      + ", was rank #" + fr + ")  " + r.kind);
+      + ", was rank #" + fr + ")   sites " + String(r.sitesNet).padStart(4)
+      + " (" + String(r.sites).padStart(4) + ", " + String(r.sitesCredited).padStart(4) + ")   " + r.kind);
     const ins = Object.entries(r.inStatements);
     if (ins.length) console.log("            in:   " + ins.map(([k, c]) => k + " " + c).join(",  "));
     if (SHOW_CLAUSES) r.says.forEach((c) => console.log("            says: " + String(c.sites).padStart(4) + "  " + c.clause));
@@ -277,8 +315,13 @@ function report(w) {
   });
   console.log("");
   console.log("RULED BUT DECLINING — needs VOCABULARY or a nameable child, NOT a second rule (R-LANG-16)");
-  console.log("    net   (frozen, credited)  kind");
-  w.declining.forEach((r) => console.log("    " + String(r.net).padStart(5) + "   (" + String(r.sites).padStart(4) + ", " + String(r.credited).padStart(4) + ")  " + r.kind));
+  /* TWO COLUMNS BECAUSE THEY ANSWER TWO QUESTIONS, and only the right-hand one is comparable to
+   * the worklist above. OCCURRENCES counts every node the renderer refused at; a single statement
+   * can refuse at four nested calls. DISTINCT SITES counts the generic statements themselves. */
+  console.log("    occurrences (raw, credited)      DISTINCT SITES (raw, credited)   kind");
+  w.declining.forEach((r) => console.log(
+    "    " + String(r.net).padStart(11) + " (" + String(r.sites).padStart(4) + ", " + String(r.credited).padStart(4) + ")"
+    + String(r.distinctNet).padStart(21) + " (" + String(r.distinctSites).padStart(4) + ", " + String(r.distinctCredited).padStart(4) + ")   " + r.kind));
   console.log("");
 }
 

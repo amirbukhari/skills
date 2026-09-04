@@ -7820,3 +7820,37 @@ rule per kind.
 **Untouched, deliberately:** `VACUOUS`, `SAYS_NOTHING`, and `isSiteSpecific`. The net figure feeds
 no assertion; the coverage test reads 42 passed / 10 failed exactly as before, and byte-identity is
 1037/1037.
+
+## The 434 verified — occurrences are not sites, in BOTH tables (2026-09-04)
+
+`blockersOf` descends THROUGH a declining node into its children, so `declined` counts node
+occurrences: one generic statement can tally `CallExpression` four times. The 434 was therefore not
+like-for-like with the unruled worklist's 264.
+
+**But the unruled worklist has the same property**, one level down, and the premise that it is
+"counted at the leaf and does not have it" is wrong: a declining parent with three unruled children
+tallies three. Measured, `Block` 100 → 92 occurrences → **85 distinct sites**;
+`PrefixUnaryExpression` 322 → 289. Deduping only the declining side would have traded one
+non-comparison for another, so both sides are deduped and both counts are carried on every row.
+
+**Deduped per distinct generic statement, net of elision:**
+
+| kind | occurrence-net | **site-net** | collapse |
+|---|---|---|---|
+| `CallExpression` (declining) | 434 | **286** | 1.5× |
+| `ArrowFunction` (declining) | 99 | **90** | 1.1× |
+| `PropertyAccessExpression` (declining) | 133 | **54** | 2.5× |
+| `BinaryExpression` (declining) | 73 | **50** | 1.5× |
+| whole unruled worklist | 282 | **253** | 1.1× |
+| `Block` + `Parameter` (rule 10's ceiling) | 175 | **157**, ~85 non-overlapping | — |
+
+**The rank stands, and not narrowly.** `CallExpression` at **286 distinct sites** clears rule 10's
+~93 ceiling by 3×, and clears the entire deduped unruled worklist (253) on its own.
+
+**The collapse is uneven, and it reorders the declining table.** `PropertyAccessExpression` loses
+2.5× and drops below `ArrowFunction`; `CallExpression` loses only 1.5×, because a site that declines
+at four nested calls is still one site that a vocabulary entry can fix. Ranking from the raw column
+would have put `PropertyAccessExpression` second when it is third.
+
+**Frozen series untouched:** coverage test TOTAL row still 1,729 generic, 42 passed / 10 failed;
+byte-identity 1037/1037. The deduped figure feeds no assertion.
