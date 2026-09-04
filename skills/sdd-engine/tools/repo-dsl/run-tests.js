@@ -133,6 +133,16 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "renders a real .en through the dictionary, then hand-edits it (A4)",
   }],
+  ["engine/roundtrip-through-disk.test.js", {
+    expect: "green",
+    needs: ["generators-lzw"],
+    /* THE ONE GATE THAT GOES THROUGH THE FILESYSTEM. test-lzw-roundtrip.js and write-en-files.js both
+     * compile the IN-MEMORY .en string and compare; neither ever reads a .en back off disk, so a
+     * broken writer or reader leaves 1037/1037 untouched. This one writes the file, re-reads it, and
+     * compares against the .ts re-read from disk. Its fixtures are throwaway temp dirs — it never
+     * writes into sen/. */
+    why: "writes .en files to a temp dir, reads them back and compiles them (Amir's end-to-end)",
+  }],
   ["engine/en-idempotence.test.js", {
     expect: "green",
     needs: ["generators-lzw"],
