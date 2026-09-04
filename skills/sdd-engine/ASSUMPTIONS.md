@@ -7792,3 +7792,31 @@ stated is worth more than a tighter number that hides its own edges.
 
 Whether the definition of mute ever changes is Amir's ruling, in its own pass, separate from any drop
 it would cause. Nothing in this commit implements or presumes it.
+
+## The phrasebook work order, rebuilt on the net-of-elision figure (2026-09-04)
+
+`tools/repo-dsl/engine/phrasebook-worklist.js` ranked on the frozen generic count. The elision
+measurement showed 921 of the frozen 1,729 residual sites are already the author's own words,
+reaching the reader through the renderer's `…`. The driver now ranks on `net = blocked − credited`
+and carries both counts on every row, so nothing is lost — the frozen number is still printed
+first, per row and in total.
+
+**Assumed:** a site whose prose already quotes the statement through `…` is not work. A rule
+targeting it would overwrite correct English to move a number that cannot move.
+
+**Consequence — the order inverts at both ends.** `NewExpression` 361 → **36 net** and
+`PrefixUnaryExpression` 322 → **46 net** fall from ranks 1 and 2 to 4 and 3; `Block` (**93**) and
+`Parameter` (**82**) rise from 3 and 4 to 1 and 2. On the frozen order the next rule would have
+gone to `NewExpression` and 36 real sites.
+
+**`Block` and `Parameter` are one piece of work, not two.** Both are what a block-bodied arrow
+decomposes into once rule 9's `ArrowFunction` declines; their `says:` samples are the same clauses.
+Combined expected yield is ~93, not 175.
+
+**And the mass is not in new rules.** `CallExpression`'s ruled-but-declining pool is **434 net** —
+larger than the whole unruled worklist (264). That is vocabulary work under R-LANG-16, not a second
+rule per kind.
+
+**Untouched, deliberately:** `VACUOUS`, `SAYS_NOTHING`, and `isSiteSpecific`. The net figure feeds
+no assertion; the coverage test reads 42 passed / 10 failed exactly as before, and byte-identity is
+1037/1037.
