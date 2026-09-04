@@ -8954,3 +8954,150 @@ coverage here would be the suspicious one.
 The live tree was re-diffed against the measured candidate: **0 clauses differ**.
 `clause-quality.js` shows 0 changed lines; `SAYS_NOTHING`, `VACUOUS` and `bare.length >= 2` are
 untouched; no assertion, gate or exit code moved.
+
+## THE INVERSION SWEEP — census only, no fix. A SECOND mechanism, 32 more wrong clauses (2026-09-04)
+
+`d41b064` found four clauses stating the exact opposite of their source, from ONE mechanism. The
+question this census answers is how many mechanisms in the engine can produce a polarity error at
+all. **Answer: two. One was fixed; the other is worse, and it is untouched.**
+
+**No engine file was changed by this pass.** Byte-identity 1037 files / 1037 byte-identical /
+FAILURES 0 before and after; nothing else was run but the roundtrip and the greps.
+
+### Mechanisms CLEARED BY CONSTRUCTION — 13
+
+Each was decided by reading the code path, not by sampling: none of them has a route that emits a
+polarity the source does not carry.
+
+| # | mechanism | why it cannot invert |
+|---|---|---|
+| 1 | `negate()` + `NEGATABLE` (`enfile.js:706-728`) | returns a negated clause or **null**; no path returns the clause unchanged (the `d41b064` fix) |
+| 2 | `!x` with a dotted operand → "`x` is missing" (`:734`) | direct and exact |
+| 3 | `CMP` operator table (`:663`, 8 entries) | operator token → phrase; an absent key falls to the compound path, it does not guess |
+| 4 | the `typeof` branch (`:755`) | `neg` is read off the operator token itself |
+| 5 | `BINARY_OPS` (`node-kind-rules.js:119`) | operator → phrase; an unknown operator **declines**, never prints |
+| 6 | `instanceof` / `in` in `condGloss` | direct; negation flows through `negate()` |
+| 7 | `matchAssertion`'s `.not` walk (`:557-563`) | an unrecognised property declines the whole assertion; `negated` is set only on the literal token `not` |
+| 8 | `ConditionalExpression` | `whenTrue` → a, `whenFalse` → b, in order; with no condition it says "either a or b", asserting no polarity |
+| 9 | `literalGloss`'s "nothing" / "empty text" / "an empty list" / "an empty object" | each gated on an exact node kind or a zero length |
+| 10 | `data-english.js`'s "an empty object" / "an empty list" / "no arguments" | gated on `length === 0` **and bidirectional** — decoded back at `:180,181,196`, so an error would break byte-identity |
+| 11 | `archetypes.js` "no route registrations" / "no chainable methods"; `prose.js:71` "does nothing" | gated on counts |
+| 12 | column `an optional` / `a required` (`enfile.js:324`) | OR of the `nullable` decorator option and `?`; faithful to both inputs. Spot-checked 4/4 against `CreditNote.ts` — `uuid` nullable:true → optional, `noteNumber`/`billingAccountId` nullable:false → required |
+| 13 | remaining `.replace` on rendered prose | after `d41b064` there is exactly **one** in the whole clause path — `enfile.js:727`, inside `negate()`. Grepped across `enfile`, `node-kind-rules`, `prose`, `en-file-claim`, `en-scales`, `data-english`, `cnl` |
+
+### The mechanism that CANNOT be cleared — `enfile.js:971-976`, the guard-throw fallback
+
+```js
+const cd = dottedText(st.expression, sf)
+  || (ts.isPrefixUnaryExpression(st.expression) ? dottedText(st.expression.operand, sf) : null)
+  || (ts.isBinaryExpression(st.expression) ? dottedText(st.expression.left, sf) : null);
+const c = firstCallName(st.expression) || firstCallName(st);
+if (cd) guards.push(q(cd) + " does not hold");
+else guards.push(c ? q(c) + " does not hold" : "a check fails");
+```
+
+`isGuardThrow` matches `if (COND) throw …` **for any COND**, and this branch then asserts a
+**negative** polarity unconditionally. It is only correct when COND is itself a negation. The first
+`||` arm takes the dotted text of the condition **as it stands**; the third takes a binary
+expression's **left operand** — the comment says so deliberately, *"for `errors.length > 0` that is
+`errors`"* — and `errors.length > 0` throws precisely because `errors.length` **does** hold.
+
+**Enumerated exhaustively, not sampled: 52 guard clauses assert this negative polarity.**
+
+| | count |
+|---|---|
+| condition begins with `!` — clause correct | 14 |
+| condition NOT negated | **38** |
+| — of those, "a check fails" (names nothing, claims nothing false) | 4 |
+| — of those, accidentally correct | 2 |
+| — of those, **names an identifier absent from the condition** | 2 |
+| — of those, **INVERTED** — source throws *because* the named thing holds | **25** |
+| — of those, **FALSE** — asserts a named value is falsy when the source says no such thing | **5** |
+| **wrong clauses on disk from this mechanism** | **32** |
+
+**All 25 inversions, with the source that produced them:**
+
+```
+freshbooks-api/invoicing.ts:276   if (ThirdPartyLedger.instance.isThirdPartyError(transformed)) throw
+                                  -> "`isThirdPartyError` does not hold"
+freshbooks-api/invoicing.ts:313   same
+freshbooks-api/payments.ts:74     same, on responseData
+freshbooks-api/payments.ts:162    if (errors.length > 0) throw          -> "`errors.length` does not hold"
+.../markInvoicesAsSentWithSendHistory.ts:35  if (isXeroApiError(error)) throw
+                                  -> "`isXeroApiError` does not hold"
+hydra-api/billingAccounts.ts:46   if (Number.isNaN(min) || Number.isNaN(max) || min >= max) throw
+                                  -> "`isNaN` does not hold"
+hydra-api/commissions.ts:628      if (multipleCommissionExchangeRates.length > 1) throw
+hydra-api/currency-math/index.ts:26  if (throwIf.nan && v.isNaN()) throw      -> "`throwIf.nan` does not hold"
+hydra-api/currency-math/index.ts:29  if (throwIf.zero && v.isZero()) throw
+hydra-api/currency-math/index.ts:32  if (throwIf.infinity && !v.isFinite()) throw
+.../doBuildingBillingTypesMatchHistory.ts:110  if (validationError) throw
+.../doBuildingBillingTypesMatchHistory.ts:137  if (dataError) throw
+.../documentNotifications.ts:101  if (hasAny(invoicesDownloaded, (idl) => !idl.downloaded)) throw
+hydra-api/invoice.ts:217          if (existingProcessingClientRerunRecords.length > 0) throw
+hydra-api/massCredits/planning.ts:489  if (amountStringToMinorUnits(...) > 0 && taxMinorUnits === 0) throw
+hydra-api/webhooks/paymentWebhooks.ts:142  if (errorsInModifiedPayload.length > 0) throw
+hydra-api/webhooks/paymentWebhooks.ts:245  same
+.../promotedListingsContractUsageCalculator/index.ts:174  if (listingErrors.length > 0) throw
+rentsync-api/lift-db/subscriptions.ts:122  if (messages.length > 0) throw
+sandbox/oldSandboxes/sandbox.deleted_payments.dev.ts:32   if (isFreshbooksError(transformedData)) throw
+sandbox/oldSandboxes/sandbox.freshbooks_invoices.dev.ts:22    same
+sandbox/oldSandboxes/sandbox.payment_sync_statement.dev.ts:58 same
+tools/hubspot/hooks.ts:39         if (client.hubspotClientId) throw   -> "`client.hubspotClientId` does not hold"
+xero-api/XeroLedger.ts:607        if (hasErrors) throw                -> "`hasErrors` does not hold"
+xero-api/invoice.ts:685           if (errors.length > 0) throw
+```
+
+**The 5 FALSE (not strictly inverted — the clause asserts a falsiness the source never tests):**
+
+```
+hydra-api/credits.ts:86           if (amountOwing < amount) throw      -> "`amountOwing` does not hold"
+hydra-api/invoice.ts:1448         if (floatVal(x) === 0 || Number.isNaN(floatVal(x))) throw -> "`floatVal` does not hold"
+rentsync-api/calculators/shared.ts:167  if (start > end) throw         -> "`start` does not hold"
+.../tieredUnitCountUsageCalculator/helpers.ts:183  if (start > end) throw  -> "`start` does not hold"
+xero-api/initialXeroContactsUploadAndUpdate.ts:60  if (a.length !== b.length) throw -> "`...length` does not hold"
+```
+
+**The 2 WRONG SUBJECT — a worse shape, because the named identifier is not in the condition at all.**
+`firstCallName(st)` walks the WHOLE statement, throw body included, so it can name something from
+the message:
+
+```
+routers/documents.ts:30   if (!isoStartDate || !isoEndDate || !documentNames) throw
+                          -> "`filter` does not hold"        <- `filter` is nowhere in that condition
+sandbox/oldSandboxes/sandbox.payment_sync_statement.dev.ts:85
+                          -> "`doesFreshbooksPaymentNoteContainPID` does not hold"
+```
+
+### What this says about the corpus, and about the metrics
+
+**32 wrong clauses, and not one of them is visible to any figure we publish.** Every one quotes an
+identifier that IS in the statement, so `isSiteSpecific` scores it **site-specific** — it counts as
+*success*, in the 32,207. An inverted clause is not merely uncounted; it is counted as the good
+outcome. The four from `d41b064` were the same, and none of the five artifact credits, the coverage
+percentage, the REAL ladder or byte-identity can see this class at all.
+
+**Two mechanisms, and the second was found by asking a different question.** The first was found by
+reading 21 individual clauses while doing other work. This one was found by enumerating polarity
+machinery and asking, per mechanism, *can it invert by construction*. Thirteen mechanisms cleared;
+one did not; the one that did not held 32 defects to the first one's 4. **The census was worth
+eight times what the accident was.**
+
+### STOPPING HERE, deliberately
+
+The brief said to report the shape rather than rush a patch, and the shape is larger than the
+motivating bug. Nothing is fixed in this commit. What a fix has to decide, and none of it is
+obvious:
+
+- the correct clause for `if (errors.length > 0) throw` is a *positive* statement
+  ("fail when `errors` is not empty"), not a negated one — so this is a rewrite of the branch, not
+  a polarity flip;
+- `firstCallName(st)` must stop walking into the throw body, or the subject can come from the
+  message (2 sites);
+- and the honest fallback for a condition the branch cannot state is the subject-free
+  "a check fails", which is already there and already correct on all 4 of its sites — so declining
+  is a known-good option, at a cost in prose.
+
+**This will move renders and must be measured by differential with every change read individually,
+exactly as `d41b064` was — where the first, obvious cut was net negative.** That is the next item,
+not this one.
