@@ -11166,3 +11166,107 @@ unranked question, not a continuation of this workstream, and it is not proposed
 (`git diff` empty). Byte-identity **1037/1037 FAILURES 0**. Coverage TOTAL read fresh:
 `33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged, as no engine file moved.
 The promise `.then`/`.catch`/`.finally` slice was not touched.
+
+## OPTIONAL CHAIN — the "~72" is THREE different things, and the refusal prior FAILS here
+
+### 1. The ~72 does not reproduce as a defect count
+
+Measured fresh over all 1,037 files:
+
+```
+generic sites (frozen) ................................. 1615
+  whose STATEMENT contains an optional chain `?.` ...... 71     <- almost certainly the "~72"
+    clause quotes a path present only once ?. is flat ..  38     <- the actual defect
+    other optional-chain generic sites ..................  33     <- generic for unrelated reasons
+```
+
+The 33 in the last row (`await save`, `return the result of `hydraManager.save``) would be generic
+with or without a `?.` anywhere near them. **The recorded ~72 conflates "a generic site that happens
+to contain `?.`" with "a site mis-scored because of `?.`".** The real figure is **38**.
+
+The credit module records its own 38/39 as a **FLOOR**, because `isSiteSpecific`'s ordered
+alternation swallows backticked runs nested inside a `“…”` run, and says *"the recount belongs with
+the defect"*. That recount is done here, with a corrected non-swallowing tokeniser in the probe only:
+**the count did not move.** 38 either way. The floor caveat costs nothing on this defect.
+
+### 2. It is BOTH defects, and the split is 33 / 5
+
+The item does not distinguish them. Measured, by whether the English already tells the reader the
+value may be absent:
+
+| | sites |
+|---|---|
+| clause sits in a **presence frame** — optionality carried, only the SCORE is wrong | **33** |
+| clause reads as a **bare value** — optionality LOST, the English is wrong | **5** |
+
+**The 33 are a metric problem** and read correctly today:
+
+```
+if (!uploadedFile?.path) { … }    ->  stop early when `uploadedFile.path` is missing
+if (!responseJson?.response?.roles) -> when `responseJson.response.roles` is missing, warn
+return (deleteresult?.affected ?? 0) > 0
+      -> return whether `deleteresult.affected` if it is set, otherwise `0` is greater than `0`
+```
+
+"is missing", "is set", "if it is set, otherwise" — the absence is stated. These are correct clauses
+the frozen verbatim test cannot match, exactly like the one-char class. **Recorded beside the frozen
+figure. `isSiteSpecific` and `clause-quality.js` are untouched, and Amir's `>= 2` ruling stays
+unmade.**
+
+**The 5 are a truth problem** — every one, in full:
+
+```
+clientMonthly.ts:79   return accountRecord?.accountId;
+                      -> return `accountRecord.accountId`
+clientMonthly.ts:87   return accountRecord?.legacyAccountId;
+                      -> return `accountRecord.legacyAccountId`
+taxes.ts:216          if (ownershipGroup?.ownershipGroupsHasTaxes.length === 1)
+                      -> stop early when `ownershipGroup.ownershipGroupsHasTaxes.length` is `1`
+taxes.ts:224          if (invoiceGroups?.invoiceGroupsHasTaxes.length === 1)      (same shape)
+xero-api/invoice.ts:561  if (invoice.lineItems?.length === 0)                      (same shape)
+```
+
+A clause that renders `a?.b` identically to `a.b` **states something the code does not say**: it
+asserts a plain property read that would throw where the real code yields `undefined`. This is the
+same class as the empty-string case already fixed in `literalGloss` — *"a FALSE clause, not merely a
+thin one"* — at a comparable count (that one moved 22).
+
+**Limit of my own classifier, stated rather than hidden.** The presence/bare split is a regex over
+the clause. `commissions.ts:576` and `:617` land in CARRIED on the strength of "is nothing", and that
+gloss comes from `=== null`, not from the `?.` — the classification is right but for an adjacent
+reason. No site in the LOST set depends on the heuristic; all 5 were read individually.
+
+### 3. THE STANDING REFUSAL PRIOR FAILS HERE — measured before reaching, not assumed
+
+CLASS 3 (`inputsOf`) and CLASS 4 (`firstCallName`) were both fixed by refusing. The equivalent
+refusal here — `dottedText` declines a `PropertyAccessExpression` carrying a `questionDotToken` —
+was built and priced over all 33,918 statements:
+
+```
+REFUSAL VARIANT   MOVED 104     of those, 103 LOSE a name the old clause had
+   was: take `allowYmd` from `metaData.allowYmd`      now: compute `allowYmd`
+   was: when `responseJson.response.roles` is missing, warn
+   now: when the test on `responseJson`, `response`, and `roles` fails, warn
+```
+
+**It destroys 33 correct clauses to fix 5 wrong ones, and strips true names from 103 sites.** The
+prior fails because the defects are not the same shape: in classes 3 and 4 the engine reached for a
+name that was **not** the thing being described, so removing it was the whole fix. Here **the name is
+correct** — the path is right — and what is missing is a qualifier. A refusal deletes a true name to
+repair a missing adjective.
+
+### What `a?.b` should honestly read as, and what I have NOT done
+
+The engine **already ships the vocabulary**, in use at the `??` sites above and at
+`freshbooks-api/auth.ts:111`: *"return `fileContents.accountId` **if it is set**, otherwise nothing"*.
+So the honest reading in a bare-value position is the path **plus that existing qualifier** — a
+narrow reach at the value position, never a refusal at the leaf, and no new phrasing invented.
+
+**Not implemented in this commit.** The brief was to establish 1–3 before writing anything, and the
+remaining choice is a judgement that is not mine: 5 truth-defect sites is a small return, and a
+rendering change adds to the persisted-`.en` drift while the single authorised re-render is still
+blocked at the permission layer. Ready to implement on the word; the shape and the 5 sites are above.
+
+**Nothing changed.** `enfile.js` restored byte-identically after the probe (`git diff` empty).
+Byte-identity **1037/1037 FAILURES 0** before and after. Coverage TOTAL read fresh:
+`33918  32241  95%  1615  5%  62  0`, `42 passed, 10 failed` — unchanged, as no engine file moved.
