@@ -8698,3 +8698,104 @@ published series figure moved. Both are Amir's rulings to make.
 **Guardrails re-verified on HEAD `6467920`, not inherited from the pre-commit run:**
 `test-gen-roundtrip.js` → files 1037, byte-identical **1037**, FAILURES **0**.
 Coverage TOTAL → 33918 statements, 32195 site-specific, generic **1654**, 42 passed / 10 failed.
+
+## Buckets 2 + 4 + 7 — 20 could-fire became 43 improvements, and the census was wrong about bucket 7 (2026-09-04)
+
+Re-measured before any rule was written, by full-corpus differential over 33,918 statements, diffed
+on clause text, every change read individually.
+
+| candidate | mechanism | clauses changed | verdict |
+|---|---|---|---|
+| bucket 7 as the census framed it | two `BINARY_OPS` rows | **1** | the census was wrong — see below |
+| bucket 7 via `condGloss` | two predicate glosses | 20 | all 20 improvements |
+| bucket 7, both halves | disjoint sites | 21 | both kept |
+| bucket 4 | `literalGloss` empty-string case | 22 | all 22 improvements |
+| bucket 4 PLUS a 60→100 char cap | — | 61 | **not taken**, see below |
+| **shipped** | all of the above | **43** | 22 + 20 + 1, no interaction |
+
+### The census's bucket-7 claim was WRONG, and only the differential could have caught it
+
+The census said bucket 7 was *"the only bucket that is a straightforward vocabulary gap in a
+position a rule visits."* **The row is right; the position is not.** Adding `instanceof` and `in` to
+`BINARY_OPS` changes **one** clause in the whole corpus — a `return` site the census never listed —
+and moves **none** of the 9 sites the bucket was built from. Proven directly: for
+`invoices.ts:561`, the candidate rule renders "whether `err` is an instance of `Error`", and
+`spanActions` still emits "if a condition holds, throw", because the `IfStatement` branch
+(`enfile.js:1233`) asks **`condGloss`** and never asks the phrasebook at all.
+
+That claim was inferred from the worklist's attribution model, which walks `headOf` + `blockersOf`
+and *does* call `NKR.render`. **The attribution model and the live ladder ask different questions of
+the same statement, and agreement between them is not automatic.** This is the same lesson as the
+ceiling finding, one layer up: a site's *reachability* has to be measured through the path that
+actually renders it, not through the path that attributes it.
+
+Both halves shipped, because they reach **disjoint** sites: `condGloss` for the 20 conditions,
+`BINARY_OPS` for the one `return numericCode in GLCodeAccountNameMap;`.
+
+### A FALSE clause the first cut produced, caught by reading all 21
+
+The first `in` gloss rendered `if (!(cur.subscriptionId in acc))` as
+"check whether `cur.subscriptionId` **is a key in** `acc`" — the exact opposite of the source, on
+**5 sites**. The cause: `condGloss`'s `!` branch negates through a whitelist of three `.replace`
+calls (` passes ` → ` fails `, ` is set$`, ` holds$`), and **any phrase outside that whitelist loses
+its `!` silently.** Worst of the five, `reporting/index.ts:511`, negated its *other* operand
+correctly — "…`is a key in` `partnerCutOverrides` and `isPartnerInvoiced` is missing" — so the clause
+read authoritative and was half false.
+
+**This is a trap every future `condGloss` phrase inherits**, which is why the fix is a `NEGATABLE`
+table rather than two more `.replace` calls, and why a phrase that appears more than once or inside
+a compound **declines** instead of negating the first occurrence and calling it done (§5C). After
+the fix all 5 read "is not a key in", the site list is unchanged at 20, and only those 5 clauses
+differ from the unsafe cut.
+
+### Bucket 4 — the falsity, and the generalisation left alone
+
+`literalGloss` renders a string literal as `“its text”` when it is non-empty, single-line and ≤ 60
+chars, and "some text" otherwise. **The length cap is deliberate generalisation and was left
+untouched.** The empty case is not generalisation, it is a false statement: `return '';` said
+"return some text", telling the reader there is text.
+
+22 clauses change, all 22 improvements, none a regression — more than the 10 the census counted,
+because `literalGloss` is a leaf reached from ternary arms (`cors-config.ts:32`), variable
+initialisers (`jwt.ts:52`), assertion arguments (`helpers.test.ts:197`) and callback bodies
+(`clientMonthly.ts:458` — "filtered by whether `s` trimmed differs from empty text") as well as from
+`return`.
+
+**A 60 → 100 char cap was built and REFUSED.** It changes 61 clauses; the extra 39 are long prose
+messages inlined into clauses, which is exactly what the cap exists to stop. The cap is a judgement
+the file already made deliberately, and this pass found no evidence against it — only evidence
+against the empty case.
+
+### Bucket 2 — REFUSED, n=1
+
+One `ExportAssignment` in the corpus. It needs a new statement branch in `spanActions` and a
+`headOf` entry, for a single site. That is the same test `toUpperCase` and `toISOString` failed at
+zero, applied at one. **This is a judgement on the count, not a measurement** — no candidate was
+built, and it is recorded that way.
+
+### LESSON 1, honestly both ways
+
+**20 could-fire became 43 improvement-sites — but not by the route the census predicted.** Bucket 7
+went 9 → 1 through its own stated mechanism and 9 → 20 through a mechanism the census did not name;
+bucket 4 went 10 → 22; bucket 2 went 1 → 0. The headline number rose, and every component of it
+moved for a different reason than expected. **A could-fire count is not a work estimate even when it
+turns out to be an under-estimate.**
+
+### Measured, before and after (`2f0e1e2` → this change)
+
+| | before | after |
+|---|---|---|
+| `test-gen-roundtrip.js` | files 1037, byte-identical **1037**, FAILURES 0 | files 1037, byte-identical **1037**, FAILURES 0 |
+| coverage TOTAL, site-specific | 32195 | 32207 |
+| coverage TOTAL, generic | **1654** | **1645** |
+| coverage suite | 42 passed, 10 failed | 42 passed, 10 failed |
+| REAL | 601 | **592** |
+| NEITHER | 369 | **360** |
+
+The live tree was then re-diffed against the measured candidate: **0 clauses differ**, so the shipped
+code is the code the 43 were read from.
+
+No metric definition was touched: `clause-quality.js` byte-for-byte unchanged, `SAYS_NOTHING`
+unchanged, `isSiteSpecific`'s `bare.length >= 2` unchanged, no assertion, gate or exit code altered.
+The two filed findings — the optional-chaining credit class and the `“…”` tokeniser defect — were
+NOT touched; both are Amir's ruling. Bucket 6 was not rewired.

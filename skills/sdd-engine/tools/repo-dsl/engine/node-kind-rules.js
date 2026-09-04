@@ -133,6 +133,14 @@ const BINARY_OPS = closed({
   ">=": (a, b) => "whether " + a + " is at least " + b,
   "<": (a, b) => "whether " + a + " is less than " + b,
   "<=": (a, b) => "whether " + a + " is at most " + b,
+  /* `instanceof` and `in`, added 2026-09-04. Measured reach through THIS table alone: ONE site
+   * (infinityReportHelpers.ts:92, `return numericCode in GLCodeAccountNameMap;`). The other 19 the
+   * census predicted arrive through `condGloss` instead, because the `IfStatement` branch of
+   * `spanActions` asks `condGloss` and never asks this rule -- so the census's claim that bucket 7
+   * was "a vocabulary gap in a position a rule visits" was WRONG about which position, and the
+   * differential is what caught it. Both halves are kept: they reach disjoint sites. */
+  "instanceof": (a, b) => "whether " + a + " is an instance of " + b,
+  "in": (a, b) => "whether " + a + " is a key in " + b,
 });
 
 

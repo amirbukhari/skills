@@ -440,6 +440,14 @@ function literalGloss(n, sf) {
   if (ts.isNumericLiteral(n)) return q(n.getText(sf));
   if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
     const t = n.text.trim();
+    /* AN EMPTY STRING IS NOT "some text" -- it is a FALSE clause, not merely a thin one, and that
+     * falsity is the whole reason this line changed. `return '';` rendered "return some text",
+     * which tells the reader there is text. The 60-char cap below IS deliberate generalisation and
+     * is left alone; this is the one case where the generalisation states something untrue.
+     * Measured: 22 clauses change, all 22 improvements, and the reach is larger than the 10 sites
+     * the census counted because `literalGloss` is a leaf reached from ternary arms, assertion
+     * arguments, variable initialisers and callback bodies as well as from `return`. */
+    if (!n.text.length) return "empty text";
     return t && !/\n/.test(t) && t.length <= 60 ? "“" + t + "”" : "some text";
   }
   if (ts.isArrayLiteralExpression(n)) return n.elements.length ? null : "an empty list";
@@ -682,6 +690,9 @@ function recordGloss(n, sf) {
   return NKR.render(n, sf, NKRP);
 }
 
+/* The phrases `condGloss` knows how to NEGATE, beside the three `.replace` calls below that
+ * predate them. See the comment in the `!` branch for what a missing entry costs. */
+const NEGATABLE = [[" is an instance of ", " is not an instance of "], [" is a key in ", " is not a key in "]];
 function condGloss(n, sf, strict) {
   if (!n) return null;
   if (ts.isParenthesizedExpression(n)) return condGloss(n.expression, sf, strict);
@@ -689,7 +700,23 @@ function condGloss(n, sf, strict) {
     const d = dottedText(n.operand, sf);
     if (d) return q(d) + " is missing";
     const inner = condGloss(n.operand, sf);
-    if (inner) return inner.replace(/ passes /, " fails ").replace(/ is set$/, " is missing").replace(/ holds$/, " does not hold");
+    if (inner) {
+      /* NEGATION HERE IS A WHITELIST OF THREE PHRASES, and a predicate outside it loses its `!`
+       * SILENTLY. Measured 2026-09-04: the first cut of the `in` gloss below rendered
+       * `if (!(cur.subscriptionId in acc))` as "check whether `cur.subscriptionId` is a key in
+       * `acc`" -- the exact opposite of the source, on 5 sites, and one of them
+       * (reporting/index.ts:511) negated its OTHER operand correctly, so the clause read
+       * authoritative and was half false. Any future phrase added to `condGloss` inherits this
+       * trap, which is why the negations are a table and not three more `.replace` calls.
+       * A phrase appearing more than once, or inside a compound, DECLINES rather than negating
+       * the first occurrence and calling it done -- the honesty rule (§5C). */
+      for (const [ph, neg] of NEGATABLE) {
+        if (!inner.includes(ph)) continue;
+        if (inner.split(ph).length !== 2 || / and | or /.test(inner)) return null;
+        return inner.replace(ph, neg);
+      }
+      return inner.replace(/ passes /, " fails ").replace(/ is set$/, " is missing").replace(/ holds$/, " does not hold");
+    }
   }
   /* `typeof x === 'number'` is a type test, and saying so is more informative than either
    * operand alone. 86 conditions were falling through to "branch on a condition" on this shape. */
@@ -698,6 +725,20 @@ function condGloss(n, sf, strict) {
     const neg = n.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
       || n.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken;
     if (t) return q(t) + (neg ? " is not " : " is ") + P.a(n.right.text);
+  }
+  /* `instanceof` and `in` as CONDITIONS. These read as predicates, so they belong here beside the
+   * `typeof` test rather than only in BINARY_OPS: `condGloss` output is consumed after "fail when",
+   * "stop early when", "when" and "check whether", and "fail when whether `err` is an instance of
+   * `Error`" is not English. Measured 2026-09-04: 20 clauses change, all 20 improvements --
+   * "if a condition holds, throw" becomes "when `err` is an instance of `Error`, throw". */
+  if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.InstanceOfKeyword) {
+    const a = dottedText(n.left, sf), b = dottedText(n.right, sf);
+    if (a && b) return q(a) + " is an instance of " + q(b);
+  }
+  if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.InKeyword) {
+    const a = dottedText(n.left, sf) ? q(dottedText(n.left, sf)) : literalGloss(n.left, sf);
+    const b = dottedText(n.right, sf);
+    if (a && b) return a + " is a key in " + q(b);
   }
   if (ts.isCallExpression(n)) {
     const callee = n.expression;
