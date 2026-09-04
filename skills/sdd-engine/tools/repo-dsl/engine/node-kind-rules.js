@@ -439,8 +439,28 @@ function baseGloss(n, sf, P) {
 /** Render ONE node through the phrasebook. Null = no rule for this kind, or the rule declined. */
 function render(node, sf, P) {
   if (!node) return null;
-  const rule = RULES[ts.SyntaxKind[node.kind]];
-  return rule ? rule(node, sf, P) : null;
+  /* STRIP THE DECORATIVE WRAPPERS BEFORE DISPATCHING. `render` is keyed to a node's KIND, so a
+   * single pair of parentheses used to decide whether the phrasebook spoke at all. Measured
+   * 2026-09-04, the same statement twice:
+   *
+   *   return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
+   *   return ( parseFloat(a) * mult );  ->  "return parse float"
+   *
+   * The caller's ladder had already put `render` in FRONT of `firstCallName` precisely so the
+   * weakest truthful clause could not out-rank a rule; a wrapper node silently undid that, and the
+   * fall-through then named a method from inside the expression. 114 REAL sites, measured with the
+   * corrected attribution: ReturnStatement 88, IfStatement 20, ExpressionStatement 6.
+   *
+   * `await` IS NOT STRIPPED, deliberately. Parentheses, `as` and `!` carry nothing a reader needs;
+   * an await does — a clause that dropped it would claim a value where the code suspends, which is
+   * the confident-falsehood move §5C forbids. `baseGloss` keeps its own wider unwrap: it names the
+   * BASE of a chain, where the awaiting is the caller's to describe. */
+  let n = node;
+  while (n && (ts.isParenthesizedExpression(n) || ts.isAsExpression(n)
+    || ts.isNonNullExpression(n) || ts.isTypeAssertionExpression(n))) n = n.expression;
+  if (!n) return null;
+  const rule = RULES[ts.SyntaxKind[n.kind]];
+  return rule ? rule(n, sf, P) : null;
 }
 
 module.exports = { render, RULES, VERBS, KINDS: Object.keys(RULES) };

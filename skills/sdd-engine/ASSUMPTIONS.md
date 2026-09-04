@@ -8108,3 +8108,37 @@ them is provably zero at site level. **642 stands** and is now derived rather th
 
 Coverage test TOTAL row **1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**;
 series 921 / 774 / 117 / 15 / 642 all unmoved. `isSiteSpecific` untouched.
+
+## `render` strips decorative wrappers — and the wiring item is BLOCKED, not done (2026-09-04)
+
+**Measured before editing, as required:** the wiring class is **114 REAL sites**, not the ~46 I
+reported last turn — that figure came from a truncated top-8 sample, not a total. By statement kind:
+`ReturnStatement` 88, `IfStatement` 20, `ExpressionStatement` 6. It is materially ABOVE the estimate,
+so the item keeps its rank. Byte-identity at HEAD before the edit: **1037/1037, FAILURES 0**.
+
+**The defect, proven with the same statement twice:**
+
+```
+return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
+return ( parseFloat(a) * mult );  ->  "return parse float"
+```
+
+One pair of parentheses decided whether the phrasebook spoke at all, because `render` dispatches on
+a node's KIND and a wrapper is a different kind. `render` now strips `( )`, `as`, `!` and type
+assertions before dispatching.
+
+**`await` is deliberately NOT stripped.** Parentheses, `as` and `!` carry nothing a reader needs; an
+await does, and a clause that dropped it would claim a value where the code suspends — the
+confident-falsehood move §5C forbids. `baseGloss` keeps its own wider unwrap, because it names the
+BASE of a chain where the awaiting is the caller's to describe.
+
+**This change alone moves ONE site: 1,695 → 1,694.** The other 113 are shadowed one layer up, inside
+`enfile.js`'s return ladder, whose PARENTHESISED branch runs a shorter ladder that ends at
+`firstCallName(bare)` and never consults the phrasebook — while the bare branch below it does. That
+is the defect the branch's own comment already records ("THE PARENTHESISED BRANCH HAD A SHORTER
+LADDER"), recurring one rung later: it was extended to `recordGloss`/`arrayGloss`/`elemAccess` and
+not to `NKR.render`.
+
+**BLOCKED, not abandoned.** Fixing it requires editing `enfile.js`, which the current work order
+declares byte-for-byte frozen. Asked rather than assumed. Byte-identity after this change:
+**1037/1037, FAILURES 0**; coverage TOTAL row **1,694**; 42 passed / 10 failed.
