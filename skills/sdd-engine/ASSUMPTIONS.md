@@ -9505,3 +9505,73 @@ REAL sites**, more than three times the entire unruled worklist, and it needs VO
 
 **Guardrails: byte-identity 1037 files / 1037 byte-identical / FAILURES 0 — no engine file was
 touched, so the ladder is unchanged at 33918 / 32209 / 1647 / 62, 42 passed 10 failed.**
+
+---
+
+## THE PROMISE VOCABULARY IS ALREADY REFUSED — re-measured at HEAD, and it is WORSE (2026-09-04)
+
+**THE REPO WINS: this item was done and refused earlier on this branch, in `c016576`,** with the row
+built and all 45 sites rendered. The refusal is recorded in `node-kind-rules.js` as a 30-line comment
+immediately under `VERBS`, and in this file above. It was not carried forward into the backlog, so
+the item was assigned again. **Nothing here overturns it.**
+
+**But its evidence was six commits stale** — `d41b064`, `f1bb87c` and `d909c2f` all moved clauses
+under it — so the row was rebuilt from scratch and re-measured on HEAD `397cf9c` rather than cited.
+
+**Construction analysis FIRST, as ruled. Every one of the four hazards predicted is confirmed by
+the differential:**
+
+1. **The base is not the value, so the clause is FALSE.** The rule's contract is `base + " " + tail`,
+   a noun phrase whose base IS the value. `x.then(cb)` evaluates to *cb's* result.
+2. **`.catch` renders adjacent to success phrasing**, so a failure path reads as an outcome.
+3. **`.finally` is given an outcome it does not produce** — it does not change the value at all.
+4. **The join word IS "then"** (`verbs.join(" then ")`), so any `then` phrase stutters.
+
+**FULL-CORPUS RENDERING-PATH DIFFERENTIAL, 33,918 statements: 36 clauses changed, all 36 read
+individually. IMPROVEMENT-SITES 0. REGRESSIONS 36.** (It was 33 at `c016576`; the row reaches three
+more sites now and still improves none.)
+
+**31 trade a vacuous-but-honest clause for a FALSE one** — the worst trade this project has a name
+for, because `isSiteSpecific` scores the false one as a SUCCESS:
+
+```
+costPerLeadUsageCalculator.test.ts:286  return costPerLeadUsageCalculator([sub], YEAR, MONTH).then((calculated) => {...})
+   before : return then                                              <- vacuous, counted generic
+   after  : return the result of `costPerLeadUsageCalculator` then continued   <- FALSE, counted site-specific
+```
+
+`costPerLeadUsageCalculator`'s result is precisely what that statement does **not** return. 14
+`costPerLead` sites, 6 `flatFee`, 4 `activeBuilding`, plus `hubspot/tools.ts:47`,
+`hubspot/hooks.ts:101`, `monthlyOrchestrator.ts:226`, `legacyConversion/index.ts:366`, and 3 in
+`caching/memoize.ts` where "return the result of `returnValue.then`" becomes the flatly false
+"return `returnValue` then continued".
+
+**5 are ExpressionStatement sites, false in the same way and stuttering on top of it:**
+
+```
+invoiceTemplateData.ts:427  call catch  ->  call the result of `sendEmailNotification` with failures
+                                            handled by the result of `console.error`
+      -- you call `sendEmailNotification`, not its result.
+legacyConversion/index.ts:412  await finally  ->  await the result of `getBillingS3Records` then
+      continued then then continued then with failures handled then then finished off then then
+      finished off
+      -- reproduced verbatim at HEAD; the "then then" is the join word colliding with the phrase.
+hubspot/hooks.ts:101  ->  ... then continued by the result of `formatDeal` then then continued
+```
+
+**NET NEGATIVE, SO IT IS NOT SHIPPED, and the live tree was never touched** (`git diff --numstat`
+over `engine/` is empty; the row lived only in a scratch copy).
+
+**This is not a shape problem that better wording fixes.** A promise link needs a CONTINUATION
+grammar that can describe a block — `ArrowFunction` declines a block body by design, "a block is
+statements, not a value" — which is a different rule with a different contract, gated behind the
+`Block` work already refused in `9025220`. A `VERBS` row cannot express it, and R-LANG-16 forbids a
+second `CallExpression` rule.
+
+**Ladder conflict settled by reading, not by argument.** The coverage TOTAL row read fresh at the top
+of this turn, on HEAD `397cf9c`: **33918 / 32209 / 1647 / 62, 42 passed 10 failed.** The backlog's
+32211 / 1645 / 43-9 was true at `f1bb87c` and was moved by `d909c2f`, which is the commit that
+declined two `ForStatement` sites to "loop over `d`" / "loop over `y`". Both figures were correct at
+their own HEAD; only the newer one is current.
+
+**Byte-identity: 1037 files / 1037 byte-identical / FAILURES 0.**
