@@ -987,6 +987,20 @@ function spanActions(win, sf) {
         if (brg) { actions.push("return " + brg); continue; }
         const brc = returnCallGloss(bare, sf);
         if (brc) { actions.push(brc); continue; }
+        /* THE PHRASEBOOK, IN FRONT OF `firstCallName` — the SAME rung order the bare ladder below
+         * already has, and the third time this branch has been caught running a shorter one. The
+         * comment above records it being extended to `recordGloss`/`arrayGloss`/`elemAccess`; the
+         * phrasebook was added to the bare ladder afterwards and never mirrored here, so a single
+         * pair of parentheses decided whether a rule spoke:
+         *
+         *   return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
+         *   return ( parseFloat(a) * mult );  ->  "return parse float"
+         *
+         * A duplicated ladder that must be kept in step by hand is the drift class CLAUDE.md §8
+         * records against the walk SKIP sets. This rung makes the two agree; it does not merge
+         * them, because the bare branch's earlier rungs differ and merging is a separate change. */
+        const bvr = NKR.render(bare, sf, NKRP);
+        if (bvr) { actions.push("return " + bvr); continue; }
         const bc = firstCallName(bare);
         if (bc) { actions.push("return " + P.words(bc)); continue; }
       }
@@ -1173,6 +1187,18 @@ function spanActions(win, sf) {
             actions.push(verb + q(e.expression.text)); continue;
           }
         }
+      }
+      /* THE PHRASEBOOK BEFORE THE FALL-THROUGH, for the same reason the return ladder has it there:
+       * `firstCallName` yields the callee's LAST segment, so
+       * `result.filter((i) => i.x === y).map(...)` came out "call map" — the transformation named
+       * from inside the chain, with the collection the reader is tracking discarded. Placed AFTER
+       * the receiver-naming block above, so anything that block can already name keeps its wording;
+       * this rung only speaks where the fall-through would otherwise say a method name. */
+      {
+        let e2 = st.expression;
+        while (ts.isAwaitExpression(e2) || ts.isParenthesizedExpression(e2)) e2 = e2.expression;
+        const viaRule = NKR.render(e2, sf, NKRP);
+        if (viaRule) { actions.push(verb + viaRule); continue; }
       }
       const name = firstCallName(st);
       actions.push(verb + (name ? P.words(name) : "a step"));

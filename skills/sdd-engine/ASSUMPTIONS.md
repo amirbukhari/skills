@@ -8142,3 +8142,50 @@ not to `NKR.render`.
 **BLOCKED, not abandoned.** Fixing it requires editing `enfile.js`, which the current work order
 declares byte-for-byte frozen. Asked rather than assumed. Byte-identity after this change:
 **1037/1037, FAILURES 0**; coverage TOTAL row **1,694**; 42 passed / 10 failed.
+
+## The wiring: the phrasebook ahead of `firstCallName` in two ladders (2026-09-04)
+
+Ruled: what is frozen in `enfile.js` is the METRIC DEFINITION (`SAYS_NOTHING`), not the rendering
+ladders. Two rungs added, both in front of `firstCallName`, neither merging a ladder.
+
+**1. The parenthesised RETURN branch — 29 sites.** It ran a shorter ladder than the bare branch
+below it and ended at `firstCallName(bare)`, so one pair of parentheses decided whether a rule spoke:
+
+```
+return parseFloat(a) * mult;      ->  "return the result of `parseFloat` times `mult`"
+return ( parseFloat(a) * mult );  ->  "return parse float"
+```
+
+This is the **third** time that branch has been caught running a shorter ladder — its own comment
+records the previous extension to `recordGloss`/`arrayGloss`/`elemAccess`, and the phrasebook was
+added to the bare ladder afterwards and never mirrored. A duplicated ladder kept in step by hand is
+the drift class CLAUDE.md §8 records against the walk SKIP sets.
+
+**2. The EXPRESSION fall-through — 6 sites.** `result.filter((i) => i.x === y).map(...)` came out
+"call map": the transformation named from inside the chain with the collection discarded. Placed
+AFTER the receiver-naming block, so anything that block can already name keeps its wording.
+
+**THE HONEST REACH WAS 35, NOT 114 — corrected downward with evidence.** The 114 counted every site
+where the phrasebook COULD say something, not where it would be an IMPROVEMENT. Sampling the
+remainder showed most are already correct, and several are better than the rule:
+
+| clause today | what the rule would say | verdict |
+|---|---|---|
+| `stop early when \`commission.commissionPaidDate\` is nothing` | `whether \`commission.commissionPaidDate\` is nothing` | today is better |
+| `return \`user.password\` if it is set, otherwise nothing` | (same shape) | already correct |
+| `“Missing \`partnerId\`s from \`LiftPartner\` table: …”` | `either whether \`liftPartners.length\` is \`0\` or …` | today is better |
+| `call map` | `\`result\` filtered by whether \`i.ownershipGroupId\` is \`og.id\`, mapped` | **rule is better** |
+
+So the 60 remaining `ReturnStatement` and 20 `IfStatement` sites in that class are **not work**, and
+forcing the phrasebook in front of them would have overwritten good English to move a number. Only
+the `ExpressionStatement` group was a real defect. **A "could speak here" count is not a work
+estimate** — the same error as ranking on the frozen count before the elision was split out.
+
+**Series, before → after:** frozen **1,694 → 1,659**; elision 921 unchanged; net 773 → **738**;
+one-char 117 unchanged; escape 15 unchanged; **REAL 621 → 606**. Byte-identity **1037/1037,
+FAILURES 0** both before and after. 42 passed / 10 failed.
+
+`SAYS_NOTHING` and its strings are byte-for-byte unchanged (the diff on `enfile.js` contains zero
+`SAYS_NOTHING` lines); `clause-quality.js` and `statement-kind-coverage.test.js` are untouched
+entirely. No metric was redefined in this commit, and the fall in the count comes only from clauses
+that now say more.
