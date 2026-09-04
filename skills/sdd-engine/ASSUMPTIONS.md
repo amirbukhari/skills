@@ -7526,3 +7526,43 @@ short ladder in rule 2. In each, a *narrower older branch answered first and ref
 outside is indistinguishable from the new rule not existing. Worth stating as a rule of this
 codebase: **when a phrasebook rule under-delivers, suspect the ladder above it before the rule
 itself.**
+
+## Phrasebook rule 7 — `BinaryExpression` (2026-09-04)
+
+63 generic `ReturnStatement` sites after rules 1–6 (`??` 15, `&&` 11, `-` 10, `||` 7, `+` 7, `*` 4,
+and a tail), every one rendering as a call name pulled from **one operand**:
+
+```
+return first(accountIds) ?? null;
+  before ==>  "return first"
+  after  ==>  "return the result of `first` if it is set, otherwise nothing"
+```
+
+— half the expression named, and none of the operator.
+
+**The operator table is closed**, exactly as `VERBS` and `MATCHERS` are. An operator not in it
+declines; it is never rendered by falling back on its own symbol, which would put punctuation in a
+sentence and call it English. `=` and the compound assignments are deliberately absent — this rule
+describes a **value**, and an assignment is a statement about a name.
+
+**`??` and `||` are given different sentences, and that is the point of having a table at all.**
+`??` falls back only on null or undefined ("… if it is set, otherwise …"); `||` on any falsy value
+("either … or …"). Collapsing them would read fluently and be wrong at the one place a reader would
+care.
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0   (label-region metric; see rule 2's note)
+ReturnStatement     591 -> 565 generic  (-26);  site-specific 81%
+byte-identity       1037/1037
+round-trip          5 passed, 0 failed   (A and B both 1037/1037)
+en-idempotence      1037 compared, 0 drifted
+sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
+```
+
+**A note on how these were run.** Chaining four corpus-wide tests in one shell produced four crashes
+with a bare `Node.js v25.6.1` trailer; run individually all four pass. That is memory pressure on
+this shared machine, not a regression — the same hazard CLAUDE.md §7 records as "never run the full
+test suite here". Recorded because the failure signature is alarming and says nothing about the code:
+**run the corpus-wide tests one per shell.**

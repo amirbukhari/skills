@@ -37,7 +37,7 @@
  *
  * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression, PropertyAccessExpression,
  * ElementAccessExpression, ArrayLiteralExpression,
- * ConditionalExpression — in measured order of the
+ * ConditionalExpression, BinaryExpression — in measured order of the
  * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
@@ -51,6 +51,28 @@ const VERBS = {
   map: "mapped", filter: "filtered", reduce: "reduced", sort: "sorted",
   slice: "sliced", flat: "flattened", flatMap: "mapped and flattened",
   reverse: "reversed", join: "joined", concat: "with more appended",
+};
+
+
+/* The closed operator vocabulary for the BinaryExpression rule. MAY be added to; never loosened
+ * into "print the symbol". Assignment operators are absent on purpose — see the rule. */
+const BINARY_OPS = {
+  "??": (a, b) => a + " if it is set, otherwise " + b,
+  "||": (a, b) => "either " + a + " or " + b,
+  "&&": (a, b) => a + " and " + b,
+  "+": (a, b) => a + " plus " + b,
+  "-": (a, b) => a + " minus " + b,
+  "*": (a, b) => a + " times " + b,
+  "/": (a, b) => a + " divided by " + b,
+  "%": (a, b) => a + " modulo " + b,
+  "===": (a, b) => "whether " + a + " is " + b,
+  "==": (a, b) => "whether " + a + " is " + b,
+  "!==": (a, b) => "whether " + a + " differs from " + b,
+  "!=": (a, b) => "whether " + a + " differs from " + b,
+  ">": (a, b) => "whether " + a + " is greater than " + b,
+  ">=": (a, b) => "whether " + a + " is at least " + b,
+  "<": (a, b) => "whether " + a + " is less than " + b,
+  "<=": (a, b) => "whether " + a + " is at most " + b,
 };
 
 const unwrap = (n) => {
@@ -289,6 +311,34 @@ const RULES = {
     if (!a || !b) return null;                     /* half a ternary is not a ternary */
     const cond = P.cond ? P.cond(node.condition, sf) : null;
     return cond ? a + " if " + cond + ", otherwise " + b : "either " + a + " or " + b;
+  },
+
+  /* ── BinaryExpression ──────────────────────────────────────────────────────────────────────────
+   * `first(accountIds) ?? null` -> "the result of `first` if it is set, otherwise nothing";
+   * `a.getTime() - b.getTime()` -> "the result of `a.getTime` minus the result of `b.getTime`".
+   *
+   * 63 generic ReturnStatement sites after rules 1-6 (`??` 15, `&&` 11, `-` 10, `||` 7, `+` 7,
+   * `*` 4, and a tail), all rendering as a call name pulled from ONE operand — "return first" for
+   * the first example above, which names half the expression and none of the operator.
+   *
+   * THE OPERATOR TABLE IS CLOSED, exactly as `VERBS` and `MATCHERS` are. An operator not in it
+   * declines; it is never rendered by falling back on its own symbol, which would put punctuation
+   * in a sentence and call it English. `=` and the compound assignments are deliberately absent —
+   * this rule describes a VALUE, and an assignment is a statement about a name.
+   *
+   * `??` AND `||` ARE NOT THE SAME SENTENCE, and saying so is the point of having the table:
+   * `??` falls back only when the left is null or undefined ("if it is set"), `||` on any falsy
+   * value ("either / or"). Collapsing them would be a confident sentence that is wrong at the one
+   * place a reader would care. */
+  BinaryExpression(node, sf, P) {
+    if (!ts.isBinaryExpression(node)) return null;
+    const op = ts.tokenToString(node.operatorToken.kind);
+    const shape = BINARY_OPS[op];
+    if (!shape) return null;                       /* unknown operator -> decline, never print it */
+    const a = baseGloss(node.left, sf, P) || P.literal(node.left, sf);
+    const b = baseGloss(node.right, sf, P) || P.literal(node.right, sf);
+    if (!a || !b) return null;                     /* half an expression is not the expression */
+    return shape(a, b);
   },
 };
 
