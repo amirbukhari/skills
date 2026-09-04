@@ -90,6 +90,45 @@ completable.
 the language's kind vocabulary, and a rule for a kind that happens to be rare in Hydra is still worth
 writing, because it is not rare everywhere.)*
 
+### THE TABLE ABOVE IS NOT REPRODUCIBLE, AND THAT IS THE DEFECT — measured 2026-09-04
+
+**Nothing on disk reproduces `100 / 307,009 / 53`, and no correction is applied above.** The figures
+were re-measured over the same 1,037-file corpus with the live walk (`engine/walk-skip.js`) under
+four predicates. **None returns the published triple**, and two candidate corrections offered from
+outside the repo — *"99% is 54, not 53"* and *"101 structural kinds, not 100"* — appear in no
+measurement either:
+
+| predicate | kinds | instances | 50 / 80 / 90 / 95 / 99% |
+|---|---|---|---|
+| **A** `kind > LastToken` — `phrasebook-worklist.js:109`, the ONLY live predicate | **95** | **274,091** | 8 / 19 / 27 / 35 / **51** |
+| **B** A plus literals | **102** | **321,214** | 8 / 20 / 30 / 39 / **56** |
+| **C** all but keywords, punctuation and `Identifier` | **102** | **321,214** | 8 / 20 / 30 / 39 / **56** |
+| **D** every node kind, no exclusion | 158 | 541,157 | 5 / 21 / 36 / 51 / 78 |
+| — | *published above:* **100** | **307,009** | 8 / 19 / 28 / 37 / **53** |
+
+**THE ROOT CAUSE IS THAT THE TABLE NEVER NAMED ITS PREDICATE, AND THE PROSE CONTRADICTS ITSELF.**
+The heading says *"structural kinds only (tokens, keywords and bare identifiers excluded)"*, which is
+predicate **A** — and A's eight most common kinds do **not** include `StringLiteral`. The published
+list of eight does, in third place. `StringLiteral` **is** a token, so the table excludes tokens in
+its prose and counts one in its results. Predicates **B** and **C** reproduce the published eight
+**exactly, in order**, which identifies the family the table was really measured under — but they
+return 102 / 321,214 / 56, not 100 / 307,009 / 53.
+
+**The residual gap is most likely corpus drift.** The table landed in `e87d526` (2026-08-31); the
+corpus is untracked (`Examples/` is gitignored), so the state it was measured against cannot be
+recovered to confirm that. **That is a statement of what cannot be checked, not a diagnosis.**
+
+**Why the numbers above are left standing.** Substituting today's figures would replace one
+unreproducible triple with another, since the predicate that produced the original is not recorded
+anywhere and B/C is an inference from a top-eight ordering. **The argument the table exists to make
+is unaffected under every predicate measured:** 8 kinds reach 50% and the 99% figure lands between 51
+and 56 out of 400 — the rule set is finite and enumerable either way. What must change is the
+method, not the digits.
+
+**Whoever next touches these figures must name the predicate in the table itself** — file and line —
+so the next reader can re-run it. A measurement whose producer is unnamed cannot be corrected, only
+re-guessed, which is exactly what happened here.
+
 ## 4. What this changes, and what it does not
 
 **Changed — the answer to "where do sentence templates come from":**
