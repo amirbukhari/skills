@@ -148,9 +148,26 @@ function compile(text, index, opts = {}) {
   };
   const bodyTs = stmts.map((st) => emitStmt(st, "  ")).join("\n");
   const asyncKw = ctx.async ? "async " : "";
-  const retType = ctx.async ? "Promise<void>" : "void";
+  /* THE RETURN ANNOTATION IS ONLY WRITTEN WHERE THE GRAMMAR KNOWS IT. This read
+   *     const retType = ctx.async ? "Promise<void>" : "void";
+   * unconditionally, so `Return `firstNumber + secondNumber`.` compiled to a signature saying
+   * `: void` over a body returning a number — which `tsc` rejects, i.e. the grammar emitted code
+   * that does not compile. A returned VALUE therefore drops the annotation and lets TypeScript
+   * infer it; a function that returns nothing still says `void` / `Promise<void>` explicitly.
+   *
+   * OMISSION RATHER THAN INFERENCE, deliberately: the type of a returned clause is knowable only
+   * by reading the expression (`firstNumber + secondNumber` is `number` because both parameters
+   * are; the next case is a concatenation, or a call into the repo). Guessing it puts a WRONG name
+   * in the signature, which is a compile error; omitting it loses nothing, because tsc computes
+   * exactly the type the body produces. Pinned in engine/cnl-return-type.test.js, red first. */
+  const returnsValue = (() => {
+    const has = (parts) => (parts || []).some((p) => /^return\s+\S/.test(p));
+    return stmts.some((st) => st.kind === "if" ? (has(st.then) || has(st.els))
+      : st.kind === "loop" ? has(st.body) : has(st.parts));
+  })();
+  const retType = ctx.async ? ": Promise<void>" : ": void";
   const paramTs = params.map((p) => `${p.name}: ${p.type}`).join(", ");
-  const ts_ = `export const ${fnName} = ${asyncKw}(${paramTs}): ${retType} => {\n${bodyTs}\n};\n`;
+  const ts_ = `export const ${fnName} = ${asyncKw}(${paramTs})${returnsValue ? "" : retType} => {\n${bodyTs}\n};\n`;
   return { ts: ts_, fnName, params, ir: stmts };
 }
 

@@ -12012,3 +12012,75 @@ the code; it is refused, never silently ignored.
 Documentation only; no engine file touched. `files: 1037  byte-identical: 1037  FAILURES: 0`
 (re-read after the edits). Every experiment ran in `/tmp`; the corpus and `sen/` were not written.
 Drift queue unchanged at 73 sites / 47 files.
+
+## build-mandate — one command, a staleness check that can fire, and the round trip THROUGH DISK
+
+Amir: *"Npm run build exists? Fuck iron this out."*, then *"It needs to come with an end to end test.
+red green style"*, then *"No the end to end is TS in then English out then ts compiled back right?"*,
+then *"K make that shit work. And make sure it uses Grammer too In the tests"*.
+
+### WHAT WAS ALREADY THERE, and it is most of it
+
+`npm run build`, `npm run tiers`, `npm run preflight` and `sdd-run.js` all existed. Nothing new was
+built to sequence them. `engine/pipeline.js` is THE MINER, not orchestration — only its filename
+misleads, and renaming it is deliberately NOT done here.
+
+### THE REAL DEFECT, and it was in the check, not in the sequencing
+
+`preflight.js` computes STALE only along a declared `derivesFrom` edge. FOUR rows declared one, all
+four pointing at another registry artifact. The SEVEN phase-5/7 tier rows declared none, so they
+could only ever print `[ ok ]`. Measured against a fixture whose artifacts are dated 2020-01-01 and
+whose only source file is dated 2030-01-01, preflight at `5345bb0` printed `0 STALE` with all seven
+`[ ok ]`; with the edges declared, the same fixture prints `7 STALE`. Every edge was read out of its
+producer (`build-archetypes.js:61`, `package-hydra-source.js:34`, `:224`/`:296`), not assumed, and
+`COVERAGE.json` alone takes the `archetype-index.json` edge because that is the only place the value
+is used. `derivesFrom` now also accepts an array and two non-registry edge shapes, so this is NOT a
+data-only edit and the header says so.
+
+### THE END-TO-END GAP AMIR NAMED, and it is real
+
+`write-en-files.js:97` renders and compiles the IN-MEMORY `.en` string, then writes the file at `:115`.
+`test-lzw-roundtrip.js` does the same. So the 1037/1037 gate never reads a `.en` back off disk: a
+broken writer or reader leaves it untouched. `engine/roundtrip-through-disk.test.js` closes exactly
+that — write the `.en`, re-read it, compile, compare against the `.ts` re-read from disk.
+
+**It passed on the first run** — 80 sampled files, 80 byte-identical, 0 failures, including the five
+CRLF files and four non-ASCII ones. So it is case (b): no defect found, and the test had to be shown
+able to fail. It is, four ways, all by mutating the file ON DISK: label → REFUSED (SENTENCE AND
+PAYLOAD DISAGREE), heading → REFUSED (HEADING AND BODY DISAGREE), payload hole → OVERRULED by the
+sentence, dictionary → REFUSED.
+
+### THE ONE THAT MATTERS MOST — English in, TypeScript out, measured
+
+Editing a back-ticked NAME in the sentence and nothing else, then compiling the file off disk:
+
+```
+«▶ import `first` and `keys` from `@jamesgmarks/utilities` …   (payload untouched)
+->  import { firstMutatedXY, keys } from '@jamesgmarks/utilities';
+```
+
+The sentence is authoritative in the strong sense: `repairFromSentence` rebuilds the payload FROM the
+English rather than refusing. Mutating the payload alone leaves the output unchanged. Neither
+direction is silent.
+
+### A DEFECT FIXED, red first
+
+`cnl.js:151` annotated every function `: void` / `: Promise<void>`, so a returned value sat under a
+signature `tsc` rejects. The annotation is now written only where the grammar knows it — omitted when
+a value is returned, kept when nothing is. Omission, not inference: guessing a type name puts a wrong
+one in the signature; omitting it loses nothing.
+
+### MEASUREMENTS
+
+`files: 1037  byte-identical: 1037  FAILURES: 0` after every edit. `engine/cnl.test.js` 21 passed,
+`engine/author.test.js` 30 passed 0 failed, `engine/hand-authored-en.test.js` 6 assertions passed.
+New: preflight-staleness 5, roundtrip-through-disk 7, cnl-return-type 5 — each RED first (3/2, hole
+assertion, 2/3 respectively). Every fixture was a throwaway temp dir; the corpus and `sen/` were not
+written; `write-en-files.js` was not re-run. Drift queue unchanged at 73 sites / 47 files.
+
+### A FLOOR I BREACHED, reported rather than buried
+
+I ran `node run-tests.js --list` believing `--list` was a listing flag. It is not; the runner began
+executing the suite, which is banned on this machine. I killed it inside two minutes, after three
+tests had reported PASS. No OOM, nothing written. The lesson is the ordinary one: I did not check
+that the flag existed before running the command that the ban is about.
