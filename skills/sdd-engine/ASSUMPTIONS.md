@@ -10203,3 +10203,37 @@ Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after.
 35 passed, `author.test.js` 30 passed, `archetypes.test.js` 56 passed, all 0 failed.
 `clause-quality.js` untouched; `SDD_DERIVE_CHECK` untouched.
 
+
+## PIN vs RE-RENDER — RULED: PIN. Record-only; nothing implemented.
+
+Recorded in the PRD as **Q-10, CLOSED 2026-09-04** (`tools/prd/18-open-questions.md`). The ruling
+and its reasoning are the lane's, holding Amir's delegation, and are quoted there rather than
+paraphrased. This section carries what the repo says about building it.
+
+**The ruling stands against the repo — with one correction to what it costs, in its favour.**
+
+- **The citation is already recorded and needs no new format.** `⟪lzw1 <axis><wordId>⟨`
+  (`enlzw.js:181,300`). Measured fresh: **9,724 citations across 1,037 `.en` files, 4,643 distinct
+  word ids**. Because the ruling makes *every* citation a pin, there is no "pinned" flag to add and
+  nothing to distinguish — the `.en` format does not change.
+- **"Fails loudly" already exists at exactly the site it would fire from.** `enlzw.js:71-73`
+  throws `"enlzw: unknown word id " + id`, and the two live compile paths (`enfile.js:2482`,
+  `enfile.js:2563`) call `compileSpan` **uncaught**, so it propagates out of the compile instead of
+  degrading to verbatim. The two nearby `catch (_) { return null }` (`:2285`, `:2309`) are inside
+  `repairFromSentence`, where null means "could not prove I understood this edit" and falls through
+  to the existing loud refusal. **No live path swallows it.**
+- **So the entire cost of this ruling is R-PAY-6, and pinning is not implementable without it.**
+  Ids are positional — `const id = dict.length`, `wordlzw.js:62` and `:141` — so after a re-mine an
+  id that still exists may denote a **different** word. `expandKey` finds an entry, never throws,
+  and the `.en` silently compiles to other code. The failure is not missing; it is **undetectable**.
+  Under content-addressed ids a re-segmented-away word's id is simply absent, the existing throw
+  fires, and the ruling holds with no new mechanism.
+- **Complementary, as ruled, and the repo agrees on the mechanism.** R-PAY-6 closes renumbering.
+  Pinning closes re-segmentation — a window dropping below `createGate` (`wordlzw.js:152`) or being
+  superseded by a longer one. Neither closes the other.
+- **What exists today is blunter, not weaker.** `loadIndex`'s CANON MISMATCH refusal
+  (`enfile.js:191-200`) invalidates every `.en` on any canon change, per-catalog, not per-citation.
+  It cannot say "this one `.en` cites a word that no longer exists".
+
+**Nothing was implemented.** No engine file changed in this commit.
+

@@ -390,3 +390,57 @@ is the mechanics, and the current code is on the far side of the change:
   (in-repo `namer` module versus shelling to a CLI), the batch size and retry policy when the gate
   rejects a name, and whether the worksheet survives as `--dry-run`. **None of those can widen the
   blast radius**, which is the point of pinning the split first.
+
+---
+
+## Q-10 — ~~When a re-mine can no longer produce a word an `.en` cites, does the `.en` re-render or fail?~~ **CLOSED 2026-09-04. IT FAILS. A cited word is PINNED.**
+
+**The ruling, from the lane holding Amir's delegation:** *"Once an `.en` cites a word, that word is
+PINNED. A re-mine may not silently re-render around it."* If a cited word is re-segmented away, the
+re-mine **fails loudly on that `.en`**; it does not quietly re-render it. A pinned citation that can
+no longer be satisfied is an error a human resolves, not a diff that happens behind him.
+
+**Why.** The write direction only means anything if English a human typed is authoritative;
+re-rendering lets a re-mine silently rewrite text he wrote, which converts his authorship into a
+suggestion. A loud failure is recoverable. A silent re-render is the defect class that **scores as
+success**, which is the worst kind and the one this project keeps paying for.
+
+**It is complementary to R-PAY-6, not a duplicate of it.** R-PAY-6 (content-addressed ids) closes
+**renumbering** — the same pattern getting a different id on the next mine. Pinning closes
+**re-segmentation** — the pattern ceasing to be coined at all, because a corpus edit dropped its
+window below `createGate` (`wordlzw.js:152`) or a longer window superseded it. Neither closes the
+other.
+
+### What building it would require — checked against the repo, 2026-09-04
+
+**The citation is already recorded, and needs no new format.** An `.en` cites a word as
+`⟪lzw1 <axis><wordId>⟨` (`enlzw.js:181,300`). Measured: **9,724 citations across 1,037 `.en` files,
+4,643 distinct word ids.** The ruling says *every* citation is a pin, so no "pinned" flag has to be
+added anywhere — there is nothing to distinguish.
+
+**"Fails loudly" already exists at the site it would need to fire from.** `enlzw.js:71-73`:
+
+```js
+function expandKey(axis, id) { const w = ...; if (!w) throw new Error("enlzw: unknown word id " + id); ... }
+```
+
+and the two live compile paths — `enfile.js:2482` and `enfile.js:2563` — call `compileSpan`
+**uncaught**, so the throw propagates out of the compile rather than degrading to verbatim. The two
+`catch (_) { return null }` near it (`:2285`, `:2309`) are inside `repairFromSentence`, where a null
+means "could not prove I understood the edit" and falls through to the existing loud refusal. **No
+live path swallows it.**
+
+**So the whole cost of this ruling is R-PAY-6.** Today word ids are POSITIONAL — `const id =
+dict.length` at `wordlzw.js:62` and `:141` — so after a re-mine an id that still exists may denote a
+**different** word: `expandKey` finds an entry, never throws, and the `.en` silently compiles to
+other code. **Pinning is therefore not implementable on positional ids at all**, not because the
+failure path is missing but because the failure is undetectable. Under content-addressed ids a
+re-segmented-away word's id is simply **absent**, the existing throw fires, and the ruling holds with
+no new mechanism. That is the honest dependency and it matches the ruling's own reasoning.
+
+**What exists today in its place is a blunt instrument, not a weaker version of this.** `loadIndex`
+refuses on a CANON MISMATCH (`enfile.js:191-200`), which invalidates **every** `.en` on any canon
+change, per-catalog and not per-citation. It cannot express "this one `.en` cites a word that no
+longer exists".
+
+**Full record, with the measurements:** `ASSUMPTIONS.md`, "PIN vs RE-RENDER".
