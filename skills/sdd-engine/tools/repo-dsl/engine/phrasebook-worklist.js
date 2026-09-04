@@ -143,6 +143,19 @@ const FAMILY_OF = (() => {
   return m;
 })();
 
+/* The base of a declining call chain — the one child the CallExpression rule consults and can be
+ * unblocked by. Walks the chain exactly as the rule does; if the chain is not a method chain at all
+ * there is no base to blame, and the site attributes to the call itself. */
+function descendToBase(n, sf, P, acc, depth) {
+  let cur = unwrap(n);
+  while (cur && ts.isCallExpression(cur) && ts.isPropertyAccessExpression(cur.expression)) {
+    const name = cur.expression.name && cur.expression.name.text;
+    if (!name || !NKR.VERBS[name]) return;      /* refused on ITS OWN vocabulary — no child helps */
+    cur = unwrap(cur.expression.expression);
+  }
+  if (cur && cur !== unwrap(n)) blockersOf(cur, sf, P, acc, depth + 1);
+}
+
 /* Walk down from a node collecting the kinds that BLOCK it from rendering. See the header. */
 function blockersOf(node, sf, P, acc, depth) {
   if (!node || depth > 14) return;
@@ -165,6 +178,26 @@ function blockersOf(node, sf, P, acc, depth) {
     if (acc.credited) acc.declinedCredited.set(kind, (acc.declinedCredited.get(kind) || 0) + 1);
     /* PER DISTINCT SITE, BESIDE the occurrence count -- see DEDUPE in the header. */
     if (acc.siteDeclined) acc.siteDeclined.add(kind);
+    /* DESCEND ONLY WHERE THE RULE WOULD ACTUALLY LOOK — R-LANG-17, applied in the right direction.
+     *
+     * This descended into EVERY child of a declining node, which reads plausibly and is wrong: it
+     * attributes a blocked site to the deepest UNRULED kind it can reach, even when no rule for
+     * that kind could ever unblock it. The `CallExpression` rule refuses an unknown method at
+     *
+     *     if (!name || !VERBS[name]) return null;
+     *
+     * BEFORE it looks at the callback at all. Proven with three synthetic chains whose callback is
+     * identical and renders in every one: `rows.map(cb)` renders, `rows.then(cb)` and
+     * `rows.forEach(cb)` return null. So the callback's `Block` and `Parameter` were counted as
+     * blockers of 50 sites that a `Block` rule cannot move — and rule 10 was ranked on them, at 68
+     * REAL, when its true reach was 4. That is what this function existed to prevent, running
+     * backwards.
+     *
+     * The fix is not a special case: descend to the children the RULE consults, and to no others.
+     * For a declining chain that is the BASE — `a().b.map(x)` can be unblocked by naming `a()` —
+     * and never the arguments, which the rule never reaches. Everything else attributes to the
+     * node's own vocabulary, which is where the work actually is. */
+    if (kind === "CallExpression") { descendToBase(n, sf, P, acc, depth); return; }
     ts.forEachChild(n, (c) => blockersOf(c, sf, P, acc, depth + 1));
     return;
   }
@@ -251,6 +284,11 @@ function computeWorklist(opts) {
   const clauses = new Map();         // unruled kind -> clause text -> sites
   const perStatement = new Map();    // statement kind -> { generic, credited }
   let genericTotal = 0, creditedTotal = 0, noHead = 0, oneCharTotal = 0, bothTotal = 0, escapedTotal = 0;
+  let escXelision = 0, escXoneChar = 0, allThree = 0;
+  /* THE ACCEPTANCE TEST FOR THE ATTRIBUTION FIX, computed rather than asserted. Every REAL site
+   * lands in exactly one of these four buckets. If `both` is large the tables still double-count
+   * and the fix is incomplete; if the four sum to REAL, no site is counted twice or lost. */
+  const bucket = { familyOnly: 0, kindOnly: 0, both: 0, neither: 0 };
 
   for (const abs of files) {
     let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
@@ -281,13 +319,26 @@ function computeWorklist(opts) {
           if (oneChar) oneCharTotal++;
           const escaped = ES.creditsEscape(clause, text);
           if (escaped) escapedTotal++;
+          /* INCLUSION-EXCLUSION, measured rather than assumed. The three predicates can each match a
+           * DIFFERENT quoted run in the same clause, so none of the overlaps is provably zero at
+           * SITE level even where the predicates cannot both match one run. Subtracting three
+           * counts without these terms would under-report the real work. */
+          if (escaped && credited) escXelision++;
+          if (escaped && oneChar) escXoneChar++;
+          if (escaped && credited && oneChar) allThree++;
           if (credited && oneChar) bothTotal++;
           const sk = ts.SyntaxKind[st.kind];
           let ps = perStatement.get(sk);
           if (!ps) { ps = { generic: 0, credited: 0, oneChar: 0, escaped: 0 }; perStatement.set(sk, ps); }
           ps.generic++; if (credited) ps.credited++; if (oneChar) ps.oneChar++; if (escaped) ps.escaped++;
           const head = headOf(st);
-          if (!head) { noHead++; continue; }
+          if (!head) {
+            noHead++;
+            /* A no-head site is REAL work with nowhere to attribute it — it must land in the
+             * partition or the buckets silently lose 146 sites and still look self-consistent. */
+            if (!credited && !oneChar && !escaped) bucket.neither++;
+            continue;
+          }
           const siteMissing = new Set(), siteDeclined = new Set();
           const acc0 = { missing, missingCredited, declined, declinedCredited, eg, byStmt, clauses, stmtKind: sk, clause, credited, siteMissing, siteDeclined, method: null };
           blockersOf(head, sf, EN.NKRP, acc0, 0);
@@ -302,6 +353,10 @@ function computeWorklist(opts) {
             if (credited) declinedSitesCredited.set(k, (declinedSitesCredited.get(k) || 0) + 1);
             if (oneChar) declinedSitesOneChar.set(k, (declinedSitesOneChar.get(k) || 0) + 1);
             if (escaped) declinedSitesEscaped.set(k, (declinedSitesEscaped.get(k) || 0) + 1);
+          }
+          if (!credited && !oneChar && !escaped) {
+            const f = !!acc0.method, k = siteMissing.size > 0;
+            if (f && k) bucket.both++; else if (f) bucket.familyOnly++; else if (k) bucket.kindOnly++; else bucket.neither++;
           }
           if (acc0.method) {
             let mm = byMethod.get(acc0.method);
@@ -345,6 +400,7 @@ function computeWorklist(opts) {
 
   return {
     coverage: { kindsOccurring: occurring.size, kindsRuled: ruled.length, rules: NKR.KINDS.slice() },
+    attribution: { ...bucket, total: bucket.familyOnly + bucket.kindOnly + bucket.both + bucket.neither },
     /* `frozen` and `net` KEEP THEIR PUBLISHED MEANINGS (2,284 -> 1,729 -> 1,695, and net = frozen
      * minus elision credit). `oneChar` is added BESIDE them and `netOfBoth` is a separate name, so
      * no consumer of the existing series silently changes value. */
@@ -353,7 +409,9 @@ function computeWorklist(opts) {
       oneChar: oneCharTotal, creditedAndOneChar: bothTotal,
       netOfBoth: genericTotal - creditedTotal - oneCharTotal + bothTotal,
       escaped: escapedTotal,
-      real: genericTotal - creditedTotal - oneCharTotal + bothTotal - escapedTotal,
+      escapedAndElision: escXelision, escapedAndOneChar: escXoneChar, allThree,
+      real: genericTotal - creditedTotal - oneCharTotal - escapedTotal
+        + bothTotal + escXelision + escXoneChar - allThree,
     },
     perStatement: [...perStatement.entries()]
       .map(([kind, v]) => ({ kind, generic: v.generic, credited: v.credited, oneChar: v.oneChar, escaped: v.escaped, net: v.generic - v.credited }))
@@ -404,7 +462,8 @@ function report(w) {
   console.log("  RESIDUAL, NET OF BOTH ARTIFACTS ........ " + w.residual.netOfBoth);
   /* THE FOURTH COLUMN. The clause quotes a literal's DECODED value; `isSiteSpecific` compares
    * against the RAW source, so an escaped apostrophe fails a match the prose deserves. */
-  console.log("  of the frozen, an ESCAPED literal ...... " + w.residual.escaped + "   " + pc(w.residual.escaped, w.residual.frozen) + " of frozen");
+  console.log("  of the frozen, an ESCAPED literal ...... " + w.residual.escaped + "   " + pc(w.residual.escaped, w.residual.frozen) + " of frozen"
+    + "   (overlap: elision " + w.residual.escapedAndElision + ", one-char " + w.residual.escapedAndOneChar + ")");
   console.log("  RESIDUAL, REAL (net of all three) ...... " + w.residual.real + "   <-- the work that can actually be done");
   console.log("");
   console.log("  STATEMENT KIND            frozen   credited   1-char   escape      net   REAL");
@@ -413,6 +472,13 @@ function report(w) {
       + "   " + String(r.oneChar).padStart(6) + "   " + String(r.escaped).padStart(6) + "   " + String(r.net).padStart(6) + "   " + String(r.real).padStart(4));
   }
   console.log("    " + "(no single head expr)".padEnd(22) + String(w.residual.noHead).padStart(6));
+  console.log("");
+  console.log("ATTRIBUTION OF THE " + w.residual.real + " REAL SITES — each lands in exactly ONE bucket");
+  console.log("  a declining rule's own VOCABULARY (the family table) ... " + w.attribution.familyOnly);
+  console.log("  an UNRULED kind (the worklist) ......................... " + w.attribution.kindOnly);
+  console.log("  BOTH — still double-counted ............................ " + w.attribution.both);
+  console.log("  NEITHER — no head, or nothing attributable ............. " + w.attribution.neither);
+  console.log("  sum .................................................... " + w.attribution.total + (w.attribution.total === w.residual.real ? "   == REAL" : "   != REAL — SITES ARE LOST OR DOUBLED"));
   console.log("");
   console.log("WORKLIST — UNRULED kinds, RANKED BY REAL = distinct sites − elision − one-char − escape  <-- next rule here");
   const byFrozen = w.worklist.slice().sort((a, b) => b.blocked - a.blocked);
@@ -438,14 +504,13 @@ function report(w) {
     + String(r.distinctNet).padStart(21) + " (" + String(r.distinctSites).padStart(4) + ", " + String(r.distinctCredited).padStart(4) + ", " + String(r.distinctOneChar).padStart(4) + ", " + String(r.distinctEscaped).padStart(3) + ")"
     + String(r.distinctReal).padStart(7) + "   " + r.kind));
   console.log("");
-  console.log("CallExpression BY FAMILY — PROVISIONAL: a site whose PARENT refuses attributes to the CHILD kind here,");
-  console.log("  so these overlap Block/Parameter above. Ceilings, not totals, until the attribution model is fixed.");
+  console.log("CallExpression BY FAMILY — the parent's own vocabulary, which is where the work is");
   console.log("    sites  credited   1-char   escape    REAL   family");
-  /* PROVISIONAL, and it says so in the output. A site whose PARENT refuses the chain is attributed
-   * here to the child kind it stopped at, not to the parent's vocabulary — so `Block`/`Parameter`
-   * and the promise/arrayMutation families are partly the SAME sites counted twice, under two
-   * names. Fixing the attribution model is its own item; until it lands, every family figure below
-   * is a ceiling, not a total. */
+  /* NO LONGER PROVISIONAL. These used to overlap the worklist above: a site whose parent refused
+   * the chain was attributed to the child kind it stopped at as WELL as to the parent's method, so
+   * `Block`/`Parameter` and the promise/arrayMutation families were partly the same sites under two
+   * names. `blockersOf` now descends only where the rule looks, and the partition below reports how
+   * many sites are still counted in both tables. */
   w.families.forEach((r) => {
     console.log("    " + String(r.sites).padStart(5) + "   " + String(r.credited).padStart(7) + "   " + String(r.oneChar).padStart(6)
       + "   " + String(r.escaped).padStart(6) + "   " + String(r.real).padStart(5) + "   " + r.family);

@@ -8042,3 +8042,69 @@ figure here may be summed with any worklist figure, and none of them is settled.
 
 `isSiteSpecific` untouched, its `>= 2` unchanged and not proposed to move. Coverage test TOTAL row
 **1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**.
+
+## Attribution fixed: descend only where the rule looks (2026-09-04)
+
+`blockersOf` descended into EVERY child of a declining node, so a blocked site was attributed to the
+deepest UNRULED kind it could reach — even when no rule for that kind could unblock it. The
+`CallExpression` rule refuses an unknown method at `if (!name || !VERBS[name]) return null;` **before
+it looks at the callback**, so the callback's `Block` and `Parameter` were counted as blockers of 50
+sites they cannot move. Rule 10 was ranked on them at 68 REAL when its true reach was 4.
+
+**The probe, identical before and after — this change touches no renderer:**
+
+```
+rows.map((r) => r.id)      cb renders `r.id`  ->  parent "`rows` mapped to `r.id`"
+rows.then((r) => r.id)     cb renders `r.id`  ->  parent NULL
+rows.forEach((r) => r.id)  cb renders `r.id`  ->  parent NULL
+```
+
+**The fix is not a special case:** descend to the children the RULE consults and to no others. For a
+declining chain that is the BASE (`a().b.map(x)` can be unblocked by naming `a()`); never the
+arguments, which the rule never reaches.
+
+**Effect on the worklist — `Block` and `Parameter` dissolve:**
+
+| kind | REAL before | REAL after |
+|---|---|---|
+| `PrefixUnaryExpression` | 36 | **36** |
+| `NewExpression` | 16 | **11** |
+| `Block` | 57 | **1** |
+| `Parameter` | 51 | **1** |
+
+**The partition is the acceptance test, and it now balances.** Every REAL site lands in exactly one
+bucket:
+
+```
+a declining rule's own VOCABULARY (the family table) ... 183
+an UNRULED kind (the worklist) ......................... 49
+BOTH — still double-counted ............................ 5
+NEITHER — no head, or nothing attributable ............. 405
+sum .................................................... 642   == REAL
+```
+
+**5 sites are still counted in both tables** — reported, not hidden. Worklist ROWS sum to 58 over 54
+distinct sites, because one site can reach two unruled kinds; per-kind rows are therefore still not
+addable, and the partition is the number to trust.
+
+**The overlaps are now measured, not assumed** (your arithmetic point): escape∩elision **0**,
+escape∩one-char **0**, all three **0**. The inclusion-exclusion terms are in the computation
+regardless, because each predicate can match a DIFFERENT quoted run in the same clause, so none of
+them is provably zero at site level. **642 stands** and is now derived rather than asserted.
+
+**The big finding: NEITHER is 405 of 642 — the phrasebook programme can reach at most ~237 sites.**
+146 are no-head. Of the remaining 259, sampled and classified:
+
+- **192 `ReturnStatement` sites whose head is already nameable and whose clause is already correct
+  English that quotes nothing** — `return [];` → "return an empty list". `isSiteSpecific` requires a
+  QUOTED run, so a clause that is perfect prose without quoting anything can never score
+  site-specific. This is a FIFTH artifact class and the largest yet. **Recorded, not acted on:** it
+  is the same threshold question as the 117, and it is Amir's unmade ruling.
+- **~46 sites where the phrasebook ALREADY RENDERS the head and the ladder never asks it** —
+  `return parseFloat(...) * x` says "return parse float" while the rule yields "the result of
+  `parseFloat` times …"; `result.filter(...).map(...)` says "call map". The `ExpressionStatement`
+  branch of `spanActions` never calls `NKR.render` at all. **This is pure wiring, no new vocabulary
+  and no new rule** — the highest-value item now visible.
+
+Coverage test TOTAL row **1,695**, 42 passed / 10 failed; byte-identity **1037/1037, FAILURES 0**;
+series 921 / 774 / 117 / 15 / 642 all unmoved. `isSiteSpecific` untouched.
