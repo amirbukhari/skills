@@ -29,7 +29,10 @@ const G = require("./generators");
 const EL = require("./enlzw"); // recursive word dictionary (generators referencing generators)
 const REF = require("./refusals");
 const P = require("./prose"); // reuse deterministic humanisation helpers (words/list/a) for labels
-const NKR = require("./node-kind-rules"); // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
+const NKR = require("./node-kind-rules");
+/* the primitives the phrasebook renders WITH — passed in rather than duplicated there, so "how an
+ * identifier is spelled" keeps exactly one definition (node-kind-rules.js header). */
+const NKRP = { dotted: (n, sf) => dottedText(n, sf), q: (t) => q(t), list: (a) => P.list(a), member: (nm, sf) => safeMemberName(nm, sf) }; // THE PHRASEBOOK: one rule per AST node kind (PRD §5D.3C)
 const FCLAIM = require("./en-file-claim"); // the FILE-scale label: a claim, not a concatenation
 
 const OPEN = "«", CLOSE = "»";
@@ -562,7 +565,7 @@ function returnCallGloss(e, sf) {
      * base, so a one-link chain produces exactly what the line below it always produced and a
      * chain of any length now produces something instead of nothing. It declines on any unknown
      * method or unnameable base, and the older paths stand unchanged underneath it. */
-    const chain = NKR.render(inner, sf, { dotted: dottedText, q });
+    const chain = NKR.render(inner, sf, NKRP);
     if (chain) return lead === "return what " ? "return what " + chain + " gives" : "return " + chain;
     if (recv && RETURN_VERBS[method]) return "return " + q(recv) + " " + RETURN_VERBS[method];
     const dotted = dottedText(inner.expression, sf);
@@ -649,15 +652,10 @@ function arrayGloss(n, sf) {
 /* `{ a, b, c }` — name the fields, which is what the reader is looking for. */
 function recordGloss(n, sf) {
   if (!n || !ts.isObjectLiteralExpression(n) || !n.properties.length) return null;
-  const keys = [];
-  for (const pr of n.properties) {
-    if (ts.isSpreadAssignment(pr)) { const t = dottedText(pr.expression, sf); if (!t) return null; keys.push("everything in " + q(t)); continue; }
-    const nm = pr.name && safeMemberName(pr.name, sf);
-    if (!nm) return null;
-    keys.push(q(nm));
-  }
-  if (keys.length > 5) return "a record with " + keys.length + " fields";
-  return "a record of " + P.list(keys);
+  /* DELEGATES to the phrasebook's ObjectLiteralExpression rule (§5D.3C). This was a second, older
+   * definition of the same gloss with a cardinality cliff at five keys; it is now one rule, keyed
+   * to the node kind, and this function is the adapter that keeps the ladder's call site intact. */
+  return NKR.render(n, sf, NKRP);
 }
 
 function condGloss(n, sf, strict) {
@@ -961,6 +959,12 @@ function spanActions(win, sf) {
         if (ts.isNewExpression(bare) && ts.isIdentifier(bare.expression)) { actions.push("return a new " + q(bare.expression.text)); continue; }
         const bl = literalGloss(bare, sf);
         if (bl) { actions.push("return " + bl); continue; }
+        /* THE PARENTHESISED BRANCH HAD A SHORTER LADDER than the bare one below: it went straight
+         * from `literalGloss` to the call glosses, so `return ({ ids, genSubId, type, ... })` never
+         * met `recordGloss` and came out as "return map" — a method name lifted from inside a
+         * property value. Same rule, same rung, so `(x)` and `x` now render alike. */
+        const brg = recordGloss(bare, sf) || arrayGloss(bare, sf) || elemAccess(bare, sf);
+        if (brg) { actions.push("return " + brg); continue; }
         const brc = returnCallGloss(bare, sf);
         if (brc) { actions.push(brc); continue; }
         const bc = firstCallName(bare);

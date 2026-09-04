@@ -35,7 +35,8 @@
  * (§5D.3C's own table lists StringLiteral third; it counted literals, this pass excludes everything
  * at or below `LastToken`. The ordering of the kinds that take rules is unchanged.)
  *
- * RULES AUTHORED SO FAR: CallExpression. Highest instance count with a MEASURED defect — see below.
+ * RULES AUTHORED SO FAR: CallExpression, ObjectLiteralExpression — in measured order of the
+ * defects they close, each shipped and committed alone so its effect is attributable.
  */
 const ts = require("typescript");
 
@@ -96,6 +97,57 @@ const RULES = {
     const verbs = methods.map((m) => VERBS[m]);
     const tail = verbs.length === 1 ? verbs[0] : verbs.join(" then ");
     return P.q(base) + " " + tail;
+  },
+
+  /* ── ObjectLiteralExpression ───────────────────────────────────────────────────────────────────
+   * Names the FIELDS, which is what a reader of a returned record is looking for, and says how many
+   * more there are: "a record of `id`, `clientId`, `amount`, `dueDate`, `status` and 19 more fields".
+   *
+   * THE DEFECT IT CLOSES, measured over the corpus 2026-09-04 before it was written.
+   * `ObjectLiteralExpression` is the LARGEST single source of contentless ReturnStatement clauses —
+   * 124 bare sites plus 23 parenthesised, ahead of CallExpression's 90 — and the cause was a hard
+   * CARDINALITY CLIFF. `recordGloss` listed every key up to five and then, at six, threw all of them
+   * away for a bare count:
+   *
+   *     return { id: client.id, allowLateNotifications: ..., sCode: ..., fax: ..., ... }
+   *       ==>  "return a record with 49 fields"
+   *
+   * Forty-nine field names were in hand and none reached the reader. That is precisely the shape
+   * R-LANG-16 forbids: arity is a PARAMETER of one rule, never grounds for a different answer. The
+   * same cliff produced "a record with 24 fields", "with 34 fields", "with 65 fields" — a number is
+   * not English about this site, and it is identical for every record of that size in the corpus.
+   *
+   * IT DEGRADES, IT DOES NOT DECLINE. A computed key or an un-nameable spread used to return null
+   * for the WHOLE literal, discarding the eleven fields that could be named; those now count toward
+   * the tail. Declining outright is what sent `return ({ ids, genSubId, type, ... })` down to
+   * `firstCallName` and out as "return map" — a clause built from a method name buried in a
+   * property value, with the record itself discarded.
+   *
+   * IT NEVER SPLICES A VALUE (§5C honesty). Keys are named; what is assigned to them is not
+   * guessed at. A literal with nothing nameable in it at all still returns null and the caller's
+   * older output stands. */
+  ObjectLiteralExpression(node, sf, P) {
+    if (!ts.isObjectLiteralExpression(node)) return null;
+    if (!node.properties.length) return "an empty object";
+    const named = [];
+    let hidden = 0;
+    for (const pr of node.properties) {
+      if (ts.isSpreadAssignment(pr)) {
+        const t = P.dotted(pr.expression, sf);
+        if (t) named.push("everything in " + P.q(t)); else hidden++;
+        continue;
+      }
+      const nm = pr.name && P.member(pr.name, sf);
+      if (nm) named.push(P.q(nm)); else hidden++;
+    }
+    if (!named.length) return null;                /* nothing nameable -> decline, do not waffle */
+    /* SHOWN is 5 so that every literal today's `recordGloss` listed in full is rendered
+     * byte-identically; the rule changes only what the cliff used to discard. */
+    const SHOWN = 5;
+    const shown = named.slice(0, SHOWN);
+    const rest = named.length - shown.length + hidden;
+    const tail = rest ? [rest + " more field" + (rest === 1 ? "" : "s")] : [];
+    return "a record of " + P.list(shown.concat(tail));
   },
 };
 

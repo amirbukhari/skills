@@ -7224,3 +7224,68 @@ call it can find. **`ObjectLiteralExpression` (10,933 instances, kind #7) is rul
 (en-idempotence 1037/0) before this, so changing any clause makes all of them stale and R-REND-6's
 derive-check refuses them loudly — which is how this landed, with `enfile.test.js` naming the exact
 clause. `write-en-files.js` was re-run; the corpus is gitignored, so no `.en` is in the commit.
+
+## Phrasebook rule 2 — `ObjectLiteralExpression` (2026-09-04)
+
+Shipped alone, after rule 1 (`CallExpression`, `72279c6`), per Amir's instruction to take the
+highest instance count first and measure after each.
+
+**Why this kind was second.** Measured over the 1,037-file corpus *before* writing anything: of the
+generic ReturnStatement clauses, `ObjectLiteralExpression` is the single largest source — **124 bare
+sites plus 23 parenthesised**, ahead of `CallExpression`'s 90 and `ArrayLiteralExpression`'s 75.
+
+**The defect was a cardinality cliff, which is the exact shape R-LANG-16 forbids.** `recordGloss`
+listed every key up to five and then, at six, discarded all of them for a bare count:
+
+```
+return { id: client.id, allowLateNotifications: ..., sCode: ..., fax: ..., ... }   (49 keys)
+  ==>  "return a record with 49 fields"
+```
+
+Forty-nine field names were in hand and none reached the reader. A count is not English about *this*
+site — it is identical for every 49-field record in the corpus. Arity is a **parameter** of one rule,
+never grounds for a different answer.
+
+Two smaller causes closed with it:
+
+- **It declined instead of degrading.** One computed key or one un-nameable spread returned null for
+  the *whole* literal, throwing away the eleven fields that could be named. Those now count toward
+  the tail ("and 6 more fields").
+- **The parenthesised branch of the ReturnStatement ladder was SHORTER than the bare one** — it went
+  from `literalGloss` straight to the call glosses, never meeting `recordGloss` at all. So
+  `return ({ ids, genSubId, type, ... })` came out as **"return map"**: a method name lifted from
+  inside a property value, with the record itself discarded. `(x)` and `x` now render alike. This is
+  the same divergent-ladder class as the SKIP-set duplication (CLAUDE.md §8) — two copies of one
+  decision that drifted.
+
+`recordGloss` is now a five-line adapter delegating to the phrasebook, so there is **one** definition
+of this gloss rather than two. `SHOWN = 5` was chosen so every literal the old code listed in full
+renders byte-identically; the rule changes only what the cliff used to throw away.
+
+**Measured after.**
+
+```
+reads as English    31.8% -> 31.8%    DELTA 0.0
+ReturnStatement     783 -> 663 generic  (-120);  site-specific 78%
+corpus generic      2,284 -> 2,164      (-120)
+byte-identity       1037/1037
+round-trip          A ts->en->ts 1037/1037,  B en->ts->en 1037/1037
+en-idempotence      1037 compared, 0 drifted  (after re-running write-en-files.js)
+sentence-authority  21 passed, 0 failed
+enfile.test.js      6 passed;  round-trip-fixpoint 5 passed, 0 failed
+```
+
+**The 0.0 delta is expected and is not a null result — same reason as rule 1.** `reads as English`
+classifies **bytes** (`skeleton + gap + word-like holes`) and clause prose is not one of its inputs;
+`measure-english.js`'s own header says so: *"Label-region only. compileChunk never reads a label, so
+nothing here can move a byte."* The metric that moves for a clause rule is the generic-clause count,
+which fell by 120. **Reporting 0.0 as the headline for this work would be reporting the wrong
+instrument, not a failure.** Worth Amir's attention: the briefed baseline of 31.8% cannot respond to
+phrasebook rules at all, so if that is the number he wants moved, the work order is a different one
+(hole/skeleton coverage, not clause quality) — flagged, not assumed.
+
+**One follow-up, deliberately not acted on.** `sen/catalog/word-names.json:28954` still holds
+`"en": "return a record with 22 fields"` — a mined word's *name*, carrying a clause form that no
+longer renders anywhere. It is a naming artifact, not a render; round-trip and idempotence are green,
+so nothing is broken by it. Refreshing names means re-running the naming step, which is not part of
+shipping this rule, and `author-names.js` / `name:author` is banned outright.
