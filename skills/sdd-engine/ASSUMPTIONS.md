@@ -10638,3 +10638,115 @@ Four deliberate choices, each because the cheaper version would have measured le
 Section 6 is **byte-for-byte unchanged**: the denominator is still 58 and all three legs still read
 58/58. Byte-identity after: **`files: 1037  byte-identical: 1037  FAILURES: 0`** — run even though
 the change is confined to a test file that nothing imports.
+
+## CLASS 3 — the callee enumerated as one of its own inputs, fixed at the class
+
+### Premises, checked against the repo before acting
+
+| premise as handed to me | verdict |
+|---|---|
+| 58 sites reproduces at HEAD | **YES, exactly** — 58, and the flagship example reproduces verbatim |
+| 37 files | **NO — 39.** Sites match to the unit; the file count does not |
+| the class is 58 | **NO — it is 77 in 50 files.** 58 is one of three shapes |
+| `inputsOf` is the site of the defect | **NO, it is a downstream symptom** — see below |
+| supersedes the entry recording 6, because 6 was LOCAL | **HOLDS** |
+| all 58 score as SUCCESS, so no published metric should move | **the reasoning holds; the conclusion had to be earned** |
+| independent of Amir's three pending rulings | **HOLDS for the fix; see the corpus note at the end** |
+
+**The class decomposes into three shapes, and the census's 58 is only the first:**
+
+```
+shape A   `<list> passes `cn``                      enfile.js:775   58 sites   39 files
+shape B   `the test on <list> passes`, callee among others            8 sites    8 files
+shape B'  `the test on `callee` passes`, callee the ONLY item        11 sites    8 files
+                                                            TOTAL   77 sites   50 files
+68 of the 77 have a DOTTED callee; 9 have a bare one.
+```
+
+**Where the defect actually is.** `inputsOf` does what it documents — a callee *is* a dotted value
+that gets read. The failure is that its consumers call the result "inputs" without excluding the
+operation:
+
+- `enfile.js:774` **tries** to exclude it — `inputsOf(n, sf).filter((x) => x !== cn)` — but `cn` is
+  `callee.name.text`, the **last segment** (`isNaN`), while `inputsOf` returns the **full dotted
+  path** (`Number.isNaN`). They never compare equal, so the filter only ever worked for a
+  bare-identifier callee. That is 68 of the 77 sites.
+- `enfile.js:796` and `:816` apply **no filter at all**, so even a bare callee leaks. That is 9.
+
+Fixed **in `inputsOf`**, once, rather than in three consumers — its own contract is *inputs*, and the
+operation is not one of them.
+
+### The design question was settled by measurement, not preference
+
+**Dropping the whole callee subtree also clears the class (77 → 0), and it is wrong.** Measured:
+
+```
+ctx.path.startsWith(x)                 "`ctx.path` fails `startsWith`"  ->  "`startsWith` does not hold"
+if (ctx.method.toUpperCase() === "…")  "the test on `ctx.method.toUpperCase` passes"  ->  "if a condition holds"
+```
+
+The second is **site-specific → GENERIC**. Corpus-wide that variant turned **2 clauses VACUOUS and 4
+GENERIC** — moving a published figure in order to fix a truth defect, which is the wrong trade.
+
+**So the receiver is kept and only the called name is dropped**, plus a second pass: **prefer real
+inputs, and fall back to the operation only when there are none.** `if (doesTokenFileExist())` has
+no input but the call itself, and "branch on a condition" is a worse failure than the one being
+fixed — the same stance `condGloss` already takes when it emits "`cn` holds".
+
+**That is why the class ends at 3, not 0, and the 3 are deliberate:** `auth.ts:78`, `auth.ts:107`,
+`invoice.ts:275` — every one a call whose only nameable content IS the operation. **74 of 77 fixed,
+3 retained with the reason.** Reporting 0 would have meant deleting information to reach a round
+number.
+
+### What moved
+
+```
+186 clauses moved across 104 files — 181 shorter, 3 longer, 2 the same length, 0 emptied
+```
+
+The 3 longer are gains: the 4-input cap frees a slot for a real value once the callee stops taking
+one (`throw an error reporting `Error`, …` → the same list plus `newFbPayment.type`).
+
+**The published figure does not move — measured, not assumed.** Coverage TOTAL, read FRESH on both
+sides:
+
+```
+BEFORE  TOTAL  33918  32209  95%  1647  5%  62  0      42 passed, 10 failed
+AFTER   TOTAL  33918  32209  95%  1647  5%  62  0      42 passed, 10 failed
+```
+
+Exactly two sites change score and they cancel:
+
+- **gain** `tools.ts:89` — `subscription.baseSubscription.partnerId.toString` → `…partnerId`
+- **loss** `creditNotes.ts:412` — "log an error about `inspect` and `e`" → "about `e`", because
+  dropping the callee leaves only a **one-character** name and `isSiteSpecific`'s `>= 2` threshold is
+  **frozen**. A truthful clause scoring worse, not a worse clause. The threshold is Amir's unmade
+  ruling and is **not** worked around here.
+
+Byte-identity: **`files: 1037  byte-identical: 1037  FAILURES: 0`**.
+
+### THE PART I DID NOT DO, AND WILL NOT DO UNASKED
+
+**A renderer change makes the persisted `.en` corpus stale, and closing that is a corpus WRITE.**
+A5 half 1 caught it precisely, which is the gate earning its keep:
+
+```
+1037 compared, 104 drifted, 0 threw, 0 with no .ts counterpart
+```
+
+104 — exactly the 104 files whose clauses moved. `enfile.test.js`'s corpus case is red for the same
+reason, and it is **R-REND-6 refusing correctly**: the written `.en` says `headings.map`, the renderer
+now derives `headings`, and the compiler will not guess.
+
+**Both go green on a re-render (`npm run render` → `write-en-files.js`) and on nothing else.** I have
+not run it. Three reasons, in order:
+
+1. It writes 1,037 files into `Examples/`, which is **gitignored — the corpus has no git safety net**.
+2. No instruction in this lane authorises a corpus write, and byte-identity was the only guardrail I
+   was asked to re-run.
+3. **It would be the second of two re-renders.** Both legs of the R-PAY-6 fork re-render all 1,037
+   `.en`; the 104 this change needs are a strict subset. Sequencing this one behind the fork costs
+   nothing and halves the writes.
+
+**So: the engine change is landed and measured; the corpus is knowingly one re-render behind, and
+that is recorded rather than quietly fixed.**

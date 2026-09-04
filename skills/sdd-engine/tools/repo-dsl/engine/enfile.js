@@ -644,16 +644,73 @@ function matchSpecBlock(st, sf) {
 }
 
 /* the distinct dotted values an expression READS, in source order, capped so a sentence stays a
- * sentence. Used where the operation itself cannot be named honestly but its inputs can. */
+ * sentence. Used where the operation itself cannot be named honestly but its inputs can.
+ *
+ * A CALLEE IS NOT AN INPUT. `if (Number.isNaN(A))` used to read "stop early when `Number.isNaN` and
+ * `A` passes `isNaN`" — the function enumerated as one of its own arguments. A dotted callee is a
+ * dotted path, so the generic walk below collected it like any other value, and the ONE consumer
+ * that tried to exclude it (the CallExpression branch, `.filter(x => x !== cn)`) compared against
+ * `callee.name.text` — the LAST SEGMENT, `isNaN` — which never equals the full `Number.isNaN` that
+ * lands in this list. The filter therefore only ever worked for a bare-identifier callee, and the
+ * two fallback branches applied no filter at all.
+ *
+ * FIXED HERE, IN THE ONE PLACE, rather than in the three consumers: this function's own contract is
+ * INPUTS, and the operation is not one of them. Measured corpus-wide before the change: 77 sites in
+ * 50 files quoted a callee among its own inputs — 58 through the CallExpression branch (the figure
+ * the §subject-fidelity census published), 8 more and 11 solo through the `the test on … passes`
+ * fallbacks, which the census's shape did not reach.
+ *
+ * THE RECEIVER IS KEPT; ONLY THE CALLED NAME IS DROPPED, and that split was measured rather than
+ * chosen. Dropping the whole callee subtree also clears the class (77 -> 0) but loses real values:
+ * `ctx.path.startsWith(x)` fell to "`startsWith` does not hold", and `if (ctx.method.toUpperCase()
+ * === "POST")` fell from "the test on `ctx.method.toUpperCase` passes" all the way to "if a
+ * condition holds" — site-specific to GENERIC, which would have moved a published figure to fix a
+ * truth defect. Keeping the receiver reads "`ctx.path` fails `startsWith`" and "the test on
+ * `ctx.method` passes" instead.
+ *
+ * WHAT IT LEAVES, stated rather than implied: on 35 sites in 24 files the receiver is a bare
+ * capitalised global — "`Number` and `A` passes `isNaN`" — which is still noise. It is a DIFFERENT
+ * and smaller defect (a namespace named as a value) and no site is worse than it was, since
+ * `Number` is what `Number.isNaN` was already claiming to be. Separating a namespace from a value
+ * needs knowledge this layer does not have, so it is recorded, not guessed at.
+ *
+ * CORPUS-WIDE EFFECT, measured before and after over all 33,918 statements: 186 clauses moved
+ * across 104 files — 181 shorter, 3 longer (the 4-input cap frees a slot for a real value once the
+ * callee stops taking one), 2 the same length, 0 emptied. The class goes 77 -> 3.
+ *
+ * THE PUBLISHED FIGURE DOES NOT MOVE, and that was measured, not assumed: the coverage TOTAL row
+ * reads 33918 / 32209 specific / 1647 generic / 62 vacuous both before and after, 42 passed 10
+ * failed either side. Exactly two sites change score and they cancel — `tools.ts:89` gains
+ * (`subscription.baseSubscription.partnerId.toString` -> `…partnerId`) and `creditNotes.ts:412`
+ * loses ("log an error about `inspect` and `e`" -> "about `e`"), because dropping the callee leaves
+ * only a ONE-CHARACTER name and `isSiteSpecific`'s `>= 2` threshold is frozen. That single loss is
+ * a truthful clause scoring worse, not a worse clause; the threshold is Amir's ruling, unmade, and
+ * is not worked around here. */
 function inputsOf(n, sf, out, seen) {
   out = out || []; seen = seen || new Set();
-  const visit = (x) => {
-    if (!x || out.length >= 4) return;
-    const d = dottedText(x, sf);
-    if (d) { if (!seen.has(d)) { seen.add(d); out.push(d); } return; }
-    ts.forEachChild(x, visit);
+  const scan = (skipCallees) => {
+    const visit = (x) => {
+      if (!x || out.length >= 4) return;
+      if (skipCallees && (ts.isCallExpression(x) || ts.isNewExpression(x))) {
+        const callee = x.expression;
+        if (callee && (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))) visit(callee.expression);
+        for (const a of (x.arguments || [])) visit(a);
+        return;
+      }
+      const d = dottedText(x, sf);
+      if (d) { if (!seen.has(d)) { seen.add(d); out.push(d); } return; }
+      ts.forEachChild(x, visit);
+    };
+    visit(n);
   };
-  visit(n);
+  scan(true);
+  /* AN OPERATION'S NAME BEATS SILENCE. `if (doesTokenFileExist())` has no input but the call
+   * itself; excluding it left "branch on a condition" — a clause that says nothing, which is a
+   * worse failure than the one being fixed. Measured: the strict pass alone turned 2 clauses
+   * VACUOUS and 4 GENERIC. So the rule is PREFER real inputs, and fall back to the operation only
+   * when there are none — the same stance `condGloss`'s CallExpression branch already takes when it
+   * emits "`cn` holds". This is why the class is 74 fixed and 3 deliberately retained, not 77. */
+  if (!out.length) scan(false);
   return out;
 }
 
