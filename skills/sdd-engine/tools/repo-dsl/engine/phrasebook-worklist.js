@@ -44,6 +44,7 @@ const NKR = require("./node-kind-rules");
 const CR = require("./corpus-root");
 const Q = require("./clause-quality");
 const { SKIP } = require("./walk-skip");
+const EC = require("./elision-credit");   /* the SECOND figure — see engine/elision-credit.js */
 
 const SHOW_EXAMPLES = process.argv.includes("--examples");
 const SHOW_CLAUSES = process.argv.includes("--clauses");
@@ -148,7 +149,7 @@ const eg = new Map();
 const byStmt = new Map();          // unruled kind -> statement kind -> sites
 const clauses = new Map();         // unruled kind -> clause text -> sites
 const perStatement = new Map();       // statement kind -> residual generic count
-let genericTotal = 0, noHead = 0;
+let genericTotal = 0, noHead = 0, creditedTotal = 0;
 
 for (const abs of files) {
   let source; try { source = fs.readFileSync(abs, "utf8"); } catch (_) { continue; }
@@ -172,6 +173,7 @@ for (const abs of files) {
         if (Q.isVacuous(clause) || EN.SAYS_NOTHING.test(clause)) continue;
         if (isSiteSpecific(clause, st.getText(sf))) continue;
         genericTotal++;
+        if (EC.creditsElision(clause, st.getText(sf))) creditedTotal++;
         const sk = ts.SyntaxKind[st.kind];
         perStatement.set(sk, (perStatement.get(sk) || 0) + 1);
         const head = headOf(st);
@@ -194,6 +196,12 @@ console.log("  kinds with a rule ...................... " + ruled.length + "   "
 console.log("  rules: " + NKR.KINDS.join(", "));
 console.log("");
 console.log("RESIDUAL GENERIC SITES ................... " + genericTotal + "   (statement sites whose clause quotes nothing from the site)");
+/* THE SECOND FIGURE, AFTER THE FROZEN ONE AND NEVER INSTEAD OF IT. The ranking below is computed
+ * from the FROZEN count, deliberately: this driver's job is to say where a rule could speak, and
+ * whether a site's existing prose is credited is a different question, answered by the "says:"
+ * lines under each kind. */
+console.log("  of those, quoting the site through the renderer's “…” .. " + creditedTotal);
+console.log("  RESIDUAL GENERIC, NET OF ELISION ....... " + (genericTotal - creditedTotal));
 [...perStatement.entries()].sort((a, b) => b[1] - a[1]).forEach(([k, n]) =>
   console.log("    " + String(n).padStart(5) + "  " + k));
 console.log("    " + String(noHead).padStart(5) + "  (of those, no single head expression to attribute)");

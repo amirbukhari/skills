@@ -7713,3 +7713,82 @@ sentence-authority  21 passed, 0 failed;   enfile.test.js 6 passed
 
 `reads as English` is not reported: it is label-region byte classification and clause prose is not one
 of its inputs, so it is the wrong instrument for this work.
+
+## The `…` elision, measured as a SECOND figure — the frozen one is untouched (2026-09-04)
+
+### What was built
+
+`engine/elision-credit.js` — a new, separately named predicate. `VACUOUS`, `SAYS_NOTHING` and the
+frozen site-specific predicate are **byte-for-byte unchanged**, and the published series
+(4,646 → 2,362; corpus generic 2,284 → 1,729) stands exactly as it was. Amir's rule is the shape of
+this whole item: *"If you ever find yourself editing the definition of mute in the same commit as a
+drop in mutes, stop and tell me."* Teaching the frozen predicate its own `…` convention would be
+shape-identical to re-baselining a check, so nothing here does that, and **no consumer of the new
+module feeds an assertion** — the coverage test's 42 passed / 10 failed is identical before and
+after.
+
+The credit rule is deliberately narrow: a quote is credited only if it **contains `…`** and its
+literal segments occur **in order** in the statement text, segments under two characters dropped
+(mirroring the frozen predicate's own `bare.length >= 2`). Order is load-bearing — without it two
+common words scattered anywhere would credit an unrelated sentence.
+
+It **does not** credit the `?.` case (`` `responseJson.response.roles` `` against a source reading
+`responseJson?.response?.roles`). That is a separate backlog item and a different question — render
+or measure — and folding it in would make one figure answer two questions and neither cleanly.
+
+### The figures, old first
+
+```
+                              frozen (published, unchanged)      net of “…” elision (new)
+at 72279c6, before rule 2              2,284                              1,363
+at e199d99, after rule 9               1,729                                808
+                                       -555  (-24.3%)                     -555  (-40.7%)
+```
+
+The retroactive baseline was computed **at the older commit**, not at today's — a metric introduced
+at its own best moment is a cooked number. Method, reproducible:
+
+```sh
+git archive 72279c6 skills/sdd-engine/tools/repo-dsl | tar -x -C <scratch>
+ln -s <real>/node_modules <scratch>/.../repo-dsl/node_modules
+cp engine/elision-credit.js <scratch>/.../engine/          # new predicate, old engine
+# patch the OLD copy of statement-kind-coverage.test.js with the same counting edit
+SOURCE=<corpus> CORPUS=<corpus> node engine/statement-kind-coverage.test.js
+  ->  BASELINE frozen-generic=2284 credited=921 net=1363
+  ->  TOTAL  33918  31565 93%  2284 7%  69  0
+```
+
+No checkout, reset, stash, rebase or amend — the old tree was materialised read-only into `/tmp`.
+**The extraction validated itself:** the old engine reproduced the frozen 2,284 exactly, which is
+also an independent confirmation of the accepted series start.
+
+*One honest limitation.* `Examples/` is gitignored, so the corpus cannot be recovered from git and
+the old **engine** was measured against **today's** `.ts` tree. That is sound here because `SOURCE`
+is never written — the `.ts` files are the same bytes — but it would not be sound for any measurement
+that depends on `sen/`.
+
+### Two findings that fall out of the numbers
+
+**1. The absolute drop is identical (−555) and only the percentage moves, because the credited count
+is 921 at BOTH commits — per kind, identically: ThrowStatement 326, IfStatement 313,
+ExpressionStatement 282.** That is not a bug and it is worth stating plainly: **rules 1–9 never
+touched a site whose prose was already correct.** The programme has been adding sentences where there
+were none, not rewording good ones. It is the strongest available evidence that reading the "says:"
+lines before ranking — the driver's first finding — was the right call rather than a lucky one.
+
+**2. The frozen figure understates the programme's progress by a factor of 1.67.** Measured against
+work that could actually be done, rules 1–9 removed **40.7%** of it, not 24.3%. The 921 credited
+sites are a constant in the denominator that no phrasebook rule can ever move.
+
+### Credit strength, so the new figure carries its own confidence
+
+Of the 921 credited, by matched literal characters: **854 strong (≥20 chars), 54 medium (10–19),
+13 weak (<10)**. The weak tail is 0.75% of the frozen 1,729, and reading it, even those are the
+author's own words (`log an error “… not found”` against `\`${name} not found\``). I did not tighten
+the predicate to remove them: it would drop true positives with them, and a 13-site uncertainty band
+stated is worth more than a tighter number that hides its own edges.
+
+### Not decided here
+
+Whether the definition of mute ever changes is Amir's ruling, in its own pass, separate from any drop
+it would cause. Nothing in this commit implements or presumes it.

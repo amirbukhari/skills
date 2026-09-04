@@ -29,6 +29,10 @@ const ts = require("typescript");
 const EN = require("./enfile");
 const CR = require("./corpus-root");
 const Q = require("./clause-quality");
+/* A SECOND FIGURE, NEVER A REPLACEMENT. `generic` below is frozen and is computed exactly as it
+ * always was; this only counts, alongside it, how many of those generic sites quote the site's own
+ * words through the renderer's `…` elision. Nothing here feeds an assertion. */
+const EC = require("./elision-credit");
 const { SKIP } = require("./walk-skip");
 
 let pass = 0, fail = 0;
@@ -62,7 +66,7 @@ function isSiteSpecific(clause, stmtText) {
 const kinds = new Map();   // kind -> { sites, specific, generic, vacuous, none, egGeneric, egVacuous }
 const bump = (k) => {
   let r = kinds.get(k);
-  if (!r) { r = { sites: 0, specific: 0, generic: 0, vacuous: 0, none: 0, egGeneric: null, egVacuous: null }; kinds.set(k, r); }
+  if (!r) { r = { sites: 0, specific: 0, generic: 0, vacuous: 0, none: 0, elided: 0, egGeneric: null, egVacuous: null }; kinds.set(k, r); }
   return r;
 };
 
@@ -96,7 +100,11 @@ for (const abs of files) {
         if (!clause) { rec.none++; continue; }
         if (Q.isVacuous(clause)) { rec.vacuous++; if (!rec.egVacuous) rec.egVacuous = clause; continue; }
         if (isSiteSpecific(clause, st.getText(sf))) rec.specific++;
-        else { rec.generic++; if (!rec.egGeneric) rec.egGeneric = clause.slice(0, 72); }
+        else {
+          rec.generic++; if (!rec.egGeneric) rec.egGeneric = clause.slice(0, 72);
+          /* counted BESIDE generic, never instead of it */
+          if (EC.creditsElision(clause, st.getText(sf))) rec.elided++;
+        }
       }
     }
     ts.forEachChild(n, visit);
@@ -106,8 +114,9 @@ for (const abs of files) {
 
 const rows = [...kinds.entries()].map(([kind, r]) => ({ kind, ...r })).sort((a, b) => b.sites - a.sites);
 const totals = rows.reduce((t, r) => ({ sites: t.sites + r.sites, specific: t.specific + r.specific,
-  generic: t.generic + r.generic, vacuous: t.vacuous + r.vacuous, none: t.none + r.none }),
-  { sites: 0, specific: 0, generic: 0, vacuous: 0, none: 0 });
+  generic: t.generic + r.generic, vacuous: t.vacuous + r.vacuous, none: t.none + r.none,
+  elided: t.elided + r.elided }),
+  { sites: 0, specific: 0, generic: 0, vacuous: 0, none: 0, elided: 0 });
 
 const pc = (n, d) => (d ? (100 * n / d).toFixed(0) : "0").padStart(3) + "%";
 console.log("");
@@ -126,6 +135,22 @@ console.log("  " + "TOTAL".padEnd(30) + String(totals.sites).padStart(6)
   + "   " + String(totals.generic).padStart(6) + " " + pc(totals.generic, totals.sites)
   + "   " + String(totals.vacuous).padStart(5)
   + "   " + String(totals.none).padStart(6));
+console.log("");
+/* THE SECOND FIGURE, PRINTED AFTER THE FROZEN ONE AND NEVER INSTEAD OF IT (R-ARCH-16B's pattern:
+ * old number first, always). The frozen `generic` above is the published series and is unchanged.
+ * This line says how much of it is the renderer's own `…` elision meeting a predicate that matches
+ * verbatim — see engine/elision-credit.js. It feeds NO assertion, by design: whether the definition
+ * of mute ever changes is Amir's ruling, in its own pass. */
+console.log("  GENERIC, NET OF THE RENDERER'S OWN “…” ELISION (a second figure; the frozen one above stands)");
+console.log("    generic (frozen) ................... " + totals.generic);
+console.log("    of those, quoting the site through “…” " + totals.elided
+  + "   " + (totals.generic ? (100 * totals.elided / totals.generic).toFixed(1) : "0") + "% of generic");
+console.log("    generic net of elision ............. " + (totals.generic - totals.elided));
+const elidedRows = rows.filter((r) => r.elided > 0).sort((a2, b2) => b2.elided - a2.elided);
+for (const r of elidedRows) {
+  console.log("      " + r.kind.padEnd(24) + String(r.generic).padStart(6) + " frozen  ->  "
+    + String(r.generic - r.elided).padStart(6) + " net   (" + r.elided + " credited)");
+}
 console.log("");
 
 /* ---- the assertions ---------------------------------------------------------------------------
