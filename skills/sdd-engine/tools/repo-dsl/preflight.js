@@ -139,19 +139,34 @@ const MANIFEST = [
     derivesFrom: "generators-lzw" },
   { phase: 2, kind: "word-names", cmd: "npm run name:tier  (or npm run apply:worksheet-names)",
     consumers: ["render (chunk headings)"], protected: true },
+  /* RETRACTED 2026-09-04 — this row used to carry a `blocked:` field asserting that name-queue
+   * "has never published" and that "running it again cannot fix this", because reconcile-names.js
+   * stamped AC.stamp("word-names", { names, orphans }) against a registry entry whose
+   * requires: ["names","orphans","chunks"] refused the body. THAT CLAIM IS NOW FALSE and was
+   * misread aloud as current. It is kept here rather than deleted (../../CLAUDE.md §9) so a stale
+   * memory cannot re-derive it.
+   *
+   * WHAT ACTUALLY CLOSED IT, in the order the header of reconcile-names.js records and for the
+   * reason it gives: the names went to version control (tools/name-ledger-backup/), chunk records
+   * were given the skeletons they name, orphaning/re-adoption was implemented for chunks, and only
+   * THEN the stamp was completed. reconcile-names.js:303 now stamps { names, orphans, chunks }.
+   * The old refusal was load-bearing while those steps were outstanding; completing the stamp any
+   * earlier would have converted a loud refusal into a silent drop of the applied chunk names.
+   *
+   * SO THERE IS NOTHING BLOCKED HERE ANY MORE. The row is an ordinary derived artifact: if it is
+   * absent or STALE, `npm run reconcile` is the fix and it works — MEASURED 2026-09-04, run with
+   * no arguments and no APPLY=1 against a name-queue reported STALE, after which preflight read
+   * 0 STALE. The `blocked:` KEY is removed, not merely reworded, because status precedence at
+   * line ~222 only consults it when the file is ABSENT: leaving it would have told the one person
+   * who most needs `npm run reconcile` — someone staring at a missing queue — that running it
+   * cannot help.
+   *
+   * The second edge that field recorded is still TRUE and still worth knowing: the name-queue write
+   * at reconcile-names.js:321 sits OUTSIDE the `if (APPLY)` guard, so a REPORT-ONLY run writes
+   * this file. If you see its mtime move, that is expected, not evidence that someone applied
+   * names. Pinned as an executable assertion in engine/orphan-ledger.test.js. */
   { phase: 2, kind: "name-queue", cmd: "npm run reconcile", derivesFrom: "naming-plan",
-    consumers: ["orphan re-adoption (R-LANG-7)"],
-    blocked: "reconcile-names.js stamps AC.stamp(\"word-names\", { names, orphans }), but the " +
-      "`word-names` registry entry has requires: [\"names\",\"orphans\",\"chunks\"], so §8B's " +
-      "required-key check refuses the body. It has never published. Running it again cannot fix " +
-      "this. AND THE REFUSAL IS LOAD-BEARING: it is the only thing that stopped a re-mine from " +
-      "irrecoverably dropping the 3,582 applied chunk names (Examples/ is gitignored, so " +
-      "word-names.json has no git history). Adding `chunks` to the stamp would let the pass publish " +
-      "while §5C's orphan/re-adoption half is still unwired — a loud refusal converted into a " +
-      "silent drop. NOT to be \"fixed\" without Amir. Pinned as an executable assertion in " +
-      "engine/orphan-ledger.test.js (RED 4/5, session skills-4a). Assertion 4 there records a " +
-      "second edge: reconcile-names.js's name-queue write sits OUTSIDE the `if (APPLY)` guard, so a " +
-      "report-only run WRITES this file — if you see it present, check whether anything meant to." },
+    consumers: ["orphan re-adoption (R-LANG-7)"] },
   { phase: 3, kind: "en-index", cmd: "npm run render", consumers: ["files-index", "report", "panels"],
     derivesFrom: "generators-lzw" },
   { phase: 4, kind: "mined-library", cmd: "npm run gate", consumers: ["measurement"], protected: true },
