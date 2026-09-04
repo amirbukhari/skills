@@ -33,6 +33,12 @@
  * `>= 2` below is written out rather than imported so that this file cannot alter the frozen
  * predicate by being edited. The two must be able to disagree.
  *
+ * THIS FIGURE MAY UNDERCOUNT, AND FOR THE BLOCKED DEFECT'S OWN REASON. The quoted-run match below
+ * is the SAME ordered alternation as `isSiteSpecific`'s, so a backticked path inside a “…” run is
+ * swallowed by the “…” branch and never tested here either. Harmless for a report-only figure —
+ * it can only under-report, never over-report — but 39 / 33 is a FLOOR, not an exact count.
+ * Recorded 2026-09-04, deliberately without a recount: the recount belongs with the defect.
+ *
  * NOT THE SAME BUG AS THE TOKENISER DEFECT. `isSiteSpecific`'s quoted-run regex is an ordered
  * alternation that swallows backticked identifiers inside a “…” run; that is a separate finding,
  * it is BLOCKED, and it is Amir's ruling. This file does not touch it and does not depend on it.
