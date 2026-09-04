@@ -470,7 +470,11 @@ function literalGloss(n, sf) {
 
 /* the fluent matcher vocabulary. Keys are matcher identifiers, values read after "to". Frozen in the
  * sense that it MAY be added to, never loosened into a fallback: an unknown matcher declines. */
-const MATCHERS = {
+/* PROTOTYPE-LESS, for the reason node-kind-rules.js records at `closed`: a plain object literal
+ * answers truthy for `toString`, `valueOf` and five more inherited names, so a matcher the table
+ * does not contain would pass the gate and stringify a native function into the clause.
+ * `ROUTE_VERBS` above is a Set and was never exposed. */
+const MATCHERS = Object.assign(Object.create(null), {
   toBe: "be", toEqual: "equal", toStrictEqual: "equal", toMatchObject: "match",
   toHaveLength: "have length", toContain: "contain", toContainEqual: "contain",
   toMatch: "match", toThrow: "throw", toThrowError: "throw",
@@ -491,7 +495,7 @@ const MATCHERS = {
    * move §5C forbids. It needs an ordinal-aware shape, not a table row. */
   toBeCalledTimes: "have been called",
   toHaveBeenLastCalledWith: "have been last called with",
-};
+});
 
 /* Name the thing under assertion. Order matters: a dotted path is the most informative, a call is
  * named by its callee, and a thunk is named by what it calls -- which is the whole point of

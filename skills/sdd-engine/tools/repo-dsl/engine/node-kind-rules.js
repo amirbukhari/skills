@@ -43,16 +43,30 @@
  */
 const ts = require("typescript");
 
+/* CLOSED TABLES MUST NOT INHERIT FROM Object.prototype. `VERBS[name]` on a plain object literal is
+ * TRUTHY for `toString`, `valueOf`, `constructor`, `hasOwnProperty`, `toLocaleString`,
+ * `isPrototypeOf` and `propertyIsEnumerable` — seven method names that are NOT in the vocabulary
+ * but pass the gate, after which `VERBS[l.name]` is a native function and gets stringified into the
+ * clause. Measured 2026-09-04: 13 sites in the corpus rendered
+ *
+ *     return `error` function toString() { [native code] }
+ *
+ * and that text is on disk in ten `.en` files. It is the exact failure the closed-vocabulary rule
+ * exists to prevent — "an unknown method is NEVER de-camel-cased into a phrase" — arriving through
+ * the lookup rather than through the table. A prototype-less table fixes every lookup at once,
+ * present and future, which a guard at one call site would not. */
+const closed = (o) => Object.assign(Object.create(null), o);
+
 /* Collection verbs whose result is worth naming in the reader's terms rather than the callee's.
  * MOVED HERE from enfile.js, not copied — it is the CallExpression rule's own vocabulary and
  * enfile now imports it back. Closed table, same discipline as MATCHERS: an entry may be added, but
  * an unknown method is NEVER de-camel-cased into a phrase — the rule declines and the caller's
  * older, truthful fallback stands. */
-const VERBS = {
+const VERBS = closed({
   map: "mapped", filter: "filtered", reduce: "reduced", sort: "sorted",
   slice: "sliced", flat: "flattened", flatMap: "mapped and flattened",
   reverse: "reversed", join: "joined", concat: "with more appended",
-};
+});
 
 /* `then` / `catch` / `finally` DO NOT BELONG IN THAT TABLE, and the reason is grammar, not taste.
  * Refused 2026-09-04 after building the row and rendering all 45 promise-family sites with it.
@@ -87,7 +101,7 @@ const VERBS = {
 
 /* The closed operator vocabulary for the BinaryExpression rule. MAY be added to; never loosened
  * into "print the symbol". Assignment operators are absent on purpose — see the rule. */
-const BINARY_OPS = {
+const BINARY_OPS = closed({
   "??": (a, b) => a + " if it is set, otherwise " + b,
   "||": (a, b) => "either " + a + " or " + b,
   "&&": (a, b) => a + " and " + b,
@@ -104,13 +118,13 @@ const BINARY_OPS = {
   ">=": (a, b) => "whether " + a + " is at least " + b,
   "<": (a, b) => "whether " + a + " is less than " + b,
   "<=": (a, b) => "whether " + a + " is at most " + b,
-};
+});
 
 
 /* How each collection verb introduces its callback, when the callback renders. Separate from VERBS
  * because a verb reads correctly WITHOUT a callback and only some of them take one usefully; a
  * single table would have forced a preposition on verbs that do not want one. Closed, like VERBS. */
-const VERB_PREP = { map: "to", flatMap: "to", filter: "by", sort: "by", reduce: "with", find: "by" };
+const VERB_PREP = closed({ map: "to", flatMap: "to", filter: "by", sort: "by", reduce: "with", find: "by" });
 
 const unwrap = (n) => {
   while (n && (ts.isParenthesizedExpression(n) || ts.isAwaitExpression(n) || ts.isNonNullExpression(n))) n = n.expression;

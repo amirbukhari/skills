@@ -8464,3 +8464,60 @@ failed`. All unchanged, as a comment cannot move them.
 **No pressure on `isSiteSpecific`.** Every clause in this census is generic because it quotes nothing
 or quotes only what the base supplies; none turns on the `>= 2` threshold. Amir's unmade ruling is
 untouched.
+
+## The closed tables inherited from Object.prototype — native code was shipping in the .en (2026-09-04)
+
+Found while measuring the date/string vocabulary rows, not looked for. `VERBS` was a plain object
+literal, so `VERBS[name]` answers **truthy for seven names that are not in the vocabulary** —
+`toString`, `valueOf`, `constructor`, `hasOwnProperty`, `toLocaleString`, `isPrototypeOf`,
+`propertyIsEnumerable`. The CallExpression rule's gate is `if (!name || !VERBS[name]) return null;`,
+so those names PASS it, and `VERBS[l.name]` is then a native function that gets concatenated into the
+clause.
+
+**This was live, not latent.** 13 sites in the corpus rendered
+
+```
+return `error` function toString() { [native code] }
+```
+
+and that text is **on disk in ten `.en` files** — `grep -rc 'native code' <corpus>/sen` finds it in
+`reportCache.ts.en` (×2 paths), `stripeWebhookSync`, `regenerateMonthlyInvoicesForClientAsJob`,
+`xeroInvoiceStateCheckAndAutofix`, `invoiceStateCheckAndAutofix`, `hubspot`, `xero`, `tools.ts.en`
+and `legacyConversion/index.ts.en` (2 occurrences).
+
+It is exactly the failure the closed-vocabulary discipline exists to prevent — *"an unknown method is
+NEVER de-camel-cased into a phrase — the rule declines"* — arriving **through the lookup rather than
+through the table**. The table was closed; the lookup was not.
+
+**The fix is prototype-less tables, not a guard at the call site.** `closed(o)` =
+`Object.assign(Object.create(null), o)`, applied to `VERBS`, `VERB_PREP`, `BINARY_OPS`
+(node-kind-rules.js) and `MATCHERS` (enfile.js). One edit per table fixes every lookup, present and
+future; a `hasOwnProperty` guard at `node-kind-rules.js:184` would have left `VERBS[l.name]` at 197,
+`VERB_PREP[l.name]` at 198 and `MATCHERS[matcherName]` still exposed. `ROUTE_VERBS` is a `Set` and
+was never exposed. `BINARY_OPS` is keyed by operator symbols so it could not collide in practice; it
+is converted anyway, because uniformity is what stops the next table from being the exception.
+
+**MEASURED, full corpus, HEAD's renderer loaded beside the fixed one: 33,918 statements walked,
+exactly 13 clauses change**, all 13 the same defect. Eleven become `return the result of
+`error.toString`` — still site-specific, still quoting the site.
+
+**THE RESIDUAL COUNT WENT UP, AND THAT IS THE CORRECT OUTCOME. Coverage TOTAL generic 1659 → 1661.**
+The two `legacyConversion/index.ts` sites (98, 102) were
+
+```
+return the result of `floatVal` times the result of `floatVal` function toString() { [native code] }
+```
+
+which quotes `floatVal` and therefore counted as **site-specific**. With the gate closed the chain
+declines and the ladder falls back to `return to string`, which quotes nothing and is **generic**. So
+a clause that was garbage was being *scored as a success*, and removing the garbage costs two points.
+Nothing was adjusted to recover them, and nothing should be: **a metric that rewards native function
+source in the prose is wrong at those two sites, not the fix.** Per-kind assertions still fail on the
+same 10 kinds (`ReturnStatement` 487 → 489), so `42 passed, 10 failed` is unchanged.
+
+Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after — the label region
+does not participate in the payload, as `clause-quality.js`'s header records.
+
+**Not done, deliberately:** the tables are prototype-less but not `Object.freeze`d. Freezing is a
+separate claim about mutability with its own failure mode (`Object.freeze` on a `Set` does not stop
+`.add()` — this file already records that trap for `VACUOUS`), and it is not what the defect was.
