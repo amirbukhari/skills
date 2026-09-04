@@ -43,6 +43,39 @@ Run it from the skill root (`npm run build`) or step by step from here:
 
 `npm run build` = mine → name → render → measure, in that order.
 
+### The three commands, and why they stay three
+
+```
+npm run build      mine → name → render → measure → preflight --soft     (the .en pipeline)
+npm run tiers      archetypes → package rollups → preflight --soft        (the tier pipeline)
+npm run all        npm run build && npm run tiers                          (one thing to type)
+```
+
+`all` is a THIRD name, not a fusion. Amir, 2026-09-02: *"I'd lean toward 'ends by running preflight'
+over silent chaining, so the two pipelines stay legibly separate rather than being fused by
+accident."* So `build` and `tiers` each still end by running `preflight --soft` and each still says
+what it did and did not produce; `all` only saves typing `&&`. Running either one alone is unchanged.
+
+`npm run preflight` on its own is the cheap READ-ONLY check: it writes nothing, names every expected
+artifact, its status, and the command that would fix it.
+
+**What preflight can tell you now that it could not before 2026-09-04.** STALE is computed along
+DECLARED derivation edges, and only four rows declared one — all four pointing at another registry
+artifact. The seven tier artifacts (`archetype-index.json`, `catalog/archetypes.json`,
+`sen/archetypes/`, `COVERAGE.json`, `catalog/mined-library.v6.json`, `word-library.json`,
+`.sdd-code-provenance.json`) declared none, so they could only ever print `[ ok ]` — a COVERAGE.json
+from three weeks ago read exactly like one written a minute ago, which is a large part of why
+rebuilding everything by hand was the only safe move. They now declare their real edges, read out of
+their producers: the SOURCE tree for all seven, plus `archetype-index.json` for `COVERAGE.json` alone
+(`package-hydra-source.js:224` uses it at `:296` inside the `coverage` object only). Pinned in
+`engine/preflight-staleness.test.js`, which also asserts the seven read PRESENT when they are current
+— an edge that always said STALE would be no better.
+
+**And what it still cannot see, stated so it is not over-trusted.** An mtime edge catches "rebuilt
+out of order". It cannot catch a CANON change — code that computes a lookup key changing while the
+artifact holding those keys does not, with every mtime innocent. That class belongs to
+`engine/canon-fingerprint.js` and the `canonFingerprint` field, and none of these edges touches it.
+
 Everything else in this directory is a **library**, a **manual tool**, or lives in `archive/`.
 The table under "Every file in this directory" says which.
 
