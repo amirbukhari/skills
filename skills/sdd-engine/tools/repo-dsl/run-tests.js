@@ -133,6 +133,14 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "renders a real .en through the dictionary, then hand-edits it (A4)",
   }],
+  ["engine/e2e-plain-english.test.js", {
+    expect: "green",
+    needs: [],
+    /* Reads two real corpus .ts files and ONE rendered .en -- the dialect file it uses as the
+     * scanner's negative control, so a scanner that had stopped seeing glyphs could not pass. */
+    files: [path.join("sen", "files", "src", "config.ts.en")],
+    why: "hand-written symbol-free English on disk, compiled and byte-compared to the corpus .ts",
+  }],
   ["engine/roundtrip-through-disk.test.js", {
     expect: "green",
     needs: ["generators-lzw"],
