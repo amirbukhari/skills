@@ -49,6 +49,9 @@ const quoted = (label) => [...label.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
  * `plain-english.js:126` -- "a whole number and the two booleans are written as themselves;
  * anything else is a name". So this is that same rule read across, not a widening invented here to
  * make a case pass: a label naming `true` names a value, and "9 re-exports" still names none. */
+/** "a, b, c and d" -> ["a","b","c","d"] -- the English list form, not a delimiter split */
+const moduleList = (prose) => prose.split(/,\s*|\s+and\s+/).map((w) => w.trim()).filter(Boolean);
+
 const BARE = /^(?:true|false|\d+)$/;
 const namesAValue = (label) => quoted(label).length > 0 || BARE.test(String(label).trim().replace(/^return /, ""));
 
@@ -77,6 +80,25 @@ function compileFromLabel(label) {
       + "the source wrote it with -- the renderer sets it in curly quotes either way. The payload "
       + "carries that byte and the label does not, so the label alone cannot reproduce this "
       + "construct. Refusing rather than picking the majority quote style.");
+  /* THE VACUOUS-LABEL CLASS, converted. "9 re-exports" COUNTS its values; this form NAMES them, and
+   * naming them is what makes the construct generable from the label alone. 1,619 of the corpus's
+   * 19,335 chunks (8.4%) carry a counting label today, so this is the shape of that whole class.
+   *
+   * THE QUOTE CLAUSE IS NOT DECORATION. Module-specifier quoting is a PER-SITE fact, measured over
+   * the corpus: 6687 specifiers single, 1597 double, and 94 files use BOTH -- so it is not even a
+   * per-file fact. The label therefore has to say which one, or the construct is not reproducible
+   * from it. That is the same standard the thrown-string rule refuses under: a label that does not
+   * carry a byte cannot claim to be the source of it. */
+  if ((m = s.match(/^Re-export everything from (.+?), each a local module named in (single|double) quotes$/))) {
+    const q = m[2] === "single" ? "'" : '"';
+    return moduleList(m[1]).map((mod) => "export * from " + q + "./" + mod + q + ";").join("\n") + "\n";
+  }
+  if ((m = s.match(/^Re-export everything from (.+?), each a local module$/)))
+    throw new Error("label-source: this label names the modules but not which quote character the "
+      + "source wrote them with. Specifier quoting is a per-site fact in this corpus -- 6687 single, "
+      + "1597 double, and 94 files use both -- so it cannot be inferred from the file or from the "
+      + "majority. Say \"each a local module named in single quotes\", or double.");
+
   if (!namesAValue(s))
     throw new VacuousLabelError(s, "A label is compilable only when it names the values it carries, "
       + "which the renderer writes inside back-ticks. This one carries none, so no value can be recovered from it.");

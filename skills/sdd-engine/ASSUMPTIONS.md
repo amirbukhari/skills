@@ -12344,3 +12344,64 @@ the payload. This step is most of the glyph problem and it is not all of it.
 **Verified by running it:** `label-authority.test.js` — 5 properties green, each shown red under
 injection. Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after. Symbol
 ceiling unchanged at 261218 marks / 85383 TypeScript lines, not raised and not widened.
+
+## 2026-09-04 — the vacuous-label class: converted for one construct, and NOT the same defect in the other
+
+**Decided:** add a label form that NAMES what it re-exports instead of counting it, and refuse the
+counting form by name. `packages/hydra-internal/src/index.ts` — the whole 293-byte file — now
+compiles from a SINGLE label with no payload in the picture at all.
+
+**The class, measured rather than estimated.** 1,619 of the corpus's 19,335 chunks (8.4%) carry a
+label that names no value: 836 of 9,724 atomic (8.6%) and 783 of 9,611 structural (8.1%). The
+counting shapes are `"N function"` 143, `"N class"` 110, `"N functions"` 91, `"N re-export"` 80,
+`"N shape"` 73. The 9,724/9,611 chunk split cross-checks exactly against the mark census taken
+independently, which is why I trust it; my first attempt reported 747,254 chunks because the walk
+recursed into each chunk AND re-scanned it as a sibling, and it also scored every `throw “…”` label
+as naming nothing. Both were my bugs, caught by the total being impossible.
+
+**TWO NUMBERS OF MINE WERE WRONG AND I HAD ALREADY QUOTED THEM.** I reported the conditional's quote
+refusal as protecting "189 other files". That was the IMPORT-quote figure misapplied to a THROWN
+STRING. Measured separately: `throw new Error` is **327 single, 2 double** (plus 369 template
+literals, a different form entirely), and module specifiers are **6687 single, 1597 double** — not
+4916/189. The refusal still stands; my stated exposure was wrong by two orders of magnitude on one
+side and understated by 8x on the other. Corrected here loudly because both numbers reached a report.
+
+**Quote style is a PER-SITE fact, not per-file — and that is why the new label form carries it.**
+994 files use only single quotes, 218 only double, and **94 files use BOTH**. So no file-level rule
+can recover it. The label therefore has to say "each a local module named in single quotes", and a
+label that names the modules WITHOUT that clause is refused. This is consistent with the thrown-string
+refusal rather than an exception to it: a label that does not carry a byte cannot be the source of it.
+
+**A TENSION WITH THE COMMITTED GRAMMAR, stated rather than reconciled quietly.** `plain-english.js:145`
+sets `QUOTE = "'"` as a committed convention and applies it to both specifiers (line 172) and thrown
+messages (line 221). My rule refuses where that one picks. Both can be right, and the distinction is
+the DIRECTION: `plain-english.js` compiles English an author WROTE, where no quote was ever chosen and
+a house convention is the only sensible answer. Label authority runs the other way — it must reproduce
+code that already exists, and there the majority would corrupt 1597 specifiers. Flagged for Amir; not
+resolved by me, and `plain-english.js` was not touched.
+
+**THE SECOND CONSTRUCT IS A DIFFERENT DEFECT AND I DID NOT CONVERT IT.** `"3 types and 3 functions"`
+in `src/sockets.ts` is not a counting label over a nameable list. That file is ONE atomic chunk for
+the whole file: there is no chunk for `isUserSocketSetUp` at all. Across the corpus, **257 files are a
+single top-level atomic chunk**, and in those the label averages 83 bytes against 1,295 bytes of
+payload — **the label carries 6.0% of what the chunk holds**. Making that label "name its values"
+means the label becomes the entire program, which is a rendering decision and not a grammar fix. So
+this is an honest partial: one of the two converted, and the other reported as a different problem.
+
+**A REPO COMMENT IS STALE — THE DISK WINS.** `enfile.js:2359` says *"1030 of 1037 files collapse to a
+SINGLE ATOMIC word"*. Measured on disk today: **257** single-atomic, **777** single-structural, 3 with
+several top-level chunks (257+777+3 = 1037). The comment is load-bearing for where the derive check
+fires, so it is worth someone's attention; I did not edit it, because it sits in the hot file and the
+claim deserves its own change.
+
+**WHAT I COULD NOT DO, AND WHY — the constraint collision.** Making the CORPUS carry naming labels is
+a RENDERER change: the labels in `sen/files` are generated, so converting them means re-rendering all
+1037 `.en` files, and re-running `write-en-files.js` against the real corpus is explicitly banned
+(that authorisation is spent). So this delivers the GRAMMAR and the PROOF on a label authored in the
+test — not a corpus change. The corpus half needs Amir's word.
+
+**Verified by running it:** `label-authority.test.js` — 8 properties green, every one shown red under
+fault injection (quote clause ignored; a module dropped; the counting label let through). One
+injection was itself broken by shell quoting and produced a syntax error rather than a fault; rewritten
+via a file and re-run. Byte-identity `1037/1037 FAILURES 0`. Ceiling unchanged at 261218 / 85383.
+`e2e-constructs.test.js` still 11 green, 3 expected-pending.

@@ -109,4 +109,37 @@ ok("the refusal is not refusing everything, because a label that does name its v
   assert.equal(LS.compileFromLabel("return `7`"), "return 7;");
 });
 
+/* THE VACUOUS-LABEL CLASS. 1,619 of the corpus's 19,335 chunks (8.4%) carry a label that names no
+ * value -- "9 re-exports", "3 types and 3 functions", "5 constants". Under label authority those
+ * are not merely unhelpful, they are UNCOMPILABLE. These two properties pin both halves: a label
+ * that NAMES what it re-exports compiles the whole construct with no payload in the picture at all,
+ * and a label that goes back to counting is refused by name. */
+const MANY = "packages/hydra-internal/src/index.ts";
+const WANT_MANY = setUp("the whole of packages/hydra-internal/src/index.ts", () => ts(MANY));
+
+ok("a label naming every module it re-exports compiles the whole construct, byte for byte, with no payload at all", () => {
+  const label = "Re-export everything from helpers, csvUtils, paymentsInterfaces, dateTimeHelpers, "
+    + "interfaces, subscriptionHelpers, integrityCheckHelpers, typeGuards and enums, "
+    + "each a local module named in single quotes";
+  const got = LS.compileFromLabel(label);
+  assert.equal(got, WANT_MANY, LS.whyTheyDiffer(got, WANT_MANY, "re-export construct"));
+});
+
+ok("the label must say which quote character the source used, because 1597 specifiers in the corpus use the other one", () => {
+  let threw = null;
+  try {
+    LS.compileFromLabel("Re-export everything from helpers and enums, each a local module");
+  } catch (e) { threw = e; }
+  assert.ok(threw, "a label that named the modules but not their quote style compiled anyway, which would corrupt every double-quoted specifier");
+  assert.ok(/quote/.test(threw.message), `the refusal fired but did not name the missing fact. It said: ${threw.message}`);
+});
+
+ok("a label that COUNTS instead of naming is refused, and the refusal says what it failed to name", () => {
+  let threw = null;
+  try { LS.compileFromLabel("9 re-exports"); } catch (e) { threw = e; }
+  assert.ok(threw, "a counting label compiled instead of refusing");
+  assert.ok(/names no value/.test(threw.message),
+    `the refusal fired but did not say what the label failed to say. It said: ${threw.message}`);
+});
+
 R.done("whether the label alone can be the compiler's source for one construct that round-trips today");
