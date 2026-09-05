@@ -31,6 +31,7 @@
     "preflight": "node preflight.js",
     "tiers": "node run-tiers.js",
     "measure": "node measure-english.js",
+    "scan:symbols": "node scan-en-symbols.js",
     "measure:uncollapsed": "node measure-uncollapsed.js",
     "stamp:check": "node stamp-artifacts.js --check",
     "gate": "node repo-dsl.js gate",

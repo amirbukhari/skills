@@ -133,6 +133,15 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "renders a real .en through the dictionary, then hand-edits it (A4)",
   }],
+  ["engine/en-symbol-ceiling.test.js", {
+    expect: "green",
+    needs: [],
+    /* Reads the WHOLE rendered tree, so it declares the tree rather than a file: this is the one
+     * check whose subject is all 1037 .en files at once. Its ceilings ratchet DOWN only -- raising
+     * one, widening what counts as a symbol, or adding an exemption are the same banned move. */
+    files: [path.join("sen", "files")],
+    why: "the distance from \"no glyphs or typescript ANYWHERE in the .en files\", as a gate",
+  }],
   ["engine/e2e-plain-english.test.js", {
     expect: "green",
     needs: [],
