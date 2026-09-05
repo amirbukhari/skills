@@ -12239,3 +12239,48 @@ conditional body indented by three spaces instead of two turns two cases red on 
 corpus minority quote style plus one renamed identifier turns four red. Both runs also caught a weak
 message of mine — "the compiled declaration is 176 bytes where the corpus one is 176" says nothing —
 now replaced with the first differing byte, named in words.
+
+## 2026-09-04 — who owns a spelling: measured by where the import RESOLVES, not by how it looks
+
+**Decided:** classify every externally-dictated spelling by the module specifier it arrives
+through, and throw away my earlier classification, which keyed on the SHAPE of the name.
+
+**Why the first attempt was wrong, stated loudly because it reached a report.** I had called 23
+spellings "irreducible — unsayable AND owned by a third party", on the reasoning that a leading `T`
+or `I` or two adjacent capitals marks a foreign name. Resolving each one's actual import specifier
+shows **9 of the 23 are this repo's own**: `EStatementType`, `IApiQueryListResponseMetaData`,
+`IApiQuerySingularResponse`, `IBillingAddress`, `ICommissionSchemeData`, `IMonthlySummaryData`,
+`ISingleViewStatementData`, `ISubscriptionData`, `IVBPData`, `REACT_APP_API_ROOT_URI`,
+`TActionResponse`, `TCreditNote…`, `TDocumentName`, `TInvoiceGroup*`, `TJsonNoteWithFlag`,
+`TLoadedState`, `TSaveState`, `isVBPOChanged` — imported from `src/types/…`, `@src/…`, `../../App`
+and local components. Only `JSONSchemaType` (from `ajv`) and `OpenAI` (from `openai`) were foreign.
+**A Hungarian-notation prefix is a house style, not a provenance.** The shape of a name carries no
+information about who dictates it, and treating it as though it does inflated the un-renameable set
+by a factor of about three — in the direction that makes the problem look harder and the ruling look
+less useful than it is.
+
+**How each is decided now, mechanically:** a specifier beginning `.`, `src/`, `@src/` or `@hydra/`
+is this repo (`@src/*` is a path alias into it; `@hydra/internal` is `packages/hydra-internal`).
+`@llws/*` and `@jamesgmarks/*` are the same organisation but a DIFFERENT repo — a third category
+that must not be collapsed into either side. Everything else is third-party or a node built-in. A
+name imported through more than one kind of specifier counts as externally dictated, because the
+external one dictates the spelling.
+
+**A category an import scan structurally cannot see.** `URLSearchParams` never appears in the
+import-based result at all, because it is a GLOBAL — used, never imported, never declared. A
+separate free-identifier pass found 56 such globals, 10 of them unsayable. Any mining of
+"built-ins" must read uses, not imports, or it will miss exactly the name that started this.
+
+**The limit on all of it, stated as a limit on my own controls:** the corpus snapshot has no
+`node_modules`, no `package.json` and no `tsconfig.json`, so the TypeScript type checker cannot
+resolve a single package type. Every classification above is reached from the SHAPE OF THE CODE —
+specifier text and identifier binding — and nothing here is a type-checker result. Source 2 of the
+mining plan ("mined from package.json dependencies — a definitive list, not a heuristic") **cannot
+be built as described against this corpus**, because that file is not in it; the 166 distinct
+external specifiers mined from the import statements themselves are the available substitute, and
+they are a measurement of what the code uses rather than a declaration of what it depends on.
+
+**Verified by running it:** `resolve23.js`, `q2-final.js`, `globals.js`, `mark-split.js` — all
+read-only, all in the scratchpad, none committed, none writing to the corpus.
+
+**Commit:** measurement only; no engine change.
