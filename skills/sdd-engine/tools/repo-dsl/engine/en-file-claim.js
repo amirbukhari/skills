@@ -391,6 +391,55 @@ const MAX_KINDS = 2;          /* the word budget is ~24; two kinds plus a univer
 
 /* `stmts` are the run's top-level statements, `sf` their source file. Returns a claim string, or
  * null to mean "say nothing here — keep the ordinary label", which the caller COUNTS. */
+
+/* ---- MEMBER NAMES ------------------------------------------------------------------------------
+ * The identifiers a claim must NAME rather than count. Read off the statements the claim is already
+ * about, so the names and the count can never disagree.
+ *
+ * Returns null -- never a partial list -- when any member of the run has no readable name. A label
+ * that named four of five functions and still said "5 functions" would be worse than one that named
+ * none, because it would read as complete. */
+function P_list(items) {
+  if (items.length === 1) return items[0];
+  return items.slice(0, -1).join(", ") + " and " + items[items.length - 1];
+}
+
+function declaredName(st) {
+  if (st.name && st.name.text) return st.name.text;
+  /* a variable statement declares its names in a list; a claim counts it as ONE member, so it is
+   * named only when that list holds exactly one simple binding */
+  if (st.kind === ts.SyntaxKind.VariableStatement && st.declarationList) {
+    const ds = st.declarationList.declarations;
+    if (ds.length === 1 && ds[0].name && ds[0].name.kind === ts.SyntaxKind.Identifier)
+      return ds[0].name.text;
+    return null;
+  }
+  if (st.kind === ts.SyntaxKind.ExportAssignment) return null;
+  return null;
+}
+
+/* A re-export is named by the MODULE it comes from, which is what a reader of a barrel wants and
+ * what a compiler would have to regenerate. A local `export { x }` with no module specifier is
+ * named by the things it exports instead. */
+function reexportNames(st) {
+  if (st.moduleSpecifier && st.moduleSpecifier.text)
+    return [st.moduleSpecifier.text.replace(/^\.\//, "")];
+  if (st.exportClause && st.exportClause.elements)
+    return st.exportClause.elements.map((el) => el.name.text);
+  return null;
+}
+
+function memberNames(kindKey, stmts) {
+  if (!stmts || !stmts.length) return null;
+  const out = [];
+  for (const st of stmts) {
+    const got = kindKey === "reexport" ? reexportNames(st) : (declaredName(st) ? [declaredName(st)] : null);
+    if (!got || !got.length) return null;
+    for (const n of got) out.push(n);
+  }
+  return out.length ? out : null;
+}
+
 function fileClaim(stmts, sf) {
   if (!Array.isArray(stmts) || stmts.length === 0) return null;
 
@@ -449,7 +498,23 @@ function fileClaim(stmts, sf) {
       const v = verbs.size === 1 ? [...verbs][0] + " " : "";
       return x.n + " " + v + (x.n === 1 ? x.kind.singular : x.kind.plural);
     }
-    return plural(x.n, x.kind);
+    /* NAME THEM, DO NOT MERELY COUNT THEM. Amir, 2026-09-04: "So make the label get read  by the
+     * compiler then?" -- once the compiler generates FROM the label, "9 re-exports" is not a weak
+     * label, it is an UNCOMPILABLE one: it carries no value to generate from. Measured before this
+     * changed: 947 files carried a whole-file claim naming nothing at all, and 1,619 of the corpus's
+     * 19,335 chunks (8.4%) carried a label naming no value.
+     *
+     * THE COUNT IS KEPT ALONGSIDE THE NAMES, not replaced by it. The count is how a reader checks
+     * the list is complete without counting the list, and dropping it to save words would trade a
+     * verifiable sentence for a shorter one. Amir's standing rule on counts is that they are how he
+     * verifies rather than trusts.
+     *
+     * WHEN A NAME CANNOT BE READ the part falls back to the bare count, and that file stays
+     * uncompilable-from-its-label and is reported as such. A part that invented a name to look
+     * complete would be the vacuous label wearing a nicer shirt. */
+    const names = memberNames(x.kind.key, byKind.get(x.kind.key));
+    const base = plural(x.n, x.kind);
+    return names ? base + " named " + P_list(names.map((n) => "`" + n + "`")) : base;
   });
 
   /* the universal, over the largest kind — the collection the count is about */

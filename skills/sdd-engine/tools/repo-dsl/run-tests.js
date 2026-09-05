@@ -158,6 +158,17 @@ const CORPUS_TIER = new Map([
     files: [path.join("src", "helpers.ts"), path.join("sen", "files", "src", "helpers.ts.en")],
     why: "whether the label alone can be the compile source for a construct that round-trips today",
   }],
+  ["engine/naming-labels.test.js", {
+    expect: "green",
+    needs: [],
+    /* The other half of the label-as-source ruling: if the compiler reads the label, a label that
+     * COUNTS what a file holds ("9 re-exports") names nothing and cannot be compiled from. This
+     * asserts the whole-file claim NAMES its members, reading the names off the .ts at run time so
+     * the property cannot pass against a file that changed underneath it. `en-file-claim.js` feeds
+     * BOTH the renderer and `deriveGloss`, so render and derive move together by construction. */
+    files: [path.join("packages", "hydra-internal", "src", "index.ts"), path.join("src", "HydraCtxState.ts")],
+    why: "whether a whole-file label names what the file holds rather than counting it",
+  }],
   ["engine/en-symbol-ceiling.test.js", {
     expect: "green",
     needs: [],

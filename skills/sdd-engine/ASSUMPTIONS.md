@@ -12459,3 +12459,75 @@ de-snakes them, which is precisely the silent integration break Amir's noun ruli
 **Verified by running it:** 11 properties green, every new one shown red under injection (guess a
 field type; ignore the stated indentation; de-snake the wire fields). Byte-identity 1037/1037.
 Ceiling unchanged at 261218 / 85383.
+
+## 2026-09-05 — a whole-file label that NAMES its members, and a ceiling that was already stale
+
+**Amir, 2026-09-04:** *"So make the label get read  by the compiler then?"* — and, on the gate:
+*"Why is rewriting the .en files blocked by me? That's the whole point of this project?"* The
+corpus re-render is standing-authorised from that; byte-identity is the condition that does not
+relax.
+
+**What changed.** `en-file-claim.js` built a whole-file claim by counting — `"9 re-exports"`,
+`"3 types and 3 functions"`. Under label-as-source that is not a weak label, it is an
+**uncompilable** one: it names no value, so nothing can be generated from it. `memberNames` /
+`declaredName` / `reexportNames` / `P_list` now append the members' names to the claim.
+**The count is KEPT alongside the names, not replaced by them**, and `memberNames` returns `null`
+— never a partial list — when any member of a run has no readable name, so a claim either names
+every member of a kind or names none and stays a count.
+
+**Measured, over all 1037 rendered files, before and after a real re-render:**
+
+| | before | after |
+|---|---|---|
+| chunks (atomic / structural) | 19335 (9724 / 9611) | 19335 (9724 / 9611) |
+| labels that name no value | **1615** | **379** |
+| ...of which a bare counting shape | 1373 | 137 |
+
+**1,236 converted.** Byte-identity read `1037/1037  FAILURES: 0` before the render, after the
+render, and again from `test-lzw-roundtrip.js` independently.
+
+**A COUNT I HAD REPORTED IS CORRECTED HERE: 1,619, not 1,615.** The chunk totals reproduce
+exactly, so the walk is the same walk; the 4-label gap is in the vacuity *scorer*, which I rewrote
+rather than re-used. I have not reconciled the four. The number to trust is the one from the
+instrument that produced both halves of the table above.
+
+**THE SYMBOL CEILING ROSE, AND IT IS REPORTED, NOT ABSORBED.** TypeScript lines went to **85559**
+against a ceiling of **85383**; `en-symbol-ceiling.test.js` is RED and stays red. The ceiling was
+not raised, widened, or exempted. Dialect marks did not move (261218), clean files did not move
+(2, both empty, so clean-and-says-something is still 0).
+
+**The cause is the back-tick, and it was predicted before the render, not diagnosed after.**
+`TS_CHARS` in `plain-english.js:103` contains `` ` ``, and the renderer writes named values inside
+back-ticks. So a claim line reading `«▷ 2 functions and 1 class ⟨` carried no TypeScript character
+and now reads `«▷ 2 functions named `getArgsAsObject` and `main` and 1 class named `RetryError` ⟨`,
+which does. 926 lines across 923 files carry the appended clause; **173** of them were clean before
+and are not now.
+
+**AND THE CEILING WAS ALREADY STALE BY 3 BEFORE THIS CHANGE — measured, not inferred.** 85559 −
+85383 is 176, but only 173 attribute to the named clause. Rather than call the gap a rounding
+error, `en-file-claim.js` was restored to its `HEAD` blob (md5-verified), the corpus re-rendered,
+and the ceiling re-measured: **85386**, three above the banked 85383, with byte-identity still
+`1037/1037`. The scanner's own definitions never moved — `git show 6a7880d -- engine/plain-english.js`
+returns no change to `ALLOWED`, `TS_CHARS` or `GLYPHS` — so this is corpus content, not a
+redefinition, and it predates tonight's work. **I have not chased which commit put it there, and
+the ceiling must not be re-baselined to swallow it.**
+
+**What the rise means, and what it does not.** It is not a regression in the rendered TypeScript —
+byte-identity is unmoved and the compiled `.ts` is identical. It is the naming pass and the symbol
+target pulling against each other: a label cannot name a value without the renderer's own marker
+for a value, and that marker is a TypeScript character. **That is a real tension for Amir, not a
+number to tune.** The honest options are his: leave the ceiling red and accept that naming costs
+symbols; or change how a named value is marked in a label so the marker is not a TypeScript
+character. I have done neither.
+
+**Fault injection, against an md5-verified backup, restored and re-verified afterwards.** All four
+properties shown able to fail: `memberNames` returning null takes 3 red; `reexportNames` returning
+null takes the 2 barrel properties red and leaves the shape one green; `declaredName` returning
+null takes only the shape property red; a `P_list` that dumps takes only the readability property
+red. F2 and F3 discriminating proves the barrel and shape properties are independent detectors
+rather than one check written twice.
+
+**A fixture defect fixed in passing.** The `setUp` label read *"the two-shape model
+src/freshbooks-api/models/AccountBusiness.ts"* while `SHAPES` pointed at `src/HydraCtxState.ts` —
+the file the comment directly above it explains was rejected. The description, not the subject,
+was wrong; a reader would have been told the wrong file was under test.
