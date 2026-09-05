@@ -26,8 +26,8 @@ const assert = require("assert");
 const ts = require("typescript");
 const EN = require("./enfile");
 
-let pass = 0;
-const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.message}`); process.exitCode = 1; } };
+const R = require("./test-report").report(__filename);
+const { ok, count } = R;
 
 function clause(inner) {
   const sf = ts.createSourceFile("f.ts", "function f(){ " + inner + " }", ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -35,22 +35,24 @@ function clause(inner) {
   const r = EN.spanActions([st], sf);
   return (r && r.actions && r.actions[0]) || (r && r.guards && r.guards[0]) || "<none>";
 }
-const eq = (inner, want) => assert.equal(clause(inner), want, JSON.stringify(inner) + " -> " + JSON.stringify(clause(inner)));
+/* The condition is unchanged; only the sentence it fails with is. */
+const eq = (inner, want) => assert.equal(clause(inner), want,
+  `the TypeScript ${JSON.stringify(inner)} should be described as "${want}", but it is described as "${clause(inner)}"`);
 
 /* ── 1. THE DEFECT ─────────────────────────────────────────────────────────────────────────────
  * A namespace receiver is part of the operation's NAME, and belongs inside the same quotes. */
-ok("a namespace receiver moves into the operation name", () => {
+ok("a namespace receiver becomes part of the operation's name rather than one of its inputs", () => {
   const c = clause("if (Number.isNaN(A)) { g(); }");
   assert.equal(c, "when `A` passes `Number.isNaN`, g");
   assert.ok(!c.includes("`Number` and"), "`Number` is not an argument to `isNaN`: " + c);
 });
-ok("a negated one keeps its polarity", () => eq("if (!Array.isArray(y)) { g(); }", "when `y` fails `Array.isArray`, g"));
-ok("a deep receiver path moves whole", () => eq("if (a.b.c.has(k)) { g(); }", "when `k` passes `a.b.c.has`, g"));
+ok("a negated call is described as failing the operation, not as passing it", () => eq("if (!Array.isArray(y)) { g(); }", "when `y` fails `Array.isArray`, g"));
+ok("a receiver several properties deep moves into the operation's name as one whole path", () => eq("if (a.b.c.has(k)) { g(); }", "when `k` passes `a.b.c.has`, g"));
 
 /* ── 2. THE NAME IS MOVED, NOT DELETED — the assertion that rejects the cheaper fix ────────────
  * `acc` is where the lookup happens. Dropping it would satisfy "the receiver is not an input"
  * while destroying a correct name, which is exactly what CLASS 3 and CLASS 4 were about. */
-ok("a value receiver survives the move (deleting it would pass a weaker test)", () => {
+ok("a receiver that is a value is still named as the thing acted on, rather than dropped", () => {
   const c = clause("if (acc.includes(x)) { g(); }");
   assert.equal(c, "when `x` passes `acc.includes`, g");
   assert.ok(c.includes("acc"), "the receiver must survive somewhere: " + c);
@@ -62,12 +64,13 @@ ok("a value receiver survives the move (deleting it would pass a weaker test)", 
  * VACUOUS and 4 GENERIC. Moving the receiver here would empty the input list and degrade the
  * clause to "`expired` holds", so the fix declines whenever removal would empty the list.
  * WITHOUT that gate this assertion fails; it is the one that prices the fix's own blast radius. */
-ok("a no-argument method call is UNCHANGED — the receiver is all there is", () =>
+ok("a method call with no arguments is left as it was, because the receiver is the only thing there is to name", () =>
   eq("if (tokenSet.expired()) { g(); }", "when `tokenSet` passes `expired`, g"));
-ok("a no-argument plain call is UNCHANGED", () =>
+ok("a plain call with no arguments is left as it was", () =>
   eq("if (doesTokenFileExist()) { g(); }", "when `doesTokenFileExist` holds, g"));
 
 /* ── 4. CONTROL: no receiver, nothing to move ─────────────────────────────────────────────────*/
-ok("CONTROL: a plain identifier callee is untouched", () => eq("if (isReady(x)) { g(); }", "when `x` passes `isReady`, g"));
+ok("a callee that is a plain name is left untouched, which is the control on all of the above", () => eq("if (isReady(x)) { g(); }", "when `x` passes `isReady`, g"));
 
-console.log(`callee-inputs.test: ${pass} passed`);
+R.done("how a callee and its inputs are named");
+

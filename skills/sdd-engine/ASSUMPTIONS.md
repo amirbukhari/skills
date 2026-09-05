@@ -12134,3 +12134,60 @@ newline. The emitter takes both style facts from a corpus count (`'` 4916 vs `"`
 the layout collision, with the exact bytes, and it is Amir's ruling to make.
 
 `files: 1037  byte-identical: 1037  FAILURES: 0` at every step so far.
+
+## the test results, in English — what I decided, and the two places I could be wrong
+
+**Amir, 2026-09-04, verbatim: "Start with editing the tests results to be fully English".** Scope taken
+literally as the RESULTS: what prints on stdout. Six suites converted —
+`roundtrip-through-disk`, `e2e-plain-english`, `cnl-return-type`, `callee-inputs`,
+`receiver-shapes`, `sentence-authority`.
+
+**One reporter, not six edits.** Every suite had copied the same one-line reporter and every copy
+printed `e.message` (`cnl-return-type` printed `e.stack`) as the entire story of a failure. That is
+now `engine/test-report.js`, so the failure path has one owner and was shown able to fire.
+
+**Renaming is not loosening, and here is how that is auditable.** Not one condition, argument,
+fixture or sample changed. What changed: assertion NAMES, assertion MESSAGES, count lines, section
+headings, and the summary. The one structural change is `setUp()` — see below — and it makes the run
+stricter, not looser.
+
+**Judgment call 1 — a throw during fixture setup used to kill the process before one line of English
+printed.** In `roundtrip-through-disk` the fixture is built at module top level, so an injected fault
+crashed Node with a raw stack and no summary at all: the worst possible output, and exactly the
+surface Amir asked about. `setUp()` catches it, reports it in English, and still exits non-zero. Two
+assertions that would then have thrown `Cannot read properties of null` now say in words that there
+is no fixture. **This is not a weakening**: the run is still red, and it is red with three more
+readable lines than before.
+
+**Judgment call 2 — a back-tick is a TypeScript character, and rendered clauses are full of them.**
+`sentence-authority` prints the specimen clause as the corpus renders it, which is the evidence the
+suite exists to produce. The reporter strips the back-ticks and prints the name bare, so
+`import `first` and `keys` from …` reads `import first and keys from @jamesgmarks/utilities`. **What
+is left inside a name — the `@` and the `/` in a package specifier — is what the corpus called it,
+and that residue is the finding, not the reporter's doing.** I did not widen anything to hide it and
+I did not stop printing the clause.
+
+**Judgment call 3 — `cnl-return-type` still prints a TypeScript signature on failure.** The suite's
+whole subject is the annotation the grammar emits, so the offending signature is the evidence. The
+headline is English ("the signature annotates this function as returning nothing, though its body
+returns a value") and the signature follows as an exhibit. **If Amir wants even that gone, it is his
+call and it costs the evidence** — flagging rather than deciding.
+
+**The dialect marks no longer reach the terminal.** `e2e-plain-english` used to print
+`8 glyph chars [«▶⟪⟨⟫»]`. It now prints the count and names them in words. The reporter holds the one
+table that maps a mark to its English name.
+
+**Every failure path was made to fire on purpose, by fault injection from the scratchpad, never by
+editing a test to fail:** the writer mangling the English on its way to disk; the compiler swallowing
+its refusals; the grammar annotating void again; a receiver described as an input again; the minority
+quote style. Output captured verbatim and reported.
+
+**What I did NOT do, and it is in scope for someone.** `sentence-authority.test.js:77` still spells
+the six dialect marks as literals, where `roundtrip-through-disk` asks the engine for them by name
+through `enfile`'s `MARKS`. That is the test SOURCE, not the test RESULTS, and Amir scoped this to
+the results. Named here so it is not mistaken for finished.
+
+**Parked, mid-flight, uncommitted:** `scan-en-symbols.js` and `engine/en-symbol-ceiling.test.js` —
+the corpus-wide scanner and its down-only ceiling. Written and passing at the measured baseline
+(261,218 dialect marks; 85,383 of 109,728 non-empty lines carrying TypeScript; 2 clean files, both of
+them empty). Held out of this commit because Amir put the results ahead of them.

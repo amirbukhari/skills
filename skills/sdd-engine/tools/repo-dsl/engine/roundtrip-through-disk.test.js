@@ -55,6 +55,7 @@ const EN = require("./enfile");
 const CR = require("./corpus-root");
 const { SKIP } = require("./walk-skip");
 const M = EN.MARKS;
+const R = require("./test-report").report(__filename);
 
 const CORPUS = CR.corpusRoot(), SRC = CR.sourceRoot();
 const index = EN.loadIndex(CORPUS);
@@ -83,8 +84,7 @@ const all = walk(SRC).sort();
 const SAMPLE = all.filter((_, i) => i % Math.max(1, Math.floor(all.length / 12)) === 0).slice(0, 12);
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "rt-disk-"));
-let pass = 0;
-const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.message}`); process.exitCode = 1; } };
+const { ok, count, setUp } = R;
 
 /** the whole loop, through the filesystem, for one source file */
 function throughDisk(abs, i) {
@@ -110,25 +110,26 @@ ok("every sampled TypeScript file survives being written out as English and comp
     if (r.back === r.onDisk) identical++;
     else failures.push(`${rel} — came back ${r.back.length} bytes where the original is ${r.onDisk.length}`);
   });
-  console.log(`      files: ${SAMPLE.length}  byte-identical: ${identical}  FAILURES: ${failures.length}`);
-  for (const f of failures) console.log("        " + f);
+  count(`${SAMPLE.length} TypeScript files were written out as English and compiled back: `
+    + `${identical} of the ${SAMPLE.length} came back byte-identical to the original, and ${failures.length} failed.`);
   assert.equal(failures.length, 0, `${failures.length} of ${SAMPLE.length} files did not survive the round trip:\n        ` + failures.join("\n        "));
   assert.equal(identical, SAMPLE.length, `only ${identical} of ${SAMPLE.length} files came back byte-identical`);
 });
 
 /* the fixture the mutation assertions work on: the first sampled file carrying both an atomic chunk
  * and a heading, so one file can hold every control. */
-const FIX = (() => {
+const FIX = setUp("a sampled file carrying both a chunk and a heading, to mutate", () => {
   for (let i = 0; i < SAMPLE.length; i++) {
     const r = throughDisk(SAMPLE[i], "fix" + i);
     if (sentenceOfAnAtomicChunk.test(r.enFromDisk) && sentenceOfAHeading.test(r.enFromDisk))
       return { rel: path.relative(SRC, SAMPLE[i]), ...r };
   }
   return null;
-})();
+});
 
 /** write a MUTATED English file to disk, read it back, compile it, and say what happened in words */
 function whatHappensWhen(name, change, dictionary) {
+  assert.ok(FIX, "there is no fixture to mutate, because no sampled file carried both a chunk and a heading");
   const p = path.join(TMP, name + ".en");
   fs.writeFileSync(p, change(FIX.enFromDisk));
   const fromDisk = fs.readFileSync(p, "utf8");
@@ -163,6 +164,7 @@ ok("rewording a heading is refused, because the heading outranks the body beneat
 
 /* 5. English in, TypeScript out — the headline. */
 ok("changing one name in the sentence, and nothing else, changes the compiled TypeScript to match", () => {
+  assert.ok(FIX, "there is no fixture to mutate, because no sampled file carried both a chunk and a heading");
   const m = FIX.enFromDisk.match(aBacktickedNameInASentence);
   assert.ok(m, "the fixture has no name quoted inside a sentence, so there is nothing to edit");
   const name = m[1];
@@ -176,6 +178,7 @@ ok("changing one name in the sentence, and nothing else, changes the compiled Ty
 
 /* 6. The other direction, and the reason 5 is not a tautology. */
 ok("changing a value in the payload alone leaves the TypeScript untouched, because the sentence overrules it", () => {
+  assert.ok(FIX, "there is no fixture to mutate, because no sampled file carried both a chunk and a heading");
   const holes = [...FIX.enFromDisk.matchAll(aNameInAHole)];
   assert.ok(holes.length, "the fixture carries no name-shaped value in its payload to change");
   const h = holes[0][0];
@@ -202,4 +205,4 @@ ok("compiling against a changed dictionary is refused, not quietly compiled thro
     `a changed dictionary should have been refused; instead ${outcome}`);
 });
 
-console.log(`\n${pass} assertions passed`);
+R.done("the loop from TypeScript, out to an English file on disk, and back to TypeScript");

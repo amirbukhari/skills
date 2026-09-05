@@ -66,8 +66,8 @@ const assert = require("assert");
 const ts = require("typescript");
 const EN = require("./enfile");
 
-let pass = 0;
-const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.message}`); process.exitCode = 1; } };
+const R = require("./test-report").report(__filename);
+const { ok, count } = R;
 
 function clause(inner) {
   const sf = ts.createSourceFile("f.ts", "function f(){ " + inner + " }", ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -75,51 +75,54 @@ function clause(inner) {
   const r = EN.spanActions([st], sf);
   return (r && r.actions && r.actions[0]) || (r && r.guards && r.guards[0]) || "<none>";
 }
-const eq = (inner, want) => assert.equal(clause(inner), want, JSON.stringify(inner) + " -> " + JSON.stringify(clause(inner)));
+/* The condition is unchanged; only the sentence it fails with is. */
+const eq = (inner, want) => assert.equal(clause(inner), want,
+  `the TypeScript ${JSON.stringify(inner)} should be described as "${want}", but it is described as "${clause(inner)}"`);
 
 /* ── THE REACH ────────────────────────────────────────────────────────────────────────────────── */
 
 /* 1. The corpus shape, verbatim from src/routers/invoices.ts:670. */
-ok("an element-access receiver is named, base and index", () =>
+ok("a receiver reached by index is named in full, both the thing indexed and the index", () =>
   eq("acc[lineId].push(ui);", "call `push` on `acc` at `lineId`"));
 
 /* 2. The index may itself be dotted — doMultipleSubscriptionsHaveSameBuilding.ts:40. */
-ok("a dotted index is named too", () =>
+ok("an index that is itself a property path is named too, rather than declined", () =>
   eq("acc[shb.buildingId].push(shb.subscriptionId);", "call `push` on `acc` at `shb.buildingId`"));
 
 /* ── THE GATES ────────────────────────────────────────────────────────────────────────────────── */
 
 /* 3. THE 54. No production exists for this receiver, so the method stands alone. */
-ok("a CALL receiver is declined — no production to expand", () =>
+ok("a receiver that is itself a call is declined, because no production can expand it", () =>
   eq("getManager('hydra').save(Invoice, x);", "call save"));
 
 /* 4. The await/parenthesised shape, verbatim from clientMonthly.ts:187. */
-ok("an awaited receiver is declined", () =>
+ok("a receiver that is awaited is declined", () =>
   eq("(await acc).push(...p);", "await push"));
 
 /* 5. An index that is itself a call — the phrasebook declines the index, so the whole receiver
  *    declines. Its control is the phrasebook, not this rung (see the header). */
-ok("an unnameable index declines the whole receiver", () =>
+ok("an index that cannot be named declines the whole receiver, rather than naming half of it", () =>
   eq("acc[compute(k)].push(x);", "call push"));
 
 /* 6. THE DOTTED-BASE BAR. Without it this renders "on the result of `getRows` at `0`" — a
  *    synthesised noun in a slot that is supposed to hold names from the source. */
-ok("a base the phrasebook would have to synthesise is declined", () =>
+ok("a base the phrasebook would have to invent a word for is declined", () =>
   eq("getRows()[0].push(x);", "call push"));
 
 /* 7. The array-literal receiver — declined by judgement, recorded in the header. */
-ok("an array-literal receiver is declined", () =>
+ok("a receiver written as a list in place is declined", () =>
   eq("[a, b].forEach((x) => { g(x); });", "call for each"));
 
 /* ── NO-MOVE CONTROLS ─────────────────────────────────────────────────────────────────────────── */
 
 /* 8. The shipped R-LANG-24 rung is untouched: a plain dotted receiver still wins, and wins FIRST. */
-ok("a plain dotted receiver is unchanged", () =>
+ok("a receiver that is an ordinary property path is left unchanged", () =>
   eq("cacheProxy.set(a, b);", "call `set` on `cacheProxy`"));
 
 /* 9. CALLING an element — `acc[lineId](ui)` — is a different rung, earlier in the ladder, and this
  *    change must not have moved it. It says "call `acc` at `lineId`", with no method to name. */
-ok("calling an element access is unchanged", () =>
+ok("calling something reached by index is left unchanged", () =>
   eq("acc[lineId](ui);", "call `acc` at `lineId`"));
 
-console.log(`\n${pass} assertions passed`);
+R.done("how the shape of a receiver is named");
+

@@ -36,8 +36,13 @@ const CR = require("./corpus-root");
 const SRC = CR.sourceRoot(), CORPUS = CR.corpusRoot();
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "plain-en-"));
 
-let pass = 0;
-const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.message}`); process.exitCode = 1; } };
+const R = require("./test-report").report(__filename);
+/* A character named rather than shown, so a byte-level finding can be reported without putting a
+ * quote, a semicolon or a newline into the terminal as itself. */
+const NAMED = new Map([["'", "a single quote"], ['"', "a double quote"], [";", "a semicolon"],
+  ["\n", "a line ending"], [" ", "a space"], [undefined, "nothing at all"], [null, "nothing at all"]]);
+const nameOf = (c) => NAMED.get(c) || `the character ${JSON.stringify(c)}`;
+const { ok, count } = R;
 
 /** write English to a real file, read it BACK off disk, scan it, compile it */
 function throughDisk(name, english) {
@@ -52,33 +57,39 @@ const corpus = (rel) => fs.readFileSync(path.join(SRC, rel), "utf8");
  * The corpus dialect .en for the very same file must be reported as NOT symbol-free, with counts.
  * If this ever passes, the scanner has stopped being able to see a glyph and every green below is
  * worthless. */
-ok("the scanner SEES the dialect: today's rendered .en for src/config.ts is not symbol-free", () => {
+ok("the scanner can still see a symbol: the same file as the corpus renders it today is reported as not symbol-free", () => {
   const dialect = fs.readFileSync(path.join(CORPUS, "sen", "files", "src", "config.ts.en"), "utf8");
   const s = PE.scanSymbols(dialect);
-  assert.equal(s.clean, false);
-  assert.ok(s.glyphChars > 0, JSON.stringify(s));
-  assert.ok(s.tsChars > 0, JSON.stringify(s));
-  console.log(`      dialect .en: ${s.glyphChars} glyph chars [${s.sample.glyphs}], ${s.tsChars} TypeScript chars [${s.sample.ts}]`);
+  assert.equal(s.clean, false, "the rendered dialect file was reported as symbol-free, which it is not");
+  assert.ok(s.glyphChars > 0, "the scanner found no dialect mark in a file built entirely out of them");
+  assert.ok(s.tsChars > 0, "the scanner found no TypeScript character in the rendered dialect file");
+  /* The marks are NOT echoed. They are counted, and named in words by the reporter. */
+  count(`the same file as the corpus renders it today carries ${s.glyphChars} dialect marks `
+    + `(${R.describe(s.sample.glyphs)}) and ${s.tsChars} TypeScript characters, so the scanner can still see one.`);
 });
 
 /* ── CASE 1 — a constant with a string value. src/config.ts ────────────────────────────────────── */
 const CASE1 = "Let required ui version be the text 0.1.0.\n";
-ok("case 1 — the .en ON DISK carries no glyph and no TypeScript", () => {
+ok("case 1, a constant: the English written to disk carries no dialect mark and no TypeScript", () => {
   const r = throughDisk("config", CASE1);
-  assert.equal(r.scan.glyphChars, 0, JSON.stringify(r.scan));
-  assert.equal(r.scan.tsChars, 0, JSON.stringify(r.scan));
-  assert.equal(r.scan.otherChars, 0, JSON.stringify(r.scan));
-  assert.equal(r.scan.clean, true);
+  assert.equal(r.scan.glyphChars, 0, `the English on disk carries ${r.scan.glyphChars} dialect marks, and it must carry none`);
+  assert.equal(r.scan.tsChars, 0, `the English on disk carries ${r.scan.tsChars} TypeScript characters, and it must carry none`);
+  assert.equal(r.scan.otherChars, 0, `the English on disk carries ${r.scan.otherChars} characters outside the allowed letters, digits and ordinary punctuation`);
+  assert.equal(r.scan.clean, true, "the English on disk was not reported clean");
 });
-ok("case 1 — it compiles to src/config.ts, byte-identical", () => {
+ok("case 1, a constant: that English compiles to the corpus file src/config.ts, byte for byte", () => {
   const r = throughDisk("config", CASE1);
   const want = corpus("src/config.ts");
-  assert.equal(r.ts, want, "\n  got:  " + JSON.stringify(r.ts) + "\n  want: " + JSON.stringify(want));
-  console.log(`      files: 1  byte-identical: 1  FAILURES: 0`);
+  const firstDiff = [...want].findIndex((c, i) => c !== r.ts[i]);
+  assert.equal(r.ts, want, r.ts.length !== want.length
+    ? `the compiled TypeScript is ${r.ts.length} bytes where src/config.ts is ${want.length}`
+    : `both files are ${want.length} bytes, but they first differ at byte ${firstDiff}, where the compiled file `
+      + `has ${nameOf(r.ts[firstDiff])} and the corpus file has ${nameOf(want[firstDiff])}`);
+  count("1 file of English was compiled: 1 of the 1 is byte-identical to the corpus TypeScript, and 0 failed.");
 });
 
 /* ── THE GRAMMAR HAS FORCE — it must REFUSE, or "compiles" means nothing ──────────────────────── */
-ok("case 1 — a sentence outside the grammar is REFUSED, not guessed at", () => {
+ok("case 1, a constant: a sentence the grammar does not cover is refused rather than guessed at", () => {
   for (const [why, text] of [
     ["no rule matches", "Make a thing that does something.\n"],
     ["no terminator", "Let required ui version be the text 0.1.0\n"],
@@ -89,7 +100,7 @@ ok("case 1 — a sentence outside the grammar is REFUSED, not guessed at", () =>
     assert.ok(threw instanceof PE.PlainEnglishError, why + ": " + (threw ? threw.message : "compiled instead of refusing"));
   }
 });
-ok("case 1 — a file with a SYMBOL in it is refused before anything is compiled", () => {
+ok("case 1, a constant: a file carrying a symbol is refused before anything is compiled", () => {
   let threw = null;
   try { PE.compilePlainEnglish("export const requiredUiVersion = '0.1.0';\n"); } catch (e) { threw = e; }
   assert.ok(threw instanceof PE.PlainEnglishError && /not symbol-free/.test(threw.message), String(threw));
@@ -125,31 +136,40 @@ ok("case 1 — a file with a SYMBOL in it is refused before anything is compiled
 const CASE2 = "Bring in use auth from the local module use auth.\n\n"
   + "To use permissions.\n"
   + "  Return roles from the result of use auth if it is set, otherwise an empty list.\n";
-ok("case 2 — the .en ON DISK carries no glyph and no TypeScript", () => {
+ok("case 2, a hook: the English written to disk carries no dialect mark and no TypeScript", () => {
   const r = throughDisk("usePermissions", CASE2);
-  assert.equal(r.scan.glyphChars, 0, JSON.stringify(r.scan));
-  assert.equal(r.scan.tsChars, 0, JSON.stringify(r.scan));
-  assert.equal(r.scan.clean, true, JSON.stringify(r.scan));
+  assert.equal(r.scan.glyphChars, 0, `the English on disk carries ${r.scan.glyphChars} dialect marks, and it must carry none`);
+  assert.equal(r.scan.tsChars, 0, `the English on disk carries ${r.scan.tsChars} TypeScript characters, and it must carry none`);
+  assert.equal(r.scan.clean, true, "the English on disk was not reported clean");
 });
-ok("case 2 — the CODE is right; the four differing bytes are style, and they are named", () => {
+ok("case 2, a hook: the program compiles correctly, and the only four bytes that differ are layout, each one named", () => {
   const got = throughDisk("usePermissions", CASE2).ts;
   const want = corpus("src/hydra-ui/src/customHooks/usePermissions.ts");
   /* the program, with the two style facts normalised away -- this is the part that must never break */
   const norm = (t) => t.replace(/["']/g, "'").replace(/}\s*;?\s*$/, "}");
-  assert.equal(norm(got), norm(want), "\n  got:  " + JSON.stringify(got) + "\n  want: " + JSON.stringify(want));
-  assert.ok(got.includes("useAuth()?.roles ?? []"), got);
+  assert.equal(norm(got), norm(want),
+    "once quoting and the trailing semicolon are set aside, the compiled program still differs from the corpus one");
+  assert.ok(got.includes("useAuth()?.roles ?? []"),
+    "the compiled body does not read the roles off the auth result with a fallback, which is what the English says");
   /* and the difference is EXACTLY the four bytes recorded in the header, no more */
   const a = [...got], b = [...want], diff = [];
   for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) diff.push([i, a[i], b[i]]);
-  assert.equal(diff.length, 4, JSON.stringify(diff));
-  assert.deepEqual(diff.map((d) => d[0]), [24, 34, 110, 111], JSON.stringify(diff));
-  console.log(`      files: 1  byte-identical: 0  FAILURES: 1  (4 style bytes: ${JSON.stringify(diff.map((d) => [d[0], d[1], d[2]]))})`);
+  assert.equal(diff.length, 4, `${diff.length} bytes differ from the corpus file, and only 4 are accounted for as style`);
+  assert.deepEqual(diff.map((d) => d[0]), [24, 34, 110, 111],
+    `the differing bytes are at positions ${diff.map((d) => d[0]).join(", ")}, not the four style positions this pins`);
+  count("1 file of English was compiled: 0 of the 1 is byte-identical to the corpus TypeScript, and 1 failed, "
+    + "on exactly 4 bytes, every one of them layout the English does not carry:");
+  for (const [i, g, w] of diff)
+    count(`  at byte ${i} the compiled file has ${nameOf(g)} where the corpus file has ${nameOf(w)}.`);
 });
-ok("case 2 — the English is load-bearing: dropping the fallback clause changes the code", () => {
+ok("case 2, a hook: the English is load-bearing, because dropping the fallback clause changes the compiled code", () => {
   const shorter = CASE2.replace(" if it is set, otherwise an empty list.", ".");
   const got = PE.compilePlainEnglish(shorter);
-  assert.ok(got.includes("return useAuth().roles;"), got);
-  assert.ok(!got.includes("?? []"), got);
+  assert.ok(got.includes("return useAuth().roles;"),
+    "with the fallback clause removed the code should read the roles straight off the result, and it does not");
+  assert.ok(!got.includes("?? []"),
+    "the fallback clause was removed from the English but the fallback is still in the compiled code");
 });
 
-console.log(`\n${pass} assertions passed`);
+R.done("English written by hand on disk, compiled to TypeScript");
+

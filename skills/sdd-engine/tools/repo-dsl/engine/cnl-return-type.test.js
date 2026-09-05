@@ -42,12 +42,12 @@ const idx = loadWordsIndex([
     define: "export const isProduction = (): boolean => (process.env.NODE_ENV === 'production');" },
 ]);
 
-let pass = 0;
-const ok = (n, fn) => { try { fn(); pass++; console.log(`  ok  ${n}`); } catch (e) { console.error(`FAIL  ${n}\n      ${e.stack}`); process.exitCode = 1; } };
+const R = require("./test-report").report(__filename);
+const { ok, count } = R;
 
 /* 1. THE GRAMMAR ACCEPTS, and what it produces is the function the sentence describes: the name from
  *    the subject, both parameters typed from their nouns, the clause as the body. */
-ok("a grammatical sentence compiles to the function it describes", () => {
+ok("a sentence the grammar accepts compiles to the function it describes, name, parameters and body", () => {
   const { ts, fnName, params } = compile(
     "To add two numbers, taking a first number and a second number:\n  Return `firstNumber + secondNumber`.", idx);
   assert.equal(fnName, "addTwoNumbers");
@@ -57,15 +57,15 @@ ok("a grammatical sentence compiles to the function it describes", () => {
 });
 
 /* 2. THE FIX. A returned VALUE must not sit under a `void` signature. */
-ok("a function that RETURNS A VALUE is not annotated void", () => {
+ok("a function whose body returns a value is not annotated as returning nothing", () => {
   const { ts } = compile(
     "To add two numbers, taking a first number and a second number:\n  Return `firstNumber + secondNumber`.", idx);
-  assert.ok(!/\):\s*void\s*=>/.test(ts), "signature claims void over a returned value:\n" + ts);
+  assert.ok(!/\):\s*void\s*=>/.test(ts), "the signature annotates this function as returning nothing, though its body returns a value:\n" + ts);
   assert.ok(/\)\s*=>\s*\{/.test(ts), ts);
 });
 
 /* 3. THE ASYNC FORM, same defect one type deeper. */
-ok("the async form does not claim Promise<void> over a returned value", () => {
+ok("the same holds for the asynchronous form, which does not promise nothing over a returned value", () => {
   const { ts } = compile("To fetch it, taking an action:\n  Run the action.\n  Return `1`.", idx);
   assert.ok(/^export const fetchIt = async \(/.test(ts), ts);
   assert.ok(!/Promise<void> =>/.test(ts), "signature claims Promise<void> over a returned value:\n" + ts);
@@ -73,7 +73,7 @@ ok("the async form does not claim Promise<void> over a returned value", () => {
 
 /* 4. THE NEGATIVE CONTROL FOR 2 AND 3, and the reason the fix is not "drop every annotation".
  *    A function that returns NOTHING still says so. */
-ok("a function that returns no value keeps its void annotation", () => {
+ok("a function that returns no value is still annotated as returning nothing", () => {
   const { ts } = compile("To sync when prod, taking a sync action:\n" +
     "  When it is production, run the sync and stop.\n" +
     '  Otherwise, warn "Not in production environment: sync skipped."', idx);
@@ -84,7 +84,7 @@ ok("a function that returns no value keeps its void annotation", () => {
 
 /* 5. THE GRAMMAR REFUSES, by name, and refuses the near-misses rather than compiling something
  *    plausible. A rule that only ever accepts is not being tested. */
-ok("ungrammatical English is refused, and the refusal names the phrase", () => {
+ok("English the grammar does not cover is refused, and the refusal names the phrase it could not read", () => {
   const cases = [
     ["`Otherwise` with no `When` before it", "To be bad:\n  Otherwise, stop.", /must follow a `When`/],
     ["a control word that is not in the grammar", "To be bad:\n  Whenever it is production, stop.", /Whenever it is production/],
@@ -101,4 +101,5 @@ ok("ungrammatical English is refused, and the refusal names the phrase", () => {
   }
 });
 
-console.log(`\n${pass} assertions passed`);
+R.done("the return type the controlled-English grammar annotates");
+

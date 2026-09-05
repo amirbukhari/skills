@@ -71,9 +71,9 @@ const EN = require("./enfile");
 const CR = require("./corpus-root");
 const { SKIP } = require("./walk-skip");
 
-let pass = 0, fail = 0;
-const ok = (c, m) => { if (!c) { console.error("FAIL: " + m); fail++; process.exitCode = 1; } else { pass++; console.log("ok - " + m); } };
-const eq = (a, b, m) => ok(a === b, m + "  (got " + JSON.stringify(a) + ", want " + JSON.stringify(b) + ")");
+const R = require("./test-report").report(__filename);
+const { check: ok, checkEqual: eqCheck, section, count } = R;
+const eq = (a, b, m) => eqCheck(a, b, m);
 
 const OPEN = "«", CLOSE = "»", GEN = "▶", GEN_NEST = "▷", PAY_OPEN = "⟪", BODY_OPEN = "⟨";
 
@@ -205,16 +205,16 @@ for (const abs of files) {
   if (!nestedSpec) { const s = firstNestedPair(r.en); if (s) nestedSpec = { rel, source, en: r.en, pair: s }; }
 }
 
-ok(!!atomicSpec, "found an atomic clause in the corpus whose English names an identifier");
-ok(!!structSpec, "found a structural chunk in the corpus whose name carries an identifier");
-ok(!!nestedSpec, "found a structural chunk with an atomic clause NESTED INSIDE IT naming the same identifier");
-if (!atomicSpec || !structSpec) { console.log("\n" + pass + " passed, " + fail + " failed"); process.exit(fail ? 1 : 0); }
+ok(!!atomicSpec, "the corpus offers an atomic clause whose English names an identifier, so there is something to edit");
+ok(!!structSpec, "the corpus offers a structural chunk whose heading carries an identifier");
+ok(!!nestedSpec, "the corpus offers a structural chunk with a clause nested inside it naming the same identifier");
+if (!atomicSpec || !structSpec) { R.done("the sentence outranking its payload"); process.exit(process.exitCode ? 1 : 0); }
 
 for (const spec of [atomicSpec, structSpec]) {
   const which = spec === atomicSpec ? "ATOMIC" : "STRUCTURAL";
-  console.log("\n  " + which + " specimen: " + spec.rel);
-  console.log("    clause as rendered : " + spec.site.label.trim().slice(0, 110));
-  console.log("    identifier edited  : `" + spec.site.ident + "`  ->  `" + NEW_IDENT + "`");
+  section(`The ${which.toLowerCase()} specimen is taken from ${spec.rel}.`);
+  count(`As the corpus renders it, the clause reads: ${R.describe(spec.site.label.trim(), 110)}`);
+  count(`The name ${spec.site.ident} in that sentence is the one edited, to ${NEW_IDENT}.`);
 }
 
 /* ---- 7. THE EDIT MUST REACH THE TYPESCRIPT (§5C rule 2) ---------------------------------------
@@ -236,30 +236,38 @@ for (const spec of [atomicSpec, structSpec]) {
  * The old version of this section demanded a heading edit change the code; that demand was dropped
  * on the argument above, and replaced by section 9's stronger end-to-end proof. It was not dropped
  * to make a red test green — section 9 is a harder assertion than the one it replaces.  */
-console.log("\n  --- 7. an English edit changes the compiled TypeScript ---");
+section("An edit to the English must change the compiled TypeScript.");
 {
   const edited = editLabel(atomicSpec.en, atomicSpec.site);
-  ok(edited !== atomicSpec.en, "7. the atomic clause edit actually changed the .en text");
+  ok(edited !== atomicSpec.en, "the edit really did change the English text, before any compiling was attempted");
   const out = compileOutcome(edited);
-  console.log("    atomic clause -> " + out.kind + (out.kind === "compiled" ? (out.ts === atomicSpec.source ? " (BYTE-IDENTICAL TO THE UNEDITED SOURCE — the edit was inert)" : " (output differs)") : " : " + out.msg.split("\n")[0]));
+  count("Editing the atomic clause: " + (out.kind !== "compiled"
+    ? "it was refused, saying " + R.describe(out.msg.split("\n")[0], 200)
+    : out.ts === atomicSpec.source
+      ? "it compiled to TypeScript byte-identical to the unedited source, so the edit was inert"
+      : "it compiled, and the TypeScript is different from the unedited source"));
   ok(out.kind === "compiled" && out.ts !== atomicSpec.source && out.ts.includes(NEW_IDENT),
-    "7. editing the atomic clause's English produces TypeScript carrying `" + NEW_IDENT + "`");
+    "editing the atomic clause's English produces TypeScript that carries the new name");
 }
 {
   const edited = editLabel(structSpec.en, structSpec.site);
-  ok(edited !== structSpec.en, "7. the structural name edit actually changed the .en text");
+  ok(edited !== structSpec.en, "the heading edit really did change the English text, before any compiling was attempted");
   const out = compileOutcome(edited);
-  console.log("    structural name -> " + out.kind + (out.kind === "compiled" ? (out.ts === structSpec.source ? " (BYTE-IDENTICAL TO THE UNEDITED SOURCE — the edit was inert)" : " (output differs)") : " : " + out.msg.split("\n")[0]));
+  count("Editing the structural heading: " + (out.kind !== "compiled"
+    ? "it was refused, saying " + R.describe(out.msg.split("\n")[0], 200)
+    : out.ts === structSpec.source
+      ? "it compiled to TypeScript byte-identical to the unedited source, so the edit was inert"
+      : "it compiled, and the TypeScript is different from the unedited source"));
   ok(out.kind === "threw" && /HEADING AND BODY DISAGREE/.test(out.msg),
-    "7. editing a structural heading ALONE is refused loudly, naming the disagreement");
+    "editing a structural heading on its own is refused out loud, and the refusal says what disagrees");
   ok(out.kind === "threw" && out.msg.includes(NEW_IDENT),
-    "7. the refusal quotes the edited heading, so the human can see which clause it means");
+    "the refusal quotes the heading as edited, so a reader can see which clause is meant");
 }
 
 /* ---- 8. A DISAGREEMENT IS NEVER RESOLVED IN THE PAYLOAD'S FAVOUR, SILENTLY (§5C rule 3) -------
  * Asserted as the disjunction argued for in the header: refuse, or honour. Returning the pre-edit
  * TypeScript and reporting success is the one outcome forbidden in every version of the engine. */
-console.log("\n  --- 8. sentence/payload disagreement is never silently resolved ---");
+section("Where the sentence and its payload disagree, the disagreement is never settled in silence.");
 /* THREE SETTINGS, and the first one is the one that matters. `undefined` means NO OPTION PASSED —
  * the behaviour an ordinary caller gets. It is listed separately from an explicit `false` because
  * this test previously conflated them: it passed `{deriveCheck:false}` and labelled the row
@@ -269,23 +277,28 @@ console.log("\n  --- 8. sentence/payload disagreement is never silently resolved
 for (const on of [undefined, false, true]) {
   for (const spec of [atomicSpec, structSpec]) {
     const which = (spec === atomicSpec ? "atomic clause" : "structural name")
-      + (on === undefined ? " [default — no option passed]" : on ? " [deriveCheck:true]" : " [deriveCheck:false]");
+      + (on === undefined ? ", with the derive check left alone and no option passed at all"
+         : on ? ", with the derive check explicitly asked for"
+              : ", with the derive check explicitly turned off");
     const edited = editLabel(spec.en, spec.site);
     let out;
     try { out = { kind: "compiled", ts: EN.compileFileEn(edited, index, on === undefined ? undefined : { deriveCheck: on }) }; }
     catch (e) { out = { kind: "threw", msg: e.message }; }
     const silentlyPreferredPayload = out.kind === "compiled" && out.ts === spec.source;
-    if (out.kind === "threw") console.log("    " + which + " -> REFUSED: " + out.msg.split("\n")[0]);
-    else console.log("    " + which + " -> compiled" + (silentlyPreferredPayload ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs"));
+    count(out.kind === "threw"
+      ? `The ${which}: it was refused, saying ${R.describe(out.msg.split("\n")[0], 200)}`
+      : `The ${which}: it compiled, ${silentlyPreferredPayload
+          ? "to TypeScript identical to the unedited source, which would mean the payload quietly won"
+          : "and the TypeScript is different from the unedited source"}.`);
     /* the explicit-off row is EXPECTED to be silent — it is the escape hatch, asserted only so the
      * hatch is shown to still exist and to still be the wrong behaviour. Everything else must not
      * silently prefer the payload. */
     if (on === false) {
       ok(silentlyPreferredPayload || out.kind === "threw",
-        "8. deriveCheck:false is still an available escape hatch for the " + (spec === atomicSpec ? "atomic" : "structural") + " case");
+        "turning the derive check off explicitly is still a way out, for the " + (spec === atomicSpec ? "atomic clause" : "structural heading") + ", and it is still the wrong behaviour");
     } else {
       ok(!silentlyPreferredPayload,
-        "8. the " + which + " does not compile the pre-edit TypeScript and report success");
+        "the " + which + ", does not hand back the TypeScript from before the edit and call that success");
     }
   }
 }
@@ -318,7 +331,7 @@ for (const on of [undefined, false, true]) {
  *     else {
  *       const inner = atomicSpec.site, outer = structSpec.site;
  *       ok(inner.labelStart > outer.labelStart,
- *         "9. the atomic clause is nested inside the structural chunk (offsets confirm it)");
+ *         "the atomic clause really is nested inside the structural chunk, which its offsets confirm");
  *
  * i.e. it inferred NESTING from the two independently-chosen specimens landing in the SAME FILE.
  * That is a non-sequitur — same file is not the same chunk — and it was true only by coincidence
@@ -342,45 +355,54 @@ for (const on of [undefined, false, true]) {
  * SKIP itself into silence when the specimens landed in different files; this one asserts the pair
  * exists, so an absent pair is a red line rather than a quiet paragraph.
  * --------------------------------------------------------------------------------------------- */
-console.log("\n  --- 9. rule 2 survives nesting, and the bypass is not a blanket one ---");
+section("The same rule holds through nesting, and the way past it is not a blanket one.");
 if (!nestedSpec) {
-  console.log("    NO NESTED PAIR IN THE CORPUS — nothing below can run. This is a real failure:");
-  console.log("    the corpus offers no structural chunk whose heading echoes an identifier from an");
-  console.log("    atomic clause inside it, so rule 2 through nesting is untested, not passing.");
+  count("There is no nested pair anywhere in the corpus, so nothing below this line could run.");
+  count("That is a real failure and not a pass: the corpus offers no structural heading that echoes a name");
+  count("from a clause inside it, so the rule through nesting is untested rather than holding.");
 } else {
   const OTHER = "zzSecondProbeIdent";
   const { inner, outer } = nestedSpec.pair;
-  console.log("  NESTED specimen: " + nestedSpec.rel + "   identifier `" + nestedSpec.pair.ident + "`");
-  console.log("    outer heading      : " + outer.label.trim().slice(0, 110));
-  console.log("    inner clause       : " + inner.label.trim().slice(0, 110));
+  count(`The nested specimen is taken from ${nestedSpec.rel}, and the name at issue is ${nestedSpec.pair.ident}.`);
+  count(`The heading above reads: ${R.describe(outer.label.trim(), 110)}`);
+  count(`The clause inside it reads: ${R.describe(inner.label.trim(), 110)}`);
 
   /* now a PROPERTY of the selector rather than a coincidence of the corpus — kept as an assertion
    * because a selector that stopped returning nested pairs must not pass silently. */
   ok(inner.labelStart > outer.labelStart && inner.labelEnd <= chunkEnd(nestedSpec.en, outer.at),
-    "9. the atomic clause is nested inside the structural chunk (offsets confirm it)");
+    "the atomic clause really is nested inside the structural chunk, which its offsets confirm");
 
   const childOnly = editLabel(nestedSpec.en, inner);
   const a = compileOutcome(childOnly);
-  console.log("    9a child only              -> " + a.kind + (a.kind === "threw" ? " : " + a.msg.split("\n")[0] : (a.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
+  count("Editing the inner clause alone: " + (a.kind === "threw"
+    ? "it was refused, saying " + R.describe(a.msg.split("\n")[0], 200)
+    : a.ts.includes(NEW_IDENT) ? "it compiled, and the new name is in the TypeScript"
+                               : "it compiled, but the new name is MISSING from the TypeScript"));
   ok(a.kind === "compiled" && a.ts.includes(NEW_IDENT),
-    "9a. a child clause edit is honoured THROUGH its enclosing heading, not blocked by it");
+    "an edit to a clause inside a heading is honoured through that heading, rather than blocked by it");
 
   /* the inner clause sits AFTER the heading, so editing it first leaves the heading's offsets
    * valid — which is why `both` is built from `childOnly` and not from the pristine .en. */
   const both = editLabel(childOnly, outer);   /* same NEW_IDENT at both levels */
   const b = compileOutcome(both);
-  console.log("    9b child + heading agree   -> " + b.kind + (b.kind === "threw" ? " : " + b.msg.split("\n")[0] : (b.ts.includes(NEW_IDENT) ? ", carries the probe" : ", probe ABSENT")));
+  count("Editing the clause and its heading to agree: " + (b.kind === "threw"
+    ? "it was refused, saying " + R.describe(b.msg.split("\n")[0], 200)
+    : b.ts.includes(NEW_IDENT) ? "it compiled, and the new name is in the TypeScript"
+                               : "it compiled, but the new name is MISSING from the TypeScript"));
   ok(b.kind === "compiled" && b.ts.includes(NEW_IDENT),
-    "9b. editing child and heading consistently is honoured");
+    "editing the clause and the heading above it to say the same thing is honoured");
 
   const conflicting = childOnly.slice(0, outer.labelStart)
     + outer.label.replace("`" + outer.ident + "`", "`" + OTHER + "`")
     + childOnly.slice(outer.labelEnd);
-  ok(conflicting !== childOnly, "9. the conflicting heading edit actually changed the .en text");
+  ok(conflicting !== childOnly, "the contradicting heading edit really did change the English text");
   const c = compileOutcome(conflicting);
-  console.log("    9c child + heading conflict -> " + c.kind + (c.kind === "threw" ? " : " + c.msg.split("\n")[0] : (c.ts === nestedSpec.source ? ", IDENTICAL TO THE UNEDITED SOURCE" : ", output differs")));
+  count("Editing the heading to CONTRADICT the clause: " + (c.kind === "threw"
+    ? "it was refused, saying " + R.describe(c.msg.split("\n")[0], 200)
+    : c.ts === nestedSpec.source ? "it compiled to TypeScript identical to the unedited source"
+                                 : "it compiled, and the TypeScript is different from the unedited source"));
   ok(c.kind === "threw" && /HEADING AND BODY DISAGREE/.test(c.msg),
-    "9c. a heading edited to CONTRADICT the child edit is still refused — 9a is not a blanket bypass");
+    "a heading edited to contradict the clause below it is still refused, so honouring the clause is not a blanket way past the heading");
 }
 
 /* ---- and the probe is shown to be a real edit (§10.3) ----------------------------------------
@@ -389,10 +411,10 @@ if (!nestedSpec) {
  * verified independently of the compiler. */
 {
   const e = editLabel(atomicSpec.en, atomicSpec.site);
-  ok(e.includes(NEW_IDENT), "the probe edit is present in the .en handed to the compiler");
-  eq(e.length !== atomicSpec.en.length || e !== atomicSpec.en, true, "the probe edit changed the bytes");
+  ok(e.includes(NEW_IDENT), "the edit is present in the English actually handed to the compiler, measured without the compiler");
+  eq(e.length !== atomicSpec.en.length || e !== atomicSpec.en, true, "the edit changed the bytes of that English");
 }
 
-console.log("\n" + pass + " passed, " + fail + " failed");
-if (fail) console.error("\nThis suite was GREEN when the flip landed (2026-09-03). A failure here is a REGRESSION in\n"
+R.done("the sentence outranking its payload, in the corpus as it stands");
+if (process.exitCode) console.error("\nThis suite was GREEN when the flip landed (2026-09-03). A failure here is a REGRESSION in\n"
   + "§5C rule 2 or rule 3 — the English has stopped being the source. It is not an expected red.");
