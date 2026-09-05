@@ -142,4 +142,48 @@ ok("a label that COUNTS instead of naming is refused, and the refusal says what 
     `the refusal fired but did not say what the label failed to say. It said: ${threw.message}`);
 });
 
+/* THE CONSTRUCTED RETURN'S SHAPES -- and the label the corpus carries today is NOT sufficient.
+ * Measured against the generator template, not assumed: narrow word 5509 expands to
+ *   export default interface <id> { <id>: string <id>: string } export interface <id> { <id>: string <id>: number }
+ * so the TEMPLATE owns `export default`, and owns every field TYPE; the payload holes carry the six
+ * names and the whitespace; and the label names only the six names. `string` versus `number` is
+ * nowhere in the label, so no widening of the grammar can recover it -- the label has to say it.
+ * Indentation is the same shape of fact: interface members are tab-indented in 196 lines and
+ * space-indented in 5534, and NO file mixes the two, so it is per-file and this file is in the
+ * minority. Guessing the majority would corrupt exactly this construct. */
+const SHAPES = "src/freshbooks-api/models/AccountBusiness.ts";
+const WANT_SHAPES = setUp("the two interface declarations at the top of AccountBusiness.ts", () =>
+  declarationIn(SHAPES, "export default interface AccountBusiness", "account_business_id: number\n}"));
+
+ok("the label the corpus carries for these shapes is refused, because it names the fields but never their types", () => {
+  const asRendered = "describe the shape `AccountBusiness` with `accountId` and `businessId` "
+    + "then describe the shape `AccountBusinessResponse` with `account_id` and `account_business_id`";
+  let threw = null;
+  try { LS.compileFromLabel(asRendered); } catch (e) { threw = e; }
+  assert.ok(threw, "a label that never names a field type compiled anyway, which means it guessed string or number");
+  /* MATCHED ON A PHRASE ONLY THE TYPE REFUSAL USES. A bare /type/ also matched the INDENTATION
+   * refusal ("names every field type, but does not say how the members are indented"), so this
+   * assertion passed with the type check deleted -- a detector that could not fire. Caught by
+   * injecting the fault and getting no failure. */
+  assert.ok(/names a field but never its type/.test(threw.message),
+    `the refusal fired but did not name the missing field type. It said: ${threw.message}`);
+});
+
+ok("a label naming every shape, field, field type and the indentation compiles both declarations byte for byte, with no payload at all", () => {
+  const label = "describe the shape `AccountBusiness`, exported by default, with `accountId` which is a string "
+    + "and `businessId` which is a string, then describe the shape `AccountBusinessResponse` with "
+    + "`account_id` which is a string and `account_business_id` which is a number, each member indented with a tab";
+  const got = LS.compileFromLabel(label);
+  assert.equal(got, WANT_SHAPES, LS.whyTheyDiffer(got, WANT_SHAPES, "pair of shapes"));
+});
+
+ok("the wire-format field names survive into the compiled TypeScript exactly as the remote service spells them", () => {
+  const label = "describe the shape `AccountBusiness`, exported by default, with `accountId` which is a string "
+    + "and `businessId` which is a string, then describe the shape `AccountBusinessResponse` with "
+    + "`account_id` which is a string and `account_business_id` which is a number, each member indented with a tab";
+  const got = LS.compileFromLabel(label);
+  for (const wire of ["account_id", "account_business_id"])
+    assert.ok(got.includes(wire + ":"), `the compiled TypeScript no longer declares the wire-format field ${wire}, so a naming pass would have silently broken the integration`);
+});
+
 R.done("whether the label alone can be the compiler's source for one construct that round-trips today");

@@ -12405,3 +12405,57 @@ fault injection (quote clause ignored; a module dropped; the counting label let 
 injection was itself broken by shell quoting and produced a syntax error rather than a fault; rewritten
 via a file and re-run. Byte-identity `1037/1037 FAILURES 0`. Ceiling unchanged at 261218 / 85383.
 `e2e-constructs.test.js` still 11 green, 3 expected-pending.
+
+## 2026-09-04 — the constructed return's shapes: the grammar was not the whole problem
+
+**Task as handed to me:** *"The label NAMES its values ... The label is doing its job; the grammar
+cannot read what it says. Widen the grammar to read it."*
+
+**THAT PREMISE IS WRONG FOR THIS CONSTRUCT, AND THE REPO IS WHAT SAYS SO.** Narrow word 5509 — the
+generator this chunk actually uses — expands to:
+
+```
+export default interface <id> { <id>: string <id>: string } export interface <id> { <id>: string <id>: number }
+```
+
+So the TEMPLATE owns `export default` and owns every field TYPE; the payload holes carry only the six
+names and the whitespace (`[" "," "," ","AccountBusiness"," ","\n\t","accountId", ...]`); and the
+label names only those six names. **`string` versus `number` appears nowhere in the label.** No
+widening of the grammar can read a fact the label does not contain — the label has to say it. I
+widened the grammar AND report that the corpus label is insufficient, rather than reporting a
+grammar fix that would have implied the label was fine.
+
+**A second per-site fact the label must carry: indentation.** Interface members are tab-indented on
+196 lines and space-indented on 5534, and **no file mixes them** — so it is per-file, and this
+construct is in the 196-line minority. Guessing the corpus majority would corrupt exactly this file.
+The label therefore says "each member indented with a tab" and a label omitting it is refused. Same
+standard as the quote clause, and for the same reason.
+
+**The semantic omission is reported before the layout one.** The corpus label is missing BOTH the
+types and the indentation. A compiler that complained about whitespace while a field type was unknown
+would be pointing at the smaller hole, so clauses are parsed and their types demanded first.
+
+**MY OWN TEST HAD A DETECTOR THAT COULD NOT FIRE, and only fault injection found it.** The refusal
+assertion matched `/type/` — which the INDENTATION refusal also contains ("names every field type,
+but does not say how the members are indented"). So the property passed with the type check deleted.
+Injecting the fault produced NO failure; diagnosing the injector instead of believing the pass showed
+the assertion was at fault. Tightened to `/names a field but never its type/`, and the injection then
+fired. **That is the third injector-or-assertion defect caught tonight by the same discipline**, and
+in this case the weakness was in the check rather than the injector.
+
+**What is green:** the two interface declarations (178 bytes) compile from a single label with NO
+payload in the picture at all, byte-identical to the file's own bytes sliced at run time. The
+wire-format names `account_id` and `account_business_id` survive into the compiled TypeScript exactly
+as the remote service spells them — pinned by its own property, and shown red by a fault that
+de-snakes them, which is precisely the silent integration break Amir's noun ruling exists to prevent.
+
+**HELD, NOT ACTIONED, so they are not lost:**
+- `enfile.js:2359` says *"1030 of 1037 files collapse to a SINGLE ATOMIC word"*. Measured on disk:
+  **257 single-atomic, 777 single-structural, 3 multi**. Stale; in the hot file; deserves its own change.
+- `plain-english.js:145` `QUOTE = "'"` versus label authority's refusal. One grammar compiles English
+  an author WROTE, where no quote was ever chosen; label authority must reproduce code that ALREADY
+  EXISTS, where the majority corrupts 1597 sites. `plain-english.js` untouched.
+
+**Verified by running it:** 11 properties green, every new one shown red under injection (guess a
+field type; ignore the stated indentation; de-snake the wire fields). Byte-identity 1037/1037.
+Ceiling unchanged at 261218 / 85383.

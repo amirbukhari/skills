@@ -99,6 +99,46 @@ function compileFromLabel(label) {
       + "1597 double, and 94 files use both -- so it cannot be inferred from the file or from the "
       + "majority. Say \"each a local module named in single quotes\", or double.");
 
+  /* SHAPES. The corpus label for these names the six identifiers and nothing else, and that is not
+   * enough to generate from -- measured against narrow word 5509, whose template owns `export
+   * default` and owns every field TYPE while the holes carry only names and whitespace. So the
+   * grammar cannot be widened into sufficiency here: the LABEL has to name the types. It also has
+   * to name the indentation, which is a per-file fact in this corpus (196 tab-indented member lines
+   * against 5534 space-indented, and NO file mixes them) with this construct in the minority --
+   * guessing the majority would corrupt exactly this file. */
+  if (/^describe the shape /.test(s)) {
+    /* THE SEMANTIC OMISSION IS REPORTED BEFORE THE LAYOUT ONE. This label is missing BOTH the field
+     * types and the indentation, and a compiler that complained about whitespace while a field type
+     * was unknown would be pointing at the smaller hole. So the clauses are parsed and their types
+     * demanded first; only then is the indentation required. */
+    const ind = s.match(/, each member indented with (a tab|two spaces)$/);
+    const body = ind ? s.slice(0, s.length - ind[0].length) : s;
+    const clauses = body.split(/,?\s+then\s+/);
+    const parsed = clauses.map((c) => {
+      const m2 = c.trim().match(/^describe the shape `([^`]+)`(, exported by default)?,?\s+with\s+(.+)$/);
+      if (!m2) throw new Error(`label-source: this is not a shape clause the grammar can read: "${c.trim()}"`);
+      const fields = m2[3].split(/,?\s+and\s+/).map((f) => {
+        const m3 = f.trim().match(/^`([^`]+)` which is an? (.+?)$/);
+        if (!m3)
+          throw new Error("label-source: this label names a field but never its type: \""
+            + f.trim() + "\". A field type is carried by the generator template, not by the payload "
+            + "holes, so a label that omits it cannot be the source of these bytes -- it would have "
+            + "to guess between string and number. Write it as a name, the words which is a, and a type.");
+        return { name: m3[1], type: m3[2].trim() };
+      });
+      return { shape: m2[1], isDefault: !!m2[2], fields };
+    });
+    if (!ind)
+      throw new Error("label-source: this label describes shapes and names every field type, but does "
+        + "not say how the members are indented. That is a per-file fact in this corpus -- 196 member "
+        + "lines use a tab and 5534 use spaces, and no file mixes them -- so it cannot be inferred from "
+        + "the majority without corrupting the minority. Say \"each member indented with a tab\", or "
+        + "with two spaces.");
+    const pad = ind[1] === "a tab" ? "\t" : "  ";
+    return parsed.map((d) => "export " + (d.isDefault ? "default " : "") + "interface " + d.shape + " {\n"
+      + d.fields.map((f) => pad + f.name + ": " + f.type).join("\n") + "\n}").join("\n\n");
+  }
+
   if (!namesAValue(s))
     throw new VacuousLabelError(s, "A label is compilable only when it names the values it carries, "
       + "which the renderer writes inside back-ticks. This one carries none, so no value can be recovered from it.");
