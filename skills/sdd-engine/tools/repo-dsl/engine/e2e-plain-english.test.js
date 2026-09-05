@@ -102,7 +102,7 @@ ok("case 1 — a file with a SYMBOL in it is refused before anything is compiled
  *
  *     Bring in use auth from the local module use auth.
  *
- *     To use permissions:
+ *     To use permissions.
  *       Return roles from the result of use auth if it is set, otherwise an empty list.
  *
  * compiles to a program that is IDENTICAL in behaviour and differs from the file on disk in FOUR
@@ -123,7 +123,7 @@ ok("case 1 — a file with a SYMBOL in it is refused before anything is compiled
  * diff rather than as a red so that a REGRESSION in the compiled code — a wrong identifier, a lost
  * `?.` — still fails loudly here instead of hiding inside an expected red. */
 const CASE2 = "Bring in use auth from the local module use auth.\n\n"
-  + "To use permissions:\n"
+  + "To use permissions.\n"
   + "  Return roles from the result of use auth if it is set, otherwise an empty list.\n";
 ok("case 2 — the .en ON DISK carries no glyph and no TypeScript", () => {
   const r = throughDisk("usePermissions", CASE2);

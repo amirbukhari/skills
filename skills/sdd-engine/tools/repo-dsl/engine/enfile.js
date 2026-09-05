@@ -2837,7 +2837,20 @@ function compileFileEn(en, index, opts) {
  * once (CLAUDE.md §7), and 270 lines of new scale logic does not belong in it. */
 const SCALES = require("./en-scales");
 
-module.exports = { renderFileEn, NestRenderer, compileFileEn, compileChunk, splitStructural, childSlots, deriveGloss, deriveStructuralGloss, repairFromSentence,
+/* THE DIALECT'S MARKS, UNDER ENGLISH NAMES. Amir, 2026-09-04: "I don't want to see any typescript
+ * or symbols in any files". These characters are the parser -- they cannot leave the ENGINE -- but
+ * nothing forces every TEST that needs to find a chunk to spell them out again. Exported so a test
+ * can say `MARKS.chunkOpen` and read as English, and so the delimiters keep ONE definition: a
+ * second copy in a consumer drifts from this one silently, which is the same defect class as the
+ * duplicated walk-skip sets. Reading them is all any consumer may do; the renderer owns them. */
+const MARKS = Object.freeze({
+  chunkOpen: OPEN, chunkClose: CLOSE,
+  atomicChunk: GEN, structuralChunk: GEN_NEST,
+  payloadOpen: PAY_OPEN, payloadClose: PAY_CLOSE,
+  bodyOpen: BODY_OPEN, bodyClose: BODY_CLOSE,
+});
+
+module.exports = { MARKS, renderFileEn, NestRenderer, compileFileEn, compileChunk, splitStructural, childSlots, deriveGloss, deriveStructuralGloss, repairFromSentence,
   renderFolderEn: SCALES.renderFolderEn, compileFolderEn: SCALES.compileFolderEn,
   renderProgramEn: SCALES.renderProgramEn, compileProgramEn: SCALES.compileProgramEn, SCALES, countBodyStatements, loadIndex, genLabel, spanProse, spanActions, chunkGloss, sanitizeLabel, namedLabel, NAMES, escapeVerbatim, unescapeVerbatim,
   /* exported for engine/rule-coverage.js: "carries no information" must have exactly ONE definition,

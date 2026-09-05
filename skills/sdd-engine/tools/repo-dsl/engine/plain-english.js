@@ -26,7 +26,7 @@
  *   Bring in <name> from the local module <name>.
  *       -> import { <name> } from './<name>';
  *
- *   To <name>:
+ *   To <name>.
  *     Return <prop> from the result of <fn> if it is set, otherwise an empty list.
  *       -> export const <name> = () => {
  *            return <fn>()?.<prop> ?? [];
@@ -57,18 +57,23 @@ class PlainEnglishError extends Error {
 }
 
 /* THE SYMBOL FLOOR. A plain-English file may hold letters, digits, spaces, newlines, and the three
- * marks ordinary prose uses: comma, period, hyphen, and the colon that introduces a block.
- * JUDGEMENT CALL, recorded in ASSUMPTIONS.md: a colon is ordinary English punctuation ("To use
- * permissions:"), not a symbol -- but it is ALSO TypeScript's type annotation mark, so allowing it
- * is the one place this floor is looser than "no character TypeScript uses". The apostrophe is NOT
- * allowed, because it is a quote character. Everything else is a symbol, and that includes
+ * marks ordinary prose uses: comma, period and hyphen. Everything else is a symbol, and that includes
+ *
+ * THE COLON IS NOT ALLOWED, and the first version of this file allowed it. The block header read
+ * "To use permissions:" and the colon tripped the floor, so the floor was widened to let it
+ * through -- which is the one move that is never available: widening the check until the artifact
+ * passes it. Reverted. The colon turned out to be INCIDENTAL rather than load-bearing: the
+ * INDENTATION already says where the block is, so the header is an ordinary sentence ending in a
+ * period, and nothing is lost. Recorded because the wrong instinct was the fast one.
+ *
+ * The apostrophe is not allowed either -- it is a quote character. This also includes
  * every glyph of the corpus dialect and every character TypeScript needs. Stated as an ALLOW list,
  * because a deny list of "the glyphs I remembered" is exactly the guard that cannot fire. */
-const ALLOWED = /^[A-Za-z0-9 \n,.:\-]*$/;
+const ALLOWED = /^[A-Za-z0-9 \n,.\-]*$/;
 const GLYPHS = /[«»⟪⟫⟨⟩⟦⟧▶▷]/g;
 /* Characters that are TypeScript, not prose. Used for REPORTING, so a violation says which kind it
  * is; the ALLOW list above is what actually decides. */
-const TS_CHARS = /[{}()\[\];=<>`'"$*+/\\|&!?@#%^~]/g;
+const TS_CHARS = /[{}()\[\];:=<>`'"$*+/\\|&!?@#%^~]/g;
 
 /** scan TEXT (read from a file, never from a renderer) and report every symbol in it */
 function scanSymbols(text) {
@@ -120,7 +125,7 @@ function compilePlainEnglish(text) {
       out.push("import { " + camel(m[1]) + " } from " + QUOTE + "./" + camel(m[2]) + QUOTE + ";");
       i++; continue;
     }
-    if ((m = s.match(/^To (.+):$/))) {
+    if ((m = s.match(/^To (.+)\.$/))) {
       const fnName = camel(m[1]);
       const body = [];
       i++;
