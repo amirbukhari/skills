@@ -12284,3 +12284,63 @@ they are a measurement of what the code uses rather than a declaration of what i
 read-only, all in the scratchpad, none committed, none writing to the corpus.
 
 **Commit:** measurement only; no engine change.
+
+## 2026-09-04 — the label as the compile source, for ONE construct, and what the payload still does
+
+**Amir, verbatim:** *"So make the label get read  by the compiler then?"*
+
+**Decided:** build `engine/label-source.js` as a SEPARATE front door that compiles a chunk from its
+label with the payload never decoded, exercised by `engine/label-authority.test.js` over one
+construct — `boolToBit` in `src/helpers.ts`. `enfile.js` is untouched, no existing check is
+weakened, and `SDD_DERIVE_CHECK` is untouched. This is a probe with a scope, not a corpus-wide flip.
+
+**I VIOLATED A STANDING CONSTRAINT AND AM RECORDING IT RATHER THAN LETTING IT PASS.** To sanity-check
+the registry edit I ran `node -e 'require("./run-tests.js")'`. **That RUNS THE SUITE** — the same
+hazard as `node run-tests.js --list`, which the floor names explicitly; I had the rule in front of me
+and reached for `require` without connecting the two. It ran about two minutes before I killed it,
+and the machine survived. `node --check run-tests.js` is the check I wanted: it parses without
+executing. **The rule as written names a flag, and the actual hazard is IMPORTING THE MODULE AT ALL** —
+recorded here in that more general form, because the flag-shaped version of the rule is what let me
+walk past it.
+
+**A one-byte RED that was my fixture's fault, not the compiler's.** The first run failed 92 against
+93 bytes. `declarationIn` appended a newline, copied from `e2e-constructs.test.js` where the subject
+is a whole FILE. Verified against the artifact: the .en tail after the construct's chunk is a close
+mark then the newline, so that byte belongs to the ENCLOSING chunk. The declaration owns **92**
+bytes. This also corrects the "93 bytes" I quoted for `boolToBit` in earlier reports. Fixing a
+fixture that misstates the corpus is not re-baselining a check — the assertion is still exact byte
+equality, and it is still exact byte equality now.
+
+**Every property was shown able to fail.** Five fault injections against a backed-up copy, restored
+and md5-verified: making the compiler require a payload turns the deletion property red; letting a
+vacuous label compile turns the refusal red; refusing with an unhelpful message ALSO turns it red;
+an over-strict grammar turns the control red; a stray byte turns byte-identity red. **One injection
+did not fire and the injector was at fault, not the check** — I inserted a special case above the
+general rule and left the general rule in place, so the control still passed. Rewritten to actually
+remove the general rule, and it fired. A fault injection that fails to fire must be diagnosed before
+it is believed, exactly like a detector that cannot fire.
+
+**WHAT THE PAYLOAD IS STILL DOING, measured rather than asserted — the answer to "delete it and see".**
+For `boolToBit`, nothing: the payloads were deleted outright and the construct still compiled
+byte-identically, so the label is genuinely the source there. For the CONDITIONAL (`bitToBool`) the
+payload is doing real work, and it is one byte: **the quote character of a string literal.** Word 7
+is `throw new Error(<args>);`, so the quote sits in the hole; decoding this construct's payload
+gives `h: ["'bit must be either 0 or 1'"]` — single quotes, carried by the payload. The label
+renders it as curly quotes, which say nothing about which quote character the source used. Corpus
+style is 4916 single to 189 double, **so hardcoding the majority would compile this file and
+silently corrupt 189 others.** The grammar REFUSES and names what it cannot recover. That refusal is
+the correct outcome, not a gap to close by guessing.
+
+**Also confirmed, and it supports Amir's naming ruling rather than complicating it:** the
+constructed-return label reads *"describe the shape `AccountBusiness` with `accountId` and
+`businessId` then describe the shape `AccountBusinessResponse` with `account_id` and
+`account_business_id`"*. The label CARRIES the snake_case wire-format names. They are not lost in
+rendering; they are named in the English, which is what a naming pass would have to leave alone.
+
+**THE SCOPE CLAIM I AM NOT MAKING.** Retiring the payload removes **182,355 of 261,218** dialect
+marks (69.8%) and leaves **78,863** standing — the chunk delimiters, which delimit the chunk and not
+the payload. This step is most of the glyph problem and it is not all of it.
+
+**Verified by running it:** `label-authority.test.js` — 5 properties green, each shown red under
+injection. Byte-identity `files: 1037  byte-identical: 1037  FAILURES: 0` before and after. Symbol
+ceiling unchanged at 261218 marks / 85383 TypeScript lines, not raised and not widened.

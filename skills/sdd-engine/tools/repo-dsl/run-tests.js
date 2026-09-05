@@ -147,6 +147,17 @@ const CORPUS_TIER = new Map([
     ],
     why: "symbol-free English on disk for five real constructs, compiled and byte-compared",
   }],
+  ["engine/label-authority.test.js", {
+    expect: "green",
+    needs: ["generators-lzw"],
+    /* Amir, 2026-09-04: "So make the label get read  by the compiler then?" -- ONE construct
+     * (boolToBit) compiled from its LABELS with the payload deleted outright, plus the refusal a
+     * label-as-source implies: a label naming no value becomes uncompilable, not merely vague.
+     * Scoped to one construct deliberately; what the other four do is reported per construct and
+     * not generalised from this one. */
+    files: [path.join("src", "helpers.ts"), path.join("sen", "files", "src", "helpers.ts.en")],
+    why: "whether the label alone can be the compile source for a construct that round-trips today",
+  }],
   ["engine/en-symbol-ceiling.test.js", {
     expect: "green",
     needs: [],
