@@ -12191,3 +12191,51 @@ the results. Named here so it is not mistaken for finished.
 the corpus-wide scanner and its down-only ceiling. Written and passing at the measured baseline
 (261,218 dialect marks; 85,383 of 109,728 non-empty lines carrying TypeScript; 2 clean files, both of
 them empty). Held out of this commit because Amir put the results ahead of them.
+
+## five constructs from real corpus files — four green, and a THIRD wall I did not expect
+
+**Amir: continue into the remaining suite cases.** Each specimen is quoted from a named corpus file
+and byte-compared against that file's own bytes, sliced out at run time and never transcribed into
+the test. `engine/e2e-constructs.test.js`.
+
+**GREEN, byte-identical against real corpus bytes:**
+
+| construct | specimen | compared against |
+|---|---|---|
+| more than one top-level declaration | `packages/hydra-internal/src/index.ts` | the WHOLE file, 293 bytes |
+| a function with parameters | `boolToBit` in `src/helpers.ts` | that declaration, 93 bytes |
+| a conditional | `bitToBool` in `src/helpers.ts` | that declaration, 176 bytes |
+| a call chain with a member access | `isUserSocketSetUp` in `src/sockets.ts` | that declaration, 102 bytes |
+
+**A slice is a weaker claim than a whole file, and it is labelled as one in the test.** A corpus file
+of 900 lines cannot be written out in a grammar this size; the comparison is against the exact bytes
+of the declaration, but it is not a claim about the file around it.
+
+**THE THIRD WALL, found by writing the case rather than carried in.** The constructed return in
+`src/freshbooks-api/models/AccountBusiness.ts` does not fail on the constructed return. It fails on
+the FIELD NAMES: `account_id` and `account_business_id` are snake_case, and English words joined by
+the one convention this grammar has reach `accountId`. **That is the same class as the acronym wall —
+a spelling no rule of English can produce — and it is not rare: 702 DISTINCT snake_case identifiers
+across `src/` and `packages/`, counted 2026-09-04.**
+
+**What I did NOT establish, and will not claim: whether the constructed-return grammar itself is
+reachable.** Every small constructed return in the corpus carries a spelling English cannot reach, so
+the construct is blocked before the question is asked. A green on an invented fixture would prove
+nothing about the corpus, so there is no green here.
+
+**One judgment call in the grammar, and it is a real distinction rather than a convenience.**
+`isUserSocketSetUp` is an expression-bodied arrow with no braces; `boolToBit` has a block body. Two
+shapes, so two sentence forms: `To X, given ...` opens a block, and `X, given ..., is ...` defines a
+value. **A grammar that flattened the two could not come back byte-identical to either.** The
+expression form is matched FIRST because both begin with a name and a comma and only the trailing
+", is ..." tells them apart — ordering is the disambiguation, not an accident of arrangement.
+
+**The three walls are asserted as REFUSALS and counted as passes, with the CAPABILITY reported as
+expected-pending.** A refusal that names its reason is the correct outcome today. Skipping them
+would read as a green, which is the thing that must never happen.
+
+**Negative controls, both by fault injection from the scratchpad, never by editing a test:** a
+conditional body indented by three spaces instead of two turns two cases red on a single byte; the
+corpus minority quote style plus one renamed identifier turns four red. Both runs also caught a weak
+message of mine — "the compiled declaration is 176 bytes where the corpus one is 176" says nothing —
+now replaced with the first differing byte, named in words.

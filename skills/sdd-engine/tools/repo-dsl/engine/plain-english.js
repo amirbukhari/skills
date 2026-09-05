@@ -34,6 +34,33 @@
  *       Dropping "if it is set, otherwise an empty list" is a DIFFERENT sentence and compiles to
  *       `return <fn>().<prop>;` — the English is load-bearing, not decoration.
  *
+ *   Pass on everything from the local module <name>.
+ *       -> export * from './<name>';
+ *
+ *   To <name>, given <p> which is a <type>[ and <p> which is a <type>].
+ *     <clauses, indented>
+ *       -> export const <name> = (<p>: <type>) => { <clauses> };
+ *       The parameter list is prose: a name, the words "which is a", and a type. Both survive.
+ *
+ *   <Name>, given <params>, giving back a <type>, is <expression>.
+ *       -> export const <name> = (<params>): <type> => <expression>;
+ *       A DIFFERENT SENTENCE FOR A DIFFERENT SHAPE, and deliberately so. "To X." opens a block and
+ *       "X ... is ..." defines a value, which is the difference between a body in braces and an
+ *       expression-bodied arrow. English marks it because the corpus makes the distinction and a
+ *       grammar that flattened the two could not come back byte-identical to either.
+ *
+ *   CLAUSES, inside a block:
+ *     If <name>, return <value>.            -> if (<name>) { return <value>; }
+ *     If <name> is <value>, return <value>. -> if (<name> === <value>) { return <value>; }
+ *     Return <value>.                       -> return <value>;
+ *     Refuse, saying <text>.                -> throw new Error('<text>');
+ *
+ *   EXPRESSIONS:
+ *     whether the <op> of <x> include <y>   -> <op>(<x>).includes(<y>)
+ *
+ * A VALUE is a whole number, `true`, `false`, or a name. Numbers and the two booleans are written as
+ * themselves; everything else is English words joined into camelCase, exactly as a name is.
+ *
  * NAMES. English words, lowercase, separated by spaces; joined into camelCase. "use auth" is
  * `useAuth`, "required ui version" is `requiredUiVersion`. Reversible only because the convention
  * is fixed; a name whose TypeScript spelling is not camelCase of its English words CANNOT be
@@ -95,6 +122,26 @@ function scanSymbols(text) {
 const camel = (words) => words.trim().split(/\s+/)
   .map((w, i) => (i === 0 ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join("");
 
+/** a whole number and the two booleans are written as themselves; anything else is a name */
+const value = (w) => (/^\d+$/.test(w.trim()) || w.trim() === "true" || w.trim() === "false" ? w.trim() : camel(w));
+
+/** "bool which is a boolean" -> "bool: boolean"; several joined by " and " */
+function params(prose) {
+  if (!prose.trim()) return "";
+  return prose.split(/ and (?=[a-z])/).map((p) => {
+    const m = p.trim().match(/^(.+?) which is an? (.+)$/);
+    if (!m) throw new PlainEnglishError("a parameter must be written as a name, the words which is a, and a type", p.trim());
+    return camel(m[1]) + ": " + m[2].trim();
+  }).join(", ");
+}
+
+/** the one expression form the corpus specimen needs. Anything else REFUSES rather than guesses. */
+function expression(prose) {
+  const m = prose.trim().match(/^whether the (.+?) of (.+?) include (.+)$/);
+  if (m) return camel(m[1]) + "(" + camel(m[2]) + ")." + "includes(" + camel(m[3]) + ")";
+  throw new PlainEnglishError("no rule in the grammar matches this expression", prose.trim());
+}
+
 const QUOTE = "'";          // measured majority, see the header
 const CLOSE = "};";         // measured majority, see the header
 
@@ -121,18 +168,30 @@ function compilePlainEnglish(text) {
       out.push("export const " + camel(m[1]) + " = " + QUOTE + m[2] + QUOTE + ";");
       i++; continue;
     }
+    if ((m = s.match(/^Pass on everything from the local module (.+)\.$/))) {
+      out.push("export * from " + QUOTE + "./" + camel(m[1]) + QUOTE + ";");
+      i++; continue;
+    }
     if ((m = s.match(/^Bring in (.+?) from the local module (.+)\.$/))) {
       out.push("import { " + camel(m[1]) + " } from " + QUOTE + "./" + camel(m[2]) + QUOTE + ";");
       i++; continue;
     }
-    if ((m = s.match(/^To (.+)\.$/))) {
+    /* The expression-bodied form is tried FIRST, because "To X, given ..." and "X, given ..., is ..."
+     * both begin with a name and a comma, and only the trailing ", is <expression>" tells them
+     * apart. Order here is the disambiguation, so it is not an accident of arrangement. */
+    if ((m = s.match(/^(.+?), given (.+?), giving back an? (.+?), is (.+)\.$/))) {
+      out.push("export const " + camel(m[1]) + " = (" + params(m[2]) + "): " + m[3].trim()
+        + " => " + expression(m[4]) + ";");
+      i++; continue;
+    }
+    if ((m = s.match(/^To (.+?)(?:, given (.+?))?\.$/))) {
       const fnName = camel(m[1]);
       const body = [];
       i++;
       while (i < lines.length && /^\s+\S/.test(lines[i])) { body.push(lines[i].trim()); i++; }
       if (!body.length) throw new PlainEnglishError("a block with no sentences in it", s);
-      out.push("export const " + fnName + " = () => {");
-      for (const b of body) out.push("  " + compileClause(b));
+      out.push("export const " + fnName + " = (" + params(m[2] || "") + ") => {");
+      for (const b of body) for (const line of compileClause(b)) out.push("  " + line);
       out.push(CLOSE);
       continue;
     }
@@ -147,12 +206,21 @@ function compilePlainEnglish(text) {
   return out.join("\n") + "\n";
 }
 
+/** a clause compiles to one or more LINES, already indented relative to the block it sits in */
 function compileClause(s) {
   let m;
   if ((m = s.match(/^Return (.+?) from the result of (.+?) if it is set, otherwise an empty list\.$/)))
-    return "return " + camel(m[2]) + "()?." + camel(m[1]) + " ?? [];";
+    return ["return " + camel(m[2]) + "()?." + camel(m[1]) + " ?? [];"];
   if ((m = s.match(/^Return (.+?) from the result of (.+?)\.$/)))
-    return "return " + camel(m[2]) + "()." + camel(m[1]) + ";";
+    return ["return " + camel(m[2]) + "()." + camel(m[1]) + ";"];
+  if ((m = s.match(/^If (.+?) is (.+?), return (.+)\.$/)))
+    return ["if (" + camel(m[1]) + " === " + value(m[2]) + ") {", "  return " + value(m[3]) + ";", "}"];
+  if ((m = s.match(/^If (.+?), return (.+)\.$/)))
+    return ["if (" + camel(m[1]) + ") {", "  return " + value(m[2]) + ";", "}"];
+  if ((m = s.match(/^Refuse, saying (.+)\.$/)))
+    return ["throw new Error(" + QUOTE + m[1] + QUOTE + ");"];
+  if ((m = s.match(/^Return (.+)\.$/)))
+    return ["return " + value(m[1]) + ";"];
   throw new PlainEnglishError("no rule in the grammar matches this clause", s);
 }
 

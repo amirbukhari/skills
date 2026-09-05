@@ -133,6 +133,20 @@ const CORPUS_TIER = new Map([
     needs: ["generators-lzw"],
     why: "renders a real .en through the dictionary, then hand-edits it (A4)",
   }],
+  ["engine/e2e-constructs.test.js", {
+    expect: "green",
+    needs: [],
+    /* Five constructs, each written as symbol-free English and byte-compared against TypeScript that
+     * is really in the corpus -- whole file for the first, one declaration sliced at run time for the
+     * rest. Three further constructs are expected-pending REDs carrying their reason. */
+    files: [
+      path.join("packages", "hydra-internal", "src", "index.ts"),
+      path.join("src", "helpers.ts"),
+      path.join("src", "sockets.ts"),
+      path.join("src", "freshbooks-api", "models", "AccountBusiness.ts"),
+    ],
+    why: "symbol-free English on disk for five real constructs, compiled and byte-compared",
+  }],
   ["engine/en-symbol-ceiling.test.js", {
     expect: "green",
     needs: [],
