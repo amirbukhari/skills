@@ -32,3 +32,4 @@ Our internal AI agents automatically load these configuration directories during
 | [guide-builder](skills/guide-builder/) | Authoring user-facing explainers and guided tours with every selector resolved against real render code, so guide content cannot silently rot. |
 | [video-guide](skills/video-guide/) | Writing, recording and publishing a feature's narrated video guide, with every caption spoken and every step checked against the real screens. |
 | [autocompact](skills/autocompact/) | Viewing or changing Claude Code's auto-compaction window for the active account, with a helper script. |
+| [generator-scaffold](skills/generator-scaffold/) | Scaffolding a new declaration-driven TypeScript project: resource and feature manifests, a tested generator, a runtime that consumes its output, and one example resource end to end. |
