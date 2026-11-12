@@ -1,0 +1,136 @@
+#!/bin/sh
+# pre-commit — THE CHEAP FLOOR. It is not the whole test rule; it is the part nobody can skip.
+#
+# A rule nobody can skip beats a rule everyone means to follow, so this hook exists. Be clear
+# about what it is worth:
+#
+#   IT RUNS THE CHEAP GUARD TIER AND NOTHING ELSE. List only suites that need no built artifact,
+#   finish quickly, and are the ones a doc edit, a comment repoint, a move or a rename actually
+#   breaks. They are the reason this hook can run on every commit.
+#
+#   IT CANNOT KNOW WHICH SUITES YOUR CHANGE TOUCHES. A green hook proves nothing about the file you
+#   edited. The suites that exercise it are still yours to run by name. A hook that gives false
+#   comfort is worse than no hook, so it says this again when it passes.
+#
+# THE SUITE LIST is a file in the repository, one suite per line:
+#
+#     # a comment
+#     test/guards/reachability.test.js              run as: node <path>
+#     test/unit/paths.spec.js | npx jest            run as: npx jest <path>
+#
+# Its location is `git config cheapFloor.suites <path>`, else `.cheap-floor` at the repository
+# root. The default runner for a line with no `|` is `git config cheapFloor.runner`, else `node`.
+# NEVER list the command that runs the whole suite. Named suites only, one process at a time.
+#
+# Enable once per clone:   git config core.hooksPath <the folder holding this file>
+
+set -u
+ROOT=$(git rev-parse --show-toplevel) || exit 1
+cd "$ROOT" || exit 1
+
+LIST=$(git config --get cheapFloor.suites || true)
+[ -n "$LIST" ] || LIST=.cheap-floor
+RUNNER=$(git config --get cheapFloor.runner || true)
+[ -n "$RUNNER" ] || RUNNER=node
+
+if [ ! -f "$LIST" ]; then
+  cat <<MSG
+
+COMMIT REFUSED — the cheap floor has no suite list: $LIST is not a file.
+
+Create it (one suite path per line), or point at it: git config cheapFloor.suites <path>.
+A floor that cannot find its list must not read as a floor that passed.
+MSG
+  exit 1
+fi
+
+# Strip comments and blank lines. Each remaining line is "<path>" or "<path> | <runner words>".
+ENTRIES=$(sed -e 's/[[:space:]]*#.*$//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$LIST")
+
+# AN EMPTY LIST IS NOT A PASS. A floor over zero suites would print green having run nothing.
+if [ -z "$ENTRIES" ]; then
+  cat <<MSG
+
+COMMIT REFUSED — $LIST names no suites.
+
+A hook that runs nothing and exits green is the failure this hook exists to prevent. List at
+least one cheap guard suite.
+MSG
+  exit 1
+fi
+
+suite_of() { printf '%s\n' "$1" | sed -e 's/[[:space:]]*|.*$//'; }
+runner_of() {
+  case "$1" in
+    *"|"*) printf '%s\n' "$1" | sed -e 's/^[^|]*|[[:space:]]*//' ;;
+    *) printf '%s\n' "$RUNNER" ;;
+  esac
+}
+
+# THE LIST NAMES LITERAL PATHS AND NOTHING ELSE CHECKS THEM — a plain text list is invisible to
+# an import-rewrite sweep, so a suite that moves needs its own edit there, in the SAME commit as
+# the move. A missing suite is refused; it is never skipped.
+MISSING=""
+OLDIFS=$IFS
+IFS='
+'
+for line in $ENTRIES; do
+  t=$(suite_of "$line")
+  [ -f "$t" ] || MISSING="$MISSING $t"
+done
+IFS=$OLDIFS
+if [ -n "$MISSING" ]; then
+  cat <<MSG
+
+COMMIT REFUSED — $LIST names a suite that is not on disk:$MISSING
+
+Whoever moved that suite owes the list the same edit they gave every import: re-point it to
+where the suite is now, in the SAME commit as the move.
+MSG
+  exit 1
+fi
+
+OUT=$(mktemp "${TMPDIR:-/tmp}/cheap-floor.XXXXXX") || exit 1
+trap 'rm -f "$OUT"' EXIT INT TERM
+
+echo "pre-commit: the cheap guard tier, one process at a time."
+FAILED=""
+IFS='
+'
+for line in $ENTRIES; do
+  IFS=$OLDIFS
+  t=$(suite_of "$line")
+  r=$(runner_of "$line")
+  # $r is split on purpose: it is a command and its arguments.
+  if $r "$t" >"$OUT" 2>&1; then
+    echo "  ok    $t"
+  else
+    echo "  FAIL  $t"
+    sed -n '1,40p' "$OUT"
+    FAILED="$FAILED $t"
+  fi
+  IFS='
+'
+done
+IFS=$OLDIFS
+
+if [ -n "$FAILED" ]; then
+  cat <<'MSG'
+
+COMMIT REFUSED — the cheap guard tier is red.
+
+Fix the code, or delete the test if its premise is not true. Do not weaken, narrow or delete an
+assertion to make a false claim pass, and do not commit red and note it for later.
+MSG
+  exit 1
+fi
+
+cat <<'MSG'
+
+pre-commit: the cheap guard tier is green. THIS IS NOT THE TEST RUN YOUR CHANGE NEEDS.
+It knows nothing about the files you changed. Before you commit, run BY NAME, one at a time:
+  - every test that reads or exercises a file you touched
+  - every test named in a comment inside a file you touched
+and name them and their results in the commit message.
+MSG
+exit 0
