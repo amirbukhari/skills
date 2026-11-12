@@ -1,0 +1,5 @@
+node_modules/
+
+# Written by `__PM_RUN__ generate:resources` from generators/resources: regenerated, never reviewed.
+__API_DIR__/generated/
+__SHARED_DIR__/generated/resources/

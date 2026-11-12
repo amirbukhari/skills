@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@api/*": ["./__API_DIR__/*"],
+      "@shared/*": ["./__SHARED_DIR__/*"]
+    }
+  },
+  "include": ["generators", "__API_DIR__", "__SHARED_DIR__", "vitest.config.ts"]
+}

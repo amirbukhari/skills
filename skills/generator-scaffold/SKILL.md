@@ -1,0 +1,116 @@
+---
+name: generator-scaffold
+description: Scaffold a new TypeScript project in the "generator style" — resources and features declared as plain data, with the contract, store, service, router and action registry generated from those declarations. Use when asked to start a new declaration-driven / manifest-driven / code-generated API project, to "set up a generator like our other repo", or to add the first resource to one. Not for adding a generator to an existing codebase.
+---
+
+# Generator scaffold
+
+Creates a new project where **declarations are the source of truth** and code is
+generated from them:
+
+```text
+generators/resources/<name>.ts   ──┐                    ┌─ contract: zod schemas + types
+  fields, operations               ├─ generate ────────▶├─ store, service, router per resource
+generators/manifests/<key>.ts    ──┘                    └─ action wrappers + registry of enabled actions
+  resources used, actions owned                                     │
+                                         hand-written runtime mounts whatever was generated
+```
+
+The scaffold ships the declaration formats, a working generator with tests, a small
+hand-written runtime that consumes the generated output, one example resource and
+one example action end to end, and `generate` / `test` / `typecheck` scripts.
+
+## 1. Settle the parameters
+
+Ask only for what the request does not already say; everything but the first two
+has a default.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `--out` | Folder to create. Must be missing or empty. | required |
+| `--name` | Project (package) name, kebab-case. | required |
+| `--resource` | The example resource, kebab-case plural. Use a real resource of the project if one is known. | `tasks` |
+| `--singular`, `--plural` | Its labels, when the derived ones read wrong (`Work order`). | derived |
+| `--api-dir` | Where the API source lives. | `apps/api/src` |
+| `--shared-dir` | Where the shared contract lives. | `packages/shared/src` |
+| `--pm` | `npm`, `pnpm`, `yarn` or `bun`: used in scripts and in generated-file headers. | `npm` |
+
+Fixed by the templates: TypeScript, zod for the contract, vitest for tests, and no
+HTTP or database library — routes are plain objects and the store is in memory
+behind an interface. Step 4 says where each of those is swapped.
+
+## 2. Scaffold
+
+```bash
+node <this-skill>/scripts/scaffold.mjs --out <dir> --name <name> [flags]
+```
+
+The script needs only Node 20.11+. It refuses a non-empty folder, an invalid name
+or a folder outside the project, and writes nothing in that case.
+
+## 3. Prove it before saying it works
+
+Run these in the new project and read the output. Do not report success from the
+scaffold step alone.
+
+```bash
+<pm> install
+<pm> run generate        # writes the contract, the per-resource API code and the action registry
+<pm> run test            # generator tests + tests of the generated code through the app
+<pm> run typecheck       # declarations, generators, runtime and generated code together
+<pm> run check:generated # committed generated files match the manifests
+```
+
+`test` and `typecheck` generate first, because most generated output is gitignored.
+
+## 4. Fit it to the project
+
+Make each of these changes in the generator or the declarations, never in generated
+output:
+
+- **Real fields.** Edit `generators/resources/<name>.ts`. The format is
+  `generators/resource.ts`; the loader refuses anything it does not define.
+- **A real datastore.** `generators/scripts/api/resources/store.ts` renders the
+  `IStore` interface and its in-memory implementation. Render a second
+  implementation there; the service depends only on the interface.
+- **An HTTP framework.** Generated routers export framework-free route objects.
+  Adapt them once, in the hand-written `http/app.ts`.
+- **A new field type.** Add it to `resource.ts`, the declaration schema,
+  `shared/zod.ts` and a test, in one change.
+- **Workspaces.** The API and shared folders are already separate and import each
+  other only through the `@api` and `@shared` aliases, so each can become a package.
+
+## 5. Adding a resource afterwards
+
+The scaffolded `generators/README.md` carries this for the project's own
+contributors. In short:
+
+1. Add `generators/resources/<name>.ts` (file name = `name`, kebab-case plural).
+2. Add the name to the pinned list in
+   `generators/scripts/declarations/resources/load.test.ts`.
+3. Name it in a manifest's `resources`, with the operations that feature uses.
+4. Run generate, test and typecheck.
+5. Add a generated-code test for any rule the declaration states that no existing
+   test covers.
+
+An action is added by declaring it in a manifest and filling in the `handler.ts`
+stub that generation seeds once.
+
+## The rules that make it "generator style"
+
+Keep these true in every change to a scaffolded project:
+
+- Declarations are plain data: they import types and shared value sets, never
+  application code.
+- Every generated file starts with a "Generated by" line naming its command and
+  source. It is never edited by hand.
+- A hand-written file is never overwritten. A stub is seeded once, then left alone.
+- A wholly generated folder is regenerated in full; stale files are deleted.
+- Gitignored output is regenerated before tests and typecheck; committed output has
+  a `--check` mode for CI.
+- The list of declared resources is pinned in a test, so adding or removing one is
+  an explicit decision in the same change.
+- Renderers are pure functions from declarations to text, each with a test beside
+  it. Generated code is also tested by behaviour, through the running application.
+- A resource belongs to no feature: its endpoints are always mounted. A feature
+  owns actions and states which resource operations it uses.

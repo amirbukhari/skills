@@ -1,0 +1,25 @@
+{
+  "name": "__PROJECT__",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "generate": "__PM_RUN__ generate:actions && __PM_RUN__ generate:resources",
+    "generate:actions": "node --import tsx generators/scripts/api/actions/command.ts",
+    "generate:resources": "node --import tsx generators/scripts/api/resources/command.ts",
+    "check:generated": "node --import tsx generators/scripts/api/actions/command.ts --check",
+    "test": "__PM_RUN__ generate && vitest run",
+    "typecheck": "__PM_RUN__ generate && tsc --noEmit",
+    "dev": "__PM_RUN__ generate && node --import tsx __API_DIR__/main.ts"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}
