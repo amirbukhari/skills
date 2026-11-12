@@ -11,7 +11,6 @@ harness** (spec folder as source, generated code as build output).
 | Skill | Purpose |
 | --- | --- |
 | [scrutinize-spec](skills/scrutinize-spec/) | Scores a spec — one document or a whole spec folder acting as source of truth — against a deterministic gate, and loops until it is ready to hand to an AI coding agent. Now also hosts an experimental **spec-driven-dev mode**: the scrutinize gate as the precondition for regenerating code from the spec. Formerly the standalone `PRDScrutinizer` plugin. |
-| [sdd-engine](skills/sdd-engine/) | The English-as-source repo-DSL engine: mines a TypeScript tree into a recursive LZW word dictionary, renders it to `.en`, and compiles back byte-identically. Extracted out of `scrutinize-spec` on 2026-08-31. See `skills/sdd-engine/CLAUDE.md` and `skills/sdd-engine/tools/PRD.md`. |
 
 ## Spotlight: `scrutinize-spec` → spec-driven development
 
