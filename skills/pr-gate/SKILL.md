@@ -84,7 +84,7 @@ Copy `scripts/` to, for example, `tools/pr-gate/` and add a script:
 { "scripts": { "gate": "node tools/pr-gate/pr-gate.mjs" } }
 ```
 
-Then `npm run gate -- origin/main my-branch`.
+Then `npm run gate -- <base> <pr-branch>`.
 
 ## Tests
 
