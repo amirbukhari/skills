@@ -33,9 +33,6 @@ Our internal AI agents automatically load these configuration directories during
 | [subagent-driven-development](skills/subagent-driven-development/) | Splitting implementation across specialised subagents. |
 | [systematic-debugging](skills/systematic-debugging/) | Root-cause tracing and defence-in-depth debugging practice. |
 | [verification-before-completion](skills/verification-before-completion/) | Requires evidence before any claim that work is complete. |
-| [guide-builder](skills/guide-builder/) | Authoring user-facing explainers and guided tours with every selector resolved against real render code, so guide content cannot silently rot. |
-| [video-guide](skills/video-guide/) | Writing, recording and publishing a feature's narrated video guide, with every caption spoken and every step checked against the real screens. |
-| [autocompact](skills/autocompact/) | Viewing or changing Claude Code's auto-compaction window for the active account, with a helper script. |
 | [git-guard](skills/git-guard/) | A Claude Code PreToolUse hook that refuses destructive git forms (reset, stash, force push, `checkout --`, restore, clean, `add -A`, `--no-verify`, branch deletion, `update-ref`) however they are chained or spelled, with an installer for any settings file. |
 | [worktree-reap](skills/worktree-reap/) | Removing linked git worktrees whose work has landed, squash merges included: dry run by default, never forced, with a hook that sweeps after each PR merge. |
 | [pr-gate](skills/pr-gate/) | Gating a pull request by running the whole node:test suite on the base and on the base with the PR merged, and comparing per test. |
