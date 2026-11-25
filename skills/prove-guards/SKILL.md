@@ -10,8 +10,8 @@ plants one violation per guard, runs the guard and expects it to fail, removes
 the violation, runs it again and expects it to pass. Only both together count
 as `PROVEN`.
 
-This repository's `generator-scaffold` skill does not include this step, so it
-is a separate skill. It works with any guard that is a command with an exit
+The `generator-scaffold` skill (in the private-skills repo) does not include
+this step, so it is a separate skill. It works with any guard that is a command with an exit
 code: a test file, a lint run, a script.
 
 ## Declare the proofs
